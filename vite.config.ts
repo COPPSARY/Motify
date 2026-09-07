@@ -16,7 +16,20 @@ export default defineConfig(({ mode }) => {
       },
     ],
     base: process.env.BASE_PATH ?? "/",
-    server: { port: 5173, open: false },
+    server: {
+      port: 5173,
+      open: false,
+      watch: {
+        ignored: [
+          "**/.agents/**",
+          "**/.gemini/**",
+          "**/dist/**",
+          "**/.github/**",
+          "**/artifacts/**",
+          "**/qa/**",
+        ],
+      },
+    },
     build: {
       outDir: "dist",
       sourcemap: true,

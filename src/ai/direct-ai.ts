@@ -1,14 +1,13 @@
-import type { SceneDefinition } from "../composition/types";
+import {
+  analyzeMotionQuality,
+  buildMotionlyUserMessage,
+  buildQualityRepairPrompt,
+  type GeneratedComposition,
+  type GenerationFiles,
+} from "./generation-guidance";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 
-export interface DirectAiResult {
-  title?: string;
-  duration?: number;
-  scenes?: readonly SceneDefinition[];
-  compositionHtml: string;
-  timelineJs: string;
-  reply: string;
-}
+export type DirectAiResult = GeneratedComposition;
 
 export function normalizeGeminiModel(rawModel: string): string {
   let model = rawModel.trim().replace(/^models\//, "");
@@ -17,33 +16,28 @@ export function normalizeGeminiModel(rawModel: string): string {
     model = `gemini-${model}`;
   }
   model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
-  if (!model || model === "gemini-") {
-    model = "gemini-3.5-flash-lite";
-  }
-  return model;
+  return !model || model === "gemini-" ? "gemini-3.5-flash-lite" : model;
 }
 
 export function getClientGeminiApiKey(): string {
   if (typeof window !== "undefined") {
     const customKey = localStorage.getItem("motionly_gemini_api_key");
-    if (customKey && customKey.trim()) return customKey.trim();
+    if (customKey?.trim()) return customKey.trim();
   }
   const env = import.meta.env as Record<string, string | undefined>;
-  const viteKey = env["VITE_GEMINI_API_KEY"] ?? "";
-  return viteKey.trim();
+  return (env["VITE_GEMINI_API_KEY"] ?? "").trim();
 }
 
 export function getClientGeminiModel(): string {
   if (typeof window !== "undefined") {
     const customModel = localStorage.getItem("motionly_gemini_model");
-    if (customModel && customModel.trim()) return customModel.trim();
+    if (customModel?.trim()) return customModel.trim();
   }
   const env = import.meta.env as Record<string, string | undefined>;
-  const viteModel = env["VITE_GEMINI_MODEL"] ?? "";
-  return viteModel.trim() || "gemini-3.5-flash-lite";
+  return (env["VITE_GEMINI_MODEL"] ?? "").trim() || "gemini-3.5-flash-lite";
 }
 
-function parseAiResponseText(rawText: string): DirectAiResult {
+export function parseAiResponseText(rawText: string): DirectAiResult {
   let cleaned = rawText.trim();
   const jsonBlockMatch = /```(?:json)?\s*([\s\S]*?)\s*```/.exec(cleaned);
   if (jsonBlockMatch?.[1]) {
@@ -51,7 +45,7 @@ function parseAiResponseText(rawText: string): DirectAiResult {
   } else {
     const firstBrace = cleaned.indexOf("{");
     const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
       cleaned = cleaned.slice(firstBrace, lastBrace + 1).trim();
     }
   }
@@ -61,10 +55,10 @@ function parseAiResponseText(rawText: string): DirectAiResult {
     parsed = JSON.parse(cleaned) as Partial<DirectAiResult>;
   } catch {
     try {
-      const stripped = cleaned.replace(/,\s*([}\]])/g, "$1");
-      parsed = JSON.parse(stripped) as Partial<DirectAiResult>;
+      parsed = JSON.parse(
+        cleaned.replace(/,\s*([}\]])/g, "$1"),
+      ) as Partial<DirectAiResult>;
     } catch {
-      // Fallback regex extraction
       const titleMatch = /"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
         cleaned,
       );
@@ -80,26 +74,23 @@ function parseAiResponseText(rawText: string): DirectAiResult {
       const replyMatch = /"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
         cleaned,
       );
-
-      function unescapeJsonStr(str: string): string {
-        return str
+      const unescapeJsonString = (value: string): string =>
+        value
           .replace(/\\n/g, "\n")
           .replace(/\\t/g, "\t")
           .replace(/\\"/g, '"')
           .replace(/\\\\/g, "\\");
-      }
 
-      if (htmlMatch?.[1] && jsMatch?.[1]) {
-        parsed = {
-          title: titleMatch?.[1] ?? "AI Generated Video",
-          duration: durationMatch?.[1] ? parseFloat(durationMatch[1]) : 20.0,
-          compositionHtml: unescapeJsonStr(htmlMatch[1]),
-          timelineJs: unescapeJsonStr(jsMatch[1]),
-          reply: replyMatch?.[1] ?? "Updated composition with Motionly AI.",
-        };
-      } else {
+      if (!htmlMatch?.[1] || !jsMatch?.[1]) {
         throw new Error("Failed to parse AI response into valid JSON.");
       }
+      parsed = {
+        title: titleMatch?.[1] ?? "AI Generated Video",
+        duration: durationMatch?.[1] ? parseFloat(durationMatch[1]) : 20,
+        compositionHtml: unescapeJsonString(htmlMatch[1]),
+        timelineJs: unescapeJsonString(jsMatch[1]),
+        reply: replyMatch?.[1] ?? "Updated composition with Motionly AI.",
+      };
     }
   }
 
@@ -113,160 +104,150 @@ function parseAiResponseText(rawText: string): DirectAiResult {
     title: parsed.title,
     duration: parsed.duration,
     scenes: parsed.scenes,
+    direction: parsed.direction,
+    techniques: parsed.techniques,
     compositionHtml: parsed.compositionHtml,
     timelineJs: parsed.timelineJs,
     reply: parsed.reply ?? "I updated your composition.",
   };
 }
 
-export async function generateWithDirectAi(
+interface GeminiResponseBody {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+  }>;
+}
+
+async function requestClientGemini(
+  apiKey: string,
   userPrompt: string,
-  currentFiles: { compositionHtml?: string; timelineJs?: string },
-  onProgress?: (status: string) => void,
+  currentFiles: GenerationFiles,
+  repairAttempt: boolean,
 ): Promise<DirectAiResult> {
-  const clientApiKey = getClientGeminiApiKey();
-
-  // If a client API key is available, call Google Gemini DIRECTLY from the browser!
-  // This bypasses Vercel completely (no 60s timeout, no serverless cold starts, no 504 errors).
-  if (clientApiKey) {
-    const rawModel = getClientGeminiModel();
-    const model = normalizeGeminiModel(rawModel);
-    onProgress?.("Analyzing motion prompt with AI...");
-
-    const hasExistingCode = Boolean(
-      currentFiles.compositionHtml && currentFiles.compositionHtml.length > 50,
-    );
-
-    const choreographyMandate = `
-CRITICAL MOTION CHOREOGRAPHY RULES:
-1. FOCUS ON 1 FOCAL SUBJECT PER BEAT (ZERO SLOP):
-   - Focus on ONE spoken thought or ONE focal subject per beat.
-   - DO NOT create card containers packed with title + subtitle + chips! No random floating pills or badge clutter.
-2. GSAP PRESETS & KINETIC TYPOGRAPHY:
-   - Use built-in Motionly presets directly: wordSlideRotate, charSpringBounce, giantKineticCrop, morph, cameraPush, spring, textReveal.
-   - Editorial statements enter with kinetic zoom (scale: 2.0+ settling to 1.0) or word-by-word spring overshoot bounce (back.out(1.35)).
-3. SHAPE MORPHS & DYNAMIC COLOR THEMES:
-   - Transition boundaries MUST use physical shape morphs (width/height/borderRadius) or match cuts. ZERO opacity fades!
-   - Dynamically shift color themes across beats (e.g. Alabaster light mode to rich brand dark mode) with GSAP on stage and world. Pick striking colors suited to the prompt.
-4. VALID EXECUTABLE CODE:
-   Deliver valid HTML in compositionHtml and valid GSAP in timelineJs with buildTimeline(context).`;
-
-    const userMessage = hasExistingCode
-      ? `User Request: ${userPrompt}
-
-Current composition.html:
-\`\`\`html
-${currentFiles.compositionHtml ?? ""}
-\`\`\`
-
-Current timeline.js:
-\`\`\`javascript
-${currentFiles.timelineJs ?? ""}
-\`\`\`
-
-Please update the composition HTML/CSS and GSAP timeline.js to fulfill the user request according to the Motionly skills and rules.
-${choreographyMandate}`
-      : `User Request: ${userPrompt}
-
-Please create a motion graphics composition to fulfill the user request according to the Motionly skills and rules.
-${choreographyMandate}`;
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${clientApiKey}`;
-
-    const generationConfig: Record<string, unknown> = {
-      response_mime_type: "application/json",
-      temperature: 0.7,
-      maxOutputTokens: 8192,
-    };
-
-    if (model.includes("3.7")) {
-      generationConfig["thinking_config"] = { thinking_budget: 0 };
-    }
-
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: MOTIONLY_SYSTEM_PROMPT }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userMessage }],
-          },
-        ],
-        generationConfig,
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      let msg = `Gemini API error (${response.status})`;
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson?.error?.message) msg = errJson.error.message;
-      } catch {
-        if (errText) msg = errText;
-      }
-      throw new Error(msg);
-    }
-
-    onProgress?.("Parsing and applying composition...");
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    if (!rawText) {
-      throw new Error("Empty response received from Gemini.");
-    }
-
-    return parseAiResponseText(rawText);
+  const model = normalizeGeminiModel(getClientGeminiModel());
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const generationConfig: Record<string, unknown> = {
+    response_mime_type: "application/json",
+    temperature: repairAttempt ? 0.35 : 0.65,
+    maxOutputTokens: 24576,
+  };
+  if (model.includes("3.7")) {
+    generationConfig["thinking_config"] = { thinking_budget: 0 };
   }
 
-  // Fallback: Use backend API route (/api/ai/generate)
-  onProgress?.("Analyzing motion prompt with AI...");
-
-  const response = await fetch("/api/ai/generate", {
+  const imageParts = (currentFiles.assets ?? []).map((asset) => ({
+    inline_data: {
+      mime_type: asset.mimeType,
+      data: asset.dataBase64,
+    },
+  }));
+  const response = await fetch(geminiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      userPrompt,
-      currentFiles,
+      system_instruction: { parts: [{ text: MOTIONLY_SYSTEM_PROMPT }] },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: buildMotionlyUserMessage(userPrompt, currentFiles) },
+            ...imageParts,
+          ],
+        },
+      ],
+      generationConfig,
     }),
   });
 
   if (!response.ok) {
-    let errorMsg = `Server error (${response.status})`;
+    const errorText = await response.text();
+    let message = `Gemini API error (${response.status})`;
     try {
-      const errJson = (await response.json()) as { error?: string };
-      if (errJson.error) errorMsg = errJson.error;
+      const errorBody = JSON.parse(errorText) as {
+        error?: { message?: string };
+      };
+      message = errorBody.error?.message ?? message;
     } catch {
-      // Fallback
+      if (errorText) message = errorText;
     }
-    throw new Error(errorMsg);
+    throw new Error(message);
   }
 
-  onProgress?.("Applying composition and updating live preview...");
-  const data = (await response.json()) as {
-    title?: string;
-    duration?: number;
-    scenes?: readonly SceneDefinition[];
-    compositionHtml?: string;
-    timelineJs?: string;
-    reply?: string;
-  };
+  const data = (await response.json()) as GeminiResponseBody;
+  const rawText = data.candidates?.[0]?.content?.parts?.find(
+    (part) => typeof part.text === "string",
+  )?.text;
+  if (!rawText) throw new Error("Empty response received from Gemini.");
+  return parseAiResponseText(rawText);
+}
 
-  if (!data.compositionHtml || !data.timelineJs) {
-    throw new Error(
-      "AI response was missing compositionHtml or timelineJs code.",
+async function requestBackend(
+  userPrompt: string,
+  currentFiles: GenerationFiles,
+  repairAttempt: boolean,
+): Promise<DirectAiResult> {
+  const response = await fetch("/api/ai/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userPrompt, currentFiles, repairAttempt }),
+  });
+  if (!response.ok) {
+    let message = `Server error (${response.status})`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      message = body.error ?? message;
+    } catch {
+      // Keep the status-based fallback.
+    }
+    throw new Error(message);
+  }
+  return parseAiResponseText(JSON.stringify(await response.json()));
+}
+
+export async function generateWithDirectAi(
+  userPrompt: string,
+  currentFiles: GenerationFiles,
+  onProgress?: (status: string) => void,
+): Promise<DirectAiResult> {
+  const clientApiKey = getClientGeminiApiKey();
+  const request = clientApiKey
+    ? (prompt: string, files: GenerationFiles, repair: boolean) =>
+        requestClientGemini(clientApiKey, prompt, files, repair)
+    : requestBackend;
+
+  onProgress?.(
+    "Planning scenes, spatial regions, and the camera path before animation...",
+  );
+  const first = await request(userPrompt, currentFiles, false);
+  const firstReport = analyzeMotionQuality(first);
+  if (!firstReport.requiresRepair) {
+    onProgress?.("Quality gate passed. Applying composition...");
+    return first;
+  }
+
+  onProgress?.(
+    "Repairing scene composition, camera causality, and continuity...",
+  );
+  try {
+    const repairPrompt = buildQualityRepairPrompt(
+      userPrompt,
+      first,
+      firstReport,
     );
+    const repaired = await request(
+      repairPrompt,
+      {
+        ...currentFiles,
+        compositionHtml: first.compositionHtml,
+        timelineJs: first.timelineJs,
+      },
+      true,
+    );
+    const repairedReport = analyzeMotionQuality(repaired);
+    return repairedReport.score >= firstReport.score ? repaired : first;
+  } catch {
+    // A usable first generation is better than failing the whole request because
+    // the optional quality-repair pass was unavailable.
+    return first;
   }
-
-  return {
-    title: data.title,
-    duration: data.duration,
-    scenes: data.scenes,
-    compositionHtml: data.compositionHtml,
-    timelineJs: data.timelineJs,
-    reply: data.reply ?? "I updated your composition.",
-  };
 }

@@ -1,0 +1,885 @@
+<template id="notes-preset-template">
+  <style>
+    .notes-film {
+      --paper: #f7f7f2;
+      --ink: #171719;
+      --muted: #77777d;
+      --line: rgba(28, 28, 30, 0.09);
+      --yellow: #ffd60a;
+      --amber: #ff9f0a;
+      --blue: #0071e3;
+      --green: #30d158;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--paper);
+      color: var(--ink);
+      font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Display",
+        system-ui,
+        sans-serif;
+      perspective: 1400px;
+    }
+    .notes-film *,
+    .notes-film *::before,
+    .notes-film *::after {
+      box-sizing: border-box;
+    }
+    .notes-paper-field {
+      position: absolute;
+      inset: -120px;
+      background:
+        radial-gradient(
+          circle at 80% 20%,
+          rgba(255, 214, 10, 0.16),
+          transparent 32%
+        ),
+        radial-gradient(
+          circle at 15% 80%,
+          rgba(0, 113, 227, 0.09),
+          transparent 35%
+        ),
+        repeating-linear-gradient(
+          0deg,
+          transparent 0 47px,
+          rgba(28, 28, 30, 0.04) 47px 48px
+        ),
+        var(--paper);
+      transform-origin: 50% 50%;
+    }
+    .notes-camera-world {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: 50% 50%;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    /* Strict layer segregation: Non-intro stages are hidden by default in CSS */
+    .notes-stage {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      place-items: center;
+      pointer-events: none;
+      transform-origin: 50% 50%;
+      opacity: 0;
+    }
+    .notes-stage-intro {
+      display: grid;
+      opacity: 1;
+    }
+
+    /* Editorial Typography Lockup (Claude-inspired, Centered, Impactful) */
+    .notes-editorial-lockup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: auto;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+    .notes-brand-mark {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 14px 34px rgba(255, 159, 10, 0.32);
+      margin-bottom: 24px;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+    .notes-brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .notes-editorial-prefix {
+      font-size: 64px;
+      line-height: 1.1;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+    }
+    .notes-editorial-highlight-box {
+      display: inline-block;
+      overflow: hidden;
+      vertical-align: baseline;
+      padding: 4px 12px;
+      margin-top: 6px;
+    }
+    .notes-editorial-highlight {
+      display: inline-block;
+      font-size: 68px;
+      line-height: 1.1;
+      font-weight: 750;
+      letter-spacing: -0.04em;
+      color: #c25e00; /* Deep rich Apple Notes amber/cognac for high contrast on paper */
+      text-shadow: 0 4px 24px rgba(194, 94, 0, 0.22);
+    }
+    .notes-editorial-highlight.amber {
+      color: #c25e00;
+      text-shadow: 0 4px 24px rgba(194, 94, 0, 0.22);
+    }
+    .notes-editorial-highlight.blue {
+      color: #0071e3;
+      text-shadow: 0 4px 24px rgba(0, 113, 227, 0.22);
+    }
+
+    /* Blue ink signature underline */
+    .notes-scribble-svg {
+      position: absolute;
+      width: 760px;
+      height: 180px;
+      top: 680px;
+      overflow: visible;
+    }
+    .notes-scribble-path {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 8;
+      stroke-linecap: round;
+      filter: drop-shadow(0 6px 14px rgba(0, 113, 227, 0.28));
+    }
+
+    /* Scene 2: Scattered Inputs & Capture Carrier */
+    .notes-fragment-deck {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: grid;
+      place-items: center;
+      transform-style: preserve-3d;
+    }
+    .notes-glass-card {
+      position: absolute;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow:
+        0 24px 60px rgba(25, 25, 28, 0.12),
+        inset 0 1px 0 white;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .notes-fragment-safari {
+      left: 180px;
+      top: 360px;
+      width: 410px;
+      min-height: 110px;
+      border-radius: 26px;
+      padding: 22px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .notes-safari-icon {
+      flex: 0 0 52px;
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 700;
+      font-size: 22px;
+      background: linear-gradient(145deg, #62c9ff, #0877ed);
+      box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25);
+    }
+    .notes-fragment-safari strong,
+    .notes-fragment-voice strong {
+      display: block;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .notes-fragment-safari span,
+    .notes-fragment-voice span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .notes-fragment-voice {
+      right: 180px;
+      top: 360px;
+      width: 410px;
+      min-height: 120px;
+      border-radius: 26px;
+      padding: 22px 26px;
+    }
+    .notes-voice-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .notes-record-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff453a;
+      box-shadow: 0 0 0 6px rgba(255, 69, 58, 0.15);
+    }
+    .notes-voice-wave {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .notes-wave-bar {
+      width: 5px;
+      height: var(--h);
+      border-radius: 6px;
+      background: linear-gradient(180deg, #ff6961, #ff375f);
+      transform-origin: 50% 50%;
+    }
+
+    .notes-photo-card {
+      position: absolute;
+      left: 260px;
+      bottom: 110px;
+      width: 320px;
+      height: 240px;
+      padding: 14px 14px 36px;
+      border-radius: 24px;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 24px 60px rgba(25, 25, 28, 0.12);
+      transform-origin: 50% 50%;
+    }
+    .notes-sketch-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      background: #fafaf6;
+      border: 1px dashed rgba(28, 28, 30, 0.12);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .notes-sketch-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .notes-sketch-pill {
+      font-size: 11px;
+      font-weight: 750;
+      color: #c25e00;
+      background: rgba(255, 159, 10, 0.16);
+      padding: 2px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .notes-sketch-time {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .notes-sketch-canvas {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .notes-sketch-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .notes-photo-card span.notes-photo-caption {
+      position: absolute;
+      left: 18px;
+      bottom: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    /* Central Carrier Card: Beautiful Apple Quick Note draft that MORPHS into the app shell */
+    .notes-capture-carrier {
+      position: absolute;
+      width: 480px;
+      height: 300px;
+      border-radius: 28px;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow:
+        0 30px 80px rgba(25, 25, 28, 0.18),
+        0 4px 14px rgba(0, 0, 0, 0.06);
+      padding: 24px 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      transform-origin: 50% 50%;
+    }
+    .notes-carrier-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .notes-carrier-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .notes-carrier-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .notes-carrier-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #171719;
+    }
+    .notes-carrier-pill {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: #fff0a8;
+      color: #6b5300;
+    }
+    .notes-carrier-body {
+      padding-top: 16px;
+      flex: 1;
+    }
+    .notes-carrier-note-title {
+      font-size: 22px;
+      font-weight: 750;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+    .notes-carrier-note-snippet {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .notes-carrier-check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333336;
+    }
+    .notes-carrier-check-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--yellow);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      color: #5d4900;
+      font-weight: 800;
+    }
+
+    /* Scene 3: Apple Notes App Shell */
+    .notes-app-shell {
+      position: absolute;
+      width: 1640px;
+      height: 880px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 68px 1fr;
+      border-radius: 32px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: #ffffff;
+      box-shadow:
+        0 54px 140px rgba(22, 22, 25, 0.22),
+        0 4px 16px rgba(0, 0, 0, 0.08);
+      transform-origin: 50% 50%;
+      will-change: transform, width, height, border-radius;
+    }
+    .notes-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 24px;
+      background: rgba(246, 246, 243, 0.96);
+      border-bottom: 1px solid var(--line);
+    }
+    .notes-traffic {
+      display: flex;
+      gap: 9px;
+      margin-right: 18px;
+    }
+    .notes-traffic i {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: block;
+    }
+    .notes-traffic i:nth-child(1) { background: #ff5f57; }
+    .notes-traffic i:nth-child(2) { background: #febc2e; }
+    .notes-traffic i:nth-child(3) { background: #28c840; }
+
+    .notes-tool-button {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      color: #5b5b60;
+      background: rgba(0, 0, 0, 0.045);
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .notes-toolbar-title {
+      flex: 1;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .notes-new-note {
+      color: #6b5300;
+      background: rgba(255, 214, 10, 0.28);
+    }
+
+    .notes-app-body {
+      display: grid;
+      grid-template-columns: 270px 370px 1fr;
+      min-height: 0;
+    }
+    .notes-sidebar {
+      padding: 24px 16px;
+      background: #f1f0eb;
+      border-right: 1px solid var(--line);
+    }
+    .notes-sidebar-label {
+      margin: 8px 12px 10px;
+      color: #929296;
+      font-size: 12px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .notes-folder {
+      height: 44px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 11px;
+      color: #535358;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .notes-folder.active {
+      background: #dedbd2;
+      color: #19191b;
+    }
+    .notes-folder-icon {
+      color: #d39c00;
+      font-size: 18px;
+    }
+
+    .notes-list {
+      padding: 16px 12px;
+      background: #f8f7f3;
+      border-right: 1px solid var(--line);
+    }
+    .notes-search {
+      height: 38px;
+      border-radius: 11px;
+      background: #e9e8e3;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      color: #85858a;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .notes-list-item {
+      padding: 16px 16px;
+      border-radius: 14px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px;
+    }
+    .notes-list-item.active {
+      background: #fff0a8;
+      box-shadow: 0 6px 16px rgba(153, 107, 0, 0.08);
+    }
+    .notes-list-item strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 5px;
+      letter-spacing: -0.01em;
+    }
+    .notes-list-item span {
+      color: #77777c;
+      font-size: 13px;
+    }
+
+    .notes-editor {
+      position: relative;
+      padding: 56px 72px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .notes-editor-date {
+      text-align: center;
+      color: #99999e;
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    .notes-editor h2 {
+      margin: 0 0 16px;
+      font-size: 46px;
+      letter-spacing: -0.04em;
+      color: #171719;
+    }
+    .notes-editor p {
+      margin: 0 0 28px;
+      max-width: 700px;
+      color: #55555a;
+      font-size: 19px;
+      line-height: 1.6;
+    }
+    .notes-check-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 16px 0;
+      font-size: 20px;
+      font-weight: 500;
+      color: #222226;
+      transition: color 0.3s;
+    }
+    .notes-check-circle {
+      width: 32px;
+      height: 32px;
+      border: 2px solid #c8c8cd;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .notes-check-circle.complete {
+      background: var(--yellow);
+      border-color: var(--yellow);
+      color: #5d4900;
+    }
+    .notes-check-row.done {
+      color: #99999e;
+      text-decoration: line-through;
+    }
+
+    /* macOS Cursor */
+    .notes-cursor {
+      position: absolute;
+      width: 26px;
+      height: 32px;
+      pointer-events: none;
+      z-index: 50;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+    .notes-cursor svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Scene 4: Synced Devices Ecosystem */
+    .notes-ecosystem-statement {
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+    /* Scene 5: Grand Climax */
+    .notes-climax-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .notes-climax-icon-wrap {
+      width: 180px;
+      height: 180px;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 35px 85px rgba(255, 159, 10, 0.35);
+      margin-bottom: 32px;
+      transform-origin: 50% 50%;
+    }
+    .notes-climax-icon-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .notes-climax-cta {
+      margin-top: 36px;
+      height: 62px;
+      padding: 0 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 31px;
+      background: #171719;
+      color: #ffffff;
+      font-size: 22px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+
+  <main class="notes-film" data-edit="notesFilmRoot">
+    <div class="notes-paper-field" data-edit="notesPaperField"></div>
+    <div class="notes-camera-world" data-edit="notesCameraWorld">
+      
+      <!-- SCENE 1: HOOK (CLAUDE-GRADE CINEMATIC STATEMENT) -->
+      <section class="notes-stage notes-stage-intro" data-edit="notesStageIntro">
+        <div class="notes-editorial-lockup" data-edit="notesIntroTitle">
+          <div class="notes-brand-mark" data-edit="notesBrandMark">
+            <img src="__ASSET_NOTES_LOGO__" alt="Apple Notes" />
+          </div>
+          <div class="notes-editorial-prefix">Every useful idea starts as</div>
+          <div class="notes-editorial-highlight-box">
+            <span class="notes-editorial-highlight">something easy to lose.</span>
+          </div>
+        </div>
+        <svg
+          class="notes-scribble-svg"
+          viewBox="0 0 760 180"
+          data-edit="notesBlueScribble"
+        >
+          <path
+            class="notes-scribble-path"
+            d="M22 92 C110 20 194 154 284 82 C370 14 455 145 535 79 C608 20 670 126 738 62"
+          />
+        </svg>
+      </section>
+
+      <!-- SCENE 2: SCATTERED INPUTS & QUICK NOTE CARRIER -->
+      <section class="notes-stage" data-edit="notesStageFragments">
+        <!-- Scattered Inputs converging to Central Quick Note Carrier -->
+        <div class="notes-fragment-deck" data-edit="notesFragmentDeck">
+          <!-- Safari Tab Card -->
+          <div
+            class="notes-glass-card notes-fragment-safari"
+            data-edit="notesSafariCard"
+          >
+            <div class="notes-safari-icon">⌘</div>
+            <div>
+              <strong>Launch research</strong>
+              <span>12 tabs saved for later</span>
+            </div>
+          </div>
+
+          <!-- Voice Memo Card -->
+          <div
+            class="notes-glass-card notes-fragment-voice"
+            data-edit="notesVoiceCard"
+          >
+            <div class="notes-voice-head">
+              <strong>Voice memo 04</strong>
+              <span class="notes-record-dot"></span>
+            </div>
+            <div class="notes-voice-wave">
+              <i class="notes-wave-bar" style="--h: 14px"></i>
+              <i class="notes-wave-bar" style="--h: 28px"></i>
+              <i class="notes-wave-bar" style="--h: 38px"></i>
+              <i class="notes-wave-bar" style="--h: 22px"></i>
+              <i class="notes-wave-bar" style="--h: 34px"></i>
+              <i class="notes-wave-bar" style="--h: 18px"></i>
+              <i class="notes-wave-bar" style="--h: 26px"></i>
+            </div>
+          </div>
+
+          <!-- Whiteboard Strategy Sketch Card -->
+          <div class="notes-photo-card notes-sketch-card" data-edit="notesPhotoCard1">
+            <div class="notes-sketch-inner">
+              <div class="notes-sketch-header">
+                <span class="notes-sketch-pill">Brainstorm</span>
+                <span class="notes-sketch-time">10:04 AM</span>
+              </div>
+              <div class="notes-sketch-canvas">
+                <svg viewBox="0 0 260 130" fill="none" class="notes-sketch-svg">
+                  <!-- Curved connecting flow paths -->
+                  <path d="M 58 48 C 96 48, 102 88, 142 88" stroke="#ff9f0a" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5 4" />
+                  <path d="M 58 48 C 96 48, 102 24, 142 24" stroke="#0071e3" stroke-width="2.5" stroke-linecap="round" />
+                  
+                  <!-- Node 1: Origin Idea -->
+                  <rect x="8" y="32" width="76" height="32" rx="10" fill="#ffd60a" fill-opacity="0.22" stroke="#ff9f0a" stroke-width="1.8"/>
+                  <circle cx="22" cy="48" r="4" fill="#ff9f0a"/>
+                  <text x="50" y="52" font-size="11" font-weight="700" fill="#1c1c1e" text-anchor="middle" font-family="Inter, system-ui">Core Idea</text>
+                  
+                  <!-- Node 2: Top Target -->
+                  <rect x="142" y="8" width="98" height="32" rx="10" fill="#0071e3" fill-opacity="0.12" stroke="#0071e3" stroke-width="1.8"/>
+                  <circle cx="156" cy="24" r="4" fill="#0071e3"/>
+                  <text x="195" y="28" font-size="11" font-weight="700" fill="#0071e3" text-anchor="middle" font-family="Inter, system-ui">User Story</text>
+                  
+                  <!-- Node 3: Bottom Target -->
+                  <rect x="142" y="72" width="98" height="32" rx="10" fill="#30d158" fill-opacity="0.12" stroke="#30d158" stroke-width="1.8"/>
+                  <circle cx="156" cy="88" r="4" fill="#30d158"/>
+                  <text x="195" y="92" font-size="11" font-weight="700" fill="#248a3d" text-anchor="middle" font-family="Inter, system-ui">Action Plan</text>
+                </svg>
+              </div>
+            </div>
+            <span class="notes-photo-caption">Whiteboard strategy</span>
+          </div>
+
+          <!-- Central Quick Note Card (The Continuous Carrier) -->
+          <div class="notes-capture-carrier" data-edit="notesCaptureCard">
+            <div class="notes-carrier-header">
+              <div class="notes-carrier-icon">
+                <img src="__ASSET_NOTES_LOGO__" alt="Notes" />
+              </div>
+              <span class="notes-carrier-title">Quick Note</span>
+              <span class="notes-carrier-pill">iCloud</span>
+            </div>
+            <div class="notes-carrier-body">
+              <div class="notes-carrier-note-title">Launch week</div>
+              <div class="notes-carrier-note-snippet">Keep the story focused on the moment a scattered thought becomes actionable.</div>
+              <div class="notes-carrier-check-row">
+                <span class="notes-carrier-check-dot">✓</span>
+                <span>Lock the product story</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCENE 3: FULL APPLE NOTES WORKSPACE PROOF -->
+      <section class="notes-stage" data-edit="notesStagePills">
+        <div class="notes-app-shell" data-edit="notesAppShell">
+          <div class="notes-toolbar">
+            <div class="notes-traffic"><i></i><i></i><i></i></div>
+            <div class="notes-tool-button">‹</div>
+            <div class="notes-tool-button">☷</div>
+            <div class="notes-toolbar-title">Notes</div>
+            <div class="notes-tool-button">Aa</div>
+            <div class="notes-tool-button notes-new-note">✎</div>
+          </div>
+          <div class="notes-app-body">
+            <aside class="notes-sidebar">
+              <div class="notes-sidebar-label">iCloud</div>
+              <div class="notes-folder active">
+                <span class="notes-folder-icon">▰</span>All iCloud
+              </div>
+              <div class="notes-folder">
+                <span class="notes-folder-icon">▰</span>Quick Notes
+              </div>
+              <div class="notes-folder">
+                <span class="notes-folder-icon">▰</span>Shared
+              </div>
+              <div class="notes-sidebar-label" style="margin-top: 32px">Tags</div>
+              <div class="notes-folder"># launch</div>
+              <div class="notes-folder"># ideas</div>
+            </aside>
+            <div class="notes-list">
+              <div class="notes-search">⌕&nbsp;&nbsp;Search</div>
+              <div class="notes-list-item active">
+                <strong>Launch week</strong>
+                <span>Today&nbsp;&nbsp; Keep the story focused...</span>
+              </div>
+              <div class="notes-list-item">
+                <strong>Product principles</strong>
+                <span>Yesterday&nbsp;&nbsp; Calm, clear, useful</span>
+              </div>
+              <div class="notes-list-item">
+                <strong>Customer calls</strong>
+                <span>Friday&nbsp;&nbsp; Three recurring themes</span>
+              </div>
+            </div>
+            <article class="notes-editor">
+              <div class="notes-editor-date">7 September 2026 at 10:14</div>
+              <h2>Launch week</h2>
+              <p>
+                Keep the story focused on the moment a scattered thought becomes
+                something the whole team can act on.
+              </p>
+              <div class="notes-check-row">
+                <span class="notes-check-circle complete">✓</span>
+                <span>Lock the product story</span>
+              </div>
+              <div class="notes-check-row" data-edit="notesCheckRow2">
+                <span class="notes-check-circle" data-edit="notesCheckmarkIcon">✓</span>
+                <span data-edit="notesCheckText2">Record the walkthrough</span>
+              </div>
+              <div class="notes-check-row">
+                <span class="notes-check-circle"></span>
+                <span>Share with the team</span>
+              </div>
+            </article>
+          </div>
+
+          <!-- macOS Cursor -->
+          <div class="notes-cursor" data-edit="notesCursor">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5.5 3.5L18.5 13.5L12.5 14.5L10 20.5L7.5 19.5L10 13.5L5.5 3.5Z"
+                fill="#171719"
+                stroke="#ffffff"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCENE 4: ECOSYSTEM SYNC -->
+      <section class="notes-stage" data-edit="notesStageEcosystem">
+        <div
+          class="notes-editorial-lockup notes-ecosystem-statement"
+          data-edit="notesEcosystemStatement"
+        >
+          <div class="notes-editorial-prefix">Write once,</div>
+          <div class="notes-editorial-highlight-box">
+            <span class="notes-editorial-highlight amber">available everywhere.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCENE 5: GRAND CLIMAX -->
+      <section class="notes-stage" data-edit="notesStageClimax">
+        <div class="notes-climax-stage">
+          <div class="notes-climax-icon-wrap" data-edit="notesClimaxIcon">
+            <img src="__ASSET_NOTES_LOGO__" alt="Apple Notes" />
+          </div>
+          <div class="notes-editorial-lockup notes-climax-title" data-edit="notesClimaxTitle">
+            <div class="notes-editorial-prefix">Everything worth keeping,</div>
+            <div class="notes-editorial-highlight-box">
+              <span class="notes-editorial-highlight amber">in one place.</span>
+            </div>
+          </div>
+          <div class="notes-climax-cta" data-edit="notesClimaxTagline">
+            Open Notes
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</template>

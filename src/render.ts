@@ -1,6 +1,6 @@
 import "@fontsource-variable/inter";
 import { CompositionRuntime } from "./composition/runtime";
-import { motionlyPromoPreset as demoComposition } from "./compositions/presets";
+import { kiriTtsPreset as demoComposition } from "./compositions/presets";
 
 interface MotionlyRenderBridge {
   metadata: {

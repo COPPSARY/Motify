@@ -41,6 +41,7 @@ describe("GSAP-first motion presets", () => {
       "staggerExit",
       "stepSurgeCounter",
       "textReveal",
+      "waterfallTextReveal",
       "wordSlideRotate",
       "zoomThrough",
     ]);

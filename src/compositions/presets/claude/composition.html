@@ -1,0 +1,2215 @@
+<template id="claude-preset-template">
+  <style>
+    .cl-film {
+      --bg-dark: #0a0807;
+      --bg-box: rgba(28, 24, 22, 0.92);
+      --border-box: rgba(255, 255, 255, 0.11);
+      --terracotta: #e0683b;
+      --terracotta-dark: #c1552a;
+      --terracotta-glow: rgba(224, 104, 59, 0.45);
+      --cyan-glow: rgba(80, 185, 210, 0.35);
+      --cyan-border: rgba(85, 190, 215, 0.38);
+      --text-main: #f5efe8;
+      --text-muted: #8e847c;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      perspective: 1400px;
+    }
+
+    .cl-film *,
+    .cl-film *::before,
+    .cl-film *::after {
+      box-sizing: border-box;
+    }
+
+    /* Spatial Camera Rig (2D/3D GPU acceleration for crystal-clear vector sharpness) */
+    .cl-camera-world {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      will-change: transform;
+      transform-origin: 50% 50%;
+      transform-style: preserve-3d;
+      z-index: 2;
+    }
+
+    /* Ambient Warm Terracotta Glow (Inside Camera World so it scales optically) */
+    .cl-ambient-glow {
+      position: absolute;
+      top: -15%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1300px;
+      height: 800px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse 65% 50% at 50% 35%, rgba(215, 88, 38, 0.44) 0%, rgba(135, 45, 14, 0.22) 50%, rgba(10, 8, 7, 0) 80%);
+      filter: blur(45px);
+      pointer-events: none;
+      z-index: 1;
+      will-change: transform, opacity;
+    }
+
+    /* ============================================================
+       AUTHENTIC CLAUDE SIDEBAR (Screenshot Reference 3)
+       ============================================================ */
+    .cl-sidebar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 260px;
+      background: #171513;
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 6px 0 25px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 14px 14px 14px;
+      z-index: 25;
+      pointer-events: none;
+      will-change: transform, opacity;
+      font-size: 14px;
+    }
+
+    .cl-sidebar::before {
+      content: "";
+      position: absolute;
+      left: -2000px;
+      right: 0;
+      top: -2000px;
+      bottom: -2000px;
+      background: #171513;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Connected Plain UI Canvas / Application Workspace (Act 2 - Distinguishable Warm Workspace) */
+    .cl-connected-canvas {
+      position: absolute;
+      left: 260px;
+      top: -2000px;
+      bottom: -2000px;
+      right: -2000px;
+      background: #24201d;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      display: none;
+      will-change: opacity;
+    }
+
+    .cl-connected-header {
+      position: absolute;
+      top: 2000px;
+      left: 0;
+      right: 2000px;
+      height: 52px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      background: rgba(33, 29, 26, 0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    }
+
+    .cl-connected-model-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 13px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      font-size: 13.5px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .cl-sidebar-top {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cl-sidebar-brand {
+      font-family: "Tiempos Headline", "Iowan Old Style", "Cormorant Garamond", Georgia, serif;
+      font-size: 25px;
+      font-weight: 500;
+      color: #ffffff;
+      margin: 0 0 2px 4px;
+      letter-spacing: -0.01em;
+      will-change: transform, opacity;
+    }
+
+    .cl-btn-new-chat {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      height: 38px;
+      padding: 0 12px;
+      color: #ffffff;
+      font-size: 14.5px;
+      font-weight: 500;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      will-change: transform, background-color, border-color, opacity;
+    }
+
+    .cl-sidebar-nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 4px;
+    }
+
+    .cl-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 32px;
+      padding: 0 8px;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 13.5px;
+      font-weight: 450;
+      will-change: transform, opacity, background-color;
+    }
+
+    .cl-nav-item svg {
+      width: 17px;
+      height: 17px;
+      color: rgba(255, 255, 255, 0.6);
+      flex-shrink: 0;
+    }
+
+    .cl-badge-upgrade {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: #58a6ff;
+      background: rgba(56, 139, 253, 0.15);
+      border: 1px solid rgba(56, 139, 253, 0.3);
+      border-radius: 12px;
+      padding: 1px 7px;
+    }
+
+    .cl-sidebar-section {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      will-change: transform, opacity;
+    }
+
+    .cl-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.42);
+      padding: 0 8px;
+      margin-bottom: 2px;
+    }
+
+    .cl-pin-note {
+      font-size: 12.5px;
+      color: rgba(255, 255, 255, 0.32);
+      padding: 4px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cl-chat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cl-chat-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      will-change: transform, opacity, background-color;
+    }
+
+    .cl-chat-bullet {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      flex-shrink: 0;
+    }
+
+    .cl-sidebar-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 10px;
+      will-change: transform, opacity;
+    }
+
+    .cl-user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 6px;
+    }
+
+    .cl-avatar-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #2a2622;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .cl-user-name {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .cl-user-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Shared Stage Container */
+    .cl-stage {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transform-origin: 50% 50%;
+    }
+
+    /* Workspace Content */
+    .cl-workspace {
+      position: relative;
+      width: 980px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    /* ============================================================
+       ACT 1: INITIAL HOME VIEW (Greeting + Big Prompt Box with Ramen Dock)
+       ============================================================ */
+    .cl-home-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      width: 100%;
+      will-change: transform, opacity;
+    }
+
+    /* Header & Greeting */
+    .cl-header-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      will-change: transform, opacity;
+    }
+
+    .cl-greeting-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cl-spark-icon {
+      width: 32px;
+      height: 32px;
+      color: var(--terracotta);
+      flex-shrink: 0;
+      will-change: transform, opacity;
+    }
+
+    .cl-greeting {
+      font-family: "Tiempos Headline", "Iowan Old Style", "Cormorant Garamond", Georgia, serif;
+      font-size: 46px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: #f7f3ed;
+      margin: 0;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      will-change: transform, opacity;
+    }
+
+    /* Big Claude Prompt Box (Elevated, clearly distinguishable card) */
+    .cl-prompt-box {
+      position: relative;
+      width: 880px;
+      min-height: 210px;
+      border-radius: 22px;
+      background: #2b2622;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 2px 12px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.14);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 22px 24px 18px 24px;
+      transform-style: preserve-3d;
+      will-change: transform, opacity;
+    }
+
+    /* Continuous Traveling Border Light Beam (No disappearing, slow steady trace) */
+    .cl-border-beam-svg {
+      position: absolute;
+      inset: -1.5px;
+      width: calc(100% + 3px);
+      height: calc(100% + 3px);
+      pointer-events: none;
+      z-index: 10;
+      border-radius: 22px;
+      overflow: visible;
+      opacity: 0.5;
+    }
+
+    .cl-border-beam-rect {
+      fill: none;
+      stroke: url(#borderBeamGradient);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-dasharray: 380 1764;
+      stroke-dashoffset: 0;
+      filter:
+        drop-shadow(0 0 4px rgba(224, 104, 59, 0.9)) drop-shadow(0 0 12px rgba(224, 104, 59, 0.45));
+      opacity: 0;
+      will-change: stroke-dashoffset, opacity;
+    }
+
+    /* Prompt Box Top Tabs */
+    .cl-prompt-top-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .cl-tab-pill {
+      padding: 3px 10px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.45);
+      background: transparent;
+    }
+
+    .cl-tab-pill.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    /* Upper Content Area: Text / Typing + Attached Chip */
+    .cl-prompt-content {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    /* Attached Image (Big rounded thumbnail, clean solid background) */
+    .cl-attached-chip {
+      position: relative;
+      display: inline-flex;
+      width: 72px;
+      height: 72px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #1e1b18;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+      opacity: 0;
+      align-self: flex-start;
+      will-change: transform, opacity;
+    }
+
+    .cl-chip-thumb {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cl-chip-close {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.75);
+      color: rgba(255, 255, 255, 0.85);
+      border: none;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    /* Input text & placeholder */
+    .cl-input-area {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      width: 100%;
+    }
+
+    .cl-placeholder {
+      color: var(--text-muted);
+      font-size: 19px;
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      letter-spacing: -0.01em;
+      will-change: opacity;
+    }
+
+    .cl-typed-text {
+      font-size: 20px;
+      color: var(--text-main);
+      font-weight: 400;
+      white-space: pre;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    /* Natural Caret Cursor (Always immediately touches text, 0px gap, matches 20px font height) */
+    .cl-caret {
+      display: inline-block;
+      width: 2px;
+      height: 18px;
+      background: #ffffff;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.85);
+      margin-left: 1px;
+      vertical-align: -2px;
+      opacity: 0;
+      flex-shrink: 0;
+      border-radius: 1px;
+    }
+
+    /* Bottom Controls Row */
+    .cl-prompt-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+
+    .cl-bottom-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    .cl-btn-add {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.65);
+      display: grid;
+      place-items: center;
+      border: none;
+      cursor: pointer;
+      will-change: transform;
+    }
+
+    /* Plus Dropdown Menu (Screenshot Reference 5 - Distinguished Elevated Card) */
+    .cl-plus-dropdown {
+      position: absolute;
+      bottom: 46px;
+      left: 0;
+      width: 250px;
+      background: #2b2622;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 2px 10px rgba(0, 0, 0, 0.4);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    .cl-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 450;
+      color: rgba(255, 255, 255, 0.82);
+      border: 1px solid transparent;
+      background: transparent;
+      will-change: transform, background-color, border-color, box-shadow;
+    }
+
+    .cl-dropdown-item svg {
+      width: 17px;
+      height: 17px;
+      color: rgba(255, 255, 255, 0.65);
+      flex-shrink: 0;
+    }
+
+    .cl-dropdown-item.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border: 1px solid transparent;
+    }
+
+    .cl-dropdown-shortcut {
+      margin-left: auto;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    .cl-dropdown-arrow {
+      margin-left: auto;
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    .cl-dropdown-check {
+      margin-left: auto;
+      color: #58a6ff;
+    }
+
+    .cl-bottom-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cl-model-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 15px;
+      font-weight: 400;
+    }
+
+    .cl-image-mode-chip {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: rgba(224, 104, 59, 0.22);
+      border: 1px solid rgba(224, 104, 59, 0.55);
+      border-radius: 8px;
+      padding: 3px 9px;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transform: scale(0.6);
+      box-shadow: 0 0 16px rgba(224, 104, 59, 0.35);
+      will-change: transform, opacity;
+    }
+
+    .cl-image-mode-chip svg {
+      width: 14px;
+      height: 14px;
+      color: var(--terracotta);
+    }
+
+    .cl-btn-send {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--terracotta);
+      color: #ffffff;
+      display: grid;
+      place-items: center;
+      border: none;
+      box-shadow: 0 4px 16px var(--terracotta-glow);
+      cursor: pointer;
+      will-change: transform;
+    }
+
+    /* ============================================================
+       ACT 1: CLAUDE CALORIE & NUTRITION REPLY VIEW (Screenshot Reference 4)
+       ============================================================ */
+    .cl-reply-thread {
+      width: 880px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      will-change: transform, opacity;
+    }
+
+    /* User Message Bubble */
+    .cl-user-message-row {
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+
+    .cl-user-message-pill {
+      background: rgba(45, 38, 34, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 12px 22px;
+      color: #f7f3ed;
+      font-size: 17px;
+      font-weight: 450;
+      max-width: 580px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      letter-spacing: -0.01em;
+      will-change: transform, opacity;
+    }
+
+    /* Claude Streaming Response Container */
+    .cl-claude-response {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .cl-response-text {
+      font-family: "Tiempos Headline", "Iowan Old Style", "Cormorant Garamond", Georgia, serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: #f7f3ed;
+      margin: 0;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+      will-change: transform, opacity;
+    }
+
+    /* Calorie Artifact Card */
+    .cl-artifact-card {
+      width: 100%;
+      background: rgba(224, 152, 59, 0.18);
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      will-change: transform, opacity;
+    }
+
+    .cl-artifact-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cl-artifact-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #eaf8fc;
+      letter-spacing: -0.01em;
+    }
+
+    .cl-artifact-subtitle {
+      font-size: 13.5px;
+      color: rgba(180, 225, 240, 0.65);
+    }
+
+    .cl-artifact-thumbnail {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(224, 152, 59, 0.18);
+      display: grid;
+      place-items: center;
+      color: #ff9900;
+      flex-shrink: 0;
+    }
+
+    .cl-artifact-thumbnail svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* Expanded Calorie Breakdown Lines */
+    .cl-calorie-breakdown-details {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 18px;
+      background: rgba(22, 19, 17, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      width: 100%;
+      will-change: transform, opacity;
+    }
+
+    .cl-detail-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .cl-detail-line .cl-kcal {
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.6);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cl-detail-total {
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .cl-detail-total .cl-kcal-sum {
+      color: var(--terracotta);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .cl-stream-spark-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .cl-stream-spark {
+      width: 20px;
+      height: 20px;
+      color: var(--terracotta);
+      filter: drop-shadow(0 0 10px var(--terracotta-glow));
+    }
+
+    /* Floating Bottom Chat Bar in Response View (Screenshot Reference 4) */
+    .cl-bottom-chat-bar {
+      width: 100%;
+      height: 52px;
+      background: #282320;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      margin-top: 8px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+      will-change: transform, opacity;
+    }
+
+    .cl-bottom-chat-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 15px;
+    }
+
+    .cl-bottom-chat-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .cl-bottom-disclaimer {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.32);
+      text-align: center;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    /* ============================================================
+       ACT 2: CLEAN PROMPT VIEW (NO RAMEN CHIP, PURE FRESH CHAT)
+       ============================================================ */
+    .cl-scene2-prompt-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      will-change: transform, opacity;
+    }
+
+    /* ============================================================
+       ACT 2: IMAGE GENERATION THREAD (Blue Sky)
+       ============================================================ */
+    .cl-image-gen-thread {
+      width: 880px;
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+      will-change: transform, opacity;
+    }
+
+    /* Standalone Thinking State View (Screen Center, Alone in the Dark Void) */
+    .cl-standalone-thinking {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 25;
+      will-change: transform, opacity;
+    }
+
+    .cl-thinking-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(240, 238, 235, 0.98);
+      color: #1a1614;
+      border-radius: 28px;
+      padding: 12px 28px;
+      font-size: 18px;
+      font-weight: 550;
+      letter-spacing: -0.01em;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 35px rgba(255, 255, 255, 0.35);
+      will-change: transform, opacity;
+    }
+
+    .cl-thinking-spark {
+      width: 22px;
+      height: 22px;
+      color: var(--terracotta);
+      filter: drop-shadow(0 0 6px rgba(224, 104, 59, 0.6));
+    }
+
+    /* Generated Blue Sky Image Card */
+    .cl-sky-response {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      width: 100%;
+      will-change: transform, opacity;
+    }
+
+    .cl-sky-card {
+      width: 100%;
+      background: #282320;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 25px 65px rgba(0, 0, 0, 0.75), 0 0 35px rgba(224, 104, 59, 0.18);
+      display: flex;
+      flex-direction: column;
+      will-change: transform, opacity;
+    }
+
+    .cl-sky-media-wrap {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      overflow: hidden;
+      background: #1e1a17;
+    }
+
+    .cl-sky-generating-canvas {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, #29221d 0%, #161311 100%);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    .cl-sky-shimmer-sweep {
+      position: absolute;
+      inset: -50%;
+      background: linear-gradient(
+        110deg,
+        transparent 25%,
+        rgba(224, 104, 59, 0.10) 40%,
+        rgba(255, 255, 255, 0.22) 50%,
+        rgba(224, 104, 59, 0.10) 60%,
+        transparent 75%
+      );
+      animation: clShimmerSweep 2.2s infinite linear;
+    }
+
+    @keyframes clShimmerSweep {
+      0% { transform: translateX(-60%); }
+      100% { transform: translateX(60%); }
+    }
+
+    .cl-sky-shimmer-glow {
+      position: absolute;
+      width: 380px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(224, 104, 59, 0.32) 0%, transparent 70%);
+      filter: blur(30px);
+      animation: clPulseGlow 2.4s infinite ease-in-out alternate;
+    }
+
+    @keyframes clPulseGlow {
+      0% { transform: scale(0.85); opacity: 0.5; }
+      100% { transform: scale(1.15); opacity: 0.95; }
+    }
+
+    .cl-sky-img {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      object-fit: cover;
+      display: block;
+      z-index: 2;
+      will-change: opacity, transform;
+    }
+
+    .cl-sky-card-footer {
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(18, 15, 13, 0.98);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .cl-sky-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .cl-sky-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+    }
+
+    .cl-sky-sub {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .cl-claude-msg-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+
+    .cl-claude-msg-spark {
+      width: 22px;
+      height: 22px;
+      color: var(--terracotta);
+      filter: drop-shadow(0 0 8px var(--terracotta-glow));
+      flex-shrink: 0;
+    }
+
+    .cl-claude-msg-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f7f3ed;
+      letter-spacing: -0.01em;
+    }
+
+    .cl-claude-msg-model {
+      font-size: 12.5px;
+      color: rgba(255, 255, 255, 0.45);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 2px 7px;
+    }
+
+    /* ============================================================
+       SCENE 3: CLAUDE MOBILE SHOWCASE (Hyperframes Claude Mobile)
+       ============================================================ */
+    .cl-mobile-showcase {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    .cl-mobile-device {
+      position: relative;
+      width: 375px;
+      height: 740px;
+      border-radius: 50px;
+      background: #0f0d0c;
+      border: 4px solid rgba(255, 255, 255, 0.16);
+      box-shadow:
+        0 40px 100px rgba(0, 0, 0, 0.95),
+        0 0 60px rgba(224, 104, 59, 0.22),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+      will-change: transform, opacity;
+    }
+
+    .cl-phone-screen {
+      position: absolute;
+      inset: 0;
+      border-radius: 46px;
+      overflow: hidden;
+      background: #191614;
+      display: flex;
+      flex-direction: column;
+      color: #f7f3ed;
+      isolation: isolate;
+    }
+
+    /* Top Fixed Bar (Status Bar + Header with Solid Background) */
+    .cl-m-top-bar {
+      background: #191614;
+      position: relative;
+      z-index: 20;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    /* Status bar */
+    .cl-m-statusbar {
+      height: 48px;
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      position: relative;
+      z-index: 10;
+    }
+
+    .cl-m-island {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      width: 96px;
+      height: 24px;
+      border-radius: 12px;
+      background: #000000;
+    }
+
+    .cl-m-status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cl-m-net {
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .cl-m-battery {
+      width: 22px;
+      height: 11px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      padding: 1px;
+      display: flex;
+    }
+
+    .cl-m-battery-fill {
+      width: 80%;
+      height: 100%;
+      background: #ffffff;
+      border-radius: 1.5px;
+    }
+
+    /* App Header */
+    .cl-m-header {
+      height: 44px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .cl-m-icon-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      display: grid;
+      place-items: center;
+    }
+
+    .cl-m-header-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: "Tiempos Headline", "Iowan Old Style", Georgia, serif;
+      font-size: 19px;
+      font-weight: 500;
+      color: #ffffff;
+    }
+
+    .cl-m-header-spark {
+      width: 17px;
+      height: 17px;
+      color: var(--terracotta);
+    }
+
+    .cl-m-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      display: grid;
+      place-items: center;
+    }
+
+    /* Thread content */
+    .cl-m-thread {
+      flex: 1;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .cl-m-user-row {
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+
+    .cl-m-user-pill {
+      background: rgba(45, 38, 34, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 8px 14px;
+      font-size: 13.5px;
+      color: #f7f3ed;
+      max-width: 80%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .cl-m-thinking-row {
+      display: flex;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .cl-m-thinking-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(240, 238, 235, 0.96);
+      color: #1a1614;
+      border-radius: 16px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .cl-m-spark-spin {
+      width: 14px;
+      height: 14px;
+      color: var(--terracotta);
+    }
+
+    .cl-m-card {
+      width: 100%;
+      background: #24201d;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cl-m-img {
+      width: 100%;
+      height: 185px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cl-m-card-footer {
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(18, 15, 13, 0.98);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .cl-m-card-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cl-m-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .cl-m-card-sub {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .cl-m-download-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+    }
+
+    /* Bottom composer */
+    .cl-m-composer {
+      padding: 8px 14px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: #191614;
+      position: relative;
+      z-index: 20;
+      flex-shrink: 0;
+    }
+
+    .cl-m-comp-box {
+      width: 100%;
+      height: 44px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      padding: 0 8px 0 12px;
+      gap: 8px;
+      position: relative;
+    }
+
+    .cl-m-comp-plus {
+      width: 24px;
+      height: 24px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.12);
+      border: none;
+      color: #ffffff;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+
+    .cl-m-comp-input-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      height: 24px;
+    }
+
+    .cl-m-comp-text {
+      font-size: 13.5px;
+      color: rgba(255, 255, 255, 0.38);
+      position: absolute;
+      left: 0;
+      white-space: nowrap;
+    }
+
+    .cl-m-comp-typed {
+      font-size: 13.5px;
+      color: #f7f3ed;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .cl-m-comp-caret {
+      display: inline-block;
+      width: 2px;
+      height: 15px;
+      background: var(--terracotta);
+      margin-left: 2px;
+      opacity: 0;
+      vertical-align: -2px;
+    }
+
+    .cl-m-comp-icons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .cl-m-comp-send {
+      width: 28px;
+      height: 28px;
+      border-radius: 14px;
+      background: var(--terracotta);
+      display: grid;
+      place-items: center;
+    }
+
+    .cl-m-home-bar {
+      width: 120px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    /* ============================================================
+       CLIMAX SEQUENCE: "Claude is everywhere."
+       ============================================================ */
+    .cl-climax-sequence {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 40;
+      will-change: transform, opacity;
+    }
+
+    .cl-climax-content {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+
+    .cl-climax-prefix {
+      display: inline-flex;
+      align-items: center;
+      gap: 20px;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+
+    .cl-climax-spark {
+      width: 64px;
+      height: 64px;
+      color: var(--terracotta);
+      filter: drop-shadow(0 0 20px var(--terracotta-glow));
+      flex-shrink: 0;
+    }
+
+    .cl-climax-claude {
+      font-family: "Tiempos Headline", "Iowan Old Style", "Cormorant Garamond", Georgia, serif;
+      font-size: 72px;
+      font-weight: 500;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
+    }
+
+    .cl-climax-is {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
+      font-size: 68px;
+      font-weight: 400;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+
+    .cl-climax-everywhere-box {
+      display: inline-block;
+      overflow: hidden;
+      vertical-align: baseline;
+      padding-top: 4px;
+      padding-bottom: 4px;
+      will-change: transform, opacity;
+    }
+
+    .cl-climax-everywhere {
+      display: inline-block;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
+      font-size: 68px;
+      font-weight: 500;
+      color: #e0683b;
+      letter-spacing: -0.02em;
+      text-shadow: 0 0 40px rgba(224, 104, 59, 0.55), 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ============================================================
+       DRAGGED CLEAN IMAGE & CURSOR
+       ============================================================ */
+    .cl-dragged-image-wrap {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 140px;
+      height: 140px;
+      padding: 0;
+      background: #1e1b18;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+      pointer-events: none;
+      will-change: transform;
+      transform-origin: 0% 0%;
+    }
+
+    .cl-dragged-image-wrap img {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cl-cursor {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 48px;
+      height: 48px;
+      z-index: 60;
+      pointer-events: none;
+      filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+      will-change: transform;
+      transform-origin: 21% 14%;
+    }
+
+    .cl-cursor svg {
+      width: 100%;
+      height: 100%;
+      fill: #ffffff;
+      stroke: #181614;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    .cl-cursor-ripple {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 40;
+    }
+  </style>
+
+  <main class="cl-film" data-edit="claudeFilmRoot">
+    <div class="cl-camera-world" data-edit="claudeCameraWorld">
+      <!-- Ambient Warm Terracotta Glow (Ember Atmosphere - Inside Camera World so it zooms) -->
+      <div class="cl-ambient-glow" data-edit="claudeAmbientGlow"></div>
+
+      <!-- Connected Plain UI Canvas / Application Workspace (Act 2 - Authentic Connected Layout) -->
+      <div class="cl-connected-canvas" data-edit="claudeConnectedCanvas">
+        <div class="cl-connected-header">
+          <div class="cl-connected-model-pill">
+            <span>Claude 3.7 Sonnet</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Authentic Claude Sidebar (Inside Camera World for seamless macro close-up zooms) -->
+      <aside class="cl-sidebar" data-edit="claudeSidebar">
+        <div class="cl-sidebar-top">
+          <h1 class="cl-sidebar-brand">Claude</h1>
+          <div class="cl-btn-new-chat" data-edit="claudeSideBtnNew">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>New</span>
+          </div>
+
+          <nav class="cl-sidebar-nav-list">
+            <div class="cl-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>Projects</span>
+            </div>
+            <div class="cl-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 2v7.31L4.69 19.46A2 2 0 0 0 6.44 22h11.12a2 2 0 0 0 1.75-2.54L14 9.31V2" />
+              </svg>
+              <span>Artifacts</span>
+            </div>
+            <div class="cl-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              <span>Code</span>
+              <span class="cl-badge-upgrade">Upgrade</span>
+            </div>
+            <div class="cl-nav-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+              <span>Customize</span>
+            </div>
+          </nav>
+
+          <div class="cl-sidebar-section">
+            <div class="cl-section-header">
+              <span>Projects</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
+            <div class="cl-pin-note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="17" x2="12" y2="22" />
+                <path
+                  d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V5a3 3 0 0 0-6 0v5.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24z" />
+              </svg>
+              <span>Pin projects to keep them here</span>
+            </div>
+          </div>
+
+          <div class="cl-sidebar-section">
+            <div class="cl-section-header">
+              <span>Chats and tasks</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+              </svg>
+            </div>
+            <div class="cl-chat-list">
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>GSAP animation prompts for SaaS</span>
+              </div>
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>Video watch request</span></div>
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>Motionly by COPPSARY</span></div>
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>Refocusing internship report
+                  on...</span></div>
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>Writing abstract and
+                  conclusion...</span></div>
+              <div class="cl-chat-item"><span class="cl-chat-bullet"></span><span>Client-side CMS code review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cl-sidebar-bottom">
+          <div class="cl-nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="13.5" cy="6.5" r=".5" />
+              <circle cx="17.5" cy="10.5" r=".5" />
+              <circle cx="8.5" cy="7.5" r=".5" />
+              <circle cx="6.5" cy="12.5" r=".5" />
+              <path
+                d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+            </svg>
+            <span>Design</span>
+          </div>
+          <div class="cl-user-row">
+            <div class="cl-avatar-circle">M</div>
+            <span class="cl-user-name">Motionly</span>
+            <div class="cl-user-actions">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Workspace Stage -->
+      <section class="cl-stage" data-edit="claudeStageWorkspace">
+        <!-- STANDALONE THINKING STATE: Alone in the center of the dark screen! -->
+        <div class="cl-standalone-thinking" data-edit="claudeThinkingRow">
+          <div class="cl-thinking-pill" data-edit="claudeThinkingPill">
+            <svg class="cl-thinking-spark" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b"
+                stroke-width="3.5" stroke-linecap="round" />
+            </svg>
+            <span class="cl-thinking-text" data-edit="claudeThinkingText">Thinking...</span>
+          </div>
+        </div>
+
+        <div class="cl-workspace">
+          <!-- ACT 1: Initial Home View (Greeting + Big Prompt Box with Ramen Dock) -->
+          <div class="cl-home-view" data-edit="claudeHomeView">
+            <!-- Header -->
+            <div class="cl-header-box" data-edit="claudeGreetingBox">
+              <div class="cl-greeting-row">
+                <svg class="cl-spark-icon" data-edit="claudeSparkIcon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b"
+                    stroke-width="3.5" stroke-linecap="round" />
+                </svg>
+                <h1 class="cl-greeting" data-edit="claudeGreeting">Good Morning, Sou</h1>
+              </div>
+            </div>
+
+            <!-- Big Claude Prompt Box (Scene 1) -->
+            <div class="cl-prompt-box" data-edit="claudePromptShell">
+              <!-- Continuous Traveling Border Light Beam -->
+              <svg class="cl-border-beam-svg" viewBox="0 0 880 210" fill="none">
+                <defs>
+                  <linearGradient id="borderBeamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#FFD6C2" />
+                    <stop offset="35%" stop-color="#FF9B6A" />
+                    <stop offset="65%" stop-color="#E0683B" />
+                    <stop offset="100%" stop-color="#FFB08A" />
+                  </linearGradient>
+                </defs>
+                <rect class="cl-border-beam-rect" data-edit="claudeBorderBeamRect" x="1.5" y="-11.5" width="877"
+                  height="235" rx="21" />
+              </svg>
+
+              <!-- Top Tabs -->
+              <div class="cl-prompt-top-tabs">
+                <span class="cl-tab-pill active">Chat</span>
+                <span class="cl-tab-pill">Cowork</span>
+              </div>
+
+              <!-- Upper Content Area: Text / Typing + Attached Chip -->
+              <div class="cl-prompt-content">
+                <!-- Attached Media Card (Docked State - Big image, no file name) -->
+                <div class="cl-attached-chip" data-edit="claudeAttachedChip">
+                  <img class="cl-chip-thumb" src="__ASSET_RAMEN_DISH__" alt="Ramen Dish">
+                  <span class="cl-chip-close">×</span>
+                </div>
+
+                <!-- Input text / placeholder / typing (0px caret gap) -->
+                <div class="cl-input-area">
+                  <span class="cl-placeholder" data-edit="claudePlaceholder">How can I help you today?</span>
+                  <span class="cl-typed-text" data-edit="claudeTypedInput"></span>
+                  <span class="cl-caret" data-edit="claudePromptCaret"></span>
+                </div>
+              </div>
+
+              <!-- Bottom Controls Row -->
+              <div class="cl-prompt-bottom">
+                <div class="cl-bottom-left">
+                  <button class="cl-btn-add" data-edit="claudeBtnAdd">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="cl-bottom-right">
+                  <div class="cl-model-badge" data-edit="claudeModelBadge">
+                    <span>Sonnet 4.6</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                  <button class="cl-btn-send" data-edit="claudeBtnSend">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACT 1: Claude Calorie & Nutrition Reply View (Screenshot Reference 4) -->
+          <div class="cl-reply-thread" data-edit="claudeReplyThread">
+            <!-- Top Right User Message Bubble -->
+            <div class="cl-user-message-row">
+              <div class="cl-user-message-pill" data-edit="claudeUserMessagePill">
+                How many calories are in this ramen meal?
+              </div>
+            </div>
+
+            <!-- Claude Streaming Response -->
+            <div class="cl-claude-response">
+              <!-- Serif Thought Headline -->
+              <h2 class="cl-response-text" data-edit="claudeResponseText">
+                Here's the estimated calorie & nutritional breakdown for this meal.
+              </h2>
+
+              <!-- Interactive Artifact Card -->
+              <div class="cl-artifact-card" data-edit="claudeArtifactCard">
+                <div class="cl-artifact-info">
+                  <span class="cl-artifact-title">Calorie & Nutrition Breakdown</span>
+                  <span class="cl-artifact-subtitle">Interactive artifact · 590 kcal</span>
+                </div>
+                <div class="cl-artifact-thumbnail">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 2c0 4-4 6-4 10a5 5 0 0 0 10 0c0-4-4-6-4-10z" fill="rgba(120, 215, 240, 0.2)" />
+                    <circle cx="12" cy="14" r="2" fill="currentColor" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Expanded Detail Lines (Itemized breakdown) -->
+              <div class="cl-calorie-breakdown-details" data-edit="claudeCalorieDetails">
+                <div class="cl-detail-line"><span>• Instant ramen noodles (1 pack, cooked)</span><span
+                    class="cl-kcal">380 kcal</span></div>
+                <div class="cl-detail-line"><span>• Seasoning tastemaker & broth oil</span><span class="cl-kcal">120
+                    kcal</span></div>
+                <div class="cl-detail-line"><span>• Soft boiled egg & spring onions</span><span class="cl-kcal">90
+                    kcal</span></div>
+                <div class="cl-detail-line cl-detail-total"><span>Total estimated calories</span><span
+                    class="cl-kcal-sum">~590 kcal</span></div>
+              </div>
+
+              <!-- Glowing Terracotta Streaming Spark -->
+              <div class="cl-stream-spark-row">
+                <svg class="cl-stream-spark" data-edit="claudeStreamSpark" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b"
+                    stroke-width="3.5" stroke-linecap="round" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Bottom Floating Input Bar Below Response (Screenshot Reference 4) -->
+            <div class="cl-bottom-chat-bar" data-edit="claudeBottomChatBar1">
+              <div class="cl-bottom-chat-bar-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Write a message...</span>
+              </div>
+              <div class="cl-bottom-chat-bar-right">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                </svg>
+                <span style="font-size: 13px; color: rgba(255,255,255,0.5);">Sonnet 4.6</span>
+              </div>
+            </div>
+            <div class="cl-bottom-disclaimer">Claude is AI and can make mistakes. Please double-check cited sources.
+            </div>
+          </div>
+
+          <!-- ACT 2: FRESH PROMPT VIEW (NO RAMEN CHIP, PURE FRESH CHAT VIEW) -->
+          <div class="cl-scene2-prompt-view" data-edit="claudeScene2PromptView">
+            <div class="cl-prompt-box" data-edit="claudePromptShell2">
+              <!-- Top Tabs -->
+              <div class="cl-prompt-top-tabs">
+                <span class="cl-tab-pill active">Chat</span>
+                <span class="cl-tab-pill">Cowork</span>
+              </div>
+
+              <!-- Upper Content Area: Text / Typing (100% clean, NO ramen chip!) -->
+              <div class="cl-prompt-content">
+                <div class="cl-input-area">
+                  <span class="cl-placeholder" data-edit="claudePlaceholder2">How can I help you today?</span>
+                  <span class="cl-typed-text" data-edit="claudeTypedInput2"></span>
+                  <span class="cl-caret" data-edit="claudePromptCaret2"></span>
+                </div>
+              </div>
+
+              <!-- Bottom Controls Row -->
+              <div class="cl-prompt-bottom">
+                <div class="cl-bottom-left">
+                  <button class="cl-btn-add" data-edit="claudeBtnAdd2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+
+                  <!-- Authentic Claude Plus Dropdown Menu (Screenshot Reference 5) -->
+                  <div class="cl-plus-dropdown" data-edit="claudePlusDropdown">
+                    <div class="cl-dropdown-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                          d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                      </svg>
+                      <span>Add files or photos</span>
+                      <span class="cl-dropdown-shortcut">Ctrl U</span>
+                    </div>
+                    <div class="cl-dropdown-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      <span>Take a screenshot</span>
+                    </div>
+                    <div class="cl-dropdown-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span>Add to project</span>
+                      <span class="cl-dropdown-arrow">›</span>
+                    </div>
+                    <div class="cl-dropdown-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <span>Skills</span>
+                      <span class="cl-dropdown-arrow">›</span>
+                    </div>
+                    <div class="cl-dropdown-item cl-dropdown-create-image" data-edit="claudeDropdownCreateImage">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      <span>Create image</span>
+                    </div>
+                    <div class="cl-dropdown-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path
+                          d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                      </svg>
+                      <span>Web search</span>
+                      <span class="cl-dropdown-check">✓</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="cl-bottom-right">
+                  <div class="cl-image-mode-chip" data-edit="claudeImageModeChip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    <span>Create image</span>
+                  </div>
+                  <div class="cl-model-badge">
+                    <span>Sonnet 4.6</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                  <button class="cl-btn-send" data-edit="claudeBtnSend2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACT 2: Image Generation Chat Thread (Mounted ONLY AFTER thinking completes!) -->
+          <div class="cl-image-gen-thread" data-edit="claudeImageGenThread">
+            <div class="cl-user-message-row">
+              <div class="cl-user-message-pill" data-edit="claudeSkyUserPill">
+                Create an image of a blue sky
+              </div>
+            </div>
+
+            <!-- Claude Image Generation Response (Completed Assistant Block) -->
+            <div class="cl-sky-response" data-edit="claudeSkyResponse">
+              <!-- Authentic Assistant Header: Spark + Claude + Model Badge -->
+              <div class="cl-claude-msg-header" data-edit="claudeMsgHeader">
+                <svg class="cl-claude-msg-spark" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b"
+                    stroke-width="3.5" stroke-linecap="round" />
+                </svg>
+                <span class="cl-claude-msg-name">Claude</span>
+                <span class="cl-claude-msg-model">Sonnet 4.6</span>
+              </div>
+
+              <h2 class="cl-response-text" data-edit="claudeSkyResponseHeadline">
+                Here is a serene, cinematic shot of a vast blue sky with golden sunlight breaking through clouds.
+              </h2>
+              <div class="cl-sky-card" data-edit="claudeSkyCard">
+                <div class="cl-sky-media-wrap">
+                  <!-- Shimmering generation canvas with glowing aura (active living state during synthesis) -->
+                  <div class="cl-sky-generating-canvas">
+                    <div class="cl-sky-shimmer-sweep"></div>
+                    <div class="cl-sky-shimmer-glow"></div>
+                  </div>
+                  <!-- The Final Photorealistic Image (Blooms cleanly over the canvas) -->
+                  <img src="__ASSET_BLUE_SKY__" alt="Vast blue sky with cumulus clouds and sunlight" class="cl-sky-img">
+                </div>
+                <div class="cl-sky-card-footer">
+                  <div class="cl-sky-meta">
+                    <span class="cl-sky-title">Vast Blue Sky · Golden Hour</span>
+                    <span class="cl-sky-sub">Generated · Photorealistic 8K · Claude Image</span>
+                  </div>
+                  <div class="cl-sky-download-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Floating Input Bar Below Response (Screenshot Reference 4) -->
+            <div class="cl-bottom-chat-bar" data-edit="claudeBottomChatBar2">
+              <div class="cl-bottom-chat-bar-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Write a message...</span>
+              </div>
+              <div class="cl-bottom-chat-bar-right">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                </svg>
+                <span style="font-size: 13px; color: rgba(255,255,255,0.5);">Sonnet 4.6</span>
+              </div>
+            </div>
+            <div class="cl-bottom-disclaimer">Claude is AI and can make mistakes. Please double-check cited sources.
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCENE 3: CLAUDE MOBILE SHOWCASE (Hyperframes Claude Mobile) -->
+      <div class="cl-mobile-showcase" data-edit="claudeMobileShowcase">
+        <div class="cl-mobile-device" data-edit="claudeMobileDevice">
+          <div class="cl-phone-screen">
+            <!-- Fixed Top Bar: iOS Status Bar + Claude App Header -->
+            <div class="cl-m-top-bar">
+              <div class="cl-m-statusbar">
+                <span class="cl-m-clock">9:41</span>
+                <div class="cl-m-island"></div>
+                <div class="cl-m-status-icons">
+                  <svg width="14" height="10" viewBox="0 0 17 12" fill="currentColor">
+                    <path d="M1 10h2v2H1zm4-3h2v5H5zm4-3h2v8H9zm4-4h2v12h-2z" />
+                  </svg>
+                  <span class="cl-m-net">5G</span>
+                  <div class="cl-m-battery">
+                    <div class="cl-m-battery-fill"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mobile App Header -->
+              <div class="cl-m-header">
+                <button class="cl-m-icon-btn">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                </button>
+                <div class="cl-m-header-title">
+                  <svg class="cl-m-header-spark" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b" stroke-width="3.5" stroke-linecap="round" />
+                  </svg>
+                  <span>Claude</span>
+                </div>
+                <div class="cl-m-avatar">M</div>
+              </div>
+            </div>
+
+            <!-- Mobile Thread Content -->
+            <div class="cl-m-thread" data-edit="claudeMobileThread">
+              <!-- User Message 1 -->
+              <div class="cl-m-user-row">
+                <div class="cl-m-user-pill">
+                  Create an image of a blue sky
+                </div>
+              </div>
+
+              <!-- Claude Mobile Thinking State 1 -->
+              <div class="cl-m-thinking-row" data-edit="claudeMobileThinking">
+                <div class="cl-m-thinking-pill">
+                  <svg class="cl-m-spark-spin" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b" stroke-width="3" stroke-linecap="round" />
+                  </svg>
+                  <span>Generated with Sonnet 4.6</span>
+                </div>
+              </div>
+
+              <!-- Mobile Response Card -->
+              <div class="cl-m-card" data-edit="claudeMobileCard">
+                <img src="__ASSET_BLUE_SKY__" alt="Blue sky mobile" class="cl-m-img" />
+                <div class="cl-m-card-footer">
+                  <div class="cl-m-card-meta">
+                    <span class="cl-m-card-title">Vast Blue Sky · Golden Hour</span>
+                    <span class="cl-m-card-sub">Instant Sync · Claude Mobile</span>
+                  </div>
+                  <div class="cl-m-download-btn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Second Interactive User Message Row on Mobile -->
+              <div class="cl-m-user-row cl-m-user-row-2" data-edit="claudeMobileUserRow2" style="display: none; opacity: 0;">
+                <div class="cl-m-user-pill">
+                  Explain the atmospheric lighting here
+                </div>
+              </div>
+
+              <!-- Second Thinking State on Mobile -->
+              <div class="cl-m-thinking-row cl-m-thinking-row-2" data-edit="claudeMobileThinking2" style="display: none; opacity: 0;">
+                <div class="cl-m-thinking-pill">
+                  <svg class="cl-m-spark-spin" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b" stroke-width="3" stroke-linecap="round" />
+                  </svg>
+                  <span>Analyzing Rayleigh scattering...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mobile Floating Bottom Composer -->
+            <div class="cl-m-composer">
+              <div class="cl-m-comp-box" data-edit="claudeMobileCompBox">
+                <button class="cl-m-comp-plus">+</button>
+                <div class="cl-m-comp-input-area">
+                  <span class="cl-m-comp-text" data-edit="claudeMobilePlaceholder">Write a message...</span>
+                  <span class="cl-m-comp-typed" data-edit="claudeMobileTyped"></span>
+                  <span class="cl-m-comp-caret" data-edit="claudeMobileCaret"></span>
+                </div>
+                <div class="cl-m-comp-icons">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  </svg>
+                  <div class="cl-m-comp-send" data-edit="claudeMobileSendBtn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div class="cl-m-home-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Climax Sequence: "Claude is everywhere." -->
+      <div class="cl-climax-sequence" data-edit="claudeClimaxSequence">
+        <div class="cl-climax-content">
+          <!-- Step 1: Prefix "✳ Claude is" -->
+          <div class="cl-climax-prefix" data-edit="claudeClimaxPrefix">
+            <svg class="cl-climax-spark" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 1v22M1 12h22M4.22 4.22l15.56 15.56M4.22 19.78L19.78 4.22" stroke="#e0683b" stroke-width="3.5"
+                stroke-linecap="round" />
+            </svg>
+            <span class="cl-climax-claude">Claude</span>
+            <span class="cl-climax-is">is</span>
+          </div>
+
+          <!-- Step 2: "everywhere." (slides up to finish the sentence) -->
+          <div class="cl-climax-everywhere-box" data-edit="claudeClimaxEverywhereBox">
+            <span class="cl-climax-everywhere" data-edit="claudeClimaxEverywhere">everywhere.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dragged Clean Image Object -->
+      <div class="cl-dragged-image-wrap" data-edit="claudeDraggedImage">
+        <img src="__ASSET_RAMEN_DISH__" alt="Ramen Dish">
+      </div>
+
+      <!-- Oversized Hand / Pointer Cursor -->
+      <div class="cl-cursor" data-edit="claudeCursor">
+        <svg viewBox="0 0 24 24">
+          <path d="M5 3 L5 19 L9 15 L12 22 L15 20.5 L11.5 14 L18 14 Z" />
+        </svg>
+      </div>
+
+      <!-- Click Ripple -->
+      <div class="cl-cursor-ripple" data-edit="claudeCursorRipple"></div>
+    </div>
+  </main>
+</template>

@@ -118,25 +118,6 @@ export function createDynamicComposition(
           if (editId) context.register(editId, el);
         });
 
-      // Also auto-register elements with classes or key semantic tags
-      const candidates = context.root.querySelectorAll<HTMLElement>(
-        "[id], [class], h1, h2, h3, h4, p, button, svg",
-      );
-      candidates.forEach((el, index) => {
-        if (el === context.root) return;
-        const autoId =
-          el.dataset["edit"] ||
-          el.id ||
-          (el.className && typeof el.className === "string"
-            ? el.className.trim().split(/\s+/)[0]
-            : null) ||
-          `${el.tagName.toLowerCase()}-${index + 1}`;
-
-        if (autoId && !el.dataset["motionlyId"]) {
-          context.register(autoId, el);
-        }
-      });
-
       // 3. Execute the timeline choreography with context.root / context.element compatibility
       try {
         const presetVarNames = Object.keys(presets).join(", ");
@@ -163,28 +144,8 @@ export function createDynamicComposition(
         throw err;
       }
 
-      // 4. Auto-register any animated GSAP tween targets that were not previously registered
-      try {
-        const tweens = context.timeline.getChildren(true, true, false);
-        tweens.forEach((tween, i) => {
-          const targets = (tween as gsap.core.Tween).targets?.() ?? [];
-          targets.forEach((target, targetIndex) => {
-            if (target instanceof HTMLElement || target instanceof SVGElement) {
-              const el = target as HTMLElement;
-              const existingId = el.dataset["edit"] || el.dataset["motionlyId"];
-              if (!existingId) {
-                const autoId =
-                  (el.className && typeof el.className === "string"
-                    ? el.className.trim().split(/\s+/)[0]
-                    : "") || `${el.tagName.toLowerCase()}-${i}-${targetIndex}`;
-                context.register(autoId, el);
-              }
-            }
-          });
-        });
-      } catch {
-        // Ignore tween inspection errors
-      }
+      // 4. Keep registration explicit. Arbitrary class/id/tween-target
+      // registration makes nested decorative nodes steal canvas selection.
 
       // 5. If the timeline duration is longer than default, expand it
       const actualDuration = context.timeline.duration();

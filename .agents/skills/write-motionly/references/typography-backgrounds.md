@@ -30,14 +30,18 @@ For split words, map every word to the parent sentence coordinates: measure the 
 
 Stagger in reading order and leave time after the last word for the full sentence to be read.
 
-## Background hierarchy
+## Background direction
 
-1. Base: solid or softly graded field with text contrast.
-2. Structure: faint grid, lines, or texture.
-3. Ambient: slow aurora, waves, or light drift.
-4. Semantic accent: rings, arrows, scans, ripples, or particles tied to the idea.
+Build at most three roles: a tinted base field, one structural texture, and one local semantic accent attached to the carrier. Name the accent's job before authoring it. Useful jobs include `signal-path`, `paper-grid`, `scan-field`, `trajectory`, and `convergence-ring`; “make the frame less empty” is not a job.
 
-Keep the semantic accent behind the subject. Lower contrast, opacity, sharpness, and speed when text arrives. During holds, use long `sine.inOut` motion with small travel. Continuous motion should reward attention, not demand it. Vary axes and periods; do not pulse every layer in sync.
+The background needs an arc, not an idle loop:
+
+1. Establish the structure with the hook.
+2. Make the foreground action visibly disturb, extend, scan, or redirect it.
+3. Reuse its line, energy, or geometry in the product proof.
+4. Converge it into the final carrier or remove it cleanly.
+
+Keep the semantic accent behind the subject. Lower its contrast and sharpness when text arrives. Avoid always-on auroras, mesh gradients, random particles, and unrelated orbit rings; these are common generation defaults, not automatic production value. If light is used, anchor it to a visible source and animate it only while that source performs.
 
 ## Stability
 

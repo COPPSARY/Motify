@@ -50,8 +50,8 @@ If you're writing a font-size under 24px in a video composition, justify it. If 
 
 Subtle reads as static at 30fps. Err toward more movement than feels safe.
 
-- Every decorative element should have ambient motion: breathe, drift, pulse, orbit. Static decoratives feel dead.
-- Vary motion per scene — don't repeat the same ambient pattern.
+- Decorative motion must perform a bounded narrative job: draw, scan, route, measure, assemble, or converge. Do not add idle breathe/drift/pulse/orbit loops simply to keep the frame moving.
+- Reuse one background mechanism across scenes by changing its role, instead of restarting a different ambient pattern on every beat.
 - Scene entrances should use 3+ different eases and directions. If every element enters from `y: 30, opacity: 0`, the scene has no choreography.
 
 ## Frame Composition

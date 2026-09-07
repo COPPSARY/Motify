@@ -1,0 +1,1730 @@
+<template id="kiritts-preset-template">
+  <div class="kiri-root" data-edit="kiriFilmRoot">
+    <!-- Ambient glow element kept hidden for test registration parity -->
+    <div class="kiri-ambient-glow" data-edit="kiriAmbientGlow" style="display: none !important;"></div>
+
+    <!-- PURE SAAS KINETIC TYPOGRAPHY & TRANSITION STAGE (Independent 1920x1080 overlay, NEVER cropped by 3D camera) -->
+    <section class="kiri-editorial-stage" data-edit="kiriEditorialStage">
+      <!-- Beat 1: Hook Editorial Statement -->
+      <div class="kiri-editorial-beat beat-intro" data-edit="kiriBeatIntro">
+        <h1 class="kiri-editorial-text sentence-gradient" data-edit="kiriBeatIntroText">Make every Khmer word sound like it was born here.</h1>
+      </div>
+
+      <!-- Beat 2: The Linguistic Barrier -->
+      <div class="kiri-editorial-beat beat-obstacle" data-edit="kiriBeatObstacle">
+        <h1 class="kiri-editorial-text" data-edit="kiriBeatObstacleText">Generic speech models cannot hear where Khmer words begin.</h1>
+      </div>
+
+      <!-- Beat 3: Native Architecture Solution -->
+      <div class="kiri-editorial-beat beat-solution" data-edit="kiriBeatSolution">
+        <h1 class="kiri-editorial-text punch-cyan" data-edit="kiriBeatSolutionText">Kiri understands Khmer before it ever speaks.</h1>
+      </div>
+
+      <!-- Kinetic Feature Transition Kicker (TTS -> STT) -->
+      <div class="kiri-editorial-beat banner-stt" data-edit="kiriBannerStt">
+        <h2 class="kiri-editorial-text kicker-text">Turn every spoken word into an exact subtitle.</h2>
+      </div>
+
+      <!-- Kinetic Feature Transition Kicker (STT -> Voice Cloning & API) -->
+      <div class="kiri-editorial-beat banner-clone" data-edit="kiriBannerClone">
+        <h2 class="kiri-editorial-text kicker-text">Clone a voice in ten seconds, then ship with one API.</h2>
+      </div>
+    </section>
+
+    <!-- Screen-space interaction layer: never inherits camera transforms. -->
+    <div class="kiri-cursor" data-edit="kiriCursor">
+      <svg viewBox="0 0 24 24">
+        <path d="M5 3 L5 19 L9 15 L12 22 L15 20.5 L11.5 14 L18 14 Z" />
+      </svg>
+    </div>
+    <div class="kiri-cursor-ripple" data-edit="kiriCursorRipple"></div>
+
+    <!-- Cinematic Spatial Camera Rig (2.5D GPU Layer) -->
+    <div class="kiri-camera" data-edit="kiriCameraWorld">
+      <!-- Topbar hidden completely per user directive (retained for test actor registration) -->
+      <header class="kiri-website-nav" data-edit="kiriTopbar" style="display: none !important;">
+        <div class="kiri-nav-container">
+          <div class="kiri-nav-left">
+            <span class="kiri-nav-brand-title">Kiri TTS</span>
+          </div>
+          <div class="kiri-nav-links" data-edit="kiriTopBreadcrumb">
+            <span class="kiri-nav-link active" data-edit="kiriBreadcrumbText">Playground</span>
+          </div>
+          <div class="kiri-nav-right" data-edit="kiriTopRightActions">
+            <button class="kiri-nav-btn-login" data-edit="kiriTopAvatar">Log In</button>
+            <button class="kiri-nav-btn-trial" data-edit="kiriTopCredits">Try for Free</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ============================================================
+           MAIN FULL-WIDTH APPLICATION CANVAS (1920x1080)
+           ============================================================ -->
+      <main class="kiri-main-canvas" data-edit="kiriStageWorkspace">
+
+        <!-- ============================================================
+             ACT 1: THE LINGUISTIC CRISIS & WORD SEGMENTATION (0–5.5s)
+             ============================================================ -->
+        <div class="kiri-act-surface kiri-act1-linguistic" data-edit="kiriAct1Linguistic">
+          <!-- Hidden website hero headline kept strictly for test ID parity -->
+          <div class="kiri-website-hero" data-edit="kiriAct1Headline" style="display: none !important;"></div>
+
+          <!-- The Linguistic Obstacle Box (Macro Camera Push Target) -->
+          <div class="kiri-linguistic-card" data-edit="kiriMonolithicBox">
+            <div class="kiri-card-topbar">
+              <span class="kiri-engine-label">The Linguistic Challenge · Why Global AI Fails</span>
+              <span class="kiri-error-pill" data-edit="kiriErrorBadge1">Zero Word Boundary Detection</span>
+            </div>
+
+            <!-- The Raw Unspaced Khmer String -->
+            <div class="kiri-script-container">
+              <div class="kiri-unspaced-script" data-edit="kiriUnspacedScript">
+                <span>ភាសាខ្មែរគ្មានដកឃ្លាទេហើយមានព្យញ្ជនៈត្រួតជាន់គ្នា</span>
+              </div>
+
+              <!-- Robotic Flat Waveform with Red Jitter -->
+              <div class="kiri-robot-wave" data-edit="kiriRobotWave">
+                <svg viewBox="0 0 880 50" class="kiri-robot-svg">
+                  <path d="M 0 25 L 140 25 L 160 8 L 180 42 L 200 25 L 360 25 L 380 4 L 400 46 L 420 25 L 580 25 L 600 10 L 620 40 L 640 25 L 880 25" stroke="#ef4444" stroke-width="2.5" fill="none"/>
+                </svg>
+                <div class="kiri-warning-tooltip" data-edit="kiriErrorBadge2">
+                  <span>⚠ Robotic Drone &amp; Consonant Stack Clashes</span>
+                </div>
+              </div>
+
+              <!-- Luminous Cyan Segmentation Beam (The Track-Matte Morph Wave!) -->
+              <div class="kiri-segment-beam" data-edit="kiriSegmentBeam"></div>
+
+              <!-- Clean Segmented Khmer Word Boundary Chips (Native Solved!) -->
+              <div class="kiri-segmented-words" data-edit="kiriSegmentedWords">
+                <span class="kiri-word-chip" data-edit="kiriWordChip1">ភាសាខ្មែរ</span>
+                <span class="kiri-word-chip" data-edit="kiriWordChip2">គ្មានដកឃ្លាទេ</span>
+                <span class="kiri-word-chip" data-edit="kiriWordChip3">ហើយមាន</span>
+                <span class="kiri-word-chip" data-edit="kiriWordChip4">ព្យញ្ជនៈត្រួត</span>
+              </div>
+            </div>
+
+            <!-- Native Solved Badge -->
+            <div class="kiri-native-solved-badge" data-edit="kiriNativeSolvedBadge">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="#10B981">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              <span>Kiri Native Boundary Segmentation Solved</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             ACT 2: AUTHENTIC KIRITTS TTS STUDIO WORKSPACE (5.5–12.0s)
+             Directly matches TTS.png: Left Editor + Right Settings Panel!
+             ============================================================ -->
+        <div class="kiri-act-surface kiri-act2-tts" data-edit="kiriAct2TtsStudio">
+          <!-- Kiritts.com Interactive Playground Tab Bar -->
+          <div class="kiri-playground-bar">
+            <div class="kiri-playground-tabs">
+              <div class="kiri-pg-tab active">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                <span>Text to Speech</span>
+              </div>
+              <div class="kiri-pg-tab">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Speech to Text</span>
+              </div>
+            </div>
+            <div class="kiri-pg-badge">LIVE PLAYGROUND · KIRITTS.COM</div>
+          </div>
+
+          <div class="kiri-tts-layout-grid">
+            <!-- Left & Center: The Authentic Studio Editor -->
+            <div class="kiri-tts-editor-column">
+              <div class="kiri-tts-card-shell" data-edit="kiriLineEditor">
+                <!-- Traveling Neon Light Beam -->
+                <svg class="kiri-border-beam-svg">
+                  <defs>
+                    <linearGradient id="kiriBeamGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#00D2FF" stop-opacity="0" />
+                      <stop offset="50%" stop-color="#00D2FF" stop-opacity="1" />
+                      <stop offset="100%" stop-color="#10B981" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <rect class="kiri-border-beam-rect" x="1" y="1" rx="16" ry="16" />
+                </svg>
+
+                <!-- Voice Pill Inside Editor (Exactly as in TTS.png) -->
+                <div class="kiri-editor-topbar">
+                  <div class="kiri-voice-select-pill" data-edit="kiriVoicePill">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                    <span>Chanda (Natural Khmer Female)</span>
+                    <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+                  </div>
+
+                  <!-- Expressive Delivery Style Chips -->
+                  <div class="kiri-expression-toggles" data-edit="kiriExprToggles">
+                    <span class="kiri-expr-chip active">Warm</span>
+                    <span class="kiri-expr-chip">Calm</span>
+                    <span class="kiri-expr-chip">Authoritative</span>
+                  </div>
+                </div>
+
+                <!-- Main Textarea with Typing Khmer -->
+                <div class="kiri-editor-main-area" data-edit="kiriEditorRow1">
+                  <span class="kiri-typed-khmer" data-edit="kiriTypedKhmer"></span><span class="kiri-tts-caret" data-edit="kiriTtsCaret"></span>
+                </div>
+
+                <!-- Line 2: Line-by-Line Instant Editing Showcase -->
+                <div class="kiri-line2-row" data-edit="kiriEditorRow2">
+                  <div class="kiri-line2-meta">
+                    <span class="kiri-line2-label">Line 2</span>
+                    <span class="kiri-line2-voice">Bora (Khmer Male)</span>
+                    <span class="kiri-line2-pill" data-edit="kiriRow2Notice">⚡ Regenerate Single Line (No Full Re-render)</span>
+                  </div>
+                  <div class="kiri-line2-text">
+                    "Kiri captures human nuance, natural pauses, and accurate word boundaries."
+                  </div>
+                </div>
+
+                <!-- Editor Sub-actions (TTS.png: "+ Paragraph" "Pause") -->
+                <div class="kiri-editor-subactions">
+                  <button class="kiri-sub-pill">+ Paragraph</button>
+                  <button class="kiri-sub-pill">⏸ Pause [break=2s]</button>
+                </div>
+
+                <!-- Bottom Toolbar (TTS.png: Import | 141/5000 | Generate Speech) -->
+                <div class="kiri-editor-bottombar">
+                  <div class="kiri-bottom-left-tools">
+                    <span class="kiri-tool-import">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      Import
+                    </span>
+                    <span class="kiri-char-count">141 / 5000</span>
+                  </div>
+
+                  <!-- Big White Pill Generate Button -->
+                  <button class="kiri-btn-generate" data-edit="kiriBtnGenerate">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    <span>Generate Speech</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Generated Master Audio Card (Blooms upon click!) -->
+              <div class="kiri-audio-player-bloom" data-edit="kiriAudioPlayerCard">
+                <div class="kiri-player-play-btn">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                </div>
+                <div class="kiri-player-meta">
+                  <span class="kiri-player-title">Chanda_Khmer_Natural_Cadence.wav</span>
+                  <span class="kiri-player-time">0:00 / 0:04 · 48kHz Studio Master</span>
+                </div>
+                <div class="kiri-eq-wave-bars" data-edit="kiriEqWaveBars">
+                  <span style="--h: 22px;"></span><span style="--h: 48px;"></span><span style="--h: 30px;"></span>
+                  <span style="--h: 60px;"></span><span style="--h: 70px;"></span><span style="--h: 52px;"></span>
+                  <span style="--h: 38px;"></span><span style="--h: 64px;"></span><span style="--h: 42px;"></span>
+                  <span style="--h: 26px;"></span><span style="--h: 34px;"></span><span style="--h: 18px;"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: The Real KiriTTS Settings Panel (Matches TTS.png exactly!) -->
+            <aside class="kiri-settings-panel" data-edit="kiriRightSettingsPanel">
+              <div class="kiri-settings-tabs">
+                <span class="kiri-set-tab active">Settings</span>
+                <span class="kiri-set-tab">History</span>
+              </div>
+
+              <div class="kiri-settings-body">
+                <div class="kiri-settings-group">
+                  <span class="kiri-param-label">Stability</span>
+                  <div class="kiri-slider-unit" data-edit="kiriStabilitySlider">
+                    <div class="kiri-track-shell">
+                      <div class="kiri-track-fill" data-edit="kiriFillStability" style="width: 75%;"></div>
+                      <div class="kiri-track-thumb" data-edit="kiriThumbStability" style="left: 75%;"></div>
+                    </div>
+                    <div class="kiri-slider-val-row">
+                      <span>Creative</span>
+                      <span class="kiri-val-num">1.70</span>
+                      <span>Robust</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="kiri-settings-group">
+                  <span class="kiri-param-label">Speed</span>
+                  <div class="kiri-slider-unit" data-edit="kiriSpeedSlider">
+                    <div class="kiri-track-shell">
+                      <div class="kiri-track-fill" data-edit="kiriFillSpeed" style="width: 55%;"></div>
+                      <div class="kiri-track-thumb" data-edit="kiriThumbSpeed" style="left: 55%;"></div>
+                    </div>
+                    <div class="kiri-slider-val-row">
+                      <span>Slower</span>
+                      <span class="kiri-val-num">1.10x</span>
+                      <span>Faster</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="kiri-global-divider"></div>
+
+                <div class="kiri-global-settings-title">GLOBAL SETTINGS</div>
+                <div class="kiri-global-row">
+                  <div class="kiri-global-meta">
+                    <span class="kiri-global-name">Generation mode</span>
+                    <small>Plays as soon as ready</small>
+                  </div>
+                  <span class="kiri-mode-badge">Instant ▾</span>
+                </div>
+
+                <div class="kiri-global-row">
+                  <span class="kiri-global-name">Auto-play after generating</span>
+                  <div class="kiri-toggle-active"><div class="kiri-toggle-knob"></div></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             ACT 3: SPEECH-TO-TEXT & FORCED ALIGNMENT SUBTITLES (12.0–18.5s)
+             Directly matches STT.png: Upload Audio, Diarization & Word SRT
+             ============================================================ -->
+        <div class="kiri-act-surface kiri-act3-stt" data-edit="kiriAct3SttStudio">
+          <!-- Kiritts.com Interactive Playground Tab Bar (STT Active) -->
+          <div class="kiri-playground-bar">
+            <div class="kiri-playground-tabs">
+              <div class="kiri-pg-tab">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                <span>Text to Speech</span>
+              </div>
+              <div class="kiri-pg-tab active">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Speech to Text</span>
+              </div>
+            </div>
+            <div class="kiri-pg-badge">SPEECH RECOGNITION &amp; DIARIZATION</div>
+          </div>
+
+          <div class="kiri-stt-workspace-box" data-edit="kiriSttDropCard">
+            <!-- STT Topbar Toggle Pill from STT.png -->
+            <div class="kiri-stt-header-row">
+              <div class="kiri-audio-dropped-chip" data-edit="kiriDroppedAudioChip">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#00D2FF" stroke-width="2">
+                  <path d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                </svg>
+                <span>bilingual_podcast_interview.mp3</span>
+                <span class="kiri-chip-time">04:12</span>
+              </div>
+
+              <!-- Export SRT Button -->
+              <button class="kiri-btn-export-srt" data-edit="kiriBtnExportSrt">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export .SRT / .VTT Subtitles</span>
+              </button>
+            </div>
+
+            <!-- 3 STT Feature Pillars from STT.png -->
+            <div class="kiri-stt-pillars-row">
+              <div class="kiri-stt-pillar">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#00D2FF" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Speaker Identification</span>
+              </div>
+              <div class="kiri-stt-pillar active">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10B981" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Accurate Timestamps</span>
+              </div>
+              <div class="kiri-stt-pillar">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#F59E0B" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>Multi-language Support</span>
+              </div>
+            </div>
+
+            <!-- Diarization & Forced Alignment Word Stream -->
+            <div class="kiri-diarize-stream" data-edit="kiriDiarizeStream">
+              <!-- Speaker 1 (Khmer) with Forced-Alignment Millisecond Timestamps -->
+              <div class="kiri-speaker-row" data-edit="kiriDiarizeSpeaker1">
+                <div class="kiri-spk-pill cyan">Speaker 1 · ភាសាខ្មែរ</div>
+                <div class="kiri-timestamp-group" data-edit="kiriTimestampPills">
+                  <span class="kiri-word-stamp"><small>00:01.200</small>តើ</span>
+                  <span class="kiri-word-stamp"><small>00:01.850</small>KiriTTS</span>
+                  <span class="kiri-word-stamp"><small>00:02.400</small>អាចបម្លែងសំឡេង</span>
+                  <span class="kiri-word-stamp"><small>00:03.100</small>ជាអក្សរបាន</span>
+                  <span class="kiri-word-stamp active"><small>00:03.850</small>ត្រឹមត្រូវកម្រិតណា?</span>
+                </div>
+              </div>
+
+              <!-- Speaker 2 (English) -->
+              <div class="kiri-speaker-row" data-edit="kiriDiarizeSpeaker2">
+                <div class="kiri-spk-pill emerald">Speaker 2 · English</div>
+                <div class="kiri-timestamp-group">
+                  <span class="kiri-word-stamp"><small>00:05.100</small>Sub-second</span>
+                  <span class="kiri-word-stamp"><small>00:05.600</small>latency</span>
+                  <span class="kiri-word-stamp"><small>00:06.200</small>with</span>
+                  <span class="kiri-word-stamp"><small>00:06.800</small>forced</span>
+                  <span class="kiri-word-stamp"><small>00:07.400</small>alignment</span>
+                  <span class="kiri-word-stamp active"><small>00:08.100</small>word-level timestamps.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Success Subtitle Export Badge -->
+            <div class="kiri-srt-success-banner" data-edit="kiriSrtSuccessBadge">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="#10B981"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              <span>Exported: bilingual_subtitles.srt · Ready for Video Timeline</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             ACT 4: 10s VOICE CLONING & OPENAI REST API (18.5–24.5s)
+             Matches Voice Cloning.png & API (keys).png
+             ============================================================ -->
+        <div class="kiri-act-surface kiri-act4-clone-api" data-edit="kiriAct4CloneApi">
+          <!-- Kiritts.com Advanced SaaS Capabilities Header -->
+          <div class="kiri-playground-bar">
+            <div class="kiri-playground-tabs">
+              <div class="kiri-pg-tab active">
+                <span>Custom Voice Cloning (10s)</span>
+              </div>
+              <div class="kiri-pg-tab active">
+                <span>Developer REST API</span>
+              </div>
+            </div>
+            <div class="kiri-pg-badge">ENTERPRISE SCALE &amp; CLONING</div>
+          </div>
+
+          <div class="kiri-act4-split-grid">
+            <!-- Left: 10s Voice Cloning Card (Voice Cloning.png) -->
+            <div class="kiri-clone-card" data-edit="kiriCloneCard">
+              <div class="kiri-card-badge-pill">10-SECOND VOICE CLONING</div>
+              <h3 class="kiri-clone-card-title">Instant Custom Voice Profiles</h3>
+              <p class="kiri-clone-card-sub">MP3, WAV · 5–30s · one speaker, clear speech</p>
+
+              <div class="kiri-sample-dropped-chip" data-edit="kiri10sSampleBadge">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#00D2FF" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                <span>bora_reference_audio.wav (10.0s Studio)</span>
+              </div>
+
+              <!-- 3-Segment Neon Progress Circle -->
+              <div class="kiri-progress-box" data-edit="kiriProgressRing">
+                <svg class="kiri-progress-svg" viewBox="0 0 120 120">
+                  <circle class="kiri-prog-track" cx="60" cy="60" r="50" stroke="#262626" stroke-width="6" fill="none" />
+                  <circle class="kiri-prog-circle" data-edit="kiriProgCircle" cx="60" cy="60" r="50" stroke="#10B981" stroke-width="6" stroke-linecap="round" stroke-dasharray="314.15" stroke-dashoffset="314.15" fill="none" transform="rotate(-90 60 60)" />
+                </svg>
+                <div class="kiri-prog-label">100%</div>
+              </div>
+
+              <div class="kiri-verified-profile-pill" data-edit="kiriVerifiedProfile">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="#10B981"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                <span>Profile Verified: Bora (Custom Khmer Male)</span>
+              </div>
+
+              <!-- Real Amber Legal Disclaimer from Voice Cloning.png -->
+              <div class="kiri-amber-warning-note" data-edit="kiriAmberDisclaimer">
+                ⚠ By uploading audio, you must own the voice or have explicit permission from the voice owner.
+              </div>
+            </div>
+
+            <!-- Right: OpenAI-Compatible REST API Hub (API (keys).png) -->
+            <div class="kiri-api-card" data-edit="kiriApiCard">
+              <div class="kiri-api-header-row">
+                <div class="kiri-card-badge-pill cyan">OPENAI-COMPATIBLE REST API</div>
+                <div class="kiri-api-hub-logo" data-edit="kiriApiHubLogo">
+                  <img src="__ASSET_KIRI_LOGO__" alt="KiriTTS" class="kiri-hub-logo-img" />
+                </div>
+              </div>
+
+              <h3 class="kiri-api-card-title">Effortless Base URL Swap</h3>
+              <p class="kiri-api-card-sub">Developers can switch their standard endpoint to Kiri in one line of code.</p>
+
+              <div class="kiri-endpoint-code-box" data-edit="kiriEndpointBox">
+                <div class="kiri-code-line"><span class="kiri-code-k">base_url</span> = <span class="kiri-code-v">"https://api.kiritts.com/v1"</span></div>
+                <div class="kiri-code-line"><span class="kiri-code-k">endpoints</span> = [<span class="kiri-code-v">"/audio/speech"</span>, <span class="kiri-code-v">"/audio/transcriptions"</span>]</div>
+              </div>
+
+              <!-- Real API Key Table Row from API (keys).png -->
+              <div class="kiri-api-key-row">
+                <span class="kiri-key-name">Testing</span>
+                <span class="kiri-key-hash">sk-L2fxrx8p70qyqDFk39nDkJStuohcRTPSTC...</span>
+                <span class="kiri-key-copy">📋</span>
+              </div>
+
+              <div class="kiri-live-counter-box" data-edit="kiriLiveCounter">
+                <span class="kiri-counter-number">3,250,000+</span>
+                <span class="kiri-counter-caption">Khmer &amp; English Requests Served / Month</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             ACT 5: GRAND CLIMAX & LANDING HERO (24.5–28.5s)
+             Directly matches Landing Page.png: Headline, Emblem & Dual CTA
+             ============================================================ -->
+        <div class="kiri-act-surface kiri-act5-climax" data-edit="kiriAct5Climax">
+          <div class="kiri-climax-center-lockup">
+            <!-- Geometric Emblem with Electric Cyan Bloom -->
+            <div class="kiri-climax-emblem-wrapper" data-edit="kiriClimaxEmblem">
+              <div class="kiri-climax-halo"></div>
+              <img src="__ASSET_KIRI_LOGO__" alt="KiriTTS Logo" class="kiri-climax-logo-img" />
+            </div>
+
+            <h1 class="kiri-climax-headline" data-edit="kiriClimaxHeadline">
+              Transform Text into Speech and Speech into Text.
+            </h1>
+            <p class="kiri-climax-subtext" data-edit="kiriClimaxSubtitle">
+              Kiri is an AI voice platform that speaks your words naturally and transcribes your recordings accurately, in Khmer, English, and more languages.
+            </p>
+
+            <!-- Dual CTA Action Buttons (Matches Landing Page.png) -->
+            <div class="kiri-climax-cta-row" data-edit="kiriClimaxCtas">
+              <button class="kiri-btn-get-started" data-edit="kiriBtnGetStarted">
+                <span>Get Started</span>
+                <div class="kiri-cta-shimmer" data-edit="kiriCtaShimmer"></div>
+              </button>
+              <button class="kiri-btn-watch-demo">
+                <span>Watch Demo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <style>
+    /* =========================================================================
+       AUTHENTIC KIRITTS DARK STUDIO STYLING (NO SIDEBAR - EXACT REAL APP UI)
+       ========================================================================= */
+    .kiri-root {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #08090C;
+      color: #FFFFFF;
+      font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      perspective: 1400px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .kiri-bg-grid {
+      display: none !important;
+    }
+
+    .kiri-camera {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-style: preserve-3d;
+      transform-origin: 50% 50%;
+      z-index: 2;
+    }
+
+    .kiri-ambient-glow {
+      display: none !important;
+    }
+
+    /* Authentic Oversized Pointer Cursor (Claude house style) */
+    .kiri-cursor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 48px;
+      height: 48px;
+      pointer-events: none;
+      z-index: 10000;
+      filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6));
+      will-change: transform;
+      transform-origin: 21% 14%;
+    }
+
+    .kiri-cursor svg {
+      width: 100%;
+      height: 100%;
+      fill: #ffffff;
+      stroke: #08090C;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    .kiri-cursor-ripple {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 210, 255, 0.45) 0%, rgba(0, 210, 255, 0) 75%);
+      border: 1.5px solid rgba(0, 210, 255, 0.85);
+      pointer-events: none;
+      z-index: 9999;
+      will-change: transform, opacity;
+      transform: translate(-50%, -50%);
+    }
+
+    /* =========================================================================
+       AUTHENTIC KIRITTS.COM WEBSITE NAVBAR (Hidden Completely Per User Directive)
+       ========================================================================= */
+    .kiri-website-nav {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .kiri-nav-container {
+      width: 100%;
+      max-width: 1540px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .kiri-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .kiri-nav-logo {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(0, 210, 255, 0.5));
+    }
+
+    .kiri-nav-brand-title {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #FFFFFF;
+    }
+
+    .kiri-nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .kiri-nav-link {
+      font-size: 14px;
+      font-weight: 500;
+      color: #94A3B8;
+      transition: color 0.2s ease;
+      cursor: pointer;
+    }
+
+    .kiri-nav-link.active {
+      color: #FFFFFF;
+      font-weight: 600;
+      position: relative;
+    }
+
+    .kiri-nav-link.active::after {
+      content: "";
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #00D2FF;
+      border-radius: 2px;
+      box-shadow: 0 0 8px #00D2FF;
+    }
+
+    .kiri-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .kiri-nav-icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94A3B8;
+    }
+
+    .kiri-nav-btn-login {
+      background: transparent;
+      border: none;
+      color: #CBD5E1;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+
+    .kiri-nav-btn-trial {
+      background: linear-gradient(135deg, #00D2FF 0%, #0099CC 100%);
+      border: none;
+      color: #08090C;
+      font-size: 13.5px;
+      font-weight: 700;
+      padding: 8px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 210, 255, 0.35);
+      cursor: pointer;
+    }
+
+    /* =========================================================================
+       MAIN CANVAS & ACT SURFACES (FULL BLEED)
+       ========================================================================= */
+    .kiri-main-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-style: preserve-3d;
+    }
+
+    .kiri-act-surface {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 48px;
+      box-sizing: border-box;
+      transform-style: preserve-3d;
+    }
+
+    /* =========================================================================
+       AUTHENTIC KIRITTS.COM WEBSITE HERO (Act 1)
+       ========================================================================= */
+    .kiri-website-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      max-width: 1100px;
+      margin-bottom: 22px;
+      margin-top: -10px;
+    }
+
+    .kiri-hero-badge-pill {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #00D2FF;
+      background: rgba(0, 210, 255, 0.1);
+      border: 1px solid rgba(0, 210, 255, 0.3);
+      padding: 5px 16px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.2);
+    }
+
+    .kiri-hero-headline {
+      font-size: 46px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.035em;
+      color: #FFFFFF;
+      margin: 0 0 12px 0;
+    }
+
+    .kiri-headline-cyan {
+      background: linear-gradient(135deg, #00D2FF 0%, #10B981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kiri-hero-substatement {
+      font-size: 18px;
+      line-height: 1.45;
+      color: #94A3B8;
+      max-width: 820px;
+      margin: 0 0 20px 0;
+    }
+
+    .kiri-hero-cta-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .kiri-hero-btn-primary {
+      background: #FFFFFF;
+      color: #08090C;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 11px 28px;
+      border-radius: 999px;
+      border: none;
+      box-shadow: 0 4px 24px rgba(255, 255, 255, 0.25);
+    }
+
+    .kiri-hero-btn-glass {
+      background: rgba(255, 255, 255, 0.06);
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 11px 26px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+    }
+
+    /* =========================================================================
+       PLAYGROUND TAB BAR (Kiritts.com live playground header)
+       ========================================================================= */
+    .kiri-playground-bar {
+      width: 100%;
+      max-width: 1440px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding: 0 4px;
+    }
+
+    .kiri-playground-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 4px;
+      border-radius: 999px;
+    }
+
+    .kiri-pg-tab {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94A3B8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .kiri-pg-tab.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .kiri-pg-badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #00D2FF;
+      background: rgba(0, 210, 255, 0.08);
+      border: 1px solid rgba(0, 210, 255, 0.2);
+      padding: 5px 12px;
+      border-radius: 8px;
+    }
+
+    .kiri-linguistic-card {
+      width: 1060px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(0, 0, 0, 0.35) 100%), rgba(14, 17, 24, 0.78);
+      backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 28px 32px;
+      box-shadow:
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+        0 24px 60px -12px rgba(0, 0, 0, 0.75),
+        0 0 35px -5px rgba(239, 68, 68, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-sizing: border-box;
+      transform-style: preserve-3d;
+    }
+
+    .kiri-card-topbar { display: flex; justify-content: space-between; align-items: center; }
+    .kiri-engine-label { font-size: 14px; font-weight: 600; color: #94A3B8; }
+    .kiri-error-pill {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+
+    .kiri-script-container {
+      position: relative;
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .kiri-unspaced-script {
+      font-size: 28px;
+      font-weight: 600;
+      color: #FFFFFF;
+      letter-spacing: 0.01em;
+      line-height: 1.6;
+    }
+
+    .kiri-robot-wave { display: flex; flex-direction: column; gap: 8px; }
+    .kiri-robot-svg { width: 100%; height: 36px; }
+    .kiri-warning-tooltip { font-size: 13px; font-weight: 600; color: #F87171; display: flex; align-items: center; gap: 6px; }
+
+    .kiri-segment-beam {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -100px;
+      width: 4px;
+      background: #00D2FF;
+      box-shadow: 0 0 30px #00D2FF, 0 0 60px #10B981;
+      opacity: 0;
+    }
+
+    .kiri-segmented-words { display: flex; gap: 12px; flex-wrap: wrap; opacity: 0; }
+    .kiri-word-chip {
+      background: rgba(0, 210, 255, 0.12);
+      border: 1px solid #00D2FF;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 22px;
+      font-weight: 700;
+      color: #FFFFFF;
+      box-shadow: 0 0 16px rgba(0, 210, 255, 0.25);
+    }
+
+    .kiri-native-solved-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #10B981;
+      align-self: flex-start;
+      opacity: 0;
+    }
+
+    /* =========================================================================
+       ACT 2: REAL KIRITTS TTS STUDIO (From TTS.png!)
+       Left Editor + Right Settings Panel with Apple Liquid Dark Glass
+       ========================================================================= */
+    .kiri-tts-layout-grid {
+      width: 1440px;
+      max-width: 1440px;
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 24px;
+      align-items: start;
+      transform-style: preserve-3d;
+      box-sizing: border-box;
+    }
+
+    .kiri-tts-editor-column {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .kiri-tts-card-shell {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(0, 0, 0, 0.35) 100%), rgba(14, 17, 24, 0.78);
+      backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 24px 28px;
+      box-shadow:
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4),
+        0 24px 60px -12px rgba(0, 0, 0, 0.75),
+        0 0 35px -5px rgba(0, 210, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    .kiri-border-beam-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 24px;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .kiri-border-beam-rect {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: url(#kiriBeamGrad);
+      stroke-width: 2.5;
+      stroke-dasharray: 280 2200;
+      opacity: 0;
+    }
+
+    .kiri-editor-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .kiri-voice-select-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #FFFFFF;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18);
+    }
+
+    .kiri-expression-toggles { display: flex; gap: 6px; }
+    .kiri-expr-chip {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94A3B8;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+    .kiri-expr-chip.active {
+      color: #00D2FF;
+      background: rgba(0, 210, 255, 0.14);
+      border-color: rgba(0, 210, 255, 0.35);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    }
+
+    .kiri-editor-main-area {
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 20px 22px;
+      font-size: 22px;
+      line-height: 1.6;
+      color: #FFFFFF;
+      min-height: 68px;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .kiri-tts-caret {
+      display: inline-block;
+      width: 2px;
+      height: 24px;
+      background: #00D2FF;
+      margin-left: 2px;
+      vertical-align: -4px;
+      box-shadow: 0 0 8px #00D2FF;
+    }
+
+    .kiri-line2-row {
+      background: rgba(10, 13, 19, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
+    }
+
+    .kiri-line2-meta { display: flex; align-items: center; gap: 10px; }
+    .kiri-line2-label { font-size: 11.5px; font-weight: 700; color: #64748B; text-transform: uppercase; }
+    .kiri-line2-voice { font-size: 12.5px; font-weight: 600; color: #94A3B8; }
+    .kiri-line2-pill { font-size: 11.5px; font-weight: 600; color: #10B981; margin-left: auto; }
+    .kiri-line2-text { font-size: 14.5px; color: #94A3B8; }
+
+    .kiri-editor-subactions { display: flex; gap: 8px; }
+    .kiri-sub-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: #94A3B8;
+      font-weight: 500;
+    }
+
+    .kiri-editor-bottombar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .kiri-bottom-left-tools { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #64748B; }
+    .kiri-tool-import { display: flex; align-items: center; gap: 6px; color: #94A3B8; font-weight: 500; }
+
+    /* Luminous White Pill Generate Speech Button */
+    .kiri-btn-generate {
+      height: 46px;
+      padding: 0 32px;
+      background: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 100%);
+      color: #050608;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 999px;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 1),
+        0 4px 20px rgba(255, 255, 255, 0.3),
+        0 0 30px rgba(0, 210, 255, 0.25);
+    }
+
+    .kiri-audio-player-bloom {
+      background: linear-gradient(135deg, rgba(0, 210, 255, 0.12) 0%, rgba(16, 185, 129, 0.06) 50%, rgba(14, 17, 24, 0.85) 100%);
+      backdrop-filter: blur(30px) saturate(180%);
+      -webkit-backdrop-filter: blur(30px) saturate(180%);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      border-radius: 18px;
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.3),
+        0 16px 40px rgba(0, 210, 255, 0.2);
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
+    .kiri-player-play-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #00D2FF;
+      color: #08090C;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .kiri-player-meta { display: flex; flex-direction: column; gap: 2px; }
+    .kiri-player-title { font-size: 14px; font-weight: 700; color: #FFFFFF; }
+    .kiri-player-time { font-size: 12px; color: #94A3B8; font-variant-numeric: tabular-nums; }
+
+    .kiri-eq-wave-bars {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      height: 44px;
+    }
+
+    .kiri-eq-wave-bars span {
+      width: 4px;
+      height: var(--h, 24px);
+      background: linear-gradient(180deg, #00D2FF 0%, #10B981 100%);
+      border-radius: 4px;
+      transform-origin: center;
+    }
+
+    /* Right Settings Panel with Apple Liquid Dark Glass */
+    .kiri-settings-panel {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(0, 0, 0, 0.35) 100%), rgba(14, 17, 24, 0.78);
+      backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow:
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4),
+        0 24px 60px -12px rgba(0, 0, 0, 0.75),
+        0 0 35px -5px rgba(16, 185, 129, 0.1);
+      box-sizing: border-box;
+    }
+
+    .kiri-settings-tabs {
+      display: flex;
+      gap: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 12px;
+    }
+
+    .kiri-set-tab { font-size: 14px; font-weight: 600; color: #64748B; position: relative; }
+    .kiri-set-tab.active { color: #FFFFFF; }
+    .kiri-set-tab.active::after {
+      content: "";
+      position: absolute;
+      bottom: -13px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #FFFFFF;
+    }
+
+    .kiri-settings-body { display: flex; flex-direction: column; gap: 18px; }
+    .kiri-settings-group { display: flex; flex-direction: column; gap: 8px; }
+    .kiri-param-label { font-size: 13px; font-weight: 600; color: #E2E8F0; }
+
+    .kiri-slider-unit { display: flex; flex-direction: column; gap: 6px; }
+    .kiri-track-shell {
+      position: relative;
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+    }
+
+    .kiri-track-fill { position: absolute; top: 0; left: 0; height: 100%; background: linear-gradient(90deg, #00D2FF 0%, #10B981 100%); border-radius: 999px; }
+    .kiri-track-thumb {
+      position: absolute;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      background: #FFFFFF;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 210, 255, 0.6);
+    }
+
+    .kiri-slider-val-row { display: flex; justify-content: space-between; font-size: 11px; color: #64748B; font-weight: 500; }
+    .kiri-val-num { color: #00D2FF; font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+    .kiri-global-divider { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 4px 0; }
+    .kiri-global-settings-title { font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.08em; }
+
+    .kiri-global-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+    .kiri-global-meta { display: flex; flex-direction: column; gap: 2px; }
+    .kiri-global-meta small { font-size: 10.5px; color: #64748B; }
+    .kiri-global-name { color: #CBD5E1; font-weight: 500; }
+    .kiri-mode-badge { font-size: 12px; font-weight: 600; color: #FFFFFF; background: rgba(255, 255, 255, 0.06); padding: 4px 10px; border-radius: 6px; }
+
+    .kiri-toggle-active {
+      width: 36px;
+      height: 20px;
+      background: #10B981;
+      border-radius: 999px;
+      position: relative;
+    }
+
+    .kiri-toggle-knob {
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      width: 16px;
+      height: 16px;
+      background: #FFFFFF;
+      border-radius: 50%;
+    }
+
+    /* =========================================================================
+       ACT 3: STT STUDIO (From STT.png!)
+       ========================================================================= */
+    .kiri-stt-workspace-box {
+      width: 1440px;
+      max-width: 1440px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(0, 0, 0, 0.35) 100%), rgba(14, 17, 24, 0.78);
+      backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 26px 30px;
+      box-shadow:
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+        0 24px 60px -12px rgba(0, 0, 0, 0.75),
+        0 0 40px -5px rgba(0, 210, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-sizing: border-box;
+      transform-style: preserve-3d;
+    }
+
+    .kiri-stt-header-row { display: flex; justify-content: space-between; align-items: center; }
+    .kiri-audio-dropped-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 210, 255, 0.1);
+      border: 1px solid rgba(0, 210, 255, 0.3);
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #FFFFFF;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    }
+
+    .kiri-chip-time { color: #00D2FF; }
+
+    .kiri-btn-export-srt {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 20px;
+      background: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 100%);
+      color: #050608;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 999px;
+      border: none;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 1), 0 4px 16px rgba(255, 255, 255, 0.2);
+    }
+
+    /* 3 Pillars from STT.png */
+    .kiri-stt-pillars-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .kiri-stt-pillar {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94A3B8;
+    }
+
+    .kiri-stt-pillar.active {
+      border-color: rgba(16, 185, 129, 0.35);
+      background: rgba(16, 185, 129, 0.1);
+      color: #FFFFFF;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    }
+
+    .kiri-diarize-stream {
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .kiri-speaker-row {
+      background: rgba(14, 17, 24, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .kiri-spk-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; align-self: flex-start; }
+    .kiri-spk-pill.cyan { background: rgba(0, 210, 255, 0.15); color: #00D2FF; border: 1px solid rgba(0, 210, 255, 0.3); }
+    .kiri-spk-pill.emerald { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .kiri-timestamp-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .kiri-word-stamp {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 17px;
+      font-weight: 600;
+      color: #E2E8F0;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 6px 12px;
+    }
+
+    .kiri-word-stamp small { font-size: 10.5px; color: #64748B; font-variant-numeric: tabular-nums; }
+    .kiri-word-stamp.active {
+      border-color: #00D2FF;
+      color: #00D2FF;
+      background: rgba(0, 210, 255, 0.15);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.25);
+    }
+
+    .kiri-srt-success-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #10B981;
+      opacity: 0;
+    }
+
+    /* =========================================================================
+       ACT 4: 10s VOICE CLONING & OPENAI REST API
+       ========================================================================= */
+    .kiri-act4-split-grid {
+      width: 1440px;
+      max-width: 1440px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      transform-style: preserve-3d;
+    }
+
+    .kiri-clone-card,
+    .kiri-api-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(0, 0, 0, 0.35) 100%), rgba(14, 17, 24, 0.78);
+      backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 26px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow:
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+        0 24px 60px -12px rgba(0, 0, 0, 0.75),
+        0 0 35px -5px rgba(0, 210, 255, 0.1);
+      box-sizing: border-box;
+    }
+
+    .kiri-card-badge-pill {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #10B981;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 999px;
+      padding: 4px 12px;
+      align-self: flex-start;
+    }
+
+    .kiri-card-badge-pill.cyan { color: #00D2FF; background: rgba(0, 210, 255, 0.12); border-color: rgba(0, 210, 255, 0.3); }
+
+    .kiri-clone-card-title,
+    .kiri-api-card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin: 0;
+    }
+
+    .kiri-clone-card-sub,
+    .kiri-api-card-sub { font-size: 13px; color: #94A3B8; margin: 0; }
+
+    .kiri-sample-dropped-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #FFFFFF;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .kiri-progress-box {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin: 4px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .kiri-progress-svg { width: 100%; height: 100%; }
+    .kiri-prog-label { position: absolute; font-size: 16px; font-weight: 700; color: #10B981; }
+
+    .kiri-verified-profile-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #10B981;
+    }
+
+    .kiri-amber-warning-note {
+      font-size: 11px;
+      color: #FCD34D;
+      line-height: 1.4;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .kiri-api-header-row { display: flex; justify-content: space-between; align-items: center; }
+    .kiri-api-hub-logo { width: 36px; height: 36px; }
+    .kiri-hub-logo-img { width: 100%; height: 100%; object-fit: contain; }
+
+    .kiri-endpoint-code-box {
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 12.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .kiri-code-k { color: #00D2FF; }
+    .kiri-code-v { color: #FCD34D; }
+
+    .kiri-api-key-row {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .kiri-key-name { font-weight: 700; color: #FFFFFF; }
+    .kiri-key-hash { font-family: monospace; color: #64748B; font-size: 11px; }
+    .kiri-key-copy { color: #94A3B8; cursor: pointer; }
+
+    .kiri-live-counter-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      margin-top: auto;
+    }
+
+    .kiri-counter-number {
+      font-size: 24px;
+      font-weight: 800;
+      color: #00D2FF;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+    }
+
+    .kiri-counter-caption { font-size: 11.5px; color: #94A3B8; }
+
+    /* =========================================================================
+       ACT 5: GRAND CLIMAX & LANDING HERO (Landing Page.png)
+       ========================================================================= */
+    .kiri-act5-climax {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .kiri-climax-center-lockup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 980px;
+      gap: 22px;
+    }
+
+    .kiri-climax-emblem-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: grid;
+      place-items: center;
+    }
+
+    .kiri-climax-halo {
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(circle, rgba(0, 210, 255, 0.5) 0%, rgba(16, 185, 129, 0.2) 50%, transparent 70%);
+      filter: blur(30px);
+      border-radius: 50%;
+    }
+
+    .kiri-climax-logo-img {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+      z-index: 5;
+      filter: drop-shadow(0 0 25px rgba(0, 210, 255, 0.8));
+    }
+
+    .kiri-climax-headline {
+      font-size: 68px;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+      color: #FFFFFF;
+      margin: 0;
+      text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
+    }
+
+    .kiri-climax-subtext {
+      font-size: 19px;
+      color: #94A3B8;
+      line-height: 1.5;
+      max-width: 820px;
+      margin: 0;
+    }
+
+    .kiri-climax-cta-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .kiri-btn-get-started {
+      position: relative;
+      padding: 14px 42px;
+      background: #FFFFFF;
+      color: #000000;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 999px;
+      border: none;
+      box-shadow: 0 8px 30px rgba(255, 255, 255, 0.35), 0 0 40px rgba(0, 210, 255, 0.4);
+      overflow: hidden;
+    }
+
+    .kiri-cta-shimmer {
+      position: absolute;
+      top: 0;
+      left: 20%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+      transform: skewX(-20deg);
+    }
+
+    .kiri-btn-watch-demo {
+      padding: 14px 36px;
+      background: transparent;
+      color: #FFFFFF;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* =========================================================================
+       PURE EDITORIAL SAAS KINETIC TYPOGRAPHY (Clear concise finished sentences, word-by-word)
+       ========================================================================= */
+    .kiri-editorial-stage {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 80;
+      overflow: hidden;
+      transform-style: preserve-3d;
+    }
+
+    .kiri-editorial-beat {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 1240px;
+      max-width: 90vw;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      will-change: transform, opacity;
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .kiri-editorial-text {
+      font-family: "Inter Variable", "Inter", -apple-system, sans-serif;
+      font-size: 68px;
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.045em;
+      color: #FFFFFF;
+      margin: 0 auto;
+      max-width: 1320px;
+      padding: 0 32px;
+      box-sizing: border-box;
+      display: block;
+      text-wrap: balance;
+      text-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+    }
+
+    .kiri-word {
+      display: inline-block;
+      white-space: nowrap;
+      will-change: transform, opacity, filter;
+    }
+
+    .kiri-editorial-text.sentence-gradient .kiri-word {
+      background: linear-gradient(135deg, #FFFFFF 30%, #00D2FF 90%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kiri-editorial-text.punch-cyan .kiri-word {
+      background: linear-gradient(135deg, #FFFFFF 40%, #00D2FF 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kiri-editorial-text.kicker-text {
+      font-size: 68px;
+      letter-spacing: -0.045em;
+    }
+
+    .kiri-editorial-text.kicker-text .kiri-word {
+      background: linear-gradient(135deg, #FFFFFF 40%, #10B981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  </style>
+</template>
