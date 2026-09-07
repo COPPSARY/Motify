@@ -55,6 +55,58 @@ export interface ElementOverride {
   hidden?: boolean;
 }
 
+export type EditorFieldType =
+  "text" | "number" | "color" | "image" | "select" | "range" | "toggle";
+
+export type EditorFieldBinding =
+  "text" | "style" | "attribute" | "css-variable";
+
+export interface EditorFieldDefinition {
+  id: string;
+  label: string;
+  type: EditorFieldType;
+  binding: EditorFieldBinding;
+  target: HTMLElement;
+  property?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  options?: readonly string[];
+}
+
+export interface EditorGroupDefinition {
+  id: string;
+  label: string;
+  element: HTMLElement;
+  explicit: boolean;
+  fields: readonly EditorFieldDefinition[];
+  allowTransform: boolean;
+  allowAppearance: boolean;
+}
+
+export interface TweenDescriptor {
+  id: string;
+  targetId: string;
+  properties: readonly string[];
+  start: number;
+  duration: number;
+  end: number;
+  ease: string;
+}
+
+export interface TweenOverride {
+  start?: number;
+  duration?: number;
+  ease?: string;
+}
+
+export interface RuntimeEditorState {
+  elements: Record<string, ElementOverride>;
+  animations: Record<string, Pick<AnimationOverride, "speed" | "ease">>;
+  tweens: Record<string, TweenOverride>;
+}
+
 export interface AnimationOverride {
   speed: number;
   ease: string;

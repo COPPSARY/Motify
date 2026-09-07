@@ -234,13 +234,19 @@
 
 .code-editor-scope .me-selection-outline {
   position: absolute;
-  inset: -3px;
-  border: 2px solid #0a84ff;
-  border-radius: 4px;
+  inset: calc(-3px * var(--me-selection-ui-scale, 1));
+  border: calc(2px * var(--me-selection-ui-scale, 1)) solid #0a84ff;
+  border-radius: calc(4px * var(--me-selection-ui-scale, 1));
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 0 16px rgba(10, 132, 255, 0.35);
   animation: meSelectionPulse 2.4s ease-in-out infinite;
+}
+
+.code-editor-scope .me-selection-outline {
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
 }
 
 @keyframes meSelectionPulse {
@@ -261,36 +267,39 @@
 
 .code-editor-scope .me-selection-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: calc(12px * var(--me-selection-ui-scale, 1));
+  height: calc(12px * var(--me-selection-ui-scale, 1));
   background: #ffffff;
-  border: 2px solid #0a84ff;
-  border-radius: 2px;
+  border: calc(2px * var(--me-selection-ui-scale, 1)) solid #0a84ff;
+  border-radius: calc(2px * var(--me-selection-ui-scale, 1));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: nwse-resize;
+  touch-action: none;
 }
 
 .code-editor-scope .me-selection-handle.handle-tl {
-  top: -3px;
-  left: -3px;
+  top: calc(-3px * var(--me-selection-ui-scale, 1));
+  left: calc(-3px * var(--me-selection-ui-scale, 1));
 }
 .code-editor-scope .me-selection-handle.handle-tr {
-  top: -3px;
-  left: calc(100% + 3px);
+  top: calc(-3px * var(--me-selection-ui-scale, 1));
+  left: calc(100% + (3px * var(--me-selection-ui-scale, 1)));
 }
 .code-editor-scope .me-selection-handle.handle-bl {
-  top: calc(100% + 3px);
-  left: -3px;
+  top: calc(100% + (3px * var(--me-selection-ui-scale, 1)));
+  left: calc(-3px * var(--me-selection-ui-scale, 1));
 }
 .code-editor-scope .me-selection-handle.handle-br {
-  top: calc(100% + 3px);
-  left: calc(100% + 3px);
+  top: calc(100% + (3px * var(--me-selection-ui-scale, 1)));
+  left: calc(100% + (3px * var(--me-selection-ui-scale, 1)));
 }
 
 .code-editor-scope .me-selection-badge {
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: -3px;
+  bottom: calc(100% + (8px * var(--me-selection-ui-scale, 1)));
+  left: calc(-3px * var(--me-selection-ui-scale, 1));
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -302,6 +311,8 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   font-family: inherit;
+  transform: scale(var(--me-selection-ui-scale, 1));
+  transform-origin: left bottom;
   pointer-events: none;
 }
 

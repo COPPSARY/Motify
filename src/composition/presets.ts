@@ -39,6 +39,24 @@ export interface GiantCropOptions extends MotionOptions {
   startScale?: number;
   endScale?: number;
   panX?: number;
+  unit?: "words" | "chars";
+  stagger?: number;
+  settleEase?: string;
+  xPercent?: number;
+  yPercent?: number;
+}
+
+export interface WaterfallTextOptions extends MotionOptions {
+  startScale?: number;
+  endScale?: number;
+  panX?: number;
+  startX?: number;
+  startY?: number;
+  rotateX?: number;
+  rotateY?: number;
+  stagger?: number;
+  xPercent?: number;
+  yPercent?: number;
 }
 
 export interface SquashStretchOptions extends MotionOptions {
@@ -446,22 +464,70 @@ export function cameraZoomPan(
   );
 }
 
+function resolveCentering(
+  element: HTMLElement | null | undefined,
+  explicitXPercent?: number,
+  explicitYPercent?: number,
+): { xPercent?: number; yPercent?: number } {
+  if (!element) return {};
+  // Layout belongs to authored CSS. Inferring centering from class names or a
+  // pre-existing transform makes GSAP replace the wrapper transform and can
+  // collapse an otherwise centered sentence against the edge of the stage.
+  return {
+    ...(explicitXPercent !== undefined ? { xPercent: explicitXPercent } : {}),
+    ...(explicitYPercent !== undefined ? { yPercent: explicitYPercent } : {}),
+  };
+}
+
+function ensureTextMotionLayer(element: HTMLElement): HTMLElement {
+  const existing = Array.from(element.children).find((child) =>
+    child.classList.contains("motionly-text-motion-layer"),
+  ) as HTMLElement | undefined;
+  if (existing) return existing;
+
+  const layer = document.createElement("span");
+  layer.className = "motionly-text-motion-layer";
+  layer.style.display = "inline-block";
+  layer.style.maxWidth = "100%";
+  layer.style.transformOrigin = "50% 55%";
+  layer.style.willChange = "transform, opacity, filter";
+  layer.append(...Array.from(element.childNodes));
+  element.append(layer);
+  return layer;
+}
+
 export function giantKineticCrop(
   timeline: gsap.core.Timeline,
   element: HTMLElement | null | undefined,
   options: GiantCropOptions = {},
 ): HTMLElement[] {
   if (!element) return [];
-  const chars = splitText(element, "chars");
+  const motionLayer = ensureTextMotionLayer(element);
+  const pieces = splitText(motionLayer, options.unit ?? "chars").filter(
+    (piece) => Boolean(piece.textContent?.trim()),
+  );
   const startScale = options.startScale ?? 2.8;
   const endScale = options.endScale ?? 1.0;
   const duration = options.duration ?? 0.88;
-
-  timeline.fromTo(
+  const centering = resolveCentering(
     element,
+    options.xPercent,
+    options.yPercent,
+  );
+
+  // Keep the sentence wrapper fixed in its authored layout. The visual zoom
+  // happens on a dedicated inner layer, so centered text cannot be pushed or
+  // clipped when the timeline is scrubbed or an editor override is applied.
+  timeline.set(
+    element,
+    { autoAlpha: 1, perspective: 1200, ...centering },
+    options.at,
+  );
+  timeline.fromTo(
+    motionLayer,
     {
       scale: startScale,
-      x: options.panX ?? 240,
+      x: options.panX ?? 0,
       filter: "blur(14px)",
       autoAlpha: 0,
     },
@@ -476,22 +542,90 @@ export function giantKineticCrop(
     options.at,
   );
 
-  chars.forEach((char, i) => {
-    const microOffset = i % 3 === 0 ? -16 : i % 3 === 1 ? 12 : -6;
+  pieces.forEach((piece, i) => {
+    const microOffset = i % 3 === 0 ? -12 : i % 3 === 1 ? 10 : -4;
     timeline.fromTo(
-      char,
-      { y: microOffset * 2.5, autoAlpha: 0 },
+      piece,
+      {
+        y: microOffset * 2,
+        autoAlpha: 0,
+        transformOrigin: "50% 65%",
+      },
       {
         y: 0,
         autoAlpha: 1,
-        duration: duration * 0.7,
-        ease: "back.out(1.5)",
+        duration: duration * 0.72,
+        ease: options.settleEase ?? "back.out(1.35)",
       },
-      ((options.at as number) ?? 0) + i * 0.02,
+      ((options.at as number) ?? 0) + i * (options.stagger ?? 0.045),
     );
   });
 
-  return chars;
+  return pieces;
+}
+
+export function waterfallTextReveal(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: WaterfallTextOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const motionLayer = ensureTextMotionLayer(element);
+  const words = splitText(motionLayer, "words").filter((word) =>
+    Boolean(word.textContent?.trim()),
+  );
+  const at = typeof options.at === "number" ? options.at : 0;
+  const duration = options.duration ?? 0.55;
+  const stagger = options.stagger ?? 0.055;
+  const centering = resolveCentering(
+    element,
+    options.xPercent,
+    options.yPercent,
+  );
+
+  timeline.set(words, { autoAlpha: 0 }, 0);
+  timeline.set(element, { autoAlpha: 1, perspective: 1200, ...centering }, at);
+  timeline.fromTo(
+    motionLayer,
+    {
+      scale: options.startScale ?? 2.2,
+      x: options.panX ?? 0,
+    },
+    {
+      scale: options.endScale ?? 1,
+      x: 0,
+      duration: duration + words.length * stagger,
+      ease: "expo.out",
+    },
+    at,
+  );
+
+  words.forEach((word, index) => {
+    const wordAt = at + index * stagger;
+    timeline.fromTo(
+      word,
+      {
+        autoAlpha: 0,
+        x: options.startX ?? 0,
+        y: options.startY ?? 44,
+        rotateX: options.rotateX ?? 0,
+        rotateY: options.rotateY ?? 0,
+        transformOrigin: "50% 70%",
+      },
+      {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        rotateX: 0,
+        rotateY: 0,
+        duration,
+        ease: options.ease ?? "back.out(1.35)",
+      },
+      wordAt,
+    );
+  });
+
+  return words;
 }
 
 export function ambientWaves(

@@ -46,6 +46,7 @@
       step="0.05"
       value={speed}
       on:input={changeSpeed}
+      disabled={tweenCount === 0}
     />
   </label>
   <div class="me-ease-grid" aria-label="Easing presets">
@@ -56,6 +57,7 @@
         type="button"
         aria-label={`${preset.label} easing`}
         on:click={() => onEase(preset.value)}
+        disabled={tweenCount === 0}
       >
         <svg viewBox="0 0 80 32" aria-hidden="true">
           <path d="M4 28H76M4 28V4" class="me-ease-axis"></path>
@@ -66,7 +68,10 @@
     {/each}
   </div>
   <small class="me-animation-help">
-    Applies to {tweenCount} GSAP {tweenCount === 1 ? "tween" : "tweens"} targeting
-    this layer.
+    {#if tweenCount > 0}
+      Controls the overall timing for this layer's animation.
+    {:else}
+      This layer has no authored GSAP tweens yet.
+    {/if}
   </small>
 </div>

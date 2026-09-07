@@ -38,6 +38,8 @@ describe("HyperFrames Registry Catalog & Bridge", () => {
     expect(auroraComp).toBeDefined();
     expect(auroraComp?.name).toBe("aurora-drift");
     expect(auroraComp?.type).toBe("hyperframes:component");
+    expect(auroraComp?.description).toContain("aurora fields drift");
+    expect(auroraComp?.variables?.length).toBeGreaterThanOrEqual(2);
 
     const searchResults = searchRegistry("aurora");
     expect(searchResults.length).toBeGreaterThanOrEqual(1);

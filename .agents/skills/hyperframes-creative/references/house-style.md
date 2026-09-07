@@ -32,19 +32,17 @@ If the content genuinely calls for one of these — centered layout for a solemn
 
 ## Background Layer
 
-Every scene needs visual depth — persistent decorative elements that stay visible while content animates in. Without these, scenes feel empty during entrance staggering.
+Depth comes from one authored system, not a quota of decoration. Use a tinted base, an optional structural texture, and one local semantic accent whose behavior is caused by the story. A deliberately flat field can be correct when scale, type, or a morphing carrier already supplies the depth.
 
-Ideas (mix and match, 2-5 per scene):
+Examples:
 
-- Radial glows (accent-tinted, low opacity, breathing scale)
-- Ghost text (theme words at 3-8% opacity, very large, slow drift)
-- Accent lines (hairline rules, subtle pulse)
-- Grain/noise overlay, geometric shapes, grid patterns
-- Thematic decoratives (orbit rings for space, vinyl grooves for music, grid lines for data)
+- a ruled-paper line that becomes a waveform and later a connector;
+- a scan field that advances only while analysis is happening;
+- a data trajectory whose position reflects the claim;
+- a depth rail the camera follows into the product;
+- a local glow emitted by a press or recording source, then absorbed by the next shape.
 
-All decoratives should have slow ambient GSAP animation — breathing, drift, pulse. Static decoratives feel dead.
-
-**Decorative count vs motion count.** The "2-5 per scene" count refers to decorative _elements_. If a project's design spec says "single ambient motion per scene", it means one looping motion applied to these decoratives (a shared breath/drift/pulse) — not one element total. A scene with 4 decoratives sharing one breathing motion is correct; a scene with 1 decorative is under-dressed.
+Avoid default auroras, mesh gradients, blurry blob stacks, random particle fields, and unrelated orbit rings. Do not loop a decorative layer merely to prevent stillness. During a hold, finish a bounded path, scan, assembly, or camera settle instead.
 
 ## Motion
 

@@ -53,21 +53,25 @@
     RuntimeSnapshot,
   } from "../composition/types";
   import {
-    motionlyPromoPreset as demoComposition,
-    flowdeskPreset,
-    aiNotesPreset,
+    appleNotesPreset,
+    claudePreset,
+    kiriTtsPreset,
+    motionlyPromoPreset,
   } from "../compositions/presets";
-  import compositionHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
-  import adapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
+  import appleNotesHtmlSource from "../compositions/presets/apple-notesapp/composition.html?raw";
+  import appleNotesAdapterSource from "../compositions/presets/apple-notesapp/index.ts?raw";
+  import appleNotesTimelineSource from "../compositions/presets/apple-notesapp/timeline.js?raw";
+  import claudeHtmlSource from "../compositions/presets/claude/composition.html?raw";
+  import claudeAdapterSource from "../compositions/presets/claude/index.ts?raw";
+  import claudeTimelineSource from "../compositions/presets/claude/timeline.js?raw";
+  import kiriTtsHtmlSource from "../compositions/presets/KiriTTS/composition.html?raw";
+  import kiriTtsAdapterSource from "../compositions/presets/KiriTTS/index.ts?raw";
+  import kiriTtsTimelineSource from "../compositions/presets/KiriTTS/timeline.js?raw";
+  import motionlyPromoHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
+  import motionlyPromoAdapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
+  import motionlyPromoTimelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
   import promoLogoUrl from "../compositions/presets/motionly-promo/logo.svg?url";
-  import timelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
   import promoUiScreenshotUrl from "../compositions/presets/motionly-promo/ui-screenshot.png?url";
-  import flowdeskHtmlSource from "../compositions/presets/flowdesk/composition.html?raw";
-  import flowdeskAdapterSource from "../compositions/presets/flowdesk/index.ts?raw";
-  import flowdeskTimelineSource from "../compositions/presets/flowdesk/timeline.js?raw";
-  import aiNotesHtmlSource from "../compositions/presets/ai-notes/composition.html?raw";
-  import aiNotesAdapterSource from "../compositions/presets/ai-notes/index.ts?raw";
-  import aiNotesTimelineSource from "../compositions/presets/ai-notes/timeline.js?raw";
   import {
     deriveSceneTracks,
     formatTimelineSeconds,
@@ -133,20 +137,25 @@ export default defineComposition({
   build(context) { mount(context); buildTimeline(context); },
 });`,
   };
-  const presetProjectFiles = splitCompositionSource(
-    compositionHtmlSource,
-    timelineSource,
-    adapterSource,
+  const claudeProjectFiles = splitCompositionSource(
+    claudeHtmlSource,
+    claudeTimelineSource,
+    claudeAdapterSource,
   );
-  const flowdeskProjectFiles = splitCompositionSource(
-    flowdeskHtmlSource,
-    flowdeskTimelineSource,
-    flowdeskAdapterSource,
+  const kiriTtsProjectFiles = splitCompositionSource(
+    kiriTtsHtmlSource,
+    kiriTtsTimelineSource,
+    kiriTtsAdapterSource,
   );
-  const aiNotesProjectFiles = splitCompositionSource(
-    aiNotesHtmlSource,
-    aiNotesTimelineSource,
-    aiNotesAdapterSource,
+  const motionlyPromoProjectFiles = splitCompositionSource(
+    motionlyPromoHtmlSource,
+    motionlyPromoTimelineSource,
+    motionlyPromoAdapterSource,
+  );
+  const appleNotesProjectFiles = splitCompositionSource(
+    appleNotesHtmlSource,
+    appleNotesTimelineSource,
+    appleNotesAdapterSource,
   );
   const previewApi = new ProjectsApi();
 
@@ -178,11 +187,15 @@ export default defineComposition({
   let uploadingMedia = false;
   let runtime: CompositionRuntime | null = null;
   let runtimeUnsubscribe: (() => void) | null = null;
-  let activeComposition: CompositionDefinition = aiNotesPreset;
+  let activeComposition: CompositionDefinition = claudePreset;
   let previewLoadSequence = 0;
   let projectStyles: HTMLStyleElement | null = null;
-  let snapshot: RuntimeSnapshot = { time: 0, playing: false, sceneId: "brand" };
-  let selectedSceneId = "brand";
+  let snapshot: RuntimeSnapshot = {
+    time: 0,
+    playing: false,
+    sceneId: claudePreset.scenes[0]?.id ?? "",
+  };
+  let selectedSceneId = claudePreset.scenes[0]?.id ?? "";
   let selectedId = "";
   let zoom = 1;
   let fitScale = 0.5;
@@ -266,7 +279,7 @@ export default defineComposition({
   }
   let timelineMode: TimelineMode = "project";
   let sourceOpen = false;
-  let cloudFiles = aiNotesProjectFiles;
+  let cloudFiles = claudeProjectFiles;
   let cloudProject: ProjectSummary | null = null;
 
   interface SelectionRect {
@@ -356,33 +369,40 @@ export default defineComposition({
     editorRevision += 1;
   }
 
-  function loadPromoPreset(): void {
+  function loadClaudePreset(): void {
     previewLoadSequence += 1;
     cloudProject = null;
-    cloudFiles = { ...presetProjectFiles };
+    cloudFiles = { ...claudeProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(demoComposition);
-    showNotice(
-      "Fast Product Story preset loaded. Save it as a new project when ready.",
-    );
+    mountComposition(claudePreset);
+    showNotice("Claude Calorie & Climax preset loaded.");
   }
 
-  function loadFlowdeskPreset(): void {
+  function loadKiriTtsPreset(): void {
     previewLoadSequence += 1;
     cloudProject = null;
-    cloudFiles = { ...flowdeskProjectFiles };
+    cloudFiles = { ...kiriTtsProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(flowdeskPreset);
-    showNotice("Flowdesk SaaS Commercial loaded (Silicon Valley standard).");
+    mountComposition(kiriTtsPreset);
+    showNotice("KiriTTS SaaS Ad preset loaded.");
   }
 
-  function loadAiNotesPreset(): void {
+  function loadMotionlyPromoPreset(): void {
     previewLoadSequence += 1;
     cloudProject = null;
-    cloudFiles = { ...aiNotesProjectFiles };
+    cloudFiles = { ...motionlyPromoProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(aiNotesPreset);
-    showNotice("Scribe AI Ambient Notes preset loaded.");
+    mountComposition(motionlyPromoPreset);
+    showNotice("Motionly Promo preset loaded.");
+  }
+
+  function loadAppleNotesPreset(): void {
+    previewLoadSequence += 1;
+    cloudProject = null;
+    cloudFiles = { ...appleNotesProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(appleNotesPreset);
+    showNotice("Apple Notes 24s Product Film loaded.");
   }
 
   async function mountSavedProject(project: ProjectSummary): Promise<void> {
@@ -552,19 +572,24 @@ export default defineComposition({
     return deriveSceneTracks(scene, runtime?.elements, runtime?.timeline);
   }
 
+  $: currentTimelineStart =
+    timelineMode === "project" ? 0 : (selectedScene()?.start ?? 0);
+  $: currentTimelineDuration =
+    timelineMode === "project"
+      ? activeComposition.duration
+      : (selectedScene()?.duration ?? activeComposition.duration);
+
   function timelineStart(): number {
-    return timelineMode === "project" ? 0 : (selectedScene()?.start ?? 0);
+    return currentTimelineStart;
   }
 
   function timelineDuration(): number {
-    return timelineMode === "project"
-      ? activeComposition.duration
-      : (selectedScene()?.duration ?? activeComposition.duration);
+    return currentTimelineDuration;
   }
 
   function timelinePlayheadPosition(): number {
-    const start = timelineStart();
-    const duration = timelineDuration();
+    const start = currentTimelineStart;
+    const duration = currentTimelineDuration;
     return Math.max(
       0,
       Math.min(100, ((snapshot.time - start) / duration) * 100),
@@ -1479,45 +1504,63 @@ export default defineComposition({
                 >
               </div>
             {:else if activeTab === "media" && mediaTab === "presets"}
-              <h3 class="me-category-title">Promo video</h3>
+              <h3 class="me-category-title">Presets</h3>
               <div class="me-preset-grid">
-                <button class="me-preset-card" on:click={loadPromoPreset}>
+                <button class="me-preset-card" on:click={loadClaudePreset}>
+                  <span class="me-preset-thumbnail claude-thumbnail">
+                    <span class="promo-thumbnail-art"
+                      ><small>RESEARCH / REASON / CREATE</small><strong
+                        >CLAUDE<br /><em>THINKS.</em></strong
+                      ><i>PROMPT · ARTIFACT · ACTION</i></span
+                    >
+                  </span>
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name"
+                      >Claude Calorie & Climax</strong
+                    >
+                    <small>24.5s · Build, Macro Zoom & Climax</small></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadKiriTtsPreset}>
+                  <span class="me-preset-thumbnail kiritts-thumbnail">
+                    <span class="promo-thumbnail-art"
+                      ><small>UNIFIED AI VOICE</small><strong
+                        >KIRI<br /><em>TTS.</em></strong
+                      ><i>TTS · STT · CLONING · API</i></span
+                    >
+                  </span>
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">KiriTTS SaaS Ad</strong>
+                    <small>28.5s · 5 Acts · Claude-Grade Camera</small></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadAppleNotesPreset}>
+                  <span class="me-preset-thumbnail apple-notes-thumbnail">
+                    <span class="promo-thumbnail-art"
+                      ><small>EXPANSIVE CAMERA</small><strong
+                        >APPLE<br /><em>NOTES.</em></strong
+                      ><i>GLASS · ECOSYSTEM · PENCIL</i></span
+                    >
+                  </span>
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Apple Notes</strong>
+                    <small>24s · 2.5D Expansive Camera</small></span
+                  >
+                </button>
+                <button
+                  class="me-preset-card"
+                  on:click={loadMotionlyPromoPreset}
+                >
                   <span class="me-preset-thumbnail promo-thumbnail">
                     <span class="promo-thumbnail-art"
-                      ><small>WRITE / DIRECT / EXPORT</small><strong
+                      ><small>KINETIC PRODUCT FILM</small><strong
                         >MAKE IT<br /><em>MOVE.</em></strong
-                      ><i>HTML · CSS · GSAP</i></span
+                      ><i>EDITORIAL · SAAS · GSAP</i></span
                     >
                   </span>
                   <span class="me-preset-info"
-                    ><strong class="me-preset-name">Fast Product Story</strong
-                    ><small>20s · HTML/CSS + GSAP</small></span
-                  >
-                </button>
-                <button class="me-preset-card" on:click={loadFlowdeskPreset}>
-                  <span class="me-preset-thumbnail flowdesk-thumbnail">
-                    <span class="promo-thumbnail-art"
-                      ><small>AI CUSTOMER SUPPORT</small><strong
-                        >FLOW<br /><em>DESK.</em></strong
-                      ><i>TRIAGE · COPILOT · RESOLVE</i></span
-                    >
-                  </span>
-                  <span class="me-preset-info"
-                    ><strong class="me-preset-name">Flowdesk Commercial</strong>
-                    <small>32s · 6 Laws of SaaS Motion</small></span
-                  >
-                </button>
-                <button class="me-preset-card" on:click={loadAiNotesPreset}>
-                  <span class="me-preset-thumbnail ai-notes-thumbnail">
-                    <span class="promo-thumbnail-art"
-                      ><small>AMBIENT INTELLIGENCE</small><strong
-                        >SCRIBE<br /><em>AI.</em></strong
-                      ><i>AUDIO · SYNTHESIS · ACTIONS</i></span
-                    >
-                  </span>
-                  <span class="me-preset-info"
-                    ><strong class="me-preset-name">Scribe AI Notes</strong>
-                    <small>16s · Audio Morph & Decisions</small></span
+                    ><strong class="me-preset-name">Motionly Promo</strong>
+                    <small>20s · HTML/CSS + GSAP</small></span
                   >
                 </button>
               </div>

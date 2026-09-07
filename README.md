@@ -5,7 +5,7 @@
   </h1>
 
   <p>
-    Create professional HTML/SVG animations with CSS and GSAP, then refine them visually.
+    AI tool that makes SaaS explainers and launch videos.
   </p>
 
 <p align="center">
@@ -29,9 +29,24 @@
 
 ## Showcase
 
-<p align="center">
-  <img src=".github/assets/motionly-showcase.gif" alt="Motionly product film showcase" width="720">
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src=".github/assets/claude.gif" alt="Claude" width="100%">
+    </td>
+    <td width="50%" align="center">
+      <img src=".github/assets/KiriTTS.gif" alt="KiriTTS" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src=".github/assets/motionly.gif" alt="Motionly" width="100%">
+    </td>
+    <td width="50%" align="center">
+      <img src=".github/assets/notes-app.gif" alt="Apple Notes" width="100%">
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -93,8 +108,7 @@ Licensed under the [Apache License 2.0](LICENSE).
 
 ---
 
-<div align="center">
-  <p><em>Effortless Animation</em></p>
+<div align="left">
   <p>
     <a href="https://github.com/COPPSARY">GitHub</a> &middot;
     <a href="https://web.facebook.com/profile.php?id=61567582710788">Facebook</a>

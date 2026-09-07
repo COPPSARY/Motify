@@ -34,6 +34,7 @@ export interface RegistryItemSummary {
   title?: string;
   description?: string;
   tags?: readonly string[];
+  jobs?: readonly string[];
   author?: string;
   dimensions?: RegistryDimensions;
   duration?: number;

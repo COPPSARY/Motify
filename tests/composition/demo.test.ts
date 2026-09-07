@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { motionlyPromoPreset as demoComposition } from "../../src/compositions/presets";
+import { motionlyPromoPreset as demoComposition } from "../../src/compositions/presets/motionly-promo";
 
 describe("Motionly product demo", () => {
   it("is a complete founder story with connected launch beats", () => {
