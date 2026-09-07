@@ -76,6 +76,8 @@ export interface GeneratedComposition {
   compositionHtml: string;
   timelineJs: string;
   reply: string;
+  /** What the quality gate concluded about the pass that actually shipped. */
+  quality?: MotionQualityReport;
 }
 
 export interface MotionQualityReport {
@@ -83,7 +85,12 @@ export interface MotionQualityReport {
   requiresRepair: boolean;
   /** Every failure, blocking and advisory, in report order. */
   issues: readonly string[];
-  /** Failures that make the output unusable as a premium product film. */
+  /**
+   * Failures that make the output genuinely broken: it cannot run, cannot be
+   * seeked or exported deterministically, ignores supplied media, or ships the
+   * wrong brand. Everything else is direction we ask the model to improve but
+   * never a reason to hand the user nothing.
+   */
   blockingIssues: readonly string[];
   strengths: readonly string[];
 }
@@ -587,6 +594,9 @@ function executableTimelineSource(value: string): string {
   return value.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
+/** Below this score the film is weak enough to be worth another model pass. */
+export const QUALITY_REPAIR_THRESHOLD = 70;
+
 export interface MotionQualityContext {
   /** The original request, used to detect foundation branding leaking through. */
   prompt?: string;
@@ -686,10 +696,17 @@ export function analyzeMotionQuality(
   const issues: string[] = [];
   const blocking: string[] = [];
   const strengths: string[] = [];
+  /**
+   * Reserved for output that is actually broken. A film that runs, renders, and
+   * respects the brief but misses a directorial ideal is repaired by another
+   * pass and still shipped, because a rejected generation is worth less to the
+   * user than an imperfect one they can edit.
+   */
   const fail = (message: string): void => {
     issues.push(message);
     blocking.push(message);
   };
+  /** Direction for the repair pass. Never a reason to withhold the film. */
   const warn = (message: string): void => {
     issues.push(message);
   };
@@ -698,17 +715,17 @@ export function analyzeMotionQuality(
     fail("timeline.js must export or define buildTimeline(context)");
   }
   if (html.length < 1800) {
-    fail(
+    warn(
       "composition HTML/CSS is too sparse for a production-quality directed frame",
     );
   }
   if (
     !/data-motionly-generation-profile=["']claude-foundation-v1["']/i.test(html)
   ) {
-    fail("composition dropped the mandatory generation foundation marker");
+    warn("composition dropped the mandatory generation foundation marker");
   }
   if (!/data-transition-carrier(?:\s|=|>)/i.test(html)) {
-    fail(
+    warn(
       "composition has no persistent transition carrier and can collapse into disconnected slides",
     );
   }
@@ -720,7 +737,7 @@ export function analyzeMotionQuality(
     strengths.push("HyperFrames component mechanics shape the authored DOM");
   }
   if (sceneCount >= 3 && constructionCount < 3) {
-    fail(
+    warn(
       "product hierarchy is not constructed in stages before the interaction",
     );
   }
@@ -735,12 +752,12 @@ export function analyzeMotionQuality(
     }
   }
   if (simultaneousFadeIns(executableTimeline) > 0) {
-    fail(
+    warn(
       "the layout arrives as one simultaneous fade-in of many elements; construct regions in reading order with staggered starts",
     );
   }
   if (sceneCount >= 3 && deconstructionCount === 0) {
-    fail(
+    warn(
       "the product surface never deconstructs; outgoing internals must physically clear in reverse hierarchy while the carrier continues",
     );
   } else if (sceneCount >= 3 && deconstructionCount < 2) {
@@ -755,7 +772,7 @@ export function analyzeMotionQuality(
       `${html}\n${executableTimeline}`,
     )
   ) {
-    fail(
+    warn(
       "no real product interaction is filmed; show one typed input, press, drag, or toggle that causes the result",
     );
   } else {
@@ -781,7 +798,7 @@ export function analyzeMotionQuality(
       "nothing moves, scales, or rotates; opacity alone is not animation, so give every reveal and exit a physical property",
     );
   } else if (transformPropertyCount * 2 < fadePropertyCount) {
-    fail(
+    warn(
       "motion is mostly opacity fades; anticipate, move, scale, or rotate the subject and reserve opacity for cleaning up a face after a handoff",
     );
   } else {
@@ -819,7 +836,7 @@ export function analyzeMotionQuality(
     );
   }
   if (sceneCount > 1 && physicalHandoffCount < Math.min(3, sceneCount - 1)) {
-    fail(
+    warn(
       "too few executable physical carrier handoffs cover the scene boundaries",
     );
   } else if (sceneCount > 1) {
@@ -830,17 +847,17 @@ export function analyzeMotionQuality(
     physicalHandoffCount < sceneCount - 1 &&
     opacityBoundaryCount >= sceneCount - 1
   ) {
-    fail(
+    warn(
       "scenes are joined by opacity toggles rather than carriers; this is slideshow output, not a directed film",
     );
   }
   if (sceneCount >= 3 && !/data-camera-world(?:\s|=|>)/i.test(html)) {
-    fail(
+    warn(
       "multi-scene product film has no expansive data-camera-world and is likely toggling components inside one viewport",
     );
   }
   if (sceneCount >= 3 && cameraMoveCount < 3) {
-    fail(
+    warn(
       "camera is not first-class; author at least three world moves covering push, pan/track, and pull/reframe",
     );
   } else if (sceneCount >= 3) {
@@ -857,14 +874,14 @@ export function analyzeMotionQuality(
     );
   }
   if (tweenCount + presetCount < Math.max(7, sceneCount * 3)) {
-    fail(
+    warn(
       "timeline is under-choreographed and likely becomes static after its entrance",
     );
   } else {
     strengths.push("timeline has multi-phase motion density");
   }
   if (!/\.set\s*\([\s\S]{0,500}?,\s*0\s*\)/.test(timeline)) {
-    fail(
+    warn(
       "initial visual states are not deterministically established at time 0",
     );
   }
@@ -873,7 +890,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    fail(
+    warn(
       "editorial text is not choreographed word-by-word or character-by-character",
     );
   } else {
@@ -885,7 +902,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    fail(
+    warn(
       "multi-scene output has no morph, match-cut, or particle-reassembly handoff",
     );
   } else if (sceneCount > 1) {
@@ -924,7 +941,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    fail(
+    warn(
       "a complete product shell is over-scaled and will be clipped by its carrier; keep the shell fit-safe and focus a local UI region instead",
     );
   }
@@ -933,7 +950,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    fail(
+    warn(
       "editorial helper options are repositioning the centered wrapper; CSS must own centering, one inner layer must own whole-sentence scale, and words must not scale into each other",
     );
   }
@@ -942,7 +959,7 @@ export function analyzeMotionQuality(
       html,
     )
   ) {
-    fail(
+    warn(
       "proof nests a framed card inside a device/frame; replace it with one coherent product surface",
     );
   }
@@ -952,21 +969,23 @@ export function analyzeMotionQuality(
       html,
     )
   ) {
-    fail(
+    warn(
       "small cards float in empty space with no full-bleed product surface; build the application surface this product actually has",
     );
   }
   if (
-    /\b(?:lorem ipsum|your product here|placeholder text|sample text|dummy data|ai insights)\b/i.test(
+    // "AI insights" is deliberately absent: it is real copy for real AI
+    // products, and flagging it rejected legitimate films about them.
+    /\b(?:lorem ipsum|your product here|product name here|placeholder text|sample text|dummy data)\b/i.test(
       html,
     )
   ) {
-    fail(
+    warn(
       "generic placeholder or generic AI-dashboard copy is standing in for real product content",
     );
   }
   if (editIdCount < 5) {
-    fail(
+    warn(
       "too few stable data-edit ids; every meaningful element must stay selectable, movable, resizable, and editable",
     );
   } else {
@@ -974,7 +993,7 @@ export function analyzeMotionQuality(
   }
   const unstableIds = unstableEditIds(html);
   if (unstableIds.length > 0) {
-    fail(
+    warn(
       `data-edit ids are positional rather than descriptive (${unstableIds
         .slice(0, 4)
         .join(", ")}); use role names so editor overrides survive regeneration`,
@@ -1024,7 +1043,7 @@ export function analyzeMotionQuality(
     );
   }
   if (presetCount < 2) {
-    fail(
+    warn(
       "fewer than two real Motionly presets are used in executable timeline code",
     );
   } else {
@@ -1032,17 +1051,137 @@ export function analyzeMotionQuality(
   }
 
   const advisoryCount = issues.length - blocking.length;
-  const score = Math.max(
-    0,
-    100 - blocking.length * 18 - advisoryCount * 8 + strengths.length * 3,
+  const score = Math.min(
+    100,
+    Math.max(
+      0,
+      100 - blocking.length * 22 - advisoryCount * 5 + strengths.length * 3,
+    ),
   );
   return {
     score,
-    requiresRepair: issues.length > 0 || score < 90,
+    // A repair pass costs the user a second model round trip, so spend it on
+    // output that is broken or genuinely weak rather than on every generation
+    // that misses one directorial ideal.
+    requiresRepair: blocking.length > 0 || score < QUALITY_REPAIR_THRESHOLD,
     issues,
     blockingIssues: blocking,
     strengths,
   };
+}
+
+/**
+ * Concrete corrections keyed by the leading words of the issue that triggers
+ * them. A repair pass that is handed the whole style guide rewrites everything
+ * and usually regresses; a repair pass handed the two lines that name its own
+ * mistake fixes them and leaves the rest of the film alone.
+ */
+const ISSUE_REMEDIES: ReadonlyArray<readonly [string, string]> = [
+  [
+    "timeline.js must export",
+    "Define `export function buildTimeline(context) { const { root, timeline } = context; ... }` as the single entry point.",
+  ],
+  [
+    "nothing moves",
+    "Give every reveal and exit a transform: x/y/scale/rotation. Opacity alone is not animation.",
+  ],
+  [
+    "motion is mostly opacity fades",
+    "Replace fades with transforms; reserve opacity for cleaning up a face after a handoff has already moved it.",
+  ],
+  [
+    "independent CSS animation",
+    "Delete every @keyframes rule and `animation:` declaration and move that motion onto the GSAP timeline so seeking stays deterministic.",
+  ],
+  [
+    "infinite ambient looping",
+    "Remove `repeat: -1`; author the background progression as finite tweens on the master timeline.",
+  ],
+  [
+    "callback-driven layer cleanup",
+    "Remove `onComplete` handlers that write element.style; schedule `timeline.set(el, { display, autoAlpha }, time)` instead so reverse seeking is correct.",
+  ],
+  [
+    "supplied media is missing",
+    "Render every supplied asset token as a real `src` or `url()` on a visible element.",
+  ],
+  [
+    "the Claude foundation's branding",
+    "Strip every Claude/Anthropic name, palette, and chrome; rebuild the surface from the product the user actually asked for.",
+  ],
+  [
+    "composition has no persistent transition carrier",
+    "Mark one element that survives every scene with `data-transition-carrier` and animate it across each boundary.",
+  ],
+  [
+    "fewer than two real Motionly presets",
+    "Call at least two Motionly helpers directly, e.g. `textReveal(timeline, headline, { at: 0.2 })` and `morph(timeline, carrier, { width: 900, borderRadius: 28 }, { at: 2.4 })`.",
+  ],
+  [
+    "multi-scene output has no morph",
+    "Join scene boundaries with `morph(...)`, `matchCut(timeline, outgoing, incoming, ...)`, or a particle reassembly instead of a cross-fade.",
+  ],
+  [
+    "scenes are joined by opacity toggles",
+    "Replace each boundary cross-fade with `morph(...)` or `matchCut(...)` on the carrier.",
+  ],
+  [
+    "too few executable physical carrier handoffs",
+    "Add a `morph(...)` or `matchCut(...)` call at every scene boundary, not just the first.",
+  ],
+  [
+    "camera is not first-class",
+    "Author at least three world moves on `[data-camera-world]`: a push in, a pan/track across, and a pull back to reframe.",
+  ],
+  [
+    "multi-scene product film has no expansive",
+    "Wrap the scene regions in a `data-camera-world` element several times wider than the 1920px viewport and move the camera across it.",
+  ],
+  [
+    "timeline is under-choreographed",
+    "Add multi-phase motion so each scene has at least three authored tweens, not one entrance.",
+  ],
+  [
+    "editorial text is not choreographed",
+    "Animate headlines word-by-word with `textReveal(...)`, `wordSlideRotate(...)`, or an explicit `stagger`.",
+  ],
+  [
+    "the layout arrives as one simultaneous",
+    "Stagger the regions into distinct timeline positions in reading order instead of fading many elements in at once.",
+  ],
+  [
+    "the product surface never deconstructs",
+    "Clear outgoing internals along motivated vectors in reverse hierarchy while the carrier keeps moving.",
+  ],
+  [
+    "no real product interaction",
+    "Film one concrete interaction — a typed input, a press, a drag, or a toggle — and show the result it causes.",
+  ],
+  [
+    "generic placeholder",
+    "Replace placeholder strings with the real product's own copy, labels, and numbers.",
+  ],
+  [
+    "small cards float in empty space",
+    "Build the full-bleed application surface this product actually has and place the cards inside it.",
+  ],
+  [
+    "data-edit ids are positional",
+    "Rename positional ids (el-1, item-2) to role names such as headline, product-shell, cta.",
+  ],
+  [
+    "too few stable data-edit ids",
+    "Give every meaningful element a descriptive `data-edit` id so it stays editable.",
+  ],
+];
+
+function remediesFor(issues: readonly string[]): string[] {
+  const remedies: string[] = [];
+  for (const issue of issues) {
+    const match = ISSUE_REMEDIES.find(([prefix]) => issue.startsWith(prefix));
+    if (match && !remedies.includes(match[1])) remedies.push(match[1]);
+  }
+  return remedies;
 }
 
 export function buildQualityRepairPrompt(
@@ -1050,14 +1189,33 @@ export function buildQualityRepairPrompt(
   result: GeneratedComposition,
   report: MotionQualityReport,
 ): string {
-  const blocking = report.blockingIssues.length
-    ? `\n\nBLOCKING FAILURES (must all be fixed)\n${report.blockingIssues
-        .map((issue, index) => `${index + 1}. ${issue}`)
+  // Blocking failures first, then the strongest advisory notes. Anything past
+  // the first handful is noise the model trades against the failures that
+  // actually matter.
+  const targeted = [
+    ...report.blockingIssues,
+    ...report.issues.filter((issue) => !report.blockingIssues.includes(issue)),
+  ].slice(0, 8);
+  const remedies = remediesFor(targeted);
+  const kept = report.strengths.length
+    ? `\n\nALREADY GOOD — DO NOT REGRESS\n${report.strengths
+        .slice(0, 6)
+        .map((strength) => `- ${strength}`)
         .join("\n")}`
     : "";
-  return `Repair and substantially upgrade the generated Motionly composition for the original request: ${originalPrompt}\n\nQUALITY GATE FAILURES\n${report.issues
-    .map((issue, index) => `${index + 1}. ${issue}`)
-    .join(
-      "\n",
-    )}${blocking}\n\nKeep any strong visual work, keep the established subject, palette, scene spine, and every data-edit id, but rewrite weak choreography from the scene level. First build an expansive data-camera-world with distinct spatial states, then author a clear push → pan/track → pull/reframe camera path on the master timeline. Construct the product surface progressively in reading order and deconstruct it in reverse hierarchy; film one real interaction with a macro focus rig and a caret-following pan. Repair layout before adding micro motion: keep centered text wrappers fixed, zoom one inner text layer, stagger words without scaling them into each other, keep product shells readable at settled holds, never overlap two settled text blocks, and remove nested frames, screenshot collages, or tiny cards floating in a void. Use real Motionly preset calls and make boundaries MORPH, MATCH-CUT, or PARTICLE-REASSEMBLE. Return the complete replacement JSON, not a patch.\n\nPrevious reply summary: ${result.reply}`;
+  const howToFix = remedies.length
+    ? `\n\nHOW TO FIX EACH ONE\n${remedies
+        .map((remedy) => `- ${remedy}`)
+        .join("\n")}`
+    : "";
+  return `Repair the Motionly composition you just produced for this request: ${originalPrompt}
+
+Keep the subject, palette, copy, scene spine, and every data-edit id. Change only what the list below names; do not restart from a blank stage.
+
+FIX THESE
+${targeted.map((issue, index) => `${index + 1}. ${issue}`).join("\n")}${howToFix}${kept}
+
+Return the complete replacement JSON with compositionHtml and timelineJs, not a patch.
+
+Previous reply summary: ${result.reply}`;
 }

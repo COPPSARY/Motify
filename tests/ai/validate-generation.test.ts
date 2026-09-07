@@ -142,7 +142,7 @@ describe("generated composition validation", () => {
     ).toThrow(/static slide/);
   });
 
-  it("rejects scenes joined without a carrier handoff", () => {
+  it("ships scenes joined without a carrier handoff but warns about it", () => {
     const slideshow = {
       duration: 4,
       scenes: twoScenes,
@@ -152,18 +152,45 @@ describe("generated composition validation", () => {
         const two = root.querySelector('[data-edit="two"]');
         timeline.set(two, { autoAlpha: 0 }, 0);
         timeline.to(one, { autoAlpha: 0, duration: 0.5 }, 1.8);
-        timeline.to(two, { autoAlpha: 1, duration: 0.5 }, 2.2);
+        timeline.to(two, { autoAlpha: 1, duration: 1.6 }, 2.2);
       }`,
       reply: "Done",
     };
-    expect(() =>
-      validateGeneratedComposition(slideshow, {
+    const validated = validateGeneratedComposition(slideshow, {
+      prompt: "Polish the transition",
+      previousHtml: `<template><main data-edit="stage"><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
+      previousDuration: 4,
+      previousScenes: twoScenes,
+    });
+    expect(validated.warnings.join(" ")).toMatch(/slideshow/);
+    expect(validated.warnings.join(" ")).toMatch(
+      /no persistent transition carrier/i,
+    );
+  });
+
+  it("reports no warnings when boundaries carry visual mass", () => {
+    const carried = {
+      duration: 4,
+      scenes: twoScenes,
+      compositionHtml: `<template><main data-edit="stage"><div data-edit="carrier" data-transition-carrier></div><div data-edit="one">First</div><div data-edit="two">Second</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        const carrier = root.querySelector('[data-edit="carrier"]');
+        timeline.to(one, { x: 10, duration: 1 }, 0);
+        morph(timeline, carrier, { width: 420 }, { at: 1.8, duration: 0.5 });
+        timeline.to(two, { x: 12, duration: 1.2 }, 2.4);
+      }`,
+      reply: "Done",
+    };
+    expect(
+      validateGeneratedComposition(carried, {
         prompt: "Polish the transition",
-        previousHtml: `<template><main data-edit="stage"><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
+        previousHtml: `<template><main data-edit="stage"><div data-edit="carrier"></div><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
         previousDuration: 4,
         previousScenes: twoScenes,
-      }),
-    ).toThrow(/slideshow output is rejected/);
+      }).warnings,
+    ).toEqual([]);
   });
 
   it("rejects a timeline that leaves the tail of the composition frozen", () => {

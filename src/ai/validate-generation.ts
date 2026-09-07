@@ -227,26 +227,31 @@ function assertSceneDevelops(
 }
 
 /**
- * Scene boundaries must conserve visual mass. A multi-scene timeline whose only
- * boundary mechanism is opacity is a slideshow.
+ * Scene boundaries should conserve visual mass; a multi-scene timeline whose
+ * only boundary mechanism is opacity reads as a slideshow.
+ *
+ * This is direction, not correctness: such a film still renders, seeks, and
+ * exports correctly, so it is reported as a warning the caller can surface
+ * rather than an error that leaves the user with nothing.
  */
-function assertCarrierContinuity(
+function carrierContinuityWarnings(
   timelineJs: string,
   html: string,
   scenes: readonly SceneDefinition[],
-): void {
-  if (scenes.length < 2) return;
-  const handoffs = Array.from(timelineJs.matchAll(PHYSICAL_HANDOFF)).length;
-  if (handoffs === 0) {
-    throw new Error(
-      "AI output joins scenes without a morph, match-cut, or particle handoff; slideshow output is rejected.",
+): string[] {
+  if (scenes.length < 2) return [];
+  const warnings: string[] = [];
+  if (Array.from(timelineJs.matchAll(PHYSICAL_HANDOFF)).length === 0) {
+    warnings.push(
+      "Scenes are joined without a morph, match-cut, or particle handoff, so the film cuts like a slideshow.",
     );
   }
   if (!/data-transition-carrier(?:\s|=|>)/i.test(html)) {
-    throw new Error(
-      "AI composition has no persistent transition carrier, so scene boundaries cannot conserve visual mass.",
+    warnings.push(
+      "No persistent transition carrier is marked, so scene boundaries do not conserve visual mass.",
     );
   }
+  return warnings;
 }
 
 function assertAssetsUsed(html: string, tokens: readonly string[]): void {
@@ -318,6 +323,8 @@ export interface ValidatedGeneration {
   result: DirectAiResult;
   duration: number;
   scenes: readonly SceneDefinition[];
+  /** Directorial notes about output that is correct but not yet cinematic. */
+  warnings: readonly string[];
 }
 
 export function validateGeneratedComposition(
@@ -374,7 +381,11 @@ export function validateGeneratedComposition(
       );
     }
   }
-  assertCarrierContinuity(result.timelineJs, result.compositionHtml, scenes);
+  const warnings = carrierContinuityWarnings(
+    result.timelineJs,
+    result.compositionHtml,
+    scenes,
+  );
 
   const composition = createDynamicComposition(
     options.renderedHtml ?? result.compositionHtml,
@@ -428,5 +439,5 @@ export function validateGeneratedComposition(
     runtime?.destroy();
     root.remove();
   }
-  return { result, duration, scenes };
+  return { result, duration, scenes, warnings };
 }

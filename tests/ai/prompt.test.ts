@@ -6,6 +6,7 @@ import {
   buildMotionlyUserMessage,
   buildRegistryBrief,
   buildSkillRoutingBrief,
+  QUALITY_REPAIR_THRESHOLD,
   selectBackgroundDirection,
   selectReferenceRoles,
   selectRegistryReferences,
@@ -374,7 +375,7 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("EXAGGERATION");
   });
 
-  it("rejects a composition that only fades things in and out", () => {
+  it("blocks a composition with no motion and flags one that mostly fades", () => {
     const fadeOnly = analyzeMotionQuality({
       duration: 8,
       scenes: scenes(2),
@@ -406,7 +407,9 @@ describe("Product-adaptive direction and the premium quality gate", () => {
       }`,
       reply: "Done",
     });
-    expect(mostlyFades.blockingIssues.join(" ")).toContain(
+    // Fade-heavy motion is still motion: it earns a repair pass, not a reject.
+    expect(mostlyFades.blockingIssues).toEqual([]);
+    expect(mostlyFades.issues.join(" ")).toContain(
       "motion is mostly opacity fades",
     );
   });
@@ -520,7 +523,7 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(message).toContain("Never restart from a blank stage");
   });
 
-  it("rejects slideshow-shaped output joined by opacity toggles", () => {
+  it("flags slideshow-shaped output joined by opacity toggles", () => {
     const report = analyzeMotionQuality({
       duration: 12,
       scenes: scenes(3),
@@ -535,11 +538,11 @@ describe("Product-adaptive direction and the premium quality gate", () => {
       }`,
       reply: "Done",
     });
-    expect(report.blockingIssues.join(" ")).toContain("slideshow output");
+    expect(report.issues.join(" ")).toContain("slideshow output");
     expect(report.requiresRepair).toBe(true);
   });
 
-  it("rejects a simultaneous fade-in of the whole layout", () => {
+  it("flags a simultaneous fade-in of the whole layout", () => {
     const report = analyzeMotionQuality({
       duration: 8,
       scenes: scenes(2),
@@ -549,10 +552,10 @@ describe("Product-adaptive direction and the premium quality gate", () => {
       }`,
       reply: "Done",
     });
-    expect(report.blockingIssues.join(" ")).toContain("simultaneous fade-in");
+    expect(report.issues.join(" ")).toContain("simultaneous fade-in");
   });
 
-  it("rejects tiny cards in a void, placeholder copy, and positional edit ids", () => {
+  it("flags tiny cards in a void, placeholder copy, and positional edit ids", () => {
     const report = analyzeMotionQuality({
       duration: 8,
       scenes: scenes(2),
@@ -563,10 +566,26 @@ describe("Product-adaptive direction and the premium quality gate", () => {
       }`,
       reply: "Done",
     });
-    const blocking = report.blockingIssues.join(" ");
-    expect(blocking).toContain("small cards float in empty space");
-    expect(blocking).toContain("generic placeholder");
-    expect(blocking).toContain("positional rather than descriptive");
+    const flagged = report.issues.join(" ");
+    expect(flagged).toContain("small cards float in empty space");
+    expect(flagged).toContain("generic placeholder");
+    expect(flagged).toContain("positional rather than descriptive");
+    // Layout taste is direction for the repair pass, never a rejection.
+    expect(report.blockingIssues.join(" ")).not.toContain("small cards");
+  });
+
+  it("treats real AI product copy as content rather than a placeholder", () => {
+    const report = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="headline">AI insights for every deploy</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(headline, { autoAlpha: 0 }, 0);
+        timeline.to(headline, { y: 0, autoAlpha: 1, duration: 1 }, 0.4);
+      }`,
+      reply: "Done",
+    });
+    expect(report.issues.join(" ")).not.toContain("generic placeholder");
   });
 
   it("rejects ignored supplied media and leaked foundation branding", () => {
@@ -591,7 +610,7 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(blocking).toContain("branding leaked");
   });
 
-  it("separates advisory refinements from blocking failures", () => {
+  it("ships a sound film with refinements noted instead of burning a repair pass", () => {
     const report = analyzeMotionQuality({
       title: "Foundation",
       duration: 20,
@@ -600,9 +619,11 @@ describe("Product-adaptive direction and the premium quality gate", () => {
       timelineJs: foundationTimeline,
       reply: "Foundation ready.",
     });
-    // Missing direction/technique plans are refinements, not broken films.
+    // Missing direction/technique plans are refinements, not broken films, and
+    // a film this sound should reach the user on the first round trip.
     expect(report.blockingIssues).toEqual([]);
     expect(report.issues.length).toBeGreaterThan(0);
-    expect(report.requiresRepair).toBe(true);
+    expect(report.score).toBeGreaterThanOrEqual(QUALITY_REPAIR_THRESHOLD);
+    expect(report.requiresRepair).toBe(false);
   });
 });
