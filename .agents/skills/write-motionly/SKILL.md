@@ -23,6 +23,38 @@ composition-name/
 - Keep stable `data-edit` ids and register editable elements.
 - Use `src/composition/presets.ts`; extend it only for reusable behavior.
 
+## Adapt the identity to the product
+
+The Claude, KiriTTS, and Apple Notes presets are the quality floor, not a skin. Rebuild the palette, theme, typography, chrome, information architecture, copy, and accent from the requested product's own domain before animating anything.
+
+- Commit to one ground, one surface, one accent with a job, and one ink value.
+- A notes app is paper and ink; analytics is measured neutrals with tabular figures; a developer tool is a committed editor theme; an audio product is a studio with a real waveform.
+- Never emit the reference preset's brand, sidebar, or dark chat theme unless the user asked for that product.
+- Write specific, truthful copy. No lorem, no "Your Product Here", no gray placeholder bars standing in for content.
+
+Read [saas-product-ad.md](references/saas-product-ad.md) for the category defaults, construction order, camera grammar, and the checks that automatically reject slop.
+
+## Prefer existing mechanics
+
+Before authoring a new mechanic, use one that exists: a Motionly preset from `src/composition/presets.ts` or a HyperFrames registry component. Pick them by role, one each, rather than stacking five variations of the same entrance:
+
+`focal typography -> product surface -> progressive construction -> interaction -> camera -> continuity -> proof -> deconstruction/close`
+
+Mark each adapted owner with `data-hyperframe-component="registry-name"`. Registry names are references, not callable functions. Hand-author a mechanic only when nothing covers it.
+
+## Construct and deconstruct the product UI
+
+Build the interface in front of the viewer, in reading order:
+
+```text
+frame/chrome -> navigation -> working surface -> the record under work -> the active control -> the result
+```
+
+- Offsets 18-64px, staggered starts +0.06s to +0.16s, durations 0.7-1.4s, `power3.out`/`power4.out` for structure and `back.out(1.2-1.5)` for tactile arrivals.
+- Group related regions; do not animate every divider, label, and icon independently.
+- Deconstruct in reverse hierarchy: internals clear along motivated vectors (a negative stagger reads well) while the carrier keeps its silhouette into the next role.
+- One simultaneous fade-in of the whole layout is an automatic failure, and so is a surface that simply disappears.
+
 ## Direct the story first
 
 Use a clear change in belief:
@@ -45,6 +77,12 @@ Every boundary must use one of these mechanisms:
 - **Particle-reassemble:** emit fragments from a visible source and direct them toward a meaningful destination.
 
 Opacity may clean up internal faces after continuity is established; it must not be the transition itself. Prefer one persistent carrier across related beats, such as statement frame -> symbolic object -> prompt surface -> product window -> brand token. Read [transitions-camera.md](references/transitions-camera.md) before designing handoffs or camera paths.
+
+Seams obey the vector law from the `motion-doctrine` skill — read it before planning boundaries:
+
+- Same axis, same direction, matched speed, cut mid-motion on both sides. On z, direction is the sign of the scale change, so a receding exit must not be answered by a grow-from-small entry.
+- Pick one dominant direction for the film and use it for every ordinary seam; upward, z-forward, and z-backward are reserved and must mean something. Never run consecutive seams in opposing directions without a visible cause.
+- Repeat two or three transition vocabularies across the film rather than inventing one per boundary. Pick each from the job using the `saas-motion-design` catalog: camera push or UI feature zoom to inspect, card takeover or morph expansion for the same object in a new layout, whip pan or slide reveal to change section.
 
 ## Compose editorial typography
 
@@ -85,6 +123,21 @@ Choose one background system from the subject rather than layering generic atmos
 - Do not reveal a cursor until typing begins.
 - Preserve close prompt framing through its workspace morph unless the story motivates a pullback.
 - After showing UI, hold it for inspection, then use one deliberate camera move instead of repeated zooming.
+
+Physical principles (opacity is not animation):
+
+- A tween whose only property is opacity or `autoAlpha` is not an animation. Opacity cleans up a face after a physical handoff; every reveal, exit, and state change also moves, scales, or rotates.
+- Anticipate before a hero move (dip 6–10px or compress to ~0.94 for 0.12–0.2s), squash and stretch on impact with inverse `scaleX`/`scaleY` around 1.08/0.92, and let trailing parts follow through 0.04–0.12s behind their owner.
+- Objects travel arcs, not straight diagonals. The primary action ignites a secondary one on the same frame (`"<"`, `"<0.1"`).
+- Stage the hero by quieting the rest — dim, desaturate, or blur the supporting layer instead of adding competing motion.
+- Contrast timing: 0.15–0.3s snaps against 0.9–1.4s macro moves. Spend one exaggerated moment per film, at the climax.
+
+Timing intents (from `motion-doctrine`):
+
+- A single entry lands in ~0.8s; a longer buildup is a stagger, not one slow element. An exit runs ~75% of its entry. Total stagger stays under 0.5s.
+- Similar elements share one ease and duration intent. `bounce.out` and `elastic.out` are banned; entry overshoot is `back.out(1.4–1.7)`.
+- Schedule 0.3–0.75s of stillness between the major action and its result.
+- Every phase between entry and exit belongs to a named sustained-motion route: staged reveals, camera with intent, sequenced UI life, an acted-out sequence, or cursor-led action. Idle wobble is not a route.
 
 ## Show real product behavior
 
@@ -177,8 +230,24 @@ Read [assets-export.md](references/assets-export.md) when importing media, using
 6. Seek representative frames and inspect continuous playback in a real browser.
 7. Verify preview/export parity, asset loading, text bounds, end-state cleanup, codec, and fps.
 
+## Keep generated elements editable
+
+- Give every meaningful element a stable, descriptive `data-edit` id (`prompt-shell`, `action-button`, `proof-value`), never `layer-3`.
+- Add `data-edit-label`, and declare component fields with `data-field`, `data-field-label`, `data-field-type`, `data-field-binding`, and `data-field-property`.
+- Reuse ids that already exist; renaming or dropping one destroys the user's selection, transform, and tween overrides.
+- Position elements with their own CSS and animate with transform/opacity so editor overrides compose with the timeline instead of fighting it.
+- Tag scene containers with `data-scene="scene-0n"` so stale layers are detectable.
+- On a follow-up request, continue the established film: keep its subject, palette, scene spine, carrier chain, ids, and every accepted asset. Change only what was asked.
+
 ## Reject these failures
 
+- slideshow output: full-screen panels joined by opacity or display toggles, or a scene whose frame never changes;
+- simultaneous fade-in of an entire layout on one timestamp;
+- a stale layer from an earlier beat still composited under the current one;
+- a blank or near-blank sampled frame;
+- a timeline that stops long before the composition ends and leaves it frozen;
+- a supplied image that is ignored, substituted, or pasted as a floating sticker over working UI;
+- generic AI-dashboard filler: purple gradient tiles, unlabeled sparklines, six identical KPI cards;
 - title + subtitle + tiny card floating in a black void;
 - fade, cross-dissolve, or fade-to-black as a scene handoff;
 - static camera with no movement or zoom during feature explanations;

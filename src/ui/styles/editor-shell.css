@@ -192,6 +192,73 @@
   }
 }
 
+.code-editor-scope .ai-chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #292b30;
+  background: #17191d;
+}
+
+.code-editor-scope .ai-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 4px 3px 3px;
+  border: 1px solid #30333a;
+  border-radius: 7px;
+  background: #202227;
+  color: #cfd3da;
+  font-size: 10px;
+}
+
+.code-editor-scope .ai-attachment-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #2a2d33;
+  flex: none;
+}
+
+.code-editor-scope .ai-attachment-fallback {
+  display: grid;
+  place-items: center;
+  color: #7d838e;
+}
+
+.code-editor-scope .ai-attachment-name {
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-attachment-remove {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #8b919c;
+  cursor: pointer;
+}
+
+.code-editor-scope .ai-attachment-remove:hover:not(:disabled) {
+  background: #34373e;
+  color: #f2f4f7;
+}
+
+.code-editor-scope .ai-attachment-remove:disabled {
+  color: #4d525a;
+  cursor: default;
+}
+
 .code-editor-scope .ai-chat-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 32px;

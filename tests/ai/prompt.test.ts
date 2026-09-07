@@ -4,11 +4,24 @@ import { MOTIONLY_SYSTEM_PROMPT as serverPrompt } from "../../src/ai/gemini-serv
 import {
   analyzeMotionQuality,
   buildMotionlyUserMessage,
+  buildRegistryBrief,
+  buildSkillRoutingBrief,
   selectBackgroundDirection,
+  selectReferenceRoles,
   selectRegistryReferences,
 } from "../../src/ai/generation-guidance";
+import {
+  buildProductIdentityBrief,
+  selectProductProfile,
+} from "../../src/ai/product-profile";
 import { createDynamicComposition } from "../../src/composition/dynamic-compiler";
 import { CompositionRuntime } from "../../src/composition/runtime";
+import {
+  GENERATION_FOUNDATION_PROFILE,
+  foundationHtml,
+  foundationScenes,
+  foundationTimeline,
+} from "../../src/ai/generation-foundation";
 
 describe("Motionly AI Prompt and Choreography Rules", () => {
   it("enforces single focal subject and rejects card/chips clutter", () => {
@@ -33,6 +46,8 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("STORY BEFORE SHOTS");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("dedicated local focus rig");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("SOURCE-SPECIFIC FULL-BLEED UI");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("GENERATION FOUNDATION");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("data-transition-carrier");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("Repair every axis below 4");
     expect(MOTIONLY_SYSTEM_PROMPT).not.toContain(
       "CONTINUOUS LIFE (NO FROZEN HOLDS)",
@@ -55,6 +70,9 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
         ),
       ),
     ).toBe(true);
+    expect(
+      references.filter((item) => item.type === "hyperframes:component").length,
+    ).toBeGreaterThanOrEqual(6);
 
     const message = buildMotionlyUserMessage("Animate a SaaS launch", {});
     expect(message).toContain("RELEVANT SKILL CONTRACTS");
@@ -62,6 +80,8 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     expect(message).toContain("not callable Motionly functions");
     expect(message).toContain("reference-grade-product-film");
     expect(message).toContain("data-field");
+    expect(message).toContain("GENERATION FOUNDATION");
+    expect(message).toContain("data-hyperframe-component");
   });
 
   it("includes project conversation and required supplied image tokens", () => {
@@ -182,13 +202,16 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
       })),
       compositionHtml: `<template><style>.world{position:absolute;width:4200px;height:1080px}${".actor{position:absolute;transform-origin:center;}".repeat(
         45,
-      )}</style><main class="stage"><div class="world" data-camera-world><h1 class="copy">A complete thought moves.</h1><div class="carrier"></div></div></main></template>`,
+      )}</style><main class="stage" data-edit="stage" data-motionly-generation-profile="claude-foundation-v1"><div class="world" data-edit="camera-world" data-camera-world><h1 class="copy" data-edit="hook-copy" data-hyperframe-component="per-word-rise">A complete thought moves.</h1><div class="carrier" data-edit="story-carrier" data-transition-carrier data-hyperframe-component="morph-swap"></div><div class="shell" data-edit="product-shell" data-hyperframe-component="browser-device-stage"><span data-edit="typed-input"></span><span data-edit="prompt-caret"></span><div data-edit="action-button">Send</div></div></main></template>`,
       timelineJs: `export function buildTimeline(context) {
         const { root, timeline } = context;
         const copy = root.querySelector('.copy');
         const carrier = root.querySelector('.carrier');
         const world = root.querySelector('.world');
         timeline.set([copy, carrier], { autoAlpha: 0 }, 0);
+        timeline.fromTo(copy, { y: 40 }, { y: 0, duration: 0.5 }, 0.1);
+        timeline.fromTo(carrier, { scale: 0.9 }, { scale: 1, duration: 0.5 }, 0.2);
+        timeline.fromTo(world, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0.3);
         wordSlideRotate(timeline, copy, { at: 0.2 });
         giantKineticCrop(timeline, copy, { at: 0.2 });
         timeline.to(carrier, { x: 40, duration: 0.5 }, 1);
@@ -200,7 +223,11 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
         timeline.to(world, { x: -300, scale: 1.1, duration: 1 }, 3);
         timeline.to(world, { x: -900, scale: 1.1, duration: 1 }, 6);
         timeline.to(world, { x: -1200, scale: 0.9, duration: 1 }, 9);
+        timeline.to(world, { scale: 1.45, x: -1400, duration: 1 }, 4.5);
+        timeline.to(cursor, { scale: 0.86, duration: 0.09, yoyo: true, repeat: 1 }, 5.4);
         matchCut(timeline, copy, carrier, { at: 8 });
+        timeline.to(shell, { y: -40, autoAlpha: 0, duration: 0.5 }, 7.4);
+        timeline.to(copy, { y: -30, autoAlpha: 0, duration: 0.5 }, 7.6);
         timeline.to(carrier, { scale: 1.05, duration: 2 }, 9);
       }`,
       reply: "A directed three-beat composition.",
@@ -208,6 +235,41 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     expect(report.issues).toEqual([]);
     expect(report.requiresRepair).toBe(false);
     expect(report.score).toBeGreaterThanOrEqual(90);
+  });
+
+  it("ships a compact generation foundation that passes the static gate", () => {
+    const report = analyzeMotionQuality({
+      title: "Foundation",
+      duration: 20,
+      scenes: foundationScenes,
+      direction: foundationScenes.map((scene) => ({
+        scene: scene.id,
+        composition: "Carrier-led composition",
+        spatialRegion: "Distinct camera-world region",
+        cameraStart: "Wide",
+        cameraEnd: "Focused",
+        cameraTarget: "Persistent carrier",
+        primary: "Carrier",
+        secondary: "Authentic product evidence",
+        hold: "Readable action hold",
+        transition: "Carrier morphs into the next role",
+      })),
+      techniques: foundationScenes.map((scene, index) => ({
+        beat: scene.id,
+        registryReference: "morph-swap",
+        motionlyPresets: ["morph", "wordSlideRotate"],
+        sustainedMotion: "The interaction develops during camera travel.",
+        handoff:
+          index === foundationScenes.length - 1
+            ? ("final-hold" as const)
+            : ("morph" as const),
+      })),
+      compositionHtml: foundationHtml,
+      timelineJs: foundationTimeline,
+      reply: "Foundation ready.",
+    });
+    expect(foundationHtml).toContain(GENERATION_FOUNDATION_PROFILE);
+    expect(report.issues).toEqual([]);
   });
 
   it("supports executing compositions using wordSlideRotate, morph, and cameraPush presets", () => {
@@ -246,5 +308,301 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
 
     runtime.destroy();
     root.remove();
+  });
+});
+
+describe("Product-adaptive direction and the premium quality gate", () => {
+  const scenes = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `scene-0${index + 1}`,
+      label: `0${index + 1}`,
+      start: index * 4,
+      duration: 4,
+      accent: "#7c3aed",
+    }));
+
+  it("states the product-adaptive, construction, camera, and anti-slop laws", () => {
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "PRODUCT-ADAPTIVE VISUAL IDENTITY",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "CLAUDE IS THE FLOOR, NOT THE SKIN",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "PROGRESSIVE CONSTRUCTION AND DECONSTRUCTION",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("CAMERA GRAMMAR");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("TYPING-FOLLOW PAN");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("MACRO INTERACTION SHOT");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("READABLE HOLD");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("BANNED SLOP");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("EDITABILITY CONTRACT");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("COMPONENT REUSE");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "FOLLOW-UP CONTEXT AND SUPPLIED MEDIA",
+    );
+  });
+
+  it("carries the motion doctrine seam and timing law", () => {
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("SEAM VECTOR LAW");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("THE CURRENT");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("VOCABULARY BUDGET");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("TIMING INTENTS");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("STILLNESS BEFORE CLIMAX");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "bounce.out and elastic.out are banned",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("SUSTAINED MOTION");
+
+    const routing = buildSkillRoutingBrief("Animate a SaaS launch");
+    expect(routing).toContain("motion-doctrine");
+    expect(routing).toContain("saas-motion-design transitions");
+    expect(routing).toContain("cut-the-curve");
+  });
+
+  it("states the physical animation principles", () => {
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "PHYSICAL ANIMATION PRINCIPLES — OPACITY IS NOT ANIMATION",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("ANTICIPATION");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("SQUASH AND STRETCH");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "FOLLOW-THROUGH AND OVERLAPPING ACTION",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("SECONDARY ACTION");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("TIMING CONTRAST");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("EXAGGERATION");
+  });
+
+  it("rejects a composition that only fades things in and out", () => {
+    const fadeOnly = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="hook">One</h1><div data-edit="card">Two</div></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(hook, { autoAlpha: 0 }, 0);
+        timeline.set(card, { autoAlpha: 0 }, 0);
+        timeline.to(hook, { autoAlpha: 1, duration: 1 }, 0.5);
+        timeline.to(hook, { autoAlpha: 0, duration: 1 }, 3);
+        timeline.to(card, { autoAlpha: 1, duration: 1 }, 4);
+      }`,
+      reply: "Done",
+    });
+    expect(fadeOnly.blockingIssues.join(" ")).toContain(
+      "opacity alone is not animation",
+    );
+
+    const mostlyFades = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="hook">One</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(hook, { autoAlpha: 0 }, 0);
+        timeline.to(hook, { y: 10, duration: 0.5 }, 0.2);
+        timeline.to(hook, { autoAlpha: 1, duration: 1 }, 0.5);
+        timeline.to(card, { autoAlpha: 1, duration: 1 }, 2);
+        timeline.to(card, { autoAlpha: 0, duration: 1 }, 4);
+        timeline.to(mark, { autoAlpha: 1, duration: 1 }, 6);
+      }`,
+      reply: "Done",
+    });
+    expect(mostlyFades.blockingIssues.join(" ")).toContain(
+      "motion is mostly opacity fades",
+    );
+  });
+
+  it("flags banned eases and transition-vocabulary sprawl", () => {
+    const report = analyzeMotionQuality({
+      duration: 12,
+      scenes: [
+        { id: "scene-01", label: "1", start: 0, duration: 4, accent: "#fff" },
+        { id: "scene-02", label: "2", start: 4, duration: 4, accent: "#fff" },
+        { id: "scene-03", label: "3", start: 8, duration: 4, accent: "#fff" },
+      ],
+      compositionHtml: `<template><main data-edit="stage" data-transition-carrier><div data-edit="carrier"></div></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(carrier, { autoAlpha: 0 }, 0);
+        timeline.to(carrier, { y: 0, duration: 0.6, ease: "elastic.out(1, 0.3)" }, 0.5);
+        morph(timeline, carrier, { width: 400 }, { at: 4 });
+        matchCut(timeline, carrier, panel, { at: 6 });
+        cutTheCurve(timeline, { outgoing: panel, incoming: shell, at: 8 });
+        zoomThrough(timeline, { outgoing: shell, incoming: mark, at: 10 });
+      }`,
+      reply: "Done",
+    });
+    const issues = report.issues.join(" ");
+    expect(issues).toContain("bounce and elastic eases are banned");
+    expect(issues).toContain("too many transition vocabularies");
+  });
+
+  it("adapts the visual identity to each product instead of reusing Claude chrome", () => {
+    expect(selectProductProfile("premium notes app ad").id).toBe(
+      "notes-writing",
+    );
+    expect(selectProductProfile("revenue analytics dashboard").id).toBe(
+      "analytics-data",
+    );
+    expect(selectProductProfile("terminal deploy tool for developers").id).toBe(
+      "developer-tool",
+    );
+    expect(selectProductProfile("a cozy candle subscription").id).toBe(
+      "commerce",
+    );
+
+    const notes = buildProductIdentityBrief("premium notes app ad");
+    expect(notes).toContain("paper-first editor");
+    expect(notes).toContain("Never:");
+    expect(notes).toContain("dark AI chrome");
+
+    const message = buildMotionlyUserMessage("premium notes app ad", {});
+    expect(message).toContain("PRODUCT VISUAL IDENTITY");
+    expect(message).toContain("paper-first editor");
+    expect(message).toContain("progressive construction in reading order");
+    expect(message).toContain("typing-follow pan");
+  });
+
+  it("retrieves one proven mechanic per production role", () => {
+    const roles = selectReferenceRoles(
+      "Launch an AI assistant with a typed prompt, browser UI, and proof metric",
+    );
+    const covered = roles.map((entry) => entry.role);
+    expect(covered).toContain("focal-typography");
+    expect(covered).toContain("product-surface");
+    expect(covered).toContain("progressive-construction");
+    expect(covered).toContain("interaction");
+    expect(covered).toContain("camera");
+    expect(covered).toContain("continuity");
+    expect(covered).toContain("proof");
+    expect(covered).toContain("deconstruction-close");
+    expect(new Set(roles.map((entry) => entry.item.name)).size).toBe(
+      roles.length,
+    );
+    expect(buildRegistryBrief("AI assistant with a typed prompt")).toContain(
+      "role: interaction",
+    );
+  });
+
+  it("replays the previous plan so follow-ups continue the same film", () => {
+    const message = buildMotionlyUserMessage("make the ending slower", {
+      previousPlan: {
+        title: "Northstar launch",
+        subject: "analytics product ad",
+        duration: 20,
+        direction: [
+          {
+            scene: "scene-02",
+            composition: "Full analytics workspace",
+            spatialRegion: "center region",
+            cameraStart: "wide",
+            cameraEnd: "medium",
+            cameraTarget: "the revenue chart",
+            primary: "chart re-resolves",
+            secondary: "filter bar quiet",
+            hold: "1.1s readable settle",
+            transition: "chart line carries into scene-03",
+          },
+        ],
+        techniques: [
+          {
+            beat: "scene-02",
+            registryReference: "chart-story",
+            motionlyPresets: ["morph", "stepSurgeCounter"],
+            sustainedMotion: "The counter resolves during the settle.",
+            handoff: "morph",
+          },
+        ],
+      },
+    });
+    expect(message).toContain("PREVIOUS GENERATION PLAN");
+    expect(message).toContain("Northstar launch");
+    expect(message).toContain("the revenue chart");
+    expect(message).toContain("chart-story");
+    expect(message).toContain("Never restart from a blank stage");
+  });
+
+  it("rejects slideshow-shaped output joined by opacity toggles", () => {
+    const report = analyzeMotionQuality({
+      duration: 12,
+      scenes: scenes(3),
+      compositionHtml: `<template><main data-edit="stage" data-motionly-generation-profile="claude-foundation-v1"><div data-edit="carrier" data-transition-carrier></div><div class="scene-a" data-edit="scene-a">One</div><div class="scene-b" data-edit="scene-b">Two</div><div class="scene-c" data-edit="scene-c">Three</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.set(sceneA, { autoAlpha: 1 }, 0);
+        timeline.to(sceneA, { autoAlpha: 0, duration: 0.5 }, 4);
+        timeline.to(sceneB, { autoAlpha: 1, duration: 0.5 }, 4.5);
+        timeline.to(sceneB, { autoAlpha: 0, duration: 0.5 }, 8);
+        timeline.to(sceneC, { autoAlpha: 1, duration: 0.5 }, 8.5);
+        timeline.to(sceneC, { autoAlpha: 1, duration: 0.5, stagger: 0.1 }, 9);
+      }`,
+      reply: "Done",
+    });
+    expect(report.blockingIssues.join(" ")).toContain("slideshow output");
+    expect(report.requiresRepair).toBe(true);
+  });
+
+  it("rejects a simultaneous fade-in of the whole layout", () => {
+    const report = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><div data-edit="nav"></div></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.fromTo([nav, header, card, footer], { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.8 }, 0.4);
+      }`,
+      reply: "Done",
+    });
+    expect(report.blockingIssues.join(" ")).toContain("simultaneous fade-in");
+  });
+
+  it("rejects tiny cards in a void, placeholder copy, and positional edit ids", () => {
+    const report = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><div class="card" data-edit="layer-1">Lorem ipsum</div><div class="card" data-edit="layer-2">Metric</div><div class="card" data-edit="layer-3">Metric</div></main></template>`,
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(card, { autoAlpha: 0 }, 0);
+        timeline.to(card, { autoAlpha: 1, duration: 1 }, 0.5);
+      }`,
+      reply: "Done",
+    });
+    const blocking = report.blockingIssues.join(" ");
+    expect(blocking).toContain("small cards float in empty space");
+    expect(blocking).toContain("generic placeholder");
+    expect(blocking).toContain("positional rather than descriptive");
+  });
+
+  it("rejects ignored supplied media and leaked foundation branding", () => {
+    const report = analyzeMotionQuality(
+      {
+        duration: 8,
+        scenes: scenes(2),
+        compositionHtml: `<template><main data-edit="stage"><h1 data-edit="copy">Claude writes your launch plan</h1></main></template>`,
+        timelineJs: `export function buildTimeline({ timeline }) {
+          timeline.set(copy, { autoAlpha: 0 }, 0);
+          timeline.to(copy, { autoAlpha: 1, duration: 1 }, 0.4);
+        }`,
+        reply: "Done",
+      },
+      {
+        prompt: "make an ad for my notes app",
+        requiredAssetTokens: ["motionly-asset://hero"],
+      },
+    );
+    const blocking = report.blockingIssues.join(" ");
+    expect(blocking).toContain("supplied media is missing");
+    expect(blocking).toContain("branding leaked");
+  });
+
+  it("separates advisory refinements from blocking failures", () => {
+    const report = analyzeMotionQuality({
+      title: "Foundation",
+      duration: 20,
+      scenes: foundationScenes,
+      compositionHtml: foundationHtml,
+      timelineJs: foundationTimeline,
+      reply: "Foundation ready.",
+    });
+    // Missing direction/technique plans are refinements, not broken films.
+    expect(report.blockingIssues).toEqual([]);
+    expect(report.issues.length).toBeGreaterThan(0);
+    expect(report.requiresRepair).toBe(true);
   });
 });

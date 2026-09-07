@@ -1,4 +1,8 @@
 import { registryManifest } from "../registry/catalog";
+import {
+  buildProductIdentityBrief,
+  selectProductProfile,
+} from "./product-profile";
 import type { RuntimeEditorState } from "../composition/types";
 import type { RegistryItemSummary } from "../registry/types";
 
@@ -10,6 +14,22 @@ export interface GenerationFiles {
   conversation?: readonly { role: "user" | "assistant"; text: string }[];
   assets?: readonly GenerationAsset[];
   editorState?: Partial<RuntimeEditorState>;
+  generationProfile?: "claude-foundation-v1" | "existing";
+  /** Directorial plan produced by the previous turn, replayed on follow-ups. */
+  previousPlan?: GenerationPlanMemory;
+}
+
+/**
+ * The part of a generation the next turn must not forget. Without it, a
+ * follow-up such as "make the ending longer" loses the subject, the carrier
+ * chain, and the camera intent, and the model restarts from a blank stage.
+ */
+export interface GenerationPlanMemory {
+  title?: string;
+  subject?: string;
+  duration?: number;
+  direction?: readonly SceneDirection[];
+  techniques?: readonly GenerationTechnique[];
 }
 
 export interface GenerationAsset {
@@ -61,7 +81,10 @@ export interface GeneratedComposition {
 export interface MotionQualityReport {
   score: number;
   requiresRepair: boolean;
+  /** Every failure, blocking and advisory, in report order. */
   issues: readonly string[];
+  /** Failures that make the output unusable as a premium product film. */
+  blockingIssues: readonly string[];
   strengths: readonly string[];
 }
 
@@ -106,11 +129,118 @@ const INTENT_EXPANSIONS: ReadonlyArray<readonly string[]> = [
   ["premium", "cinematic", "depth", "camera", "parallax", "focus"],
 ];
 
-const REQUIRED_REFERENCE_NAMES = [
-  "per-word-rise",
-  "morph-swap",
-  "match-cut",
-  "particle-image-reveal",
+/**
+ * Reference roles. A premium product ad needs one proven mechanic per job, not
+ * five competing typographic effects. Selecting by role is what stops the model
+ * from stacking similar entrances and calling it a film.
+ */
+export interface ReferenceRole {
+  readonly role: string;
+  readonly job: string;
+  readonly candidates: readonly string[];
+}
+
+export const REFERENCE_ROLES: readonly ReferenceRole[] = [
+  {
+    role: "focal-typography",
+    job: "the editorial thought that opens or turns a beat",
+    candidates: [
+      "per-word-rise",
+      "kinetic-center-build",
+      "headline-slam",
+      "line-by-line-slide",
+      "text-stagger",
+    ],
+  },
+  {
+    role: "product-surface",
+    job: "the full-bleed application surface that carries the proof",
+    candidates: [
+      "browser-device-stage",
+      "code-terminal-run",
+      "notes-typing",
+      "chat-thread",
+      "device-frame-stage",
+      "scroll-feed",
+    ],
+  },
+  {
+    role: "progressive-construction",
+    job: "building the interface in reading order instead of one fade-in",
+    candidates: [
+      "skeleton-reveal",
+      "panel-reveal",
+      "grid-card-assemble",
+      "stagger-cascade",
+      "tabs-slide-indicator",
+    ],
+  },
+  {
+    role: "interaction",
+    job: "the one real interaction the camera films in macro",
+    candidates: [
+      "typed-prompt",
+      "streaming-text",
+      "oversized-cursor",
+      "press-ripple",
+      "gesture-tap",
+      "simulated-cursor",
+      "input-feedback",
+      "settings-toggle-flow",
+    ],
+  },
+  {
+    role: "camera",
+    job: "the motivated push, track, or pull that changes the composition",
+    candidates: [
+      "ui-focus-zoom",
+      "camera-rig-depth-stack",
+      "push-in",
+      "pan-stations",
+      "pull-back-reveal",
+      "parallax-device-dive",
+      "focus-rack",
+    ],
+  },
+  {
+    role: "continuity",
+    job: "the carrier handoff at each scene boundary",
+    candidates: [
+      "morph-swap",
+      "match-cut",
+      "particle-image-reveal",
+      "zoom-through-transition",
+      "modal-morph",
+      "type-match-cut",
+      "shared-axis-z",
+    ],
+  },
+  {
+    role: "proof",
+    job: "the credible result the interaction produced",
+    candidates: [
+      "count-up",
+      "chart-story",
+      "animated-bar-chart",
+      "success-check",
+      "state-chip-rail",
+      "telemetry-hud",
+      "number-wheel",
+      "social-proof-card",
+    ],
+  },
+  {
+    role: "deconstruction-close",
+    job: "clearing the surface in reverse hierarchy into the final mark",
+    candidates: [
+      "physical-exit",
+      "logo-brand-close",
+      "cta-close",
+      "cta-lockup",
+      "wordmark-tiles",
+      "logo-sting",
+    ],
+  },
 ];
 
 function tokens(value: string): string[] {
@@ -160,8 +290,11 @@ function scoreItem(
     if (description.includes(token)) score += 2;
   }
 
-  // Prefer composable primitives over complete examples when relevance ties.
-  if (item.type === "hyperframes:component") score += 3;
+  // Prefer focused mechanics over complete examples, whose scene structure
+  // tends to pull generated work back toward a slideshow.
+  if (item.type === "hyperframes:component") score += 24;
+  if (item.type === "hyperframes:block") score += 4;
+  if (item.type === "hyperframes:example") score -= 8;
   if (item.description) score += 1;
   return score;
 }
@@ -177,12 +310,57 @@ function expandedQueryTokens(prompt: string): string[] {
   return Array.from(expanded);
 }
 
+export interface RoleAssignedReference {
+  role: string;
+  job: string;
+  item: RegistryItemSummary;
+}
+
+function componentByName(name: string): RegistryItemSummary | undefined {
+  return registryManifest.items.find(
+    (item) => item.name === name && item.type === "hyperframes:component",
+  );
+}
+
+/**
+ * Picks the best prompt-relevant component for every production role so the
+ * retrieved set covers typography, surface, construction, interaction, camera,
+ * continuity, proof, and close instead of eight variations of one entrance.
+ */
+export function selectReferenceRoles(
+  userPrompt: string,
+): readonly RoleAssignedReference[] {
+  const normalizedPrompt = userPrompt.toLowerCase();
+  const queryTokens = expandedQueryTokens(userPrompt);
+  const assigned: RoleAssignedReference[] = [];
+  for (const role of REFERENCE_ROLES) {
+    let best: { item: RegistryItemSummary; score: number } | null = null;
+    for (const [index, name] of role.candidates.entries()) {
+      const item = componentByName(name);
+      if (!item) continue;
+      if (assigned.some((entry) => entry.item.name === item.name)) continue;
+      // Later candidates need to actually beat earlier ones; the ordering in
+      // each role encodes the default choice for a generic request.
+      const score =
+        scoreItem(item, normalizedPrompt, queryTokens) - index * 0.5;
+      if (!best || score > best.score) best = { item, score };
+    }
+    if (best)
+      assigned.push({ role: role.role, job: role.job, item: best.item });
+  }
+  return assigned;
+}
+
 export function selectRegistryReferences(
   userPrompt: string,
-  limit = 8,
+  limit = 9,
 ): readonly RegistryItemSummary[] {
   const normalizedPrompt = userPrompt.toLowerCase();
   const queryTokens = expandedQueryTokens(userPrompt);
+  const selected: RegistryItemSummary[] = selectReferenceRoles(userPrompt)
+    .map((entry) => entry.item)
+    .slice(0, limit);
+
   const ranked = registryManifest.items
     .map((item) => ({
       item,
@@ -197,23 +375,15 @@ export function selectRegistryReferences(
         a.item.name.localeCompare(b.item.name),
     );
 
-  const selected: RegistryItemSummary[] = [];
   for (const entry of ranked) {
+    if (selected.length >= limit) break;
+    if (selected.some((item) => item.name === entry.item.name)) continue;
     const family = entry.item.family ?? entry.item.tags?.[0] ?? entry.item.type;
     const repeats = selected.filter(
       (item) => (item.family ?? item.tags?.[0] ?? item.type) === family,
     ).length;
     if (repeats >= 2 && !normalizedPrompt.includes(entry.item.name)) continue;
     selected.push(entry.item);
-    if (selected.length >= Math.max(1, limit - 2)) break;
-  }
-
-  // Every film gets an editorial entrance and a legal continuity mechanism.
-  for (const name of REQUIRED_REFERENCE_NAMES) {
-    if (selected.length >= limit) break;
-    if (selected.some((item) => item.name === name)) continue;
-    const fallback = registryManifest.items.find((item) => item.name === name);
-    if (fallback) selected.push(fallback);
   }
 
   return selected.slice(0, limit);
@@ -231,14 +401,23 @@ function summarizeVariable(item: RegistryItemSummary): string {
 }
 
 export function buildRegistryBrief(userPrompt: string): string {
+  const roles = new Map(
+    selectReferenceRoles(userPrompt).map((entry) => [entry.item.name, entry]),
+  );
   const references = selectRegistryReferences(userPrompt);
   return references
-    .map(
-      (item, index) =>
-        `${index + 1}. ${item.name} [${item.type.replace("hyperframes:", "")}]: ${
-          item.description ?? item.title ?? "Reusable HyperFrames reference"
-        }${summarizeVariable(item)}`,
-    )
+    .map((item, index) => {
+      const assigned = roles.get(item.name);
+      const roleTag = assigned
+        ? ` (role: ${assigned.role} — ${assigned.job})`
+        : " (role: supporting)";
+      return `${index + 1}. ${item.name} [${item.type.replace(
+        "hyperframes:",
+        "",
+      )}]${roleTag}: ${
+        item.description ?? item.title ?? "Reusable HyperFrames reference"
+      }${summarizeVariable(item)}`;
+    })
     .join("\n");
 }
 
@@ -293,8 +472,15 @@ export function selectBackgroundDirection(
 export function buildSkillRoutingBrief(userPrompt: string): string {
   const prompt = userPrompt.toLowerCase();
   const background = selectBackgroundDirection(userPrompt);
+  const product = selectProductProfile(userPrompt);
   const routes = [
     "write-motionly: authored HTML, scoped CSS, caller-owned GSAP timeline, truthful scenes",
+    `product identity (${product.id}): build ${product.surface}; ${product.palette}; never ${product.avoid}`,
+    `saas-motion-design: progressive construction in reading order, one filmed interaction (${product.interaction}), causal proof (${product.proof}), reverse-hierarchy deconstruction (${product.deconstruction})`,
+    "camera grammar: intentional push to a named target, typing-follow pan on the advancing caret, macro interaction shot on a local focus rig at 1.35-2.2, readable hold, motivated pull back",
+    "motion-doctrine: the vector law (same axis, same direction, matched speed, cut mid-motion), one dominant direction for the film, reserved vectors only for meaning, no idle wobble, and 0.3-0.75s stillness before each climax",
+    "saas-motion-design transitions: choose the seam from the job — camera push or UI feature zoom to inspect, card takeover or morph expansion for the same object in a new layout, whip pan or slide reveal to change section — and repeat only two or three vocabularies across the film",
+    "cut-the-curve + oversized-cursor: mirrored-ease seams that enter mid-flight, and a cursor whose click ignites the next beat on the same frame",
     "composition + typography: one focal thought, safe bounds, word-level choreography",
     "animation + easing + timeline: arrival/action/settle/hold/departure with explicit timing",
     "transitions + camera: continuous carrier, matched velocity, motivated reframing",
@@ -354,58 +540,307 @@ export function buildMotionlyUserMessage(
         `- ${asset.name} (${asset.mimeType}); required HTML source: ${asset.token}`,
     )
     .join("\n");
-  const editorState = currentFiles.editorState
-    ? JSON.stringify(currentFiles.editorState)
-    : "No local editor overrides.";
+  const plan = currentFiles.previousPlan;
+  const planDirection = (plan?.direction ?? [])
+    .map(
+      (entry) =>
+        `- ${entry.scene}: ${entry.composition}; camera ${entry.cameraStart} → ${entry.cameraEnd} on ${entry.cameraTarget}; primary ${entry.primary}; hold ${entry.hold}; handoff ${entry.transition}`,
+    )
+    .join("\n");
+  const planTechniques = (plan?.techniques ?? [])
+    .map(
+      (entry) =>
+        `- ${entry.beat}: ${entry.registryReference} via ${entry.motionlyPresets.join(", ")} (${entry.handoff})`,
+    )
+    .join("\n");
+  const followUp = plan
+    ? `PREVIOUS GENERATION PLAN (this request continues it)\nTitle: ${
+        plan.title ?? "untitled"
+      }${plan.subject ? `\nSubject: ${plan.subject}` : ""}${
+        plan.duration ? `\nDuration: ${plan.duration}s` : ""
+      }\n${planDirection || "No recorded scene direction."}\n${
+        planTechniques || "No recorded techniques."
+      }\nThis is a follow-up. Keep the established subject, palette, product identity, scene spine, carrier chain, and data-edit ids. Change only what the new request asks for plus what must change for coherence. Never restart from a blank stage and never drop an accepted scene, asset, or interaction.`
+    : "PREVIOUS GENERATION PLAN\nNo previous plan. Treat the project conversation above as the accumulated brief and honour every constraint the user already stated.";
+  const foundationInstruction =
+    currentFiles.generationProfile === "claude-foundation-v1"
+      ? "The supplied source is the mandatory neutral generation foundation. Rewrite its brand, copy, palette, product information architecture, and proof for the request, but preserve and expand its carrier-led construction, camera route, interaction, deconstruction, and final resolve. It must not resemble the reference preset unless the user asked for that product."
+      : "Preserve this project's identity and requested content while upgrading weak beats to the same carrier-led construction, camera, interaction, and resolve standard.";
+  const editorState = `GENERATION FOUNDATION\n${foundationInstruction}\nKeep data-motionly-generation-profile="claude-foundation-v1", one persistent data-transition-carrier, one data-camera-world, and at least three adapted elements marked data-hyperframe-component. A scene may not be a full-screen panel that merely fades in or out.\n\nLOCAL EDITOR OVERRIDES\n${
+    currentFiles.editorState
+      ? JSON.stringify(currentFiles.editorState)
+      : "No local editor overrides."
+  }`;
 
-  return `USER REQUEST\n${userPrompt}\n\nPROJECT CONVERSATION\n${history || "No earlier project conversation."}\n\nSUPPLIED IMAGES\n${assets || "No images attached to this request."}\n${assets ? "Every supplied image is required. Use its exact motionly-asset token in an img src; do not substitute or ignore it." : ""}\n\nLOCAL EDITOR OVERRIDES\n${editorState}\nPreserve these visual and tween overrides; do not bake over or invalidate their target ids.\n\nTASK\n${task}. Preserve every existing data-edit id, scene boundary, supplied asset reference, and unrelated behavior unless the request explicitly replaces it. Add data-edit-label to selectable components and declare component fields with data-field, data-field-label, data-field-type, data-field-binding, and data-field-property.${source}\n\nRELEVANT SKILL CONTRACTS (apply these, do not merely mention them)\n${buildSkillRoutingBrief(
+  return `USER REQUEST\n${userPrompt}\n\nPROJECT CONVERSATION\n${history || "No earlier project conversation."}\n\n${followUp}\n\nPRODUCT VISUAL IDENTITY (adapt the foundation's choreography to THIS product)\n${buildProductIdentityBrief(
     userPrompt,
-  )}\n\nRETRIEVED HYPERFRAMES REFERENCES\n${buildRegistryBrief(userPrompt)}\n\nUse 2-4 of the retrieved references as concrete choreography/design mechanics and record them in techniques. They are reference implementations, not callable Motionly functions and not nested data-composition-src clips. Rebuild/adapt the selected mechanics as semantic HTML/SVG plus the real Motionly preset functions available in scope.\n\nBefore writing code, silently plan in this exact order: STORY/SCENES → SPATIAL MAP → CAMERA PATH → MOTION HIERARCHY → GSAP. Record those decisions for every scene in the returned direction array. Build a data-camera-world larger than the viewport and place distinct composition states in different regions. A strong default route is full product → camera push to feature → camera pan as a neighboring composition enters → camera pull back showing multiple states. Camera travel must begin the compositional change and UI action must develop inside that travel. Then return the complete JSON artifact. Every scene must have motion after its entrance, every boundary must conserve visual mass, and the final code must run without imports. Treat fit as non-negotiable: zoom one inner text motion layer, stagger words without scaling them into each other, keep complete product shells readable at settled holds, and never build frame-on-frame screenshot collages.`;
+  )}\n\nSUPPLIED IMAGES\n${assets || "No images attached to this request."}\n${assets ? "Every supplied image is required in this generation and in every follow-up. Use its exact motionly-asset token in an img src inside a region where it belongs to the story: the product surface itself, an authored evidence plane, or the brand close. Do not substitute, ignore, crop out, or paste it as a floating sticker over working UI." : ""}\n\nLOCAL EDITOR OVERRIDES\n${editorState}\nPreserve these visual and tween overrides; do not bake over or invalidate their target ids.\n\nTASK\n${task}. Preserve every existing data-edit id, scene boundary, supplied asset reference, and unrelated behavior unless the request explicitly replaces it. Every element the viewer can see needs a stable descriptive data-edit id so it stays selectable, movable, resizable, and editable. Add data-edit-label to selectable components and declare component fields with data-field, data-field-label, data-field-type, data-field-binding, and data-field-property.${source}\n\nRELEVANT SKILL CONTRACTS (apply these, do not merely mention them)\n${buildSkillRoutingBrief(
+    userPrompt,
+  )}\n\nRETRIEVED HYPERFRAMES REFERENCES\n${buildRegistryBrief(userPrompt)}\n\nPrefer these existing mechanics over inventing new ones. Implement 3-5 of them, one per role, as concrete choreography/design mechanics and record them in techniques. They are reference implementations, not callable Motionly functions and not nested data-composition-src clips. Rebuild/adapt the selected mechanics as semantic HTML/SVG plus the real Motionly preset functions available in scope.\n\nBefore writing code, silently plan in this exact order: STORY/SCENES → SPATIAL MAP → CAMERA PATH → MOTION HIERARCHY → GSAP. Record those decisions for every scene in the returned direction array. Build a data-camera-world larger than the viewport and place distinct composition states in different regions. A strong default route is full product → camera push to feature → camera pan as a neighboring composition enters → camera pull back showing multiple states. Camera travel must begin the compositional change and UI action must develop inside that travel.\n\nConstruct the product surface progressively in reading order (chrome → navigation → working surface → active record → active control → result) with staggered starts, and deconstruct it in reverse hierarchy when it leaves. Film exactly one real interaction with a macro focus rig and pan with the caret while text types. Then return the complete JSON artifact. Every scene must have motion after its entrance, every boundary must conserve visual mass, and the final code must run without imports. Treat fit as non-negotiable: zoom one inner text motion layer, stagger words without scaling them into each other, keep complete product shells readable at settled holds, never overlap two settled text blocks, and never build frame-on-frame screenshot collages or tiny cards floating in a void.`;
 }
 
 function countMatches(value: string, expression: RegExp): number {
   return Array.from(value.matchAll(expression)).length;
 }
 
+function executableTimelineSource(value: string): string {
+  return value.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+export interface MotionQualityContext {
+  /** The original request, used to detect foundation branding leaking through. */
+  prompt?: string;
+  /** Asset tokens that must appear in the composition HTML. */
+  requiredAssetTokens?: readonly string[];
+}
+
+function timelinePositions(source: string): number[] {
+  return Array.from(source.matchAll(/,\s*(\d+(?:\.\d+)?)\s*\)/g))
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value) && value <= 600)
+    .sort((a, b) => a - b);
+}
+
+/** Longest silent gap between authored timeline positions: the readable holds. */
+function longestHold(positions: readonly number[]): number {
+  let longest = 0;
+  for (let index = 1; index < positions.length; index += 1) {
+    const previous = positions[index - 1] ?? 0;
+    const current = positions[index] ?? 0;
+    longest = Math.max(longest, current - previous);
+  }
+  return longest;
+}
+
+function simultaneousFadeIns(source: string): number {
+  const calls = source.matchAll(
+    /\.(?:to|from|fromTo)\s*\(\s*\[([^\]]*)\]([\s\S]{0,320}?)\)\s*(?:,|;|$)/g,
+  );
+  let count = 0;
+  for (const call of calls) {
+    const targets = (call[1] ?? "").split(",").filter((part) => part.trim());
+    const vars = call[2] ?? "";
+    if (targets.length < 3) continue;
+    if (/stagger\s*:/.test(vars)) continue;
+    if (!/(?:autoAlpha|opacity)\s*:\s*1\b/.test(vars)) continue;
+    count += 1;
+  }
+  return count;
+}
+
+function unstableEditIds(html: string): string[] {
+  return Array.from(html.matchAll(/data-edit=["']([^"']+)["']/g))
+    .map((match) => (match[1] ?? "").trim())
+    .filter((id) =>
+      /^(?:el|item|layer|box|div|obj|node|thing)[-_]?\d+$/i.test(id),
+    );
+}
+
 export function analyzeMotionQuality(
   result: GeneratedComposition,
+  context: MotionQualityContext = {},
 ): MotionQualityReport {
   const html = result.compositionHtml;
   const timeline = result.timelineJs;
+  const executableTimeline = executableTimelineSource(timeline);
   const sceneCount = Math.max(
     1,
     result.scenes?.length ?? countMatches(html, /data-scene(?:-id)?=/gi),
   );
   const tweenCount = countMatches(
-    timeline,
+    executableTimeline,
     /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|from|fromTo|add)\s*\(/g,
   );
   const presetCount = countMatches(
-    timeline,
+    executableTimeline,
     /\b(?:giantKineticCrop|waterfallTextReveal|wordSlideRotate|charSpringBounce|textReveal|morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|cameraPush|cameraPull|cameraZoomPan|stepSurgeCounter|perspectiveCardReveal|ambientWaves|motionArc|squashAndStretch)\s*\(/g,
   );
   const cameraMoveCount = countMatches(
-    timeline,
+    executableTimeline,
     /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|fromTo)\s*\(\s*(?:cameraWorld|cameraStage|world)\b/g,
   );
+  const physicalHandoffCount = countMatches(
+    executableTimeline,
+    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
+  );
+  const componentCount = countMatches(html, /data-hyperframe-component\s*=/gi);
+  const constructionCount = countMatches(
+    executableTimeline,
+    /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.fromTo\s*\(/g,
+  );
+  const opacityBoundaryCount = countMatches(
+    executableTimeline,
+    /\.(?:to|fromTo)\s*\([^,]{0,80}(?:scene|slide|panel|face|layer)[^,]{0,40},\s*\{[^}]{0,160}(?:autoAlpha|opacity)\s*:/gi,
+  );
+  const deconstructionCount = countMatches(
+    executableTimeline,
+    /\.(?:to|fromTo)\s*\([\s\S]{0,220}?\{[^}]{0,220}?\b[xy]\s*:\s*-?\d[^}]{0,220}?autoAlpha\s*:\s*0/g,
+  );
+  const macroFocusCount = countMatches(
+    executableTimeline,
+    /(?:^|[^a-zA-Z])scale\s*:\s*(?:1\.[3-9]\d*|[2-9](?:\.\d+)?)/g,
+  );
+  const editIdCount = countMatches(html, /data-edit=["'][^"']+["']/g);
+  const cardCount = countMatches(html, /class=["'][^"']*\bcard\b[^"']*["']/gi);
+  const positions = timelinePositions(executableTimeline);
   const issues: string[] = [];
+  const blocking: string[] = [];
   const strengths: string[] = [];
+  const fail = (message: string): void => {
+    issues.push(message);
+    blocking.push(message);
+  };
+  const warn = (message: string): void => {
+    issues.push(message);
+  };
 
   if (!/function\s+buildTimeline\s*\(/.test(timeline)) {
-    issues.push("timeline.js must export or define buildTimeline(context)");
+    fail("timeline.js must export or define buildTimeline(context)");
   }
   if (html.length < 1800) {
-    issues.push(
+    fail(
       "composition HTML/CSS is too sparse for a production-quality directed frame",
     );
   }
+  if (
+    !/data-motionly-generation-profile=["']claude-foundation-v1["']/i.test(html)
+  ) {
+    fail("composition dropped the mandatory generation foundation marker");
+  }
+  if (!/data-transition-carrier(?:\s|=|>)/i.test(html)) {
+    fail(
+      "composition has no persistent transition carrier and can collapse into disconnected slides",
+    );
+  }
+  if (componentCount < 3) {
+    warn(
+      "composition adapts fewer than three concrete HyperFrames component mechanics",
+    );
+  } else {
+    strengths.push("HyperFrames component mechanics shape the authored DOM");
+  }
+  if (sceneCount >= 3 && constructionCount < 3) {
+    fail(
+      "product hierarchy is not constructed in stages before the interaction",
+    );
+  }
+  if (sceneCount >= 3 && positions.length >= 6) {
+    const distinctPositions = new Set(positions).size;
+    if (distinctPositions < sceneCount * 2) {
+      warn(
+        "construction is not staggered across distinct timeline positions; regions arrive on too few timestamps",
+      );
+    } else {
+      strengths.push("interface regions arrive on staggered timestamps");
+    }
+  }
+  if (simultaneousFadeIns(executableTimeline) > 0) {
+    fail(
+      "the layout arrives as one simultaneous fade-in of many elements; construct regions in reading order with staggered starts",
+    );
+  }
+  if (sceneCount >= 3 && deconstructionCount === 0) {
+    fail(
+      "the product surface never deconstructs; outgoing internals must physically clear in reverse hierarchy while the carrier continues",
+    );
+  } else if (sceneCount >= 3 && deconstructionCount < 2) {
+    warn(
+      "only one beat deconstructs its surface; clear outgoing internals along motivated vectors at each major exit",
+    );
+  } else if (sceneCount >= 3) {
+    strengths.push("surfaces construct and deconstruct in hierarchy");
+  }
+  if (
+    !/\b(?:cursor|caret|typed|typing|press|click|tap|drag|toggle|record|scrub)\b/i.test(
+      `${html}\n${executableTimeline}`,
+    )
+  ) {
+    fail(
+      "no real product interaction is filmed; show one typed input, press, drag, or toggle that causes the result",
+    );
+  } else {
+    strengths.push("a real product interaction drives the proof");
+  }
+  if (macroFocusCount === 0) {
+    warn(
+      "no macro interaction shot; frame the active control and its result at scale 1.35-2.2 on a local focus rig",
+    );
+  } else {
+    strengths.push("a macro focus rig inspects the active interaction");
+  }
+  const transformPropertyCount = countMatches(
+    executableTimeline,
+    /\b(?:x|y|xPercent|yPercent|scale|scaleX|scaleY|rotation|rotate|rotateX|rotateY|skewX|skewY|z)\s*:/g,
+  );
+  const fadePropertyCount = countMatches(
+    executableTimeline,
+    /\b(?:autoAlpha|opacity)\s*:/g,
+  );
+  if (transformPropertyCount === 0) {
+    fail(
+      "nothing moves, scales, or rotates; opacity alone is not animation, so give every reveal and exit a physical property",
+    );
+  } else if (transformPropertyCount * 2 < fadePropertyCount) {
+    fail(
+      "motion is mostly opacity fades; anticipate, move, scale, or rotate the subject and reserve opacity for cleaning up a face after a handoff",
+    );
+  } else {
+    strengths.push("motion is carried by transforms rather than fades");
+  }
+  if (
+    !/\b(?:yoyo\s*:\s*true|squashAndStretch\s*\(|anticipate\s*\(|impactShake\s*\(|scaleX\s*:|scaleY\s*:)/.test(
+      executableTimeline,
+    )
+  ) {
+    warn(
+      "no anticipation, squash, or impact accent; a hero action should wind up and deform before it resolves",
+    );
+  }
+  if (/\b(?:bounce|elastic)\.(?:out|in|inOut)\b/.test(executableTimeline)) {
+    warn(
+      "bounce and elastic eases are banned; use back.out(1.4-1.7) for overshoot and power3/power4/expo for macro motion",
+    );
+  }
+  const handoffVocabulary = new Set(
+    Array.from(
+      executableTimeline.matchAll(
+        /\b(morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
+      ),
+    ).map((match) => match[1]),
+  );
+  if (handoffVocabulary.size > 3) {
+    warn(
+      "too many transition vocabularies; a film repeats two or three seam types instead of inventing a new one at every boundary",
+    );
+  }
+  if (positions.length >= 8 && longestHold(positions) < 0.6) {
+    warn(
+      "the timeline never pauses; give each important transformation a readable hold of roughly 0.8-1.6s",
+    );
+  }
+  if (sceneCount > 1 && physicalHandoffCount < Math.min(3, sceneCount - 1)) {
+    fail(
+      "too few executable physical carrier handoffs cover the scene boundaries",
+    );
+  } else if (sceneCount > 1) {
+    strengths.push("each major boundary has executable carrier continuity");
+  }
+  if (
+    sceneCount > 1 &&
+    physicalHandoffCount < sceneCount - 1 &&
+    opacityBoundaryCount >= sceneCount - 1
+  ) {
+    fail(
+      "scenes are joined by opacity toggles rather than carriers; this is slideshow output, not a directed film",
+    );
+  }
   if (sceneCount >= 3 && !/data-camera-world(?:\s|=|>)/i.test(html)) {
-    issues.push(
+    fail(
       "multi-scene product film has no expansive data-camera-world and is likely toggling components inside one viewport",
     );
   }
   if (sceneCount >= 3 && cameraMoveCount < 3) {
-    issues.push(
+    fail(
       "camera is not first-class; author at least three world moves covering push, pan/track, and pull/reframe",
     );
   } else if (sceneCount >= 3) {
@@ -417,19 +852,19 @@ export function analyzeMotionQuality(
       html,
     )
   ) {
-    issues.push(
-      "camera world is not materially larger than the viewport; place scene regions across a 3200–5600px spatial canvas",
+    warn(
+      "camera world is not materially larger than the viewport; place scene regions across a 3200-5600px spatial canvas",
     );
   }
   if (tweenCount + presetCount < Math.max(7, sceneCount * 3)) {
-    issues.push(
+    fail(
       "timeline is under-choreographed and likely becomes static after its entrance",
     );
   } else {
     strengths.push("timeline has multi-phase motion density");
   }
   if (!/\.set\s*\([\s\S]{0,500}?,\s*0\s*\)/.test(timeline)) {
-    issues.push(
+    fail(
       "initial visual states are not deterministically established at time 0",
     );
   }
@@ -438,7 +873,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    fail(
       "editorial text is not choreographed word-by-word or character-by-character",
     );
   } else {
@@ -450,19 +885,19 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    fail(
       "multi-scene output has no morph, match-cut, or particle-reassembly handoff",
     );
   } else if (sceneCount > 1) {
     strengths.push("scene boundaries use an explicit continuity mechanism");
   }
   if (/(@keyframes|animation\s*:)/i.test(html)) {
-    issues.push(
+    fail(
       "independent CSS animation breaks deterministic seeking; place motion on the GSAP timeline",
     );
   }
   if (/repeat\s*:\s*-1/.test(timeline)) {
-    issues.push(
+    fail(
       "infinite ambient looping replaces authored background progression and breaks finite film direction",
     );
   }
@@ -471,7 +906,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    fail(
       "callback-driven layer cleanup is not reverse-seek safe; schedule display and visibility changes explicitly on the master timeline",
     );
   }
@@ -480,7 +915,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    warn(
       "repeated motion animates layout properties; use x/y/scale/scaleX/scaleY or reserve geometry changes for one short morph handoff",
     );
   }
@@ -489,7 +924,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    fail(
       "a complete product shell is over-scaled and will be clipped by its carrier; keep the shell fit-safe and focus a local UI region instead",
     );
   }
@@ -498,7 +933,7 @@ export function analyzeMotionQuality(
       timeline,
     )
   ) {
-    issues.push(
+    fail(
       "editorial helper options are repositioning the centered wrapper; CSS must own centering, one inner layer must own whole-sentence scale, and words must not scale into each other",
     );
   }
@@ -507,8 +942,42 @@ export function analyzeMotionQuality(
       html,
     )
   ) {
-    issues.push(
+    fail(
       "proof nests a framed card inside a device/frame; replace it with one coherent product surface",
+    );
+  }
+  if (
+    cardCount >= 3 &&
+    !/data-edit=["'][^"']*(?:shell|surface|workspace|app|product|canvas|editor|dashboard|window|board|composer)[^"']*["']/i.test(
+      html,
+    )
+  ) {
+    fail(
+      "small cards float in empty space with no full-bleed product surface; build the application surface this product actually has",
+    );
+  }
+  if (
+    /\b(?:lorem ipsum|your product here|placeholder text|sample text|dummy data|ai insights)\b/i.test(
+      html,
+    )
+  ) {
+    fail(
+      "generic placeholder or generic AI-dashboard copy is standing in for real product content",
+    );
+  }
+  if (editIdCount < 5) {
+    fail(
+      "too few stable data-edit ids; every meaningful element must stay selectable, movable, resizable, and editable",
+    );
+  } else {
+    strengths.push("generated elements keep stable editable ids");
+  }
+  const unstableIds = unstableEditIds(html);
+  if (unstableIds.length > 0) {
+    fail(
+      `data-edit ids are positional rather than descriptive (${unstableIds
+        .slice(0, 4)
+        .join(", ")}); use role names so editor overrides survive regeneration`,
     );
   }
   if (
@@ -517,19 +986,36 @@ export function analyzeMotionQuality(
     ) &&
     !/data-background-role=["'][^"']+["']/i.test(html)
   ) {
-    issues.push(
+    warn(
       "generic background effects have no declared semantic role or causal relationship to the story",
     );
   }
-  if ((result.techniques?.length ?? 0) < Math.min(sceneCount, 3)) {
-    issues.push(
-      "technique plan does not cover enough beats or registry references",
+  const missingAssets = (context.requiredAssetTokens ?? []).filter(
+    (token) => !html.includes(token),
+  );
+  if (missingAssets.length > 0) {
+    fail(
+      `supplied media is missing from the composition: ${missingAssets
+        .slice(0, 3)
+        .join(", ")}`,
     );
+  }
+  if (
+    context.prompt !== undefined &&
+    !/claude|anthropic/i.test(context.prompt) &&
+    /\b(?:Claude|Anthropic)\b/.test(html)
+  ) {
+    fail(
+      "the Claude foundation's branding leaked into the output; rebuild palette, chrome, and copy from the requested product",
+    );
+  }
+  if ((result.techniques?.length ?? 0) < Math.min(sceneCount, 3)) {
+    warn("technique plan does not cover enough beats or registry references");
   } else {
     strengths.push("technique plan names retrieved registry mechanics");
   }
   if (sceneCount >= 3 && (result.direction?.length ?? 0) < sceneCount) {
-    issues.push(
+    warn(
       "scene direction plan is missing composition, spatial region, camera start/end/target, hierarchy, hold, or transition decisions",
     );
   } else if (sceneCount >= 3) {
@@ -538,18 +1024,23 @@ export function analyzeMotionQuality(
     );
   }
   if (presetCount < 2) {
-    issues.push(
+    fail(
       "fewer than two real Motionly presets are used in executable timeline code",
     );
   } else {
     strengths.push("composition uses reusable Motionly motion primitives");
   }
 
-  const score = Math.max(0, 100 - issues.length * 16 + strengths.length * 3);
+  const advisoryCount = issues.length - blocking.length;
+  const score = Math.max(
+    0,
+    100 - blocking.length * 18 - advisoryCount * 8 + strengths.length * 3,
+  );
   return {
     score,
     requiresRepair: issues.length > 0 || score < 90,
     issues,
+    blockingIssues: blocking,
     strengths,
   };
 }
@@ -559,9 +1050,14 @@ export function buildQualityRepairPrompt(
   result: GeneratedComposition,
   report: MotionQualityReport,
 ): string {
+  const blocking = report.blockingIssues.length
+    ? `\n\nBLOCKING FAILURES (must all be fixed)\n${report.blockingIssues
+        .map((issue, index) => `${index + 1}. ${issue}`)
+        .join("\n")}`
+    : "";
   return `Repair and substantially upgrade the generated Motionly composition for the original request: ${originalPrompt}\n\nQUALITY GATE FAILURES\n${report.issues
     .map((issue, index) => `${index + 1}. ${issue}`)
     .join(
       "\n",
-    )}\n\nKeep any strong visual work, but rewrite weak choreography from the scene level. First build an expansive data-camera-world with distinct spatial states, then author a clear push → pan/track → pull/reframe camera path on the master timeline. UI action must unfold during those scene moves. Repair layout before adding micro motion: keep centered text wrappers fixed, zoom one inner text layer, stagger words without scaling them into each other, keep product shells readable at settled holds, and remove nested frames or screenshot collages. Use real Motionly preset calls and make boundaries MORPH, MATCH-CUT, or PARTICLE-REASSEMBLE. Return the complete replacement JSON, not a patch.\n\nPrevious reply summary: ${result.reply}`;
+    )}${blocking}\n\nKeep any strong visual work, keep the established subject, palette, scene spine, and every data-edit id, but rewrite weak choreography from the scene level. First build an expansive data-camera-world with distinct spatial states, then author a clear push → pan/track → pull/reframe camera path on the master timeline. Construct the product surface progressively in reading order and deconstruct it in reverse hierarchy; film one real interaction with a macro focus rig and a caret-following pan. Repair layout before adding micro motion: keep centered text wrappers fixed, zoom one inner text layer, stagger words without scaling them into each other, keep product shells readable at settled holds, never overlap two settled text blocks, and remove nested frames, screenshot collages, or tiny cards floating in a void. Use real Motionly preset calls and make boundaries MORPH, MATCH-CUT, or PARTICLE-REASSEMBLE. Return the complete replacement JSON, not a patch.\n\nPrevious reply summary: ${result.reply}`;
 }

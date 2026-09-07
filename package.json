@@ -39,6 +39,7 @@
     "gsap": "^3.15.0",
     "lucide-svelte": "^1.0.1",
     "mp4-muxer": "^5.2.2",
+    "posthog-js": "^1.427.3",
     "svelte": "^5.56.4",
     "webm-muxer": "^5.1.4"
   },

@@ -1,3 +1,4 @@
+import type { GenerationPlanMemory } from "../ai/generation-guidance";
 import type { ProjectSourceFiles } from "../cloud/projects-api";
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
 import type { LocalAssetReference } from "./local-assets";
@@ -13,6 +14,8 @@ export interface ProjectDraft {
   files: ProjectSourceFiles;
   messages: DraftMessage[];
   assets: LocalAssetReference[];
+  /** Directorial memory so a restored draft keeps its follow-up context. */
+  plan?: GenerationPlanMemory;
   editorState: RuntimeEditorState;
   metadata: {
     title: string;
@@ -47,4 +50,13 @@ export function saveProjectDraft(projectId: string, draft: ProjectDraft): void {
   } catch (error) {
     console.warn("Motionly could not persist the local project draft.", error);
   }
+}
+
+export function clearProjectDrafts(): void {
+  if (typeof localStorage === "undefined") return;
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key?.startsWith(PREFIX)) localStorage.removeItem(key);
+  }
+  localStorage.removeItem("motionly-assistant-history-v1");
 }

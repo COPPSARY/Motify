@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  clearProjectDrafts,
   draftKey,
   loadProjectDraft,
   saveProjectDraft,
@@ -49,5 +50,30 @@ describe("browser-local project drafts", () => {
       editorState: { elements: { title: { x: 20 } } },
     });
     expect(loadProjectDraft("project:two")).toBeNull();
+  });
+
+  it("clears only Motionly project drafts", () => {
+    localStorage.setItem("unrelated-app-setting", "keep");
+    localStorage.setItem("motionly-assistant-history-v1", "[]");
+    saveProjectDraft("project:one", {
+      version: 1,
+      updatedAt: 10,
+      files: {
+        "composition.html": "<template></template>",
+        "styles.css": "",
+        "timeline.js": "export function buildTimeline() {}",
+        "index.ts": "export default {}",
+      },
+      messages: [],
+      assets: [],
+      editorState: { elements: {}, animations: {}, tweens: {} },
+      metadata: { title: "Draft", duration: 1, scenes: [] },
+    });
+
+    clearProjectDrafts();
+
+    expect(loadProjectDraft("project:one")).toBeNull();
+    expect(localStorage.getItem("motionly-assistant-history-v1")).toBeNull();
+    expect(localStorage.getItem("unrelated-app-setting")).toBe("keep");
   });
 });
