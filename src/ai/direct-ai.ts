@@ -214,12 +214,18 @@ export async function generateWithDirectAi(
     ? (prompt: string, files: GenerationFiles, repair: boolean) =>
         requestClientGemini(clientApiKey, prompt, files, repair)
     : requestBackend;
+  const qualityContext = {
+    prompt: userPrompt,
+    requiredAssetTokens: (currentFiles.assets ?? []).map(
+      (asset) => asset.token,
+    ),
+  };
 
   onProgress?.(
     "Planning scenes, spatial regions, and the camera path before animation...",
   );
   const first = await request(userPrompt, currentFiles, false);
-  const firstReport = analyzeMotionQuality(first);
+  const firstReport = analyzeMotionQuality(first, qualityContext);
   if (!firstReport.requiresRepair) {
     onProgress?.("Quality gate passed. Applying composition...");
     return first;
@@ -228,6 +234,8 @@ export async function generateWithDirectAi(
   onProgress?.(
     "Repairing scene composition, camera causality, and continuity...",
   );
+  let best = first;
+  let bestReport = firstReport;
   try {
     const repairPrompt = buildQualityRepairPrompt(
       userPrompt,
@@ -243,11 +251,23 @@ export async function generateWithDirectAi(
       },
       true,
     );
-    const repairedReport = analyzeMotionQuality(repaired);
-    return repairedReport.score >= firstReport.score ? repaired : first;
+    const repairedReport = analyzeMotionQuality(repaired, qualityContext);
+    if (repairedReport.score >= firstReport.score) {
+      best = repaired;
+      bestReport = repairedReport;
+    }
   } catch {
-    // A usable first generation is better than failing the whole request because
-    // the optional quality-repair pass was unavailable.
-    return first;
+    // Keep the first pass; the blocking gate below decides whether it ships.
   }
+
+  // Advisory issues still ship: they are refinements, not broken films.
+  // Blocking issues mean slideshow-grade or unrunnable output.
+  if (bestReport.blockingIssues.length > 0) {
+    throw new Error(
+      `AI output did not meet the Motionly quality floor: ${bestReport.blockingIssues
+        .slice(0, 4)
+        .join("; ")}`,
+    );
+  }
+  return best;
 }

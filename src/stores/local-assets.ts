@@ -63,6 +63,19 @@ export async function readLocalAsset(id: string): Promise<Blob | null> {
   return result;
 }
 
+export async function clearLocalAssets(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STORE, "readwrite");
+    transaction.objectStore(STORE).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error("Could not clear local assets."));
+  });
+  database.close();
+}
+
 function blobAsBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

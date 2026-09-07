@@ -17,6 +17,7 @@
     Maximize2,
     Pause,
     Play,
+    Plus,
     RefreshCcw,
     Save,
     Send,
@@ -29,10 +30,24 @@
     X,
   } from "lucide-svelte";
   import { createDynamicComposition } from "../composition/dynamic-compiler";
+  import { createGeneratedAdapterSource } from "../composition/generated-adapter";
+  import {
+    applyEditorField,
+    editorFieldValue,
+    readEditorGroup,
+  } from "../composition/editor-schema";
+  import { hydratePresetAssets } from "../compositions/preset-assets";
   import { generateWithDirectAi } from "../ai/direct-ai";
+  import type { GenerationPlanMemory } from "../ai/generation-guidance";
+  import {
+    GENERATION_FOUNDATION_PROFILE,
+    foundationFiles,
+    foundationScenes,
+  } from "../ai/generation-foundation";
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import {
+    combineCompositionSource,
     hydrateBuiltinPreviewAssets,
     splitCompositionSource,
   } from "../cloud/project-source";
@@ -49,8 +64,12 @@
   import { CompositionRuntime } from "../composition/runtime";
   import type {
     CompositionDefinition,
+    EditorFieldDefinition,
+    EditorGroupDefinition,
     ElementOverride,
+    RuntimeEditorState,
     RuntimeSnapshot,
+    SceneDefinition,
   } from "../composition/types";
   import {
     appleNotesPreset,
@@ -80,6 +99,21 @@
   import AnimationControls from "./AnimationControls.svelte";
   import { generationStore, startNewGeneration } from "../stores/generation";
   import { uploadAsset } from "../api/assets";
+  import { validateGeneratedComposition } from "../ai/validate-generation";
+  import {
+    clearLocalAssets,
+    generationAsset,
+    hydrateAssetTokens,
+    readLocalAsset,
+    storeLocalAsset,
+    type LocalAssetReference,
+  } from "../stores/local-assets";
+  import {
+    clearProjectDrafts,
+    loadProjectDraft,
+    saveProjectDraft,
+  } from "../stores/project-drafts";
+  import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
   import "./styles/navigation-rail.css";
   import "./styles/content-panel.css";
@@ -97,14 +131,6 @@
   interface AssistantMessage {
     role: "user" | "assistant";
     text: string;
-  }
-
-  if (typeof localStorage !== "undefined") {
-    try {
-      localStorage.removeItem("motionly-assistant-history-v1");
-    } catch {
-      // ignore
-    }
   }
 
   const initialProjectFiles: ProjectSourceFiles = {
@@ -157,12 +183,30 @@ export default defineComposition({
     appleNotesTimelineSource,
     appleNotesAdapterSource,
   );
+  const blankScenes = [
+    {
+      id: "main",
+      label: "Main",
+      start: 0,
+      duration: 5,
+      accent: "#7657ff",
+      tracks: [
+        {
+          id: "stage",
+          label: "Stage",
+          kind: "Background" as const,
+          start: 0,
+          end: 5,
+        },
+      ],
+    },
+  ] as const;
   const previewApi = new ProjectsApi();
+  const activeDraftKey = "active";
 
   const textElementTags = new Set([
     "B",
     "BUTTON",
-    "DIV",
     "EM",
     "H1",
     "H2",
@@ -180,10 +224,14 @@ export default defineComposition({
   let previewStage: HTMLDivElement;
   let timelinePanel: HTMLElement;
   let playheadMarker: HTMLSpanElement;
+  let scrubbing = false;
   let fileInput: HTMLInputElement;
   let cloudProjects: CloudProjectGallery;
   let mediaInput: HTMLInputElement;
-  let stagedAssets: { id: string; name: string }[] = [];
+  let stagedAssets: LocalAssetReference[] = [];
+  // Thumbnails for the attachment chips. Kept apart from assetObjectUrls, which
+  // is revoked wholesale on every regeneration.
+  let stagedPreviews: Record<string, string> = {};
   let uploadingMedia = false;
   let runtime: CompositionRuntime | null = null;
   let runtimeUnsubscribe: (() => void) | null = null;
@@ -205,6 +253,9 @@ export default defineComposition({
   let notice = "";
   let assistantDraft = "";
   let assistantMessages: AssistantMessage[] = [];
+  // Directorial memory: a follow-up prompt continues this film instead of
+  // restarting from a blank stage.
+  let generationPlan: GenerationPlanMemory | null = null;
   const activityVerbs = [
     "Composing",
     "Shaping",
@@ -222,6 +273,19 @@ export default defineComposition({
   let workspaceId = "";
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
+  let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let assetObjectUrls: string[] = [];
+  let selectedEditorGroup: EditorGroupDefinition | null = null;
+  let selectionDrag: {
+    pointerId: number;
+    mode: "move" | "scale";
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    scale: number;
+    width: number;
+  } | null = null;
 
   let lastGenState = "";
   $: {
@@ -312,13 +376,17 @@ export default defineComposition({
     void currentMotionlyUser().then((user) => {
       currentUser = user;
       authChecked = true;
+      if (user) {
+        identifyAnalyticsUser(user);
+      }
     });
     mountComposition(activeComposition);
+    void restoreLocalDraft();
     let playbackFrame = 0;
     const syncPlaybackUi = () => {
       if (runtime) {
         snapshot = runtime.snapshot;
-        selectedSceneId = snapshot.sceneId;
+        if (timelineMode === "project") selectedSceneId = snapshot.sceneId;
         const playheadPosition = `${timelinePlayheadPosition()}%`;
         timelinePanel?.style.setProperty(
           "--playhead-position",
@@ -347,26 +415,140 @@ export default defineComposition({
       runtimeUnsubscribe?.();
       cancelAnimationFrame(playbackFrame);
       if (activityTimer) clearInterval(activityTimer);
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      window.removeEventListener("pointermove", updateSelectionDrag);
+      window.removeEventListener("pointerup", endSelectionDrag);
       observer.disconnect();
       runtime?.destroy();
+      assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
       projectStyles?.remove();
     };
   });
 
-  function mountComposition(composition: CompositionDefinition): void {
+  function mountComposition(
+    composition: CompositionDefinition,
+    editorState?: Partial<RuntimeEditorState>,
+  ): void {
+    const previousSelectedId = selectedId;
     runtimeUnsubscribe?.();
     runtime?.destroy();
     activeComposition = composition;
     selectedId = "";
+    selectedEditorGroup = null;
     selectedSceneId = composition.scenes[0]?.id ?? "";
     runtime = new CompositionRuntime(composition, previewRoot);
+    runtime.importEditorState(editorState);
+    if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
+      selectedId = previousSelectedId;
+      refreshSelectedEditorGroup();
+      syncAnimationControls();
+    }
     runtimeUnsubscribe = runtime.subscribe((value) => {
       snapshot = value;
-      selectedSceneId = value.sceneId;
+      // In scene mode the user has opened one beat to edit it. Following the
+      // playhead there would swap the track list out from under a click.
+      if (timelineMode === "project") selectedSceneId = value.sceneId;
       updateSelectionRect();
     });
     fitPreview();
     editorRevision += 1;
+  }
+
+  function scheduleDraftSave(): void {
+    if (typeof localStorage === "undefined") return;
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(() => {
+      if (!runtime) return;
+      saveProjectDraft(activeDraftKey, {
+        version: 1,
+        updatedAt: Date.now(),
+        files: { ...cloudFiles },
+        messages: assistantMessages.filter(
+          (message) =>
+            !/^(Composing|Shaping|Animating|Polishing|Rendering)/.test(
+              message.text,
+            ),
+        ),
+        assets: stagedAssets,
+        plan: generationPlan ?? undefined,
+        editorState: runtime.exportEditorState(),
+        metadata: {
+          title: activeComposition.title,
+          duration: activeComposition.duration,
+          scenes: activeComposition.scenes,
+        },
+        baseRevision: cloudProject?.revision,
+      });
+    }, 180);
+  }
+
+  async function restoreLocalDraft(): Promise<void> {
+    const draft = loadProjectDraft(activeDraftKey);
+    if (!draft) return;
+    // Preset artwork lives in the composition source as __ASSET_*__ placeholders,
+    // so it must resolve on every remount, independent of chat attachments.
+    const hydrated = await hydrateAssetTokens(
+      hydratePresetAssets(combineCompositionSource(draft.files)),
+      draft.assets,
+    );
+    cloudFiles = { ...draft.files };
+    assistantMessages = [...draft.messages];
+    stagedAssets = [...draft.assets];
+    generationPlan = draft.plan ?? null;
+    void ensureStagedPreviews(stagedAssets);
+    assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    assetObjectUrls = hydrated.objectUrls;
+    const composition = createDynamicComposition(
+      hydrated.source,
+      draft.files["timeline.js"],
+      {
+        title: draft.metadata.title,
+        duration: draft.metadata.duration,
+        scenes: draft.metadata.scenes,
+      },
+    );
+    mountComposition(composition, draft.editorState);
+    showNotice("Recovered your local Motionly draft.");
+  }
+
+  async function startNewProject(): Promise<void> {
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    clearProjectDrafts();
+    try {
+      await clearLocalAssets();
+    } catch {
+      // A fresh editor can still start if browser asset cleanup is unavailable.
+    }
+    assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    assetObjectUrls = [];
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...initialProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    timelineMode = "project";
+    sourceOpen = false;
+    generationStore.set({
+      isActive: false,
+      status: "IDLE",
+      stage: "IDLE",
+      progress: 0,
+      message: "",
+    });
+    mountComposition(
+      createDynamicComposition(
+        combineCompositionSource(initialProjectFiles),
+        initialProjectFiles["timeline.js"],
+        {
+          id: "blank-composition",
+          title: "Untitled Motionly Project",
+          duration: 5,
+          scenes: blankScenes,
+        },
+      ),
+    );
+    runtime?.seek(0);
+    captureEvent("project started", { source: "new_button" });
+    showNotice("Started a new blank project and cleared local Motionly data.");
   }
 
   function loadClaudePreset(): void {
@@ -375,38 +557,46 @@ export default defineComposition({
     cloudFiles = { ...claudeProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(claudePreset);
+    captureEvent("preset loaded", { preset_name: "claude" });
     showNotice("Claude Calorie & Climax preset loaded.");
   }
 
   function loadKiriTtsPreset(): void {
     previewLoadSequence += 1;
+    resetAssistantSession();
     cloudProject = null;
     cloudFiles = { ...kiriTtsProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(kiriTtsPreset);
+    captureEvent("preset loaded", { preset_name: "kiri_tts" });
     showNotice("KiriTTS SaaS Ad preset loaded.");
   }
 
   function loadMotionlyPromoPreset(): void {
     previewLoadSequence += 1;
+    resetAssistantSession();
     cloudProject = null;
     cloudFiles = { ...motionlyPromoProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(motionlyPromoPreset);
+    captureEvent("preset loaded", { preset_name: "motionly_promo" });
     showNotice("Motionly Promo preset loaded.");
   }
 
   function loadAppleNotesPreset(): void {
     previewLoadSequence += 1;
+    resetAssistantSession();
     cloudProject = null;
     cloudFiles = { ...appleNotesProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(appleNotesPreset);
+    captureEvent("preset loaded", { preset_name: "apple_notes" });
     showNotice("Apple Notes 24s Product Film loaded.");
   }
 
   async function mountSavedProject(project: ProjectSummary): Promise<void> {
     const sequence = ++previewLoadSequence;
+    resetAssistantSession();
     try {
       const preview = await previewApi.getPreview(project.id);
       const hydratedBundle = hydrateBuiltinPreviewAssets(preview.bundle, {
@@ -502,46 +692,100 @@ export default defineComposition({
     snapshot.playing ? runtime.pause() : runtime.play();
   }
 
-  function selectFromPreview(event: MouseEvent): void {
-    const directTarget = (event.target as HTMLElement).closest<HTMLElement>(
-      "[data-motionly-id]",
+  function editableElementAtPoint(event: MouseEvent): string {
+    if (!runtime || !previewRoot) return "";
+    const candidates = new Map<string, HTMLElement>();
+    const addCandidate = (element: Element | null): void => {
+      const editable = element?.closest<HTMLElement>("[data-motionly-id]");
+      const id = editable?.dataset["motionlyId"] ?? "";
+      if (
+        id &&
+        editable &&
+        previewRoot.contains(editable) &&
+        runtime?.elements.get(id) === editable
+      ) {
+        candidates.set(id, editable);
+      }
+    };
+
+    addCandidate(event.target instanceof Element ? event.target : null);
+    for (const element of document.elementsFromPoint(
+      event.clientX,
+      event.clientY,
+    )) {
+      addCandidate(element);
+    }
+
+    for (const [id, element] of runtime.elements) {
+      if (!previewRoot.contains(element)) continue;
+      const style = getComputedStyle(element);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        Number(style.opacity) <= 0.01
+      ) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      if (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      ) {
+        candidates.set(id, element);
+      }
+    }
+
+    const rootRect = previewRoot.getBoundingClientRect();
+    const rootArea = Math.max(1, rootRect.width * rootRect.height);
+    return (
+      [...candidates.entries()]
+        .map(([id, element]) => {
+          const group = readEditorGroup(id, element);
+          const rect = element.getBoundingClientRect();
+          let depth = 0;
+          for (
+            let parent = element.parentElement;
+            parent && parent !== previewRoot;
+            parent = parent.parentElement
+          ) {
+            depth += 1;
+          }
+          const zIndex = Number.parseInt(getComputedStyle(element).zIndex, 10);
+          const score =
+            (group.explicit ? 10_000 : 0) +
+            (group.fields.length > 0 ? 5_000 : 0) +
+            depth * 20 +
+            (Number.isFinite(zIndex) ? zIndex : 0) -
+            ((rect.width * rect.height) / rootArea) * 100;
+          return { id, score };
+        })
+        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))[0]?.id ??
+      ""
     );
-    const pointTargets = runtime
-      ? [...runtime.elements.entries()]
-          .filter(([, element]) => {
-            const bounds = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            return (
-              bounds.width > 0 &&
-              bounds.height > 0 &&
-              event.clientX >= bounds.left &&
-              event.clientX <= bounds.right &&
-              event.clientY >= bounds.top &&
-              event.clientY <= bounds.bottom &&
-              style.visibility !== "hidden" &&
-              style.display !== "none" &&
-              Number(style.opacity) > 0.02
-            );
-          })
-          .sort(([, first], [, second]) => {
-            const firstBounds = first.getBoundingClientRect();
-            const secondBounds = second.getBoundingClientRect();
-            return (
-              firstBounds.width * firstBounds.height -
-              secondBounds.width * secondBounds.height
-            );
-          })
-      : [];
-    const hitId =
-      pointTargets[0]?.[0] ?? directTarget?.dataset["motionlyId"] ?? "";
+  }
+
+  function selectFromPreview(event: MouseEvent): void {
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".me-selection-overlay")
+    ) {
+      return;
+    }
+    const hitId = editableElementAtPoint(event);
     if (!hitId) {
       selectedId = "";
+      selectedEditorGroup = null;
       updateSelectionRect();
       return;
     }
     timelineMode = "scene";
     selectedSceneId = snapshot.sceneId;
     selectedId = hitId;
+    refreshSelectedEditorGroup();
     syncAnimationControls();
     updateSelectionRect();
   }
@@ -549,12 +793,124 @@ export default defineComposition({
   function handlePreviewKey(event: KeyboardEvent): void {
     if (event.key === "Escape") {
       selectedId = "";
+      selectedEditorGroup = null;
       updateSelectionRect();
     }
   }
 
-  function seek(event: Event): void {
-    runtime?.seek(Number((event.currentTarget as HTMLInputElement).value));
+  function refreshSelectedEditorGroup(): void {
+    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    selectedEditorGroup = element ? readEditorGroup(selectedId, element) : null;
+  }
+
+  function beginSelectionDrag(
+    event: PointerEvent,
+    mode: "move" | "scale",
+  ): void {
+    if (!runtime || !selectedId || !selectedEditorGroup?.allowTransform) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const current = currentOverride();
+    selectionDrag = {
+      pointerId: event.pointerId,
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: current.x ?? 0,
+      y: current.y ?? 0,
+      scale: current.scale ?? 1,
+      width: Math.max(1, selectionRect.width),
+    };
+    window.addEventListener("pointermove", updateSelectionDrag);
+    window.addEventListener("pointerup", endSelectionDrag, { once: true });
+  }
+
+  function updateSelectionDrag(event: PointerEvent): void {
+    if (
+      !selectionDrag ||
+      event.pointerId !== selectionDrag.pointerId ||
+      !runtime ||
+      !selectedId
+    ) {
+      return;
+    }
+    const rootRect = previewRoot.getBoundingClientRect();
+    const previewScale = rootRect.width / activeComposition.width || 1;
+    const dx = (event.clientX - selectionDrag.startX) / previewScale;
+    const dy = (event.clientY - selectionDrag.startY) / previewScale;
+    const patch: ElementOverride =
+      selectionDrag.mode === "move"
+        ? { x: selectionDrag.x + dx, y: selectionDrag.y + dy }
+        : {
+            scale: Math.max(
+              0.05,
+              selectionDrag.scale * (1 + (dx + dy) / (2 * selectionDrag.width)),
+            ),
+          };
+    runtime.setOverride(selectedId, patch);
+    editorRevision += 1;
+    updateSelectionRect();
+  }
+
+  function endSelectionDrag(event: PointerEvent): void {
+    if (!selectionDrag || event.pointerId !== selectionDrag.pointerId) return;
+    window.removeEventListener("pointermove", updateSelectionDrag);
+    if (runtime && selectedId) {
+      persistSourceOverride(selectedId, runtime.getOverride(selectedId));
+    }
+    selectionDrag = null;
+    scheduleDraftSave();
+  }
+
+  function scrubTimeFromPointer(event: PointerEvent): number {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
+    return (
+      currentTimelineStart +
+      Math.max(0, Math.min(1, ratio)) * currentTimelineDuration
+    );
+  }
+
+  function startScrub(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture?.(event.pointerId);
+    scrubbing = true;
+    runtime?.pause();
+    runtime?.seek(scrubTimeFromPointer(event));
+    updateSelectionRect();
+  }
+
+  function moveScrub(event: PointerEvent): void {
+    if (!scrubbing) return;
+    runtime?.seek(scrubTimeFromPointer(event));
+    updateSelectionRect();
+  }
+
+  function endScrub(event: PointerEvent): void {
+    if (!scrubbing) return;
+    scrubbing = false;
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture?.(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function scrubKeydown(event: KeyboardEvent): void {
+    const frame = 1 / activeComposition.fps;
+    const step = event.shiftKey ? frame * 10 : frame;
+    const min = currentTimelineStart;
+    const max = currentTimelineStart + currentTimelineDuration - frame;
+    const moves: Record<string, number> = {
+      ArrowLeft: snapshot.time - step,
+      ArrowRight: snapshot.time + step,
+      Home: min,
+      End: max,
+    };
+    const next = moves[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    runtime?.pause();
+    runtime?.seek(Math.max(min, Math.min(max, next)));
     updateSelectionRect();
   }
 
@@ -565,27 +921,48 @@ export default defineComposition({
     );
   }
 
-  function visibleSceneTracks(): readonly SceneTrack[] {
-    void editorRevision;
-    const scene = selectedScene();
+  function sceneTrackList(
+    scene: CompositionDefinition["scenes"][number] | undefined,
+    _revision: number,
+  ): readonly SceneTrack[] {
     if (!scene) return [];
     return deriveSceneTracks(scene, runtime?.elements, runtime?.timeline);
   }
 
+  function buildTimelineTicks(
+    start: number,
+    duration: number,
+    mode: TimelineMode,
+  ): number[] {
+    const step = mode === "project" ? 5 : duration > 6 ? 2 : 1;
+    const values = Array.from(
+      { length: Math.floor(duration / step) + 1 },
+      (_, index) => start + index * step,
+    );
+    if (values.at(-1) !== start + duration) values.push(start + duration);
+    return values;
+  }
+
+  $: void ensureStagedPreviews(stagedAssets);
+
+  // The ruler, the clips, the scrubber, and the playhead must all read one
+  // window. These are plain reactive values, not zero-argument helpers, so the
+  // template actually re-renders when the window changes.
+  $: activeScene =
+    activeComposition.scenes.find((scene) => scene.id === selectedSceneId) ??
+    activeComposition.scenes[0];
   $: currentTimelineStart =
-    timelineMode === "project" ? 0 : (selectedScene()?.start ?? 0);
+    timelineMode === "project" ? 0 : (activeScene?.start ?? 0);
   $: currentTimelineDuration =
     timelineMode === "project"
       ? activeComposition.duration
-      : (selectedScene()?.duration ?? activeComposition.duration);
-
-  function timelineStart(): number {
-    return currentTimelineStart;
-  }
-
-  function timelineDuration(): number {
-    return currentTimelineDuration;
-  }
+      : (activeScene?.duration ?? activeComposition.duration);
+  $: timelineTickValues = buildTimelineTicks(
+    currentTimelineStart,
+    currentTimelineDuration,
+    timelineMode,
+  );
+  $: sceneTracks = sceneTrackList(activeScene, editorRevision);
 
   function timelinePlayheadPosition(): number {
     const start = currentTimelineStart;
@@ -594,17 +971,6 @@ export default defineComposition({
       0,
       Math.min(100, ((snapshot.time - start) / duration) * 100),
     );
-  }
-
-  function timelineTicks(): number[] {
-    const duration = timelineDuration();
-    const step = timelineMode === "project" ? 5 : duration > 6 ? 2 : 1;
-    const values = Array.from(
-      { length: Math.floor(duration / step) + 1 },
-      (_, index) => index * step,
-    );
-    if (values.at(-1) !== duration) values.push(duration);
-    return values;
   }
 
   function enterScene(scene: CompositionDefinition["scenes"][number]): void {
@@ -616,24 +982,44 @@ export default defineComposition({
     timelineMode = "scene";
     selectedSceneId = scene.id;
     selectedId = "";
+    selectedEditorGroup = null;
     runtime?.seek(visibleFrame);
   }
 
   function showProjectTimeline(): void {
     timelineMode = "project";
     selectedId = "";
+    selectedEditorGroup = null;
   }
 
-  function trackLeft(track: SceneTrack): number {
-    const start = timelineStart();
-    const trackStart = track.start >= start ? track.start - start : track.start;
-    return Math.max(0, Math.min(100, (trackStart / timelineDuration()) * 100));
+  // Track spans are master-timeline seconds, so a lane position is simply the
+  // offset into the visible window. Clips are clipped to that window instead of
+  // overflowing the lane when a layer animates across a scene boundary.
+  function trackLeft(
+    track: SceneTrack,
+    start: number,
+    duration: number,
+  ): number {
+    const visibleStart = Math.max(track.start, start);
+    return Math.max(
+      0,
+      Math.min(100, ((visibleStart - start) / duration) * 100),
+    );
   }
 
-  function trackWidth(track: SceneTrack): number {
+  function trackWidth(
+    track: SceneTrack,
+    start: number,
+    duration: number,
+  ): number {
+    const visible =
+      Math.min(track.end, start + duration) - Math.max(track.start, start);
     return Math.max(
       0.8,
-      ((track.end - track.start) / timelineDuration()) * 100,
+      Math.min(
+        100 - trackLeft(track, start, duration),
+        (visible / duration) * 100,
+      ),
     );
   }
 
@@ -653,21 +1039,24 @@ export default defineComposition({
       );
       return;
     }
-    const localTime = snapshot.time - scene.start;
-    if (localTime < track.start || localTime >= track.end) {
+    // track.start/end are master-timeline seconds; only move the playhead when
+    // it is outside the clip, and keep it inside the scene the user is editing.
+    if (snapshot.time < track.start || snapshot.time >= track.end) {
       const previewOffset = Math.min(
         0.15,
         Math.max(0, (track.end - track.start) / 3),
       );
+      const sceneEnd = scene.start + scene.duration - 1 / activeComposition.fps;
+      const target = Math.min(
+        track.end - 1 / activeComposition.fps,
+        track.start + previewOffset,
+      );
       runtime.seek(
-        scene.start +
-          Math.min(
-            track.end - 1 / activeComposition.fps,
-            track.start + previewOffset,
-          ),
+        Math.max(scene.start, Math.min(sceneEnd, Math.max(0, target))),
       );
     }
     selectedId = track.id;
+    refreshSelectedEditorGroup();
     syncAnimationControls();
     updateSelectionRect();
   }
@@ -690,8 +1079,8 @@ export default defineComposition({
       .find((track) => track.id === selectedId);
   }
 
-  function currentOverride(): ElementOverride {
-    void editorRevision;
+  function currentOverride(_revision = editorRevision): ElementOverride {
+    void _revision;
     return selectedId && runtime ? runtime.getOverride(selectedId) : {};
   }
 
@@ -700,6 +1089,7 @@ export default defineComposition({
     const element = runtime.elements.get(selectedId);
     if (!element) return false;
     if (element.dataset["motionlySplitUnit"]) return true;
+    if (element.children.length > 0) return false;
     return (
       selectedTrack()?.kind === "Text" || textElementTags.has(element.tagName)
     );
@@ -795,6 +1185,7 @@ export default defineComposition({
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
     updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function setText(event: Event): void {
@@ -804,6 +1195,7 @@ export default defineComposition({
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
     updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function setColor(property: ColorProperty, event: Event): void {
@@ -815,6 +1207,7 @@ export default defineComposition({
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
     updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function clearBackground(): void {
@@ -824,6 +1217,7 @@ export default defineComposition({
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
     updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function toggleSelectedLayer(): void {
@@ -833,6 +1227,7 @@ export default defineComposition({
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
     updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function animationSettings() {
@@ -847,12 +1242,100 @@ export default defineComposition({
     runtime.setAnimationOverride(selectedId, {
       speed: animationSpeed,
     });
+    editorRevision += 1;
+    scheduleDraftSave();
   }
 
   function setAnimationEase(ease: string): void {
     if (!runtime || !selectedId) return;
     animationEase = ease;
     runtime.setAnimationOverride(selectedId, { ease });
+    editorRevision += 1;
+    scheduleDraftSave();
+  }
+
+  function editorFieldInputValue(field: EditorFieldDefinition): string {
+    void editorRevision;
+    const value = editorFieldValue(field);
+    if (field.type === "color") return normalizedColor(value, "#111318");
+    if (field.type === "number" || field.type === "range") {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? String(parsed) : "0";
+    }
+    return value;
+  }
+
+  function writeEditorFieldToSource(
+    fieldId: string,
+    value: string | boolean,
+  ): void {
+    if (!selectedId) return;
+    const documentSource = new DOMParser().parseFromString(
+      cloudFiles["composition.html"],
+      "text/html",
+    );
+    const template = documentSource.querySelector("template");
+    const scope: ParentNode = template?.content ?? documentSource;
+    const groupElement = Array.from(
+      scope.querySelectorAll<HTMLElement>("[data-edit]"),
+    ).find((element) => element.dataset["edit"] === selectedId);
+    if (!groupElement) return;
+    const sourceField = readEditorGroup(selectedId, groupElement).fields.find(
+      (candidate) => candidate.id === fieldId,
+    );
+    if (!sourceField) return;
+    applyEditorField(sourceField, value);
+    cloudFiles = {
+      ...cloudFiles,
+      "composition.html":
+        template?.outerHTML ?? documentSource.body.innerHTML.trim(),
+    };
+    cloudProjects?.setFiles(cloudFiles);
+    scheduleDraftSave();
+  }
+
+  function changeEditorField(field: EditorFieldDefinition, event: Event): void {
+    const input = event.currentTarget as HTMLInputElement | HTMLSelectElement;
+    const value =
+      input instanceof HTMLInputElement && input.type === "checkbox"
+        ? input.checked
+        : input.value;
+    applyEditorField(field, value);
+    writeEditorFieldToSource(field.id, value);
+    editorRevision += 1;
+    updateSelectionRect();
+  }
+
+  async function replaceEditorImage(
+    field: EditorFieldDefinition,
+    event: Event,
+  ): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    uploadingMedia = true;
+    try {
+      const reference = await storeLocalAsset(file, file.name);
+      if (workspaceId) {
+        try {
+          reference.uploadId = await uploadAsset(workspaceId, file);
+        } catch {
+          // The browser-local image remains editable and recoverable.
+        }
+      }
+      stagedAssets = [...stagedAssets, reference];
+      const objectUrl = URL.createObjectURL(file);
+      assetObjectUrls.push(objectUrl);
+      applyEditorField(field, objectUrl);
+      writeEditorFieldToSource(field.id, reference.token);
+      editorRevision += 1;
+      updateSelectionRect();
+      showNotice(`${file.name} replaced and saved locally.`);
+    } finally {
+      uploadingMedia = false;
+      input.value = "";
+      scheduleDraftSave();
+    }
   }
 
   function timecode(time: number): string {
@@ -893,17 +1376,68 @@ export default defineComposition({
     input.value = "";
   }
 
-  async function stageAsset(file: File, name: string): Promise<void> {
-    if (!workspaceId) {
-      showNotice("Wait for your cloud workspace to finish loading.");
-      return;
+  async function ensureStagedPreviews(
+    assets: readonly LocalAssetReference[],
+  ): Promise<void> {
+    for (const asset of assets) {
+      if (stagedPreviews[asset.id]) continue;
+      try {
+        const blob = await readLocalAsset(asset.id);
+        if (!blob) continue;
+        stagedPreviews = {
+          ...stagedPreviews,
+          [asset.id]: URL.createObjectURL(blob),
+        };
+      } catch {
+        // The chip still renders with its filename if the thumbnail fails.
+      }
     }
+  }
+
+  function removeStagedAsset(asset: LocalAssetReference): void {
+    stagedAssets = stagedAssets.filter((item) => item.id !== asset.id);
+    const preview = stagedPreviews[asset.id];
+    if (preview) {
+      URL.revokeObjectURL(preview);
+      const next = { ...stagedPreviews };
+      delete next[asset.id];
+      stagedPreviews = next;
+    }
+    showNotice(`${asset.name} will not be sent with the next prompt.`);
+    scheduleDraftSave();
+  }
+
+  /**
+   * A preset is not the user's project: its images, chat, and directorial plan
+   * must not ride along into the next generation.
+   */
+  function resetAssistantSession(): void {
+    Object.values(stagedPreviews).forEach((url) => URL.revokeObjectURL(url));
+    stagedPreviews = {};
+    stagedAssets = [];
+    assistantMessages = [];
+    assistantDraft = "";
+    generationPlan = null;
+  }
+
+  async function stageAsset(file: File, name: string): Promise<void> {
     uploadingMedia = true;
-    showNotice(`Uploading ${name}...`);
+    showNotice(`Adding ${name}...`);
     try {
-      const assetId = await uploadAsset(workspaceId, file);
-      stagedAssets = [...stagedAssets, { id: assetId, name }];
+      const reference = await storeLocalAsset(file, name);
+      if (workspaceId) {
+        try {
+          reference.uploadId = await uploadAsset(workspaceId, file);
+        } catch {
+          // Direct AI can still use the IndexedDB copy.
+        }
+      }
+      stagedAssets = [...stagedAssets, reference];
+      captureEvent("media uploaded", {
+        file_type: file.type.split("/")[0] || "unknown",
+      });
       showNotice(`${name} is ready for the next prompt.`);
+      scheduleDraftSave();
     } catch (error: unknown) {
       showNotice(
         `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -911,6 +1445,123 @@ export default defineComposition({
     } finally {
       uploadingMedia = false;
     }
+  }
+
+  function assistantGenerationBasis(): {
+    files: ProjectSourceFiles;
+    duration: number;
+    scenes: readonly SceneDefinition[];
+    editorState?: Partial<RuntimeEditorState>;
+    generationProfile: "claude-foundation-v1" | "existing";
+  } {
+    const currentSource = cloudFiles["composition.html"] ?? "";
+    const needsFoundation =
+      currentSource.length < 1200 ||
+      (activeComposition.id.startsWith("dynamic-comp-") &&
+        !currentSource.includes(GENERATION_FOUNDATION_PROFILE));
+    if (needsFoundation) {
+      return {
+        files: {
+          "composition.html": foundationFiles.compositionHtml,
+          "styles.css": "",
+          "timeline.js": foundationFiles.timelineJs,
+          "index.ts": "",
+        },
+        duration: 20,
+        scenes: foundationScenes,
+        generationProfile: "claude-foundation-v1",
+      };
+    }
+    return {
+      files: cloudFiles,
+      duration: activeComposition.duration,
+      scenes: activeComposition.scenes,
+      editorState: runtime?.exportEditorState(),
+      generationProfile: "existing",
+    };
+  }
+
+  async function generateAndApplyAssistant(prompt: string): Promise<string> {
+    const basis = assistantGenerationBasis();
+    const currentHtml = combineCompositionSource(basis.files);
+    const currentJs = basis.files["timeline.js"] || "";
+    const generationAssets = await Promise.all(
+      stagedAssets.map(generationAsset),
+    );
+    const result = await generateWithDirectAi(
+      prompt,
+      {
+        compositionHtml: currentHtml,
+        timelineJs: currentJs,
+        stylesCss: basis.files["styles.css"],
+        indexTs: basis.files["index.ts"],
+        conversation: assistantMessages,
+        editorState: basis.editorState,
+        assets: generationAssets,
+        generationProfile: basis.generationProfile,
+        previousPlan: generationPlan ?? undefined,
+      },
+      (statusMsg) => {
+        generationStore.update((state) => ({
+          ...state,
+          message: statusMsg,
+        }));
+      },
+    );
+
+    const hydrated = await hydrateAssetTokens(
+      hydratePresetAssets(result.compositionHtml),
+      stagedAssets,
+    );
+    const validated = validateGeneratedComposition(result, {
+      prompt,
+      previousHtml: currentHtml,
+      previousDuration: basis.duration,
+      previousScenes: basis.scenes,
+      requiredAssetTokens: generationAssets.map((asset) => asset.token),
+      renderedHtml: hydrated.source,
+    });
+    const title = result.title || "AI Generated Video";
+    const adapter = createGeneratedAdapterSource({
+      id: activeComposition.id,
+      title,
+      duration: validated.duration,
+      scenes: validated.scenes,
+      width: activeComposition.width,
+      height: activeComposition.height,
+      fps: activeComposition.fps,
+    });
+    cloudFiles = splitCompositionSource(
+      result.compositionHtml,
+      result.timelineJs,
+      adapter,
+    );
+    cloudProjects?.setFiles(cloudFiles);
+
+    const previousObjectUrls = assetObjectUrls;
+    const dynamicComp = createDynamicComposition(
+      hydrated.source,
+      cloudFiles["timeline.js"],
+      {
+        duration: validated.duration,
+        title,
+        scenes: validated.scenes,
+      },
+    );
+    mountComposition(dynamicComp, basis.editorState);
+    assetObjectUrls = hydrated.objectUrls;
+    previousObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    generationPlan = {
+      title,
+      subject: prompt,
+      duration: validated.duration,
+      direction: result.direction,
+      techniques: result.techniques,
+    };
+    runtime?.seek(0);
+    runtime?.play();
+    scheduleDraftSave();
+    return result.reply;
   }
 
   async function submitAssistant(event: SubmitEvent): Promise<void> {
@@ -921,6 +1572,8 @@ export default defineComposition({
     assistantMessages = [...assistantMessages, { role: "user", text: prompt }];
     assistantDraft = "";
 
+    const generationStartedAt = performance.now();
+    captureEvent("ai generation started", { prompt_length: prompt.length });
     generationStore.set({
       isActive: true,
       status: "GENERATING",
@@ -930,52 +1583,26 @@ export default defineComposition({
     });
 
     try {
-      const currentHtml = cloudFiles["composition.html"] || "";
-      const currentJs = cloudFiles["timeline.js"] || "";
-
-      const result = await generateWithDirectAi(
-        prompt,
-        {
-          compositionHtml: currentHtml,
-          timelineJs: currentJs,
-        },
-        (statusMsg) => {
-          generationStore.update((s) => ({ ...s, message: statusMsg }));
-        },
-      );
-
+      const reply = await generateAndApplyAssistant(prompt);
       generationStore.set({
         isActive: false,
         status: "COMPLETED",
         stage: "COMPLETED",
         progress: 100,
-        message: result.reply,
+        message: reply,
       });
-
-      // Update active project files purely in memory
-      cloudFiles = {
-        ...cloudFiles,
-        "composition.html": result.compositionHtml,
-        "timeline.js": result.timelineJs,
-      };
-
-      // Dynamically compile and mount the new composition in the browser in-memory
-      const dynamicComp = createDynamicComposition(
-        result.compositionHtml,
-        result.timelineJs,
-        {
-          duration: result.duration || 18.0,
-          title: result.title || "AI Generated Video",
-          scenes: result.scenes,
-        },
-      );
-      mountComposition(dynamicComp);
-      runtime?.seek(0);
-      runtime?.play();
+      captureEvent("ai generation completed", {
+        duration_ms: Math.round(performance.now() - generationStartedAt),
+        reference_asset_count: stagedAssets.length,
+      });
       showNotice("Composition updated by Motionly AI!");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
+      captureEvent("ai generation failed", {
+        duration_ms: Math.round(performance.now() - generationStartedAt),
+        error_type: err instanceof Error ? err.name : "unknown",
+      });
       generationStore.set({
         isActive: false,
         status: "FAILED",
@@ -1021,8 +1648,8 @@ export default defineComposition({
     }
 
     const fixInstruction = lastPrompt
-      ? `The previous response failed with JSON error: "${errorMessage}".\n\nPlease fix the error and regenerate the complete composition for: "${lastPrompt}". Ensure the output is strictly valid JSON with no unescaped quotes or raw control characters.`
-      : `The previous response had JSON error: "${errorMessage}". Please fix the JSON syntax and return valid JSON.`;
+      ? `The previous generation failed this runtime or quality check: "${errorMessage}".\n\nRegenerate the complete composition for: "${lastPrompt}". Preserve the conversation and supplied images, repair the actual visual/runtime failure, and return strictly valid JSON.`
+      : `The previous generation failed this runtime or quality check: "${errorMessage}". Repair it and return a complete valid composition.`;
 
     assistantDraft = "";
     assistantMessages = [
@@ -1039,46 +1666,14 @@ export default defineComposition({
     });
 
     try {
-      const currentHtml = cloudFiles["composition.html"] || "";
-      const currentJs = cloudFiles["timeline.js"] || "";
-
-      const result = await generateWithDirectAi(
-        fixInstruction,
-        {
-          compositionHtml: currentHtml,
-          timelineJs: currentJs,
-        },
-        (statusMsg) => {
-          generationStore.update((s) => ({ ...s, message: statusMsg }));
-        },
-      );
-
+      const reply = await generateAndApplyAssistant(fixInstruction);
       generationStore.set({
         isActive: false,
         status: "COMPLETED",
         stage: "COMPLETED",
         progress: 100,
-        message: result.reply,
+        message: reply,
       });
-
-      cloudFiles = {
-        ...cloudFiles,
-        "composition.html": result.compositionHtml,
-        "timeline.js": result.timelineJs,
-      };
-
-      const dynamicComp = createDynamicComposition(
-        result.compositionHtml,
-        result.timelineJs,
-        {
-          duration: result.duration || 18.0,
-          title: result.title || "Repaired Video",
-          scenes: result.scenes,
-        },
-      );
-      mountComposition(dynamicComp);
-      runtime?.seek(0);
-      runtime?.play();
       showNotice("Composition repaired and updated by Motionly AI!");
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
@@ -1130,15 +1725,17 @@ export default defineComposition({
     await startNewGeneration(
       workspaceId,
       prompt,
-      stagedAssets.map((asset) => asset.id),
+      stagedAssets.flatMap((asset) => (asset.uploadId ? [asset.uploadId] : [])),
       handleGenerationComplete,
     );
-    stagedAssets = [];
+    scheduleDraftSave();
   }
 
   async function saveSource(): Promise<void> {
     cloudProjects.setFiles(cloudFiles);
     await cloudProjects.saveActive();
+    captureEvent("project saved", { has_cloud_project: !!cloudProject });
+    scheduleDraftSave();
   }
 
   function persistSourceOverride(id: string, patch: ElementOverride): void {
@@ -1154,33 +1751,39 @@ export default defineComposition({
     );
     if (!element) return;
 
-    if (patch.text !== undefined) element.textContent = patch.text;
-    if (patch.x !== undefined || patch.y !== undefined) {
-      element.style.translate = `${patch.x ?? 0}px ${patch.y ?? 0}px`;
+    const merged: ElementOverride = {
+      ...(runtime?.getOverride(id) ?? {}),
+      ...patch,
+    };
+
+    if (merged.text !== undefined) element.textContent = merged.text;
+    if (merged.x !== undefined || merged.y !== undefined) {
+      element.style.translate = `${merged.x ?? 0}px ${merged.y ?? 0}px`;
     }
-    if (patch.scale !== undefined) element.style.scale = String(patch.scale);
-    if (patch.rotation !== undefined)
-      element.style.rotate = `${patch.rotation}deg`;
-    if (patch.opacity !== undefined)
-      element.style.opacity = String(patch.opacity);
-    if (patch.color !== undefined) element.style.color = patch.color;
-    if (patch.backgroundColor !== undefined)
-      element.style.backgroundColor = patch.backgroundColor;
-    if (patch.fill !== undefined) element.style.fill = patch.fill;
-    if (patch.stroke !== undefined) element.style.stroke = patch.stroke;
-    if (patch.fontSize !== undefined)
-      element.style.fontSize = `${patch.fontSize}px`;
-    if (patch.borderRadius !== undefined)
-      element.style.borderRadius = `${patch.borderRadius}px`;
-    if (patch.hidden !== undefined)
-      element.style.visibility = patch.hidden ? "hidden" : "";
+    if (merged.scale !== undefined) element.style.scale = String(merged.scale);
+    if (merged.rotation !== undefined)
+      element.style.rotate = `${merged.rotation}deg`;
+    if (merged.opacity !== undefined)
+      element.style.opacity = String(merged.opacity);
+    if (merged.color !== undefined) element.style.color = merged.color;
+    if (merged.backgroundColor !== undefined)
+      element.style.backgroundColor = merged.backgroundColor;
+    if (merged.fill !== undefined) element.style.fill = merged.fill;
+    if (merged.stroke !== undefined) element.style.stroke = merged.stroke;
+    if (merged.fontSize !== undefined)
+      element.style.fontSize = `${merged.fontSize}px`;
+    if (merged.borderRadius !== undefined)
+      element.style.borderRadius = `${merged.borderRadius}px`;
+    if (merged.hidden !== undefined)
+      element.style.visibility = merged.hidden ? "hidden" : "";
 
     cloudFiles = {
       ...cloudFiles,
       "composition.html":
         template?.outerHTML ?? documentSource.body.innerHTML.trim(),
     };
-    cloudProjects.setFiles(cloudFiles);
+    cloudProjects?.setFiles(cloudFiles);
+    scheduleDraftSave();
   }
 
   function handleCloudProjectChange(
@@ -1219,6 +1822,10 @@ export default defineComposition({
         activeComposition.fps,
       );
       downloadBlob(blob, `motionly-${activeComposition.fps}fps.mp4`);
+      captureEvent("video exported", {
+        fps: activeComposition.fps,
+        duration_seconds: activeComposition.duration,
+      });
       showNotice("Video export successful! Download started.");
     } catch (error) {
       console.error("Video export failed:", error);
@@ -1241,6 +1848,9 @@ export default defineComposition({
         blob,
         `motionly-${Math.round(snapshot.time * activeComposition.fps)}.png`,
       );
+      captureEvent("frame exported", {
+        frame: Math.round(snapshot.time * activeComposition.fps),
+      });
       showNotice("Frame PNG saved.");
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Export failed.");
@@ -1306,6 +1916,13 @@ export default defineComposition({
       <!-- <button class="btn" on:click={() => cloudProjects.openManager()}
         ><FolderOpen size={17} /><span>Open</span></button
       > -->
+      <button
+        class="btn"
+        title="Start a new blank project"
+        on:click={startNewProject}
+        disabled={$generationStore.isActive || exporting}
+        ><Plus size={17} /><span>New</span></button
+      >
       <button class="btn btn-primary" on:click={saveSource}
         ><Save size={17} /><span>Save</span></button
       >
@@ -1444,7 +2061,7 @@ export default defineComposition({
                 it is actually visible.
               </p>
               <div class="me-layer-list">
-                {#each visibleSceneTracks().filter((track) => track.kind === "Text") as track}
+                {#each sceneTracks.filter((track) => track.kind === "Text") as track (track.id)}
                   <button
                     class="me-layer-row"
                     class:me-selected={selectedId === track.id}
@@ -1631,7 +2248,7 @@ export default defineComposition({
           </div>
         </aside>
 
-        <aside class="me-chat-drawer">
+        <aside class="me-chat-drawer" data-ph-no-autocapture>
           <section class="ai-chat-panel" aria-label="Motionly Assistant">
             <header class="ai-chat-header">
               <span
@@ -1671,14 +2288,30 @@ export default defineComposition({
               {/if}
             </div>
             {#if stagedAssets.length > 0}
-              <div
-                style="padding: 10px; background: #222; border-top: 1px solid #333; font-size: 12px; display: flex; gap: 8px;"
-              >
-                {#each stagedAssets as asset}
-                  <span
-                    style="background: #444; padding: 2px 6px; border-radius: 4px;"
-                    >{asset.name}</span
-                  >
+              <div class="ai-chat-attachments" aria-label="Attached images">
+                {#each stagedAssets as asset (asset.id)}
+                  <span class="ai-attachment" title={asset.name}>
+                    {#if stagedPreviews[asset.id]}
+                      <img
+                        class="ai-attachment-thumb"
+                        src={stagedPreviews[asset.id]}
+                        alt={asset.name}
+                      />
+                    {:else}
+                      <span class="ai-attachment-thumb ai-attachment-fallback"
+                        ><ImageIcon size={11} /></span
+                      >
+                    {/if}
+                    <span class="ai-attachment-name">{asset.name}</span>
+                    <button
+                      class="ai-attachment-remove"
+                      type="button"
+                      aria-label={`Remove ${asset.name}`}
+                      disabled={$generationStore.isActive}
+                      on:click={() => removeStagedAsset(asset)}
+                      ><X size={11} /></button
+                    >
+                  </span>
                 {/each}
               </div>
             {/if}
@@ -1717,11 +2350,12 @@ export default defineComposition({
           <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
           <div
             class="me-stage"
+            data-ph-no-autocapture
             bind:this={previewStage}
             role="application"
             aria-label="Composition preview"
             tabindex="0"
-            on:click={selectFromPreview}
+            on:click|capture={selectFromPreview}
             on:keydown={handlePreviewKey}
           >
             <div
@@ -1743,15 +2377,45 @@ export default defineComposition({
                   style:top={`${selectionRect.top}px`}
                   style:width={`${selectionRect.width}px`}
                   style:height={`${selectionRect.height}px`}
+                  style:--me-selection-ui-scale={String(
+                    1 / Math.max(0.05, fitScale * zoom),
+                  )}
                 >
-                  <div class="me-selection-outline"></div>
-                  <div class="me-selection-handle handle-tl"></div>
-                  <div class="me-selection-handle handle-tr"></div>
-                  <div class="me-selection-handle handle-bl"></div>
-                  <div class="me-selection-handle handle-br"></div>
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="me-selection-outline"
+                    on:pointerdown={(event) =>
+                      beginSelectionDrag(event, "move")}
+                  ></div>
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="me-selection-handle handle-tl"
+                    on:pointerdown={(event) =>
+                      beginSelectionDrag(event, "scale")}
+                  ></div>
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="me-selection-handle handle-tr"
+                    on:pointerdown={(event) =>
+                      beginSelectionDrag(event, "scale")}
+                  ></div>
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="me-selection-handle handle-bl"
+                    on:pointerdown={(event) =>
+                      beginSelectionDrag(event, "scale")}
+                  ></div>
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="me-selection-handle handle-br"
+                    on:pointerdown={(event) =>
+                      beginSelectionDrag(event, "scale")}
+                  ></div>
                   <div class="me-selection-badge">
                     <span class="badge-label"
-                      >{selectedTrack()?.label ?? selectedId}</span
+                      >{selectedEditorGroup?.label ??
+                        selectedTrack()?.label ??
+                        selectedId}</span
                     >
                     <span class="badge-dims"
                       >{Math.round(selectionRect.width)} × {Math.round(
@@ -1773,212 +2437,286 @@ export default defineComposition({
             <div class="me-selection-summary">
               <span class="me-layer-icon"><Sparkles size={14} /></span>
               <span
-                ><strong>{selectedTrack()?.label ?? selectedId}</strong><small
-                  >{selectedId} · editable layer</small
-                ></span
+                ><strong
+                  >{selectedEditorGroup?.label ??
+                    selectedTrack()?.label ??
+                    selectedId}</strong
+                ><small>{selectedId} · editable layer</small></span
               >
             </div>
             <div class="me-primary-properties">
-              {#if isTextEditable()}
+              {#if selectedEditorGroup && selectedEditorGroup.fields.length > 0}
+                <div class="me-section-title">
+                  {selectedEditorGroup.label}
+                </div>
+                {#each selectedEditorGroup.fields as field}
+                  <label class="me-property-group">
+                    <span class="me-property-label">{field.label}</span>
+                    {#if field.type === "image"}
+                      <span class="me-image-field-preview">
+                        <img src={editorFieldValue(field)} alt={field.label} />
+                        <span class="me-image-upload">
+                          <Upload size={13} />
+                          <span
+                            >{uploadingMedia
+                              ? "Uploading..."
+                              : "Replace image"}</span
+                          >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            aria-label={`Replace ${field.label}`}
+                            disabled={uploadingMedia}
+                            on:change={(event) =>
+                              replaceEditorImage(field, event)}
+                          />
+                        </span>
+                      </span>
+                    {:else if field.type === "color"}
+                      <span class="me-color-control">
+                        <input
+                          class="me-color-swatch"
+                          type="color"
+                          value={editorFieldInputValue(field)}
+                          on:input={(event) => changeEditorField(field, event)}
+                        />
+                        <output>{editorFieldInputValue(field)}</output>
+                      </span>
+                    {:else if field.type === "select"}
+                      <select
+                        class="me-text-input"
+                        value={editorFieldInputValue(field)}
+                        on:change={(event) => changeEditorField(field, event)}
+                      >
+                        {#each field.options ?? [] as option}
+                          <option value={option}>{option}</option>
+                        {/each}
+                      </select>
+                    {:else if field.type === "toggle"}
+                      <input
+                        type="checkbox"
+                        checked={editorFieldInputValue(field) === "true"}
+                        on:change={(event) => changeEditorField(field, event)}
+                      />
+                    {:else}
+                      <input
+                        class={field.type === "range"
+                          ? "me-custom-slider"
+                          : "me-text-input"}
+                        type={field.type === "number" ? "number" : field.type}
+                        min={field.min}
+                        max={field.max}
+                        step={field.step}
+                        value={editorFieldInputValue(field)}
+                        on:input={(event) => changeEditorField(field, event)}
+                      />
+                    {/if}
+                  </label>
+                {/each}
+              {/if}
+              {#if selectedEditorGroup?.allowTransform}
+                {#if isTextEditable() && (selectedEditorGroup?.fields.length ?? 0) === 0}
+                  <div class="me-property-group">
+                    <label class="me-property-label" for="property-text"
+                      >Text</label
+                    >
+                    <input
+                      id="property-text"
+                      class="me-text-input"
+                      type="text"
+                      value={editableTextValue()}
+                      on:input={setText}
+                    />
+                  </div>
+                  <div class="me-property-group">
+                    <label class="me-property-label" for="property-font-size"
+                      >Font size</label
+                    >
+                    <div class="me-number-input-wrapper">
+                      <input
+                        id="property-font-size"
+                        class="me-number-input"
+                        aria-label="Font size"
+                        type="number"
+                        min="1"
+                        value={numericStyleValue("fontSize", 16)}
+                        on:input={(event) => setNumber("fontSize", event)}
+                      />
+                      <span class="me-input-suffix">px</span>
+                    </div>
+                  </div>
+                {/if}
+                <div class="me-property-row">
+                  <label class="me-property-group"
+                    ><span class="me-property-label">X</span>
+                    <input
+                      class="me-number-input"
+                      aria-label="X position"
+                      title="Horizontal position"
+                      type="number"
+                      value={currentOverride(editorRevision).x ?? 0}
+                      on:input={(event) => setNumber("x", event)}
+                    /></label
+                  >
+                  <label class="me-property-group"
+                    ><span class="me-property-label">Y</span>
+                    <input
+                      class="me-number-input"
+                      aria-label="Y position"
+                      title="Vertical position"
+                      type="number"
+                      value={currentOverride(editorRevision).y ?? 0}
+                      on:input={(event) => setNumber("y", event)}
+                    /></label
+                  >
+                </div>
+                <div class="me-property-row">
+                  <label class="me-property-group"
+                    ><span class="me-property-label">Scale</span>
+                    <input
+                      class="me-number-input"
+                      aria-label="Scale"
+                      title="Scale selected element"
+                      type="number"
+                      step="0.05"
+                      value={currentOverride(editorRevision).scale ?? 1}
+                      on:input={(event) => setNumber("scale", event)}
+                    /></label
+                  >
+                  <label class="me-property-group"
+                    ><span class="me-property-label">Rotation</span>
+                    <input
+                      class="me-number-input"
+                      aria-label="Rotation"
+                      title="Rotate selected element"
+                      type="number"
+                      value={currentOverride(editorRevision).rotation ?? 0}
+                      on:input={(event) => setNumber("rotation", event)}
+                    /></label
+                  >
+                </div>
                 <div class="me-property-group">
-                  <label class="me-property-label" for="property-text"
-                    >Text</label
+                  <label class="me-property-label" for="property-opacity"
+                    >Opacity</label
                   >
                   <input
-                    id="property-text"
-                    class="me-text-input"
-                    type="text"
-                    value={editableTextValue()}
-                    on:input={setText}
+                    id="property-opacity"
+                    class="me-custom-slider"
+                    title="Adjust opacity"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={currentOverride(editorRevision).opacity ?? 1}
+                    on:input={(event) => setNumber("opacity", event)}
                   />
                 </div>
-                <div class="me-property-group">
-                  <label class="me-property-label" for="property-font-size"
-                    >Font size</label
-                  >
-                  <div class="me-number-input-wrapper">
-                    <input
-                      id="property-font-size"
-                      class="me-number-input"
-                      aria-label="Font size"
-                      type="number"
-                      min="1"
-                      value={numericStyleValue("fontSize", 16)}
-                      on:input={(event) => setNumber("fontSize", event)}
-                    />
-                    <span class="me-input-suffix">px</span>
-                  </div>
+              {/if}
+              <AnimationControls
+                speed={animationSpeed}
+                ease={animationEase}
+                tweenCount={animationSettings().tweenCount}
+                onSpeed={setAnimationSpeed}
+                onEase={setAnimationEase}
+              />
+              {#if selectedEditorGroup?.allowAppearance}
+                <div class="me-section-title me-appearance-title">
+                  Appearance
                 </div>
-              {/if}
-              <div class="me-property-row">
-                <label class="me-property-group"
-                  ><span class="me-property-label">X</span>
-                  <input
-                    class="me-number-input"
-                    aria-label="X position"
-                    title="Horizontal position"
-                    type="number"
-                    value={currentOverride().x ?? 0}
-                    on:input={(event) => setNumber("x", event)}
-                  /></label
-                >
-                <label class="me-property-group"
-                  ><span class="me-property-label">Y</span>
-                  <input
-                    class="me-number-input"
-                    aria-label="Y position"
-                    title="Vertical position"
-                    type="number"
-                    value={currentOverride().y ?? 0}
-                    on:input={(event) => setNumber("y", event)}
-                  /></label
-                >
-              </div>
-              <div class="me-property-row">
-                <label class="me-property-group"
-                  ><span class="me-property-label">Scale</span>
-                  <input
-                    class="me-number-input"
-                    aria-label="Scale"
-                    title="Scale selected element"
-                    type="number"
-                    step="0.05"
-                    value={currentOverride().scale ?? 1}
-                    on:input={(event) => setNumber("scale", event)}
-                  /></label
-                >
-                <label class="me-property-group"
-                  ><span class="me-property-label">Rotation</span>
-                  <input
-                    class="me-number-input"
-                    aria-label="Rotation"
-                    title="Rotate selected element"
-                    type="number"
-                    value={currentOverride().rotation ?? 0}
-                    on:input={(event) => setNumber("rotation", event)}
-                  /></label
-                >
-              </div>
-              <div class="me-property-group">
-                <label class="me-property-label" for="property-opacity"
-                  >Opacity</label
-                >
-                <input
-                  id="property-opacity"
-                  class="me-custom-slider"
-                  title="Adjust opacity"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={currentOverride().opacity ?? 1}
-                  on:input={(event) => setNumber("opacity", event)}
-                />
-              </div>
-              {#if animationSettings().tweenCount > 0}
-                <AnimationControls
-                  speed={animationSpeed}
-                  ease={animationEase}
-                  tweenCount={animationSettings().tweenCount}
-                  onSpeed={setAnimationSpeed}
-                  onEase={setAnimationEase}
-                />
-              {/if}
-              <div class="me-section-title me-appearance-title">Appearance</div>
-              {#if isSvgSelected()}
-                <label class="me-property-group">
-                  <span class="me-property-label">Stroke color</span>
-                  <span class="me-color-control">
-                    <input
-                      class="me-color-swatch"
-                      aria-label="Stroke color"
-                      type="color"
-                      value={colorValue("stroke", "#5eead4")}
-                      on:input={(event) => setColor("stroke", event)}
-                    />
-                    <output>{colorValue("stroke", "#5eead4")}</output>
-                  </span>
-                </label>
-              {:else}
-                <label class="me-property-group">
-                  <span class="me-property-label"
-                    >{isTextEditable()
-                      ? "Text color"
-                      : "Foreground color"}</span
-                  >
-                  <span class="me-color-control">
-                    <input
-                      class="me-color-swatch"
-                      aria-label={isTextEditable()
+                {#if isSvgSelected()}
+                  <label class="me-property-group">
+                    <span class="me-property-label">Stroke color</span>
+                    <span class="me-color-control">
+                      <input
+                        class="me-color-swatch"
+                        aria-label="Stroke color"
+                        type="color"
+                        value={colorValue("stroke", "#5eead4")}
+                        on:input={(event) => setColor("stroke", event)}
+                      />
+                      <output>{colorValue("stroke", "#5eead4")}</output>
+                    </span>
+                  </label>
+                {:else}
+                  <label class="me-property-group">
+                    <span class="me-property-label"
+                      >{isTextEditable()
                         ? "Text color"
-                        : "Foreground color"}
-                      type="color"
-                      value={colorValue("color", "#111318")}
-                      on:input={(event) => setColor("color", event)}
-                    />
-                    <output>{colorValue("color", "#111318")}</output>
-                  </span>
-                </label>
-                <div class="me-property-group">
-                  <div class="me-property-label-row">
-                    <span class="me-property-label">Background</span>
-                    {#if isBackgroundTransparent()}
-                      <span class="me-property-pill-transparent"
-                        >Transparent</span
-                      >
-                    {:else}
-                      <button
-                        class="me-property-action"
-                        type="button"
-                        on:click={clearBackground}>Clear</button
-                      >
-                    {/if}
-                  </div>
-                  <div
-                    class="me-color-control"
-                    class:me-transparent-bg={isBackgroundTransparent()}
-                  >
-                    <input
-                      class="me-color-swatch"
-                      aria-label="Background color"
-                      type="color"
-                      value={effectiveBackgroundColorHex()}
-                      on:input={(event) => setColor("backgroundColor", event)}
-                    />
-                    <output
-                      >{isBackgroundTransparent()
-                        ? "transparent"
-                        : colorValue("backgroundColor", "#17191c")}</output
+                        : "Foreground color"}</span
                     >
+                    <span class="me-color-control">
+                      <input
+                        class="me-color-swatch"
+                        aria-label={isTextEditable()
+                          ? "Text color"
+                          : "Foreground color"}
+                        type="color"
+                        value={colorValue("color", "#111318")}
+                        on:input={(event) => setColor("color", event)}
+                      />
+                      <output>{colorValue("color", "#111318")}</output>
+                    </span>
+                  </label>
+                  <div class="me-property-group">
+                    <div class="me-property-label-row">
+                      <span class="me-property-label">Background</span>
+                      {#if isBackgroundTransparent()}
+                        <span class="me-property-pill-transparent"
+                          >Transparent</span
+                        >
+                      {:else}
+                        <button
+                          class="me-property-action"
+                          type="button"
+                          on:click={clearBackground}>Clear</button
+                        >
+                      {/if}
+                    </div>
+                    <div
+                      class="me-color-control"
+                      class:me-transparent-bg={isBackgroundTransparent()}
+                    >
+                      <input
+                        class="me-color-swatch"
+                        aria-label="Background color"
+                        type="color"
+                        value={effectiveBackgroundColorHex()}
+                        on:input={(event) => setColor("backgroundColor", event)}
+                      />
+                      <output
+                        >{isBackgroundTransparent()
+                          ? "transparent"
+                          : colorValue("backgroundColor", "#17191c")}</output
+                      >
+                    </div>
                   </div>
-                </div>
-                <div class="me-property-group">
-                  <label class="me-property-label" for="property-radius"
-                    >Corner radius</label
-                  >
-                  <div class="me-number-input-wrapper">
-                    <input
-                      id="property-radius"
-                      class="me-number-input"
-                      aria-label="Corner radius"
-                      type="number"
-                      min="0"
-                      value={numericStyleValue("borderRadius", 0)}
-                      on:input={(event) => setNumber("borderRadius", event)}
-                    />
-                    <span class="me-input-suffix">px</span>
+                  <div class="me-property-group">
+                    <label class="me-property-label" for="property-radius"
+                      >Corner radius</label
+                    >
+                    <div class="me-number-input-wrapper">
+                      <input
+                        id="property-radius"
+                        class="me-number-input"
+                        aria-label="Corner radius"
+                        type="number"
+                        min="0"
+                        value={numericStyleValue("borderRadius", 0)}
+                        on:input={(event) => setNumber("borderRadius", event)}
+                      />
+                      <span class="me-input-suffix">px</span>
+                    </div>
                   </div>
-                </div>
+                {/if}
               {/if}
               <button
                 class="me-layer-visibility"
-                class:me-restore={currentOverride().hidden}
+                class:me-restore={currentOverride(editorRevision).hidden}
                 type="button"
                 on:click={toggleSelectedLayer}
               >
-                {#if currentOverride().hidden}<Eye size={14} /> Restore layer{:else}<EyeOff
-                    size={14}
-                  /> Remove layer{/if}
+                {#if currentOverride(editorRevision).hidden}<Eye size={14} /> Restore
+                  layer{:else}<EyeOff size={14} /> Remove layer{/if}
               </button>
             </div>
           {:else}
@@ -2088,23 +2826,29 @@ export default defineComposition({
               {timelineMode === "project" ? "MASTER" : selectedScene()?.label}
             </div>
             <div class="me-ruler">
-              {#each timelineTicks() as tick}<span
+              {#each timelineTickValues as tick}<span
                   class="me-ruler-tick"
-                  style:left={`${(tick / timelineDuration()) * 100}%`}
+                  style:left={`${((tick - currentTimelineStart) / currentTimelineDuration) * 100}%`}
                   >{formatTimelineSeconds(tick)}</span
                 >{/each}
               <span bind:this={playheadMarker} class="me-playhead-marker"
               ></span>
-              <input
+              <div
                 class="me-timeline-scrubber"
+                class:me-scrubbing={scrubbing}
+                role="slider"
+                tabindex="0"
                 aria-label="Timeline scrubber"
-                type="range"
-                min={timelineStart()}
-                max={timelineStart() + timelineDuration()}
-                step={1 / activeComposition.fps}
-                value={snapshot.time}
-                on:input={seek}
-              />
+                aria-valuemin={currentTimelineStart}
+                aria-valuemax={currentTimelineStart + currentTimelineDuration}
+                aria-valuenow={snapshot.time}
+                aria-valuetext={formatTimelineSeconds(snapshot.time)}
+                on:pointerdown={startScrub}
+                on:pointermove={moveScrub}
+                on:pointerup={endScrub}
+                on:pointercancel={endScrub}
+                on:keydown={scrubKeydown}
+              ></div>
             </div>
           </div>
           {#if timelineMode === "project"}
@@ -2154,7 +2898,7 @@ export default defineComposition({
               </div>
             </div>
           {:else}
-            {#each visibleSceneTracks() as track}
+            {#each sceneTracks as track (track.id)}
               <div
                 class="me-timeline-row"
                 class:me-selected={selectedId === track.id}
@@ -2176,8 +2920,8 @@ export default defineComposition({
                   <button
                     class="me-clip me-element-clip scene-timeline-clip"
                     class:me-selected-clip={selectedId === track.id}
-                    style:left={`${trackLeft(track)}%`}
-                    style:width={`${trackWidth(track)}%`}
+                    style:left={`${trackLeft(track, currentTimelineStart, currentTimelineDuration)}%`}
+                    style:width={`${trackWidth(track, currentTimelineStart, currentTimelineDuration)}%`}
                     on:click={() => selectTrack(track)}
                     ><span
                       class="clip-accent"
