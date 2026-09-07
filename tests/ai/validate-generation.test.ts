@@ -291,6 +291,110 @@ describe("generated composition validation", () => {
     });
   });
 
+  it("lets a first film replace the bundled foundation's scaffolding layers", () => {
+    const film = {
+      duration: 2,
+      compositionHtml: `<template><main data-edit="product-shell"><h1 data-edit="hook">Ship faster</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const hook = root.querySelector('[data-edit="hook"]');
+        timeline.to(hook, { x: 20, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    // The foundation is scaffolding, so "make an ad for X" must not be judged
+    // against the layers it happened to ship with.
+    expect(() =>
+      validateGeneratedComposition(film, {
+        prompt: "Make a 20 second SaaS ad for my issue tracker",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="response-list"></div></main></template>`,
+        previousDuration: 2,
+        previousScenes: scenes,
+        generationProfile: "claude-foundation-v1",
+      }),
+    ).not.toThrow();
+  });
+
+  it("still refuses an edit that drops a layer the user shaped by hand", () => {
+    expect(() =>
+      validateGeneratedComposition(
+        result(`<template><div data-edit="card">Kept</div></template>`),
+        {
+          prompt: "Change the card color",
+          previousHtml: `<template><div data-edit="card"></div><div data-edit="price"></div></template>`,
+          previousDuration: 2,
+          previousScenes: scenes,
+          generationProfile: "existing",
+          userEditedIds: ["price"],
+        },
+      ),
+    ).toThrow(/layers you edited by hand: price/);
+  });
+
+  it("lets an edit re-cut the model's own layers and says so", () => {
+    // Nobody touched "price" in the editor, so it is the model's own footage
+    // and re-cutting it is a note, not a reason to withhold the whole edit.
+    const validated = validateGeneratedComposition(
+      result(`<template><div data-edit="card">Kept</div></template>`),
+      {
+        prompt: "Change the card color",
+        previousHtml: `<template><div data-edit="card"></div><div data-edit="price"></div></template>`,
+        previousDuration: 2,
+        previousScenes: scenes,
+        generationProfile: "existing",
+        userEditedIds: ["card"],
+      },
+    );
+    expect(validated.warnings.join(" ")).toMatch(/re-cut 1 layer.*price/);
+  });
+
+  it("rebuilds the storyboard from data-scene beats the model left unlisted", () => {
+    const film = {
+      duration: 4,
+      compositionHtml: `<template><main data-edit="shell"><section data-scene="scene-01" data-edit="hook">Ask</section><section data-scene="scene-02" data-edit="proof">Answer</section></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const hook = root.querySelector('[data-edit="hook"]');
+        const proof = root.querySelector('[data-edit="proof"]');
+        timeline.to(hook, { x: 20, duration: 1.6 }, 0);
+        timeline.to(proof, { x: 20, duration: 1.6 }, 2);
+      }`,
+      reply: "Done",
+    };
+    const validated = validateGeneratedComposition(film, {
+      prompt: "Make a product film for Vault",
+      previousHtml: `<template><main data-edit="shell"></main></template>`,
+      previousDuration: 4,
+      previousScenes: [],
+      generationProfile: "claude-foundation-v1",
+    });
+    expect(validated.scenes.map((scene) => scene.id)).toEqual([
+      "scene-01",
+      "scene-02",
+    ]);
+    expect(validated.scenes[1]?.start).toBeCloseTo(2);
+  });
+
+  it("extends the composition to fit a longer authored timeline", () => {
+    const longer = {
+      duration: 2,
+      compositionHtml: `<template><main data-edit="card">Hold on this</main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const card = root.querySelector('[data-edit="card"]');
+        timeline.to(card, { x: 20, duration: 3.2 }, 0);
+      }`,
+      reply: "Held the close longer.",
+    };
+    // "hold the ending longer" is answered with a longer film, not an error.
+    const validated = validateGeneratedComposition(longer, {
+      prompt: "hold the closing brand moment longer",
+      previousHtml: `<template><main data-edit="card"></main></template>`,
+      previousDuration: 2,
+      previousScenes: scenes,
+      generationProfile: "existing",
+    });
+    expect(validated.duration).toBeCloseTo(3.2);
+    expect(validated.warnings.join(" ")).toMatch(/extended to match/);
+  });
+
   it("accepts the generation foundation end to end", () => {
     expect(() =>
       validateGeneratedComposition(

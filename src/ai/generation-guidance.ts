@@ -594,6 +594,29 @@ function executableTimelineSource(value: string): string {
   return value.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
+/**
+ * Whether the timeline would even parse. Truncated or malformed output reaches
+ * the runtime as a bare SyntaxError with no useful context; compiling it here
+ * turns that into a named failure the repair pass can act on, before the user
+ * ever sees a broken film.
+ */
+function syntaxError(timelineJs: string): string {
+  const runnable = timelineJs
+    .trim()
+    .replace(/^```(?:javascript|js|ts)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, "")
+    .replace(/export\s+default\s+/g, "")
+    .replace(/export\s+function\s+/g, "function ")
+    .replace(/export\s+(const|let|var)\s+/g, "$1 ");
+  try {
+    new Function(runnable);
+    return "";
+  } catch (error: unknown) {
+    return error instanceof Error ? error.message : "unparseable timeline";
+  }
+}
+
 /** Below this score the film is weak enough to be worth another model pass. */
 export const QUALITY_REPAIR_THRESHOLD = 70;
 
@@ -602,6 +625,48 @@ export interface MotionQualityContext {
   prompt?: string;
   /** Asset tokens that must appear in the composition HTML. */
   requiredAssetTokens?: readonly string[];
+  /**
+   * Layers the user has personally moved, resized, restyled, or retimed. These
+   * carry work only they can reproduce, so losing one is a blocking failure.
+   */
+  protectedEditIds?: readonly string[];
+  /**
+   * Every other layer of the previous composition. These were authored by the
+   * model itself, so re-cutting them on a follow-up is a directorial choice
+   * worth flagging, not a reason to withhold the edit.
+   */
+  previousEditIds?: readonly string[];
+}
+
+/** Every `data-edit` id in a composition, in document order. */
+export function editIdsIn(html: string): string[] {
+  return Array.from(
+    new Set(
+      Array.from(html.matchAll(/data-edit=["']([^"']+)["']/g))
+        .map((match) => (match[1] ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+/**
+ * The layers the user has touched by hand. Editor overrides are keyed by
+ * `data-edit` id, so their key set is exactly the work a regeneration must not
+ * throw away.
+ */
+export function userEditedIds(
+  editorState?: Partial<RuntimeEditorState>,
+): string[] {
+  if (!editorState) return [];
+  const ids = new Set<string>();
+  for (const id of Object.keys(editorState.elements ?? {})) ids.add(id);
+  for (const id of Object.keys(editorState.animations ?? {})) ids.add(id);
+  // Tween override keys are "<edit-id>:tween<n>".
+  for (const key of Object.keys(editorState.tweens ?? {})) {
+    const id = key.split(":tween")[0];
+    if (id) ids.add(id);
+  }
+  return [...ids];
 }
 
 function timelinePositions(source: string): number[] {
@@ -711,6 +776,10 @@ export function analyzeMotionQuality(
     issues.push(message);
   };
 
+  const parseFailure = syntaxError(timeline);
+  if (parseFailure) {
+    fail(`timeline.js does not parse as JavaScript: ${parseFailure}`);
+  }
   if (!/function\s+buildTimeline\s*\(/.test(timeline)) {
     fail("timeline.js must export or define buildTimeline(context)");
   }
@@ -1009,6 +1078,27 @@ export function analyzeMotionQuality(
       "generic background effects have no declared semantic role or causal relationship to the story",
     );
   }
+  const survivingIds = new Set(editIdsIn(html));
+  const droppedUserWork = (context.protectedEditIds ?? []).filter(
+    (id) => !survivingIds.has(id),
+  );
+  if (droppedUserWork.length > 0) {
+    fail(
+      `the edit deletes layers the user edited by hand: ${droppedUserWork
+        .slice(0, 6)
+        .join(", ")}`,
+    );
+  }
+  const recomposed = (context.previousEditIds ?? []).filter(
+    (id) => !survivingIds.has(id) && !droppedUserWork.includes(id),
+  );
+  if (recomposed.length > 0) {
+    warn(
+      `the edit re-cuts ${recomposed.length} layer${
+        recomposed.length === 1 ? "" : "s"
+      } instead of editing them in place: ${recomposed.slice(0, 5).join(", ")}`,
+    );
+  }
   const missingAssets = (context.requiredAssetTokens ?? []).filter(
     (token) => !html.includes(token),
   );
@@ -1078,6 +1168,10 @@ export function analyzeMotionQuality(
  */
 const ISSUE_REMEDIES: ReadonlyArray<readonly [string, string]> = [
   [
+    "timeline.js does not parse",
+    "Return the complete timeline as valid JavaScript. Close every brace, bracket, string, and template literal, and do not stop mid-statement.",
+  ],
+  [
     "timeline.js must export",
     "Define `export function buildTimeline(context) { const { root, timeline } = context; ... }` as the single entry point.",
   ],
@@ -1100,6 +1194,14 @@ const ISSUE_REMEDIES: ReadonlyArray<readonly [string, string]> = [
   [
     "callback-driven layer cleanup",
     "Remove `onComplete` handlers that write element.style; schedule `timeline.set(el, { display, autoAlpha }, time)` instead so reverse seeking is correct.",
+  ],
+  [
+    "the edit deletes layers the user edited by hand",
+    "Those elements carry the user's own edits. Return the composition with every one of them still present, changing only what the request asked for.",
+  ],
+  [
+    "the edit re-cuts",
+    "Carry the previous composition's `data-edit` elements forward instead of authoring new ones, so the edit lands on the film already on screen.",
   ],
   [
     "supplied media is missing",

@@ -574,6 +574,37 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(report.blockingIssues.join(" ")).not.toContain("small cards");
   });
 
+  it("blocks a truncated timeline before it reaches the runtime", () => {
+    const report = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="headline">Ship it</h1></main></template>`,
+      // Output that ran out of tokens mid-statement.
+      timelineJs: `export function buildTimeline({ timeline }) {
+        timeline.set(headline, { autoAlpha: 0 }, 0);
+        timeline.to(headline, { y: 0, autoAlpha: 1, dur`,
+      reply: "Done",
+    });
+    expect(report.blockingIssues.join(" ")).toContain(
+      "timeline.js does not parse",
+    );
+  });
+
+  it("does not mistake a valid timeline for a broken one", () => {
+    const report = analyzeMotionQuality({
+      duration: 8,
+      scenes: scenes(2),
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="headline">Ship it</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const headline = root.querySelector('[data-edit="headline"]');
+        timeline.set(headline, { autoAlpha: 0 }, 0);
+        timeline.to(headline, { y: 0, autoAlpha: 1, duration: 1 }, 0.4);
+      }`,
+      reply: "Done",
+    });
+    expect(report.issues.join(" ")).not.toContain("does not parse");
+  });
+
   it("treats real AI product copy as content rather than a placeholder", () => {
     const report = analyzeMotionQuality({
       duration: 8,

@@ -3,8 +3,19 @@ import { CompositionRuntime } from "../composition/runtime";
 import type { SceneDefinition } from "../composition/types";
 import type { DirectAiResult } from "./direct-ai";
 
+/**
+ * Requests that are allowed to change the shape of the film rather than edit
+ * the one on screen: an explicit structural edit, a duration change, or — the
+ * common case — a request to author a new film outright. "Make an ad for my
+ * issue tracker" is not an edit to the current composition, so holding its
+ * output to the previous composition's layers rejects exactly the work the
+ * user asked for.
+ */
 const STRUCTURAL_REQUEST =
-  /\b(add|insert|remove|delete|reorder|replace|redesign|rebuild)\b[\s\S]{0,30}\b(scene|timeline|composition|entire|whole)\b|\b(change|extend|shorten|set)\b[\s\S]{0,24}\b(duration|length|timing)\b/i;
+  /\b(add|insert|remove|delete|reorder|replace|redesign|rebuild|regenerate|recreate|rewrite)\b[\s\S]{0,30}\b(scene|timeline|composition|film|video|entire|whole|complete)\b|\b(change|extend|shorten|set|make|hold|linger|stretch|trim)\b[\s\S]{0,32}\b(duration|length|timing|longer|shorter|slower|faster)\b|\b(make|create|build|generate|design|produce|animate|film|storyboard)\b[\s\S]{0,48}\b(ad|advert|advertisement|film|video|promo|commercial|animation|composition|reel|teaser|trailer|spot|intro|explainer|walkthrough|demo)\b|\bfrom scratch\b|\bstart over\b/i;
+
+/** Hard ceiling on a composition's running time. */
+const MAX_COMPOSITION_SECONDS = 300;
 
 /** Executable carrier handoffs. Opacity is not one of them. */
 const PHYSICAL_HANDOFF =
@@ -309,14 +320,78 @@ function editIds(source: string): Set<string> {
   );
 }
 
+const SCENE_ACCENTS = ["#6366f1", "#22d3ee", "#f59e0b", "#f472b6", "#34d399"];
+
+function wholeFilmScene(duration: number): SceneDefinition {
+  return {
+    id: "scene-01",
+    label: "01 · Scene",
+    start: 0,
+    duration,
+    accent: SCENE_ACCENTS[0] ?? "#6366f1",
+  };
+}
+
+/**
+ * Models routinely author `data-scene` beats in the markup and then omit the
+ * top-level scenes array. Reading the beats back off the DOM keeps the
+ * storyboard the user sees matching the film they are watching; the split is
+ * even because the markup records which beats exist, not where they cut.
+ */
+function scenesFromMarkup(
+  html: string,
+  duration: number,
+): readonly SceneDefinition[] {
+  const ids: string[] = [];
+  for (const match of html.matchAll(/data-scene=["']([^"']+)["']/gi)) {
+    const id = (match[1] ?? "").trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  if (ids.length < 2) return [wholeFilmScene(duration)];
+  const span = duration / ids.length;
+  return ids.map((id, index) => ({
+    id,
+    label: `${String(index + 1).padStart(2, "0")} · ${id}`,
+    start: index * span,
+    duration: span,
+    accent: SCENE_ACCENTS[index % SCENE_ACCENTS.length] ?? "#6366f1",
+  }));
+}
+
+interface NormalizedScenes {
+  /** The storyboard the editor shows and the runtime navigates. */
+  readonly scenes: readonly SceneDefinition[];
+  /**
+   * The beats the frame assertions run against. Inferred boundaries record
+   * which beats exist, not where they cut, so checking a beat's frames against
+   * a guessed window would reject correct films for being at the wrong moment.
+   * When the cuts are unknown, the whole film is validated as one beat.
+   */
+  readonly validated: readonly SceneDefinition[];
+}
+
 function normalizedScenes(
   result: DirectAiResult,
   previousScenes: readonly SceneDefinition[],
   allowStructuralChange: boolean,
-): readonly SceneDefinition[] {
-  if (!allowStructuralChange && previousScenes.length > 0)
-    return previousScenes;
-  return result.scenes?.length ? result.scenes : previousScenes;
+  duration: number,
+  replacesPreviousComposition: boolean,
+): NormalizedScenes {
+  if (!allowStructuralChange && previousScenes.length > 0) {
+    return { scenes: previousScenes, validated: previousScenes };
+  }
+  if (result.scenes?.length) {
+    return { scenes: result.scenes, validated: result.scenes };
+  }
+  // Replaying the beats of footage that no longer exists would validate the
+  // new film against the previous film's cuts.
+  if (replacesPreviousComposition || previousScenes.length === 0) {
+    return {
+      scenes: scenesFromMarkup(result.compositionHtml, duration),
+      validated: [wholeFilmScene(duration)],
+    };
+  }
+  return { scenes: previousScenes, validated: previousScenes };
 }
 
 export interface ValidatedGeneration {
@@ -336,37 +411,61 @@ export function validateGeneratedComposition(
     previousScenes: readonly SceneDefinition[];
     requiredAssetTokens?: readonly string[];
     renderedHtml?: string;
+    /**
+     * Which composition this generation started from. The bundled foundation is
+     * scaffolding, not the user's work: its layers exist to be replaced, so
+     * protecting them rejects every first film a user ever asks for.
+     */
+    generationProfile?: "claude-foundation-v1" | "existing";
+    /**
+     * Layers the user has moved, resized, restyled, or retimed by hand. Only
+     * these are unrecoverable if an edit drops them; the rest of the previous
+     * composition was authored by the model and it may re-cut its own work.
+     */
+    userEditedIds?: readonly string[];
   },
 ): ValidatedGeneration {
-  const allowStructuralChange = STRUCTURAL_REQUEST.test(options.prompt);
+  const allowStructuralChange =
+    options.generationProfile === "claude-foundation-v1" ||
+    STRUCTURAL_REQUEST.test(options.prompt);
   const previousIds = editIds(options.previousHtml);
   const nextIds = editIds(result.compositionHtml);
   if (nextIds.size === 0) {
     throw new Error("AI composition has no explicit data-edit layers.");
   }
-  if (!allowStructuralChange) {
-    const missing = [...previousIds].filter((id) => !nextIds.has(id));
-    if (missing.length > 0) {
-      throw new Error(
-        `AI edit removed protected editable layers: ${missing.slice(0, 8).join(", ")}.`,
-      );
-    }
+  const droppedLayers = allowStructuralChange
+    ? []
+    : [...previousIds].filter((id) => !nextIds.has(id));
+  // Losing a layer the user shaped by hand destroys work only they can redo.
+  const droppedUserWork = droppedLayers.filter((id) =>
+    (options.userEditedIds ?? []).includes(id),
+  );
+  if (droppedUserWork.length > 0) {
+    throw new Error(
+      `AI edit removed layers you edited by hand: ${droppedUserWork.slice(0, 8).join(", ")}.`,
+    );
   }
 
   assertAssetsUsed(result.compositionHtml, options.requiredAssetTokens ?? []);
 
   const requestedDuration = Number(result.duration);
-  const duration =
+  let duration =
     allowStructuralChange && Number.isFinite(requestedDuration)
       ? requestedDuration
       : options.previousDuration;
-  if (!Number.isFinite(duration) || duration <= 0 || duration > 300) {
+  if (
+    !Number.isFinite(duration) ||
+    duration <= 0 ||
+    duration > MAX_COMPOSITION_SECONDS
+  ) {
     throw new Error("AI returned an invalid composition duration.");
   }
-  const scenes = normalizedScenes(
+  const { scenes, validated } = normalizedScenes(
     result,
     options.previousScenes,
     allowStructuralChange,
+    duration,
+    options.generationProfile === "claude-foundation-v1",
   );
   for (const scene of scenes) {
     if (
@@ -386,6 +485,16 @@ export function validateGeneratedComposition(
     result.compositionHtml,
     scenes,
   );
+  const recomposed = droppedLayers.filter(
+    (id) => !droppedUserWork.includes(id),
+  );
+  if (recomposed.length > 0) {
+    warnings.push(
+      `This edit re-cut ${recomposed.length} layer${
+        recomposed.length === 1 ? "" : "s"
+      } rather than editing them in place (${recomposed.slice(0, 5).join(", ")}).`,
+    );
+  }
 
   const composition = createDynamicComposition(
     options.renderedHtml ?? result.compositionHtml,
@@ -403,9 +512,18 @@ export function validateGeneratedComposition(
     if (!Number.isFinite(actualDuration) || actualDuration <= 0) {
       throw new Error("AI timeline has no finite playable duration.");
     }
+    // The film is as long as its motion. A timeline that runs past the
+    // requested length is the model answering "hold this longer", not an
+    // error, so the composition adopts it rather than rejecting the edit.
     if (actualDuration > duration + 1 / composition.fps) {
-      throw new Error(
-        `AI timeline duration ${actualDuration.toFixed(2)}s exceeds the ${duration.toFixed(2)}s composition.`,
+      if (actualDuration > MAX_COMPOSITION_SECONDS) {
+        throw new Error(
+          `AI timeline runs ${actualDuration.toFixed(2)}s, past the ${MAX_COMPOSITION_SECONDS}s ceiling.`,
+        );
+      }
+      duration = actualDuration;
+      warnings.push(
+        `The timeline runs ${actualDuration.toFixed(1)}s, so the composition was extended to match.`,
       );
     }
     const lastAuthored = authoredEnd(runtime.timeline);
@@ -416,9 +534,9 @@ export function validateGeneratedComposition(
         )}s and leaves the rest of the ${duration.toFixed(2)}s composition frozen.`,
       );
     }
-    const sceneIds = new Set(scenes.map((scene) => scene.id));
+    const sceneIds = new Set(validated.map((scene) => scene.id));
     const limit = Math.max(0, duration - 1 / composition.fps);
-    for (const scene of scenes) {
+    for (const scene of validated) {
       for (const progress of [0.25, 0.5, 0.8]) {
         const time = Math.min(limit, scene.start + scene.duration * progress);
         assertVisibleSceneFrame(
@@ -431,7 +549,7 @@ export function validateGeneratedComposition(
       }
       assertSceneDevelops(runtime, root, scene, limit);
     }
-    const finalScene = scenes.at(-1);
+    const finalScene = validated.at(-1);
     if (finalScene) {
       assertVisibleSceneFrame(runtime, root, finalScene, sceneIds, limit);
     }

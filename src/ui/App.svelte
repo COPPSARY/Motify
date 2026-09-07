@@ -38,7 +38,10 @@
   } from "../composition/editor-schema";
   import { hydratePresetAssets } from "../compositions/preset-assets";
   import { generateWithDirectAi } from "../ai/direct-ai";
-  import type { GenerationPlanMemory } from "../ai/generation-guidance";
+  import {
+    userEditedIds,
+    type GenerationPlanMemory,
+  } from "../ai/generation-guidance";
   import {
     GENERATION_FOUNDATION_PROFILE,
     foundationFiles,
@@ -1520,6 +1523,8 @@ export default defineComposition({
       previousScenes: basis.scenes,
       requiredAssetTokens: generationAssets.map((asset) => asset.token),
       renderedHtml: hydrated.source,
+      generationProfile: basis.generationProfile,
+      userEditedIds: userEditedIds(basis.editorState),
     });
     const title = result.title || "AI Generated Video";
     const adapter = createGeneratedAdapterSource({

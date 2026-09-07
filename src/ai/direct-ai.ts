@@ -3,6 +3,8 @@ import {
   analyzeMotionQuality,
   buildMotionlyUserMessage,
   buildQualityRepairPrompt,
+  editIdsIn,
+  userEditedIds,
   type GeneratedComposition,
   type GenerationFiles,
   type MotionQualityReport,
@@ -131,7 +133,7 @@ async function requestClientGemini(
   const generationConfig: Record<string, unknown> = {
     response_mime_type: "application/json",
     temperature: repairAttempt ? 0.35 : 0.65,
-    maxOutputTokens: 24576,
+    maxOutputTokens: 65536,
   };
   if (model.includes("3.7")) {
     generationConfig["thinking_config"] = { thinking_budget: 0 };
@@ -262,6 +264,16 @@ export async function generateWithDirectAi(
     requiredAssetTokens: (currentFiles.assets ?? []).map(
       (asset) => asset.token,
     ),
+    // The bundled foundation's layers are scaffolding meant to be replaced, so
+    // nothing on screen is worth protecting until the user's own film exists.
+    protectedEditIds:
+      currentFiles.generationProfile === "claude-foundation-v1"
+        ? []
+        : userEditedIds(currentFiles.editorState),
+    previousEditIds:
+      currentFiles.generationProfile === "claude-foundation-v1"
+        ? []
+        : editIdsIn(currentFiles.compositionHtml ?? ""),
   };
 
   onProgress?.(
