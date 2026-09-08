@@ -182,7 +182,7 @@ export async function handleAiGenerateRequest(
     const generationConfig: Record<string, unknown> = {
       response_mime_type: "application/json",
       temperature: bodyObj?.repairAttempt ? 0.35 : 0.65,
-      maxOutputTokens: 24576,
+      maxOutputTokens: 65536,
     };
 
     if (model.includes("3.7")) {

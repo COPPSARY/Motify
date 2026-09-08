@@ -76,7 +76,7 @@ export default async function handler(req: Request): Promise<Response> {
     const generationConfig: Record<string, unknown> = {
       response_mime_type: "application/json",
       temperature: body.repairAttempt ? 0.35 : 0.65,
-      maxOutputTokens: 24576,
+      maxOutputTokens: 65536,
     };
 
     if (model.includes("3.7")) {

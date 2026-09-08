@@ -1,9 +1,13 @@
+import { repairGeneratedMarkup } from "./auto-repair";
 import {
   analyzeMotionQuality,
   buildMotionlyUserMessage,
   buildQualityRepairPrompt,
+  editIdsIn,
+  userEditedIds,
   type GeneratedComposition,
   type GenerationFiles,
+  type MotionQualityReport,
 } from "./generation-guidance";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 
@@ -129,7 +133,7 @@ async function requestClientGemini(
   const generationConfig: Record<string, unknown> = {
     response_mime_type: "application/json",
     temperature: repairAttempt ? 0.35 : 0.65,
-    maxOutputTokens: 24576,
+    maxOutputTokens: 65536,
   };
   if (model.includes("3.7")) {
     generationConfig["thinking_config"] = { thinking_budget: 0 };
@@ -204,6 +208,47 @@ async function requestBackend(
   return parseAiResponseText(JSON.stringify(await response.json()));
 }
 
+/**
+ * Model round trips spent trying to lift a weak generation. Two is where the
+ * curve flattens: the first pass fixes most named failures, the second catches
+ * what it traded away, and a third mostly re-rolls work that was already fine.
+ */
+const MAX_REPAIR_PASSES = 2;
+
+/** Applies the deterministic markup repairs before anything is scored. */
+function graded(result: DirectAiResult): DirectAiResult {
+  return repairGeneratedMarkup(result).result;
+}
+
+/**
+ * A repair pass is only kept if it actually helps. Clearing a blocking failure
+ * outranks a higher score, because score rewards breadth while blocking issues
+ * are the ones that make a film unusable.
+ */
+function isImprovement(
+  candidate: MotionQualityReport,
+  incumbent: MotionQualityReport,
+): boolean {
+  if (candidate.blockingIssues.length !== incumbent.blockingIssues.length) {
+    return candidate.blockingIssues.length < incumbent.blockingIssues.length;
+  }
+  return candidate.score > incumbent.score;
+}
+
+/**
+ * Shipping an imperfect film with an honest note beats handing the user an
+ * error and an empty canvas: they can watch it, edit it, or ask for a change,
+ * and every one of those is further along than a blocked generation.
+ */
+function withQualityNote(reply: string, report: MotionQualityReport): string {
+  const remaining = [
+    ...report.blockingIssues,
+    ...report.issues.filter((issue) => !report.blockingIssues.includes(issue)),
+  ].slice(0, 3);
+  if (remaining.length === 0) return reply;
+  return `${reply}\n\nStill worth a look: ${remaining.join("; ")}. Tell me which one to take on and I will rework that part.`;
+}
+
 export async function generateWithDirectAi(
   userPrompt: string,
   currentFiles: GenerationFiles,
@@ -219,55 +264,69 @@ export async function generateWithDirectAi(
     requiredAssetTokens: (currentFiles.assets ?? []).map(
       (asset) => asset.token,
     ),
+    // The bundled foundation's layers are scaffolding meant to be replaced, so
+    // nothing on screen is worth protecting until the user's own film exists.
+    protectedEditIds:
+      currentFiles.generationProfile === "claude-foundation-v1"
+        ? []
+        : userEditedIds(currentFiles.editorState),
+    previousEditIds:
+      currentFiles.generationProfile === "claude-foundation-v1"
+        ? []
+        : editIdsIn(currentFiles.compositionHtml ?? ""),
   };
 
   onProgress?.(
     "Planning scenes, spatial regions, and the camera path before animation...",
   );
-  const first = await request(userPrompt, currentFiles, false);
-  const firstReport = analyzeMotionQuality(first, qualityContext);
-  if (!firstReport.requiresRepair) {
-    onProgress?.("Quality gate passed. Applying composition...");
-    return first;
+  let best = graded(await request(userPrompt, currentFiles, false));
+  let bestReport = analyzeMotionQuality(best, qualityContext);
+
+  for (
+    let pass = 1;
+    pass <= MAX_REPAIR_PASSES && bestReport.requiresRepair;
+    pass += 1
+  ) {
+    onProgress?.(
+      pass === 1
+        ? "Repairing scene composition, camera causality, and continuity..."
+        : "Second pass on the checks that are still open...",
+    );
+    let candidate: DirectAiResult;
+    try {
+      candidate = graded(
+        await request(
+          buildQualityRepairPrompt(userPrompt, best, bestReport),
+          {
+            ...currentFiles,
+            compositionHtml: best.compositionHtml,
+            timelineJs: best.timelineJs,
+          },
+          true,
+        ),
+      );
+    } catch {
+      // The repair round trip failed. The pass we already hold still ships.
+      break;
+    }
+    const candidateReport = analyzeMotionQuality(candidate, qualityContext);
+    const improved = isImprovement(candidateReport, bestReport);
+    if (improved) {
+      best = candidate;
+      bestReport = candidateReport;
+    }
+    // A pass that did not move the report will not be rescued by another one.
+    if (!improved) break;
   }
 
   onProgress?.(
-    "Repairing scene composition, camera causality, and continuity...",
+    bestReport.issues.length === 0
+      ? "Quality gate passed. Applying composition..."
+      : "Applying the strongest pass...",
   );
-  let best = first;
-  let bestReport = firstReport;
-  try {
-    const repairPrompt = buildQualityRepairPrompt(
-      userPrompt,
-      first,
-      firstReport,
-    );
-    const repaired = await request(
-      repairPrompt,
-      {
-        ...currentFiles,
-        compositionHtml: first.compositionHtml,
-        timelineJs: first.timelineJs,
-      },
-      true,
-    );
-    const repairedReport = analyzeMotionQuality(repaired, qualityContext);
-    if (repairedReport.score >= firstReport.score) {
-      best = repaired;
-      bestReport = repairedReport;
-    }
-  } catch {
-    // Keep the first pass; the blocking gate below decides whether it ships.
-  }
-
-  // Advisory issues still ship: they are refinements, not broken films.
-  // Blocking issues mean slideshow-grade or unrunnable output.
-  if (bestReport.blockingIssues.length > 0) {
-    throw new Error(
-      `AI output did not meet the Motionly quality floor: ${bestReport.blockingIssues
-        .slice(0, 4)
-        .join("; ")}`,
-    );
-  }
-  return best;
+  return {
+    ...best,
+    quality: bestReport,
+    reply: withQualityNote(best.reply, bestReport),
+  };
 }

@@ -287,9 +287,16 @@ export const foundationHtml = `<template id="motionly-composition-template">
 
 export const foundationTimeline = `export function buildTimeline(context) {
   const { root, timeline, register } = context;
+  // A missing layer costs that layer its motion, never the whole film: this
+  // helper is copied into generated timelines, and one mistyped id must not
+  // take down every other beat with it. The stand-in is a detached node, so
+  // tweens written against it run harmlessly and render nothing.
   const get = (id) => {
     const element = root.querySelector('[data-edit="' + id + '"]');
-    if (!element) throw new Error('Foundation is missing [data-edit="' + id + '"]');
+    if (!element) {
+      console.warn('Motionly: no [data-edit="' + id + '"] layer to animate.');
+      return document.createElement("div");
+    }
     register(id, element);
     return element;
   };

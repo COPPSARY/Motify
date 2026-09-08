@@ -21,3 +21,6 @@ output/
 artifacts/
 .env
 scratch/
+
+# Live AI eval output: real generations, regenerated on demand.
+tests/.eval-output/

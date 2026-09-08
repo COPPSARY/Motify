@@ -38,7 +38,10 @@
   } from "../composition/editor-schema";
   import { hydratePresetAssets } from "../compositions/preset-assets";
   import { generateWithDirectAi } from "../ai/direct-ai";
-  import type { GenerationPlanMemory } from "../ai/generation-guidance";
+  import {
+    userEditedIds,
+    type GenerationPlanMemory,
+  } from "../ai/generation-guidance";
   import {
     GENERATION_FOUNDATION_PROFILE,
     foundationFiles,
@@ -1520,6 +1523,8 @@ export default defineComposition({
       previousScenes: basis.scenes,
       requiredAssetTokens: generationAssets.map((asset) => asset.token),
       renderedHtml: hydrated.source,
+      generationProfile: basis.generationProfile,
+      userEditedIds: userEditedIds(basis.editorState),
     });
     const title = result.title || "AI Generated Video";
     const adapter = createGeneratedAdapterSource({
@@ -1561,7 +1566,50 @@ export default defineComposition({
     runtime?.seek(0);
     runtime?.play();
     scheduleDraftSave();
-    return result.reply;
+    if (validated.warnings.length === 0) return result.reply;
+    return `${result.reply}\n\nDirection note: ${validated.warnings.join(" ")}`;
+  }
+
+  /**
+   * Transport failures — no key, no quota, no network — do not get better by
+   * asking the model again. Everything else is a composition the model can
+   * repair from the failure text.
+   */
+  function isSelfRepairable(message: string): boolean {
+    return !/api key|quota|rate limit|permission|unauthorized|forbidden|\b(?:401|403|429|503)\b|network|failed to fetch/i.test(
+      message,
+    );
+  }
+
+  function buildRepairInstruction(
+    errorMessage: string,
+    lastPrompt: string,
+  ): string {
+    return lastPrompt
+      ? `The previous generation failed this runtime or quality check: "${errorMessage}".\n\nRegenerate the complete composition for: "${lastPrompt}". Preserve the conversation and supplied images, repair the actual visual/runtime failure, and return strictly valid JSON.`
+      : `The previous generation failed this runtime or quality check: "${errorMessage}". Repair it and return a complete valid composition.`;
+  }
+
+  /**
+   * One silent repair attempt before the user ever sees an error. A failed
+   * check is something the model can act on, so acting on it here is what the
+   * user would do anyway by pressing Fix — done for them, once.
+   */
+  async function generateWithSelfRepair(prompt: string): Promise<string> {
+    try {
+      return await generateAndApplyAssistant(prompt);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "AI generation failed.";
+      if (!isSelfRepairable(message)) throw error;
+      generationStore.update((state) => ({
+        ...state,
+        message: "Repairing the composition and trying once more...",
+      }));
+      return await generateAndApplyAssistant(
+        buildRepairInstruction(message, prompt),
+      );
+    }
   }
 
   async function submitAssistant(event: SubmitEvent): Promise<void> {
@@ -1583,7 +1631,7 @@ export default defineComposition({
     });
 
     try {
-      const reply = await generateAndApplyAssistant(prompt);
+      const reply = await generateWithSelfRepair(prompt);
       generationStore.set({
         isActive: false,
         status: "COMPLETED",
@@ -1647,9 +1695,7 @@ export default defineComposition({
       }
     }
 
-    const fixInstruction = lastPrompt
-      ? `The previous generation failed this runtime or quality check: "${errorMessage}".\n\nRegenerate the complete composition for: "${lastPrompt}". Preserve the conversation and supplied images, repair the actual visual/runtime failure, and return strictly valid JSON.`
-      : `The previous generation failed this runtime or quality check: "${errorMessage}". Repair it and return a complete valid composition.`;
+    const fixInstruction = buildRepairInstruction(errorMessage, lastPrompt);
 
     assistantDraft = "";
     assistantMessages = [
