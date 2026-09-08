@@ -106,6 +106,32 @@ export function repairGeneratedMarkup(
   let html = result.compositionHtml;
   const applied: string[] = [];
 
+  // Only template.content is mounted. Models sometimes place otherwise valid
+  // authored CSS before/after </template>, leaving the film entirely unstyled.
+  // Move those style elements into the mounted source in their original order.
+  const template =
+    /^(.*?)(<template\b[^>]*>)([\s\S]*?)(<\/template\s*>)([\s\S]*)$/is.exec(
+      html,
+    );
+  if (template) {
+    const styles = /<style\b[^>]*>[\s\S]*?<\/style\s*>/gi;
+    const before = template[1] ?? "";
+    const after = template[5] ?? "";
+    const leading = before.match(styles) ?? [];
+    const trailing = after.match(styles) ?? [];
+    if (leading.length || trailing.length) {
+      html =
+        before.replace(styles, "") +
+        template[2] +
+        leading.join("\n") +
+        template[3] +
+        trailing.join("\n") +
+        template[4] +
+        after.replace(styles, "");
+      applied.push("moved authored styles inside the mounted template");
+    }
+  }
+
   if (!/data-transition-carrier(?:[\s=>]|$)/i.test(html)) {
     const carrier = carrierTag(html);
     if (carrier) {
@@ -128,6 +154,22 @@ export function repairGeneratedMarkup(
     }
   }
 
+  /**
+   * An infinite repeat makes the parent timeline infinite, and this runtime is
+   * built on a finite, seekable one: preview, scrubbing, and export all seek
+   * the same timeline. GSAP reports such a composition as ~1e10 seconds, which
+   * fails the duration ceiling and costs the user the whole generation.
+   *
+   * Bounding the tween to a single play is the smallest change that restores a
+   * seekable film, so an ambient loop degrades to one pass instead of taking
+   * the composition down with it.
+   */
+  let timelineJs = result.timelineJs;
+  if (/repeat\s*:\s*-\s*1/.test(timelineJs)) {
+    timelineJs = timelineJs.replace(/repeat\s*:\s*-\s*1/g, "repeat: 0");
+    applied.push("bounded an infinite ambient loop so the film stays seekable");
+  }
+
   if (applied.length === 0) return { result, applied };
-  return { result: { ...result, compositionHtml: html }, applied };
+  return { result: { ...result, compositionHtml: html, timelineJs }, applied };
 }

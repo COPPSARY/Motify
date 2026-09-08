@@ -37,9 +37,31 @@ export function sanitizeTimelineScript(script: string): string {
     .trim();
 }
 
+/**
+ * Which declaration is the timeline entry point.
+ *
+ * `buildTimeline` is the contract, so an exact match wins outright. Matching
+ * merely on "timeline" appearing in a name picked the first such declaration in
+ * the file, which for a composition carrying a helper — `animateTimelineCamera`,
+ * `timelineLabels` — meant the runner invoked the helper with the composition
+ * context and never ran the real timeline: the stage mounted and nothing moved.
+ */
 export function extractTimelineFunctionName(script: string): string {
+  if (
+    /(?:function\s+buildTimeline\s*\(|(?:const|let|var)\s+buildTimeline\s*=)/.test(
+      script,
+    )
+  ) {
+    return "buildTimeline";
+  }
   const match =
-    /function\s+([A-Za-z0-9_$]*timeline[A-Za-z0-9_$]*)/i.exec(script) ||
+    /function\s+(build[A-Za-z0-9_$]*[Tt]imeline[A-Za-z0-9_$]*)\s*\(/.exec(
+      script,
+    ) ||
+    /(?:const|let|var)\s+(build[A-Za-z0-9_$]*[Tt]imeline[A-Za-z0-9_$]*)\s*=/.exec(
+      script,
+    ) ||
+    /function\s+([A-Za-z0-9_$]*timeline[A-Za-z0-9_$]*)\s*\(/i.exec(script) ||
     /(?:const|let|var)\s+([A-Za-z0-9_$]*timeline[A-Za-z0-9_$]*)\s*=/i.exec(
       script,
     ) ||

@@ -1494,3 +1494,249 @@ export function inverseZoomThrough(
 
   return timeline.add(sub, options.at);
 }
+
+/* ------------------------------------------------------------------------- *
+ * Rule 3: typography as a physical object.
+ *
+ * The three treatments the direction pass chooses between, as callable
+ * mechanics rather than prose the build turn has to reinvent. Naming a
+ * treatment in the direction and leaving the implementation open produced the
+ * same clumsy result every time: a low-opacity text overlay easing in on
+ * `autoAlpha`, which reads as a slide deck rather than as type with mass.
+ *
+ * Each one keeps the authored wrapper fixed and animates a dedicated inner
+ * layer, so centred text cannot be pushed out of the frame or clipped when the
+ * timeline is scrubbed or an editor override is applied.
+ * ------------------------------------------------------------------------- */
+
+export interface PullbackCompleteOptions extends MotionOptions {
+  /** The camera world or stage the pullback moves. */
+  camera?: Target;
+  /** How large the opening fragment sits before the camera retreats. */
+  startScale?: number;
+  endScale?: number;
+  /** Seconds the settled fragment holds before the camera starts moving. */
+  hold?: number;
+  stagger?: number;
+  settleEase?: string;
+}
+
+/**
+ * **The Pullback Complete.** One massive cropped line settles; the camera pulls
+ * back and the rest of the sentence arrives in the negative space the retreat
+ * opened up. The pullback and the completion are one move — the tail never
+ * fades in on its own, it occupies room that was always there.
+ */
+export function pullbackComplete(
+  timeline: gsap.core.Timeline,
+  lead: HTMLElement | null | undefined,
+  tail: HTMLElement | null | undefined,
+  options: PullbackCompleteOptions = {},
+): gsap.core.Timeline {
+  if (!lead) return timeline;
+  const at = (options.at as number) ?? 0;
+  const startScale = options.startScale ?? 2.6;
+  const endScale = options.endScale ?? 1;
+  const settleDuration = options.duration ?? 0.9;
+  const hold = options.hold ?? 0.5;
+  const leadLayer = ensureTextMotionLayer(lead);
+
+  timeline.set(lead, { autoAlpha: 1, ...resolveCentering(lead) }, at);
+  // The tail is absent until the retreat opens room for it. Hiding only its
+  // words would leave the container occupying the frame from the first beat,
+  // which is the difference between a sentence completing and one that was
+  // always there with half of it invisible.
+  if (tail) timeline.set(tail, { autoAlpha: 0 }, at);
+  timeline.fromTo(
+    leadLayer,
+    { scale: startScale, autoAlpha: 0 },
+    {
+      scale: startScale,
+      autoAlpha: 1,
+      duration: settleDuration * 0.35,
+      ease: "power2.out",
+    },
+    at,
+  );
+  splitText(leadLayer, "words")
+    .filter((piece) => Boolean(piece.textContent?.trim()))
+    .forEach((piece, index) => {
+      timeline.fromTo(
+        piece,
+        { y: 34, autoAlpha: 0 },
+        {
+          y: 0,
+          autoAlpha: 1,
+          duration: settleDuration * 0.7,
+          ease: options.settleEase ?? "back.out(1.4)",
+        },
+        at + index * (options.stagger ?? 0.06),
+      );
+    });
+
+  // The retreat. Scaling the line down and the camera out are the same gesture,
+  // so the fragment appears to stay put while the frame widens around it.
+  const pullAt = at + settleDuration + hold;
+  const pullDuration = options.duration ?? 1.1;
+  timeline.to(
+    leadLayer,
+    { scale: endScale, duration: pullDuration, ease: "expo.out" },
+    pullAt,
+  );
+  if (options.camera) {
+    timeline.to(
+      options.camera,
+      { scale: endScale, duration: pullDuration, ease: "expo.out" },
+      pullAt,
+    );
+  }
+
+  if (tail) {
+    const tailLayer = ensureTextMotionLayer(tail);
+    timeline.set(tail, { autoAlpha: 1 }, pullAt);
+    // Room, not opacity: the tail slides into the space the frame just opened.
+    splitText(tailLayer, "words")
+      .filter((piece) => Boolean(piece.textContent?.trim()))
+      .forEach((piece, index) => {
+        timeline.fromTo(
+          piece,
+          { xPercent: 60, autoAlpha: 0 },
+          {
+            xPercent: 0,
+            autoAlpha: 1,
+            duration: pullDuration * 0.6,
+            ease: options.settleEase ?? "back.out(1.3)",
+          },
+          pullAt + pullDuration * 0.35 + index * (options.stagger ?? 0.06),
+        );
+      });
+  }
+  return timeline;
+}
+
+export interface MacroSettleOptions extends MotionOptions {
+  /** Opening scale. Rule 3 calls for 300%. */
+  startScale?: number;
+  endScale?: number;
+  /** Blur in pixels at the opening scale. */
+  blur?: number;
+  unit?: "words" | "chars";
+  stagger?: number;
+}
+
+/**
+ * **Macro Settle.** Type arrives at 300% scale, heavily blurred, then snaps
+ * into crisp 100% focus.
+ *
+ * The snap is the point: the blur resolves in the middle of the move on a
+ * `power4.out`, so the line is sharp well before it stops travelling. Text that
+ * stays soft while it is still moving reads as a video artefact rather than as
+ * a lens finding focus.
+ */
+export function macroSettle(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: MacroSettleOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.85;
+  const layer = ensureTextMotionLayer(element);
+  const pieces = splitText(layer, options.unit ?? "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+
+  timeline.set(element, { autoAlpha: 1, ...resolveCentering(element) }, at);
+  timeline.fromTo(
+    layer,
+    {
+      scale: options.startScale ?? 3,
+      autoAlpha: 0,
+      filter: "blur(" + String(options.blur ?? 18) + "px)",
+    },
+    {
+      scale: options.endScale ?? 1,
+      autoAlpha: 1,
+      duration,
+      ease: options.ease ?? "expo.out",
+    },
+    at,
+  );
+  // Focus lands before the movement does.
+  timeline.to(
+    layer,
+    { filter: "blur(0px)", duration: duration * 0.45, ease: "power4.out" },
+    at + duration * 0.25,
+  );
+  pieces.forEach((piece, index) => {
+    timeline.fromTo(
+      piece,
+      { autoAlpha: 0 },
+      { autoAlpha: 1, duration: duration * 0.3, ease: "power2.out" },
+      at + index * (options.stagger ?? 0.035),
+    );
+  });
+  return pieces;
+}
+
+export interface KineticAnchorOptions extends MotionOptions {
+  /** How far the moving words travel before they settle around the anchor. */
+  distance?: number;
+  /** Degrees of rotation the moving words carry through the move. */
+  rotation?: number;
+  stagger?: number;
+}
+
+/**
+ * **Kinetic Anchor.** One word holds absolutely still while the rest of the
+ * sentence physically revolves or slides around it.
+ *
+ * The anchor is never tweened. Everything the viewer reads as movement belongs
+ * to the words travelling past it, which is what makes the still word register
+ * as the subject of the line rather than as text that simply failed to animate.
+ */
+export function kineticAnchor(
+  timeline: gsap.core.Timeline,
+  anchor: HTMLElement | null | undefined,
+  orbiting: HTMLElement | null | undefined,
+  options: KineticAnchorOptions = {},
+): HTMLElement[] {
+  if (!anchor) return [];
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.8;
+  const distance = options.distance ?? 120;
+
+  timeline.set(anchor, { autoAlpha: 1, scale: 1, x: 0, y: 0 }, at);
+
+  if (!orbiting) return [];
+  const layer = ensureTextMotionLayer(orbiting);
+  const pieces = splitText(layer, "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+  timeline.set(orbiting, { autoAlpha: 1 }, at);
+  pieces.forEach((piece, index) => {
+    // Alternating arrival vectors read as travel around the anchor rather than
+    // as one block of text sliding in.
+    const direction = index % 2 === 0 ? 1 : -1;
+    timeline.fromTo(
+      piece,
+      {
+        x: distance * direction,
+        y: -distance * 0.35 * direction,
+        rotation: (options.rotation ?? 8) * direction,
+        autoAlpha: 0,
+        transformOrigin: "50% 50%",
+      },
+      {
+        x: 0,
+        y: 0,
+        rotation: 0,
+        autoAlpha: 1,
+        duration,
+        ease: options.ease ?? "back.out(1.4)",
+      },
+      at + index * (options.stagger ?? 0.07),
+    );
+  });
+  return pieces;
+}

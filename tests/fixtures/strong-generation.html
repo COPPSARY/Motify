@@ -1,0 +1,239 @@
+<template id="motionly-composition-template">
+  <style>
+    .motionly-stage {
+      --ink: #f8fafc;
+      --muted: #94a3b8;
+      --surface: #0f1117;
+      --surface-2: #181b25;
+      --accent: #4f46e5;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: var(--ink);
+      background: #090a0f;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    .motionly-field {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px),
+        radial-gradient(circle at 50% 50%, rgba(79,70,229,.15), transparent 40%);
+      background-size: 80px 80px, 80px 80px, 100% 100%;
+    }
+    .motionly-signal {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      top: 50%;
+      height: 2px;
+      transform-origin: left center;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      box-shadow: 0 0 30px rgba(79,70,229,0.6);
+    }
+    .motionly-world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 5760px;
+      height: 1080px;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    .motionly-carrier {
+      position: absolute;
+      left: 0;
+      top: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(15,17,23,0.95);
+      box-shadow: 0 40px 120px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,.05);
+      transform-origin: center;
+    }
+    .motionly-face { position: absolute; inset: 0; }
+    .motionly-hook-face {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 60px;
+      text-align: center;
+    }
+    .motionly-hook-copy {
+      margin: 0;
+      max-width: 1200px;
+      font-size: 72px;
+      line-height: 1.05;
+      letter-spacing: -.045em;
+      font-weight: 800;
+    }
+    .motionly-product-face,
+    .motionly-proof-face {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      background: #0f1117;
+    }
+    .motionly-sidebar {
+      padding: 32px 24px;
+      border-right: 1px solid rgba(255,255,255,.08);
+      background: #141720;
+    }
+    .motionly-brand { font: 700 28px/1 Inter, sans-serif; margin-bottom: 36px; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .motionly-brand::before { content: ''; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); }
+    .motionly-nav-item {
+      margin: 10px 0;
+      padding: 12px 16px;
+      border-radius: 10px;
+      color: #94a3b8;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .motionly-nav-item.is-active { color: white; background: rgba(79,70,229,0.18); border: 1px solid rgba(79,70,229,0.3); }
+    .motionly-workspace { position: relative; padding: 56px 64px; overflow: hidden; }
+    .motionly-kicker { color: var(--accent); font-size: 14px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
+    .motionly-product-title { margin: 12px 0 0; font-size: 48px; line-height: 1.1; letter-spacing: -.04em; font-weight: 750; }
+    .motionly-focus-rig {
+      position: absolute;
+      left: 64px;
+      right: 64px;
+      bottom: 56px;
+      transform-origin: 50% 100%;
+    }
+    .motionly-prompt {
+      position: relative;
+      min-height: 180px;
+      padding: 32px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 24px;
+      background: #181b25;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .motionly-prompt-line { max-width: 860px; font-size: 26px; line-height: 1.4; color: #f1f5f9; }
+    .motionly-prompt-copy { font-size: 26px; line-height: 1.4; }
+    .motionly-caret {
+      display: inline-block;
+      width: 3px;
+      height: 28px;
+      margin-left: 2px;
+      vertical-align: -4px;
+      background: var(--accent);
+    }
+    .motionly-action {
+      position: absolute;
+      right: 24px;
+      bottom: 24px;
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      color: #fff;
+      background: var(--accent);
+      font-size: 22px;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(79,70,229,0.4);
+    }
+    .motionly-cursor {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 34px;
+      height: 46px;
+      pointer-events: none;
+      filter: drop-shadow(0 12px 24px rgba(0,0,0,0.6));
+    }
+    .motionly-response {
+      margin-top: 32px;
+      max-width: 840px;
+      font-size: 36px;
+      line-height: 1.2;
+      letter-spacing: -.03em;
+      font-weight: 700;
+    }
+    .motionly-response-list { margin: 28px 0 0; padding: 0; max-width: 800px; list-style: none; }
+    .motionly-response-line {
+      margin: 0 0 14px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.06);
+      font-size: 20px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+    .motionly-proof-card {
+      position: absolute;
+      right: 64px;
+      top: 140px;
+      width: 380px;
+      min-height: 460px;
+      padding: 32px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 28px;
+      background: linear-gradient(145deg, #1c202d, #12151e);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .motionly-proof-label { color: var(--muted); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+    .motionly-proof-value { margin-top: 16px; font-size: 72px; letter-spacing: -.05em; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; }
+    .motionly-proof-line { height: 8px; margin-top: 18px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .motionly-proof-line::after { content: ""; display: block; width: 98%; height: 100%; background: var(--accent); box-shadow: 0 0 16px var(--accent); }
+    .motionly-final-face { display: flex; align-items: center; justify-content: center; text-align: center; padding: 40px; }
+    .motionly-final-copy { font-size: 54px; line-height: 1.1; letter-spacing: -.04em; font-weight: 800; }
+    .motionly-final-copy strong { color: var(--accent); }
+  </style>
+  <main class="motionly-stage" data-edit="stage" data-edit-label="Background" data-motionly-generation-profile="claude-foundation-v1">
+    <div class="motionly-field" data-background-role="carrier-grid"></div>
+    <div class="motionly-signal" data-edit="semantic-signal" data-edit-label="Signal path" data-background-role="signal-path"></div>
+    <div class="motionly-world" data-edit="camera-world" data-edit-label="Camera world" data-camera-world>
+      <section class="motionly-carrier" data-edit="story-carrier" data-edit-label="Story carrier" data-transition-carrier data-hyperframe-component="morph-swap">
+        <div class="motionly-face motionly-hook-face" data-edit="hook-face" data-edit-label="Hook" data-scene="scene-01" data-hyperframe-component="kinetic-center-build">
+          <h1 class="motionly-hook-copy" data-edit="hook-copy" data-edit-label="Hook statement" data-field="content" data-field-label="Statement" data-field-type="text" data-field-binding="text">Generate fluid motion graphics instantly with AI.</h1>
+        </div>
+        <div class="motionly-face motionly-product-face" data-edit="product-face" data-edit-label="Product UI" data-scene="scene-02" data-hyperframe-component="ui-focus-zoom">
+          <aside class="motionly-sidebar" data-edit="product-sidebar" data-edit-label="Navigation">
+            <div class="motionly-brand" data-edit="product-brand" data-edit-label="Product name">Motionly AI</div>
+            <div class="motionly-nav-item is-active" data-edit="product-nav-1" data-edit-label="Nav item 1">Composer</div>
+            <div class="motionly-nav-item" data-edit="product-nav-2" data-edit-label="Nav item 2">Timeline</div>
+            <div class="motionly-nav-item" data-edit="product-nav-3" data-edit-label="Nav item 3">Assets</div>
+          </aside>
+          <div class="motionly-workspace" data-edit="product-workspace" data-edit-label="Workspace">
+            <div class="motionly-kicker" data-edit="product-kicker" data-edit-label="Kicker">AI Motion Engine</div>
+            <h2 class="motionly-product-title" data-edit="product-title" data-edit-label="Product headline" data-field="content" data-field-label="Headline" data-field-type="text" data-field-binding="text">Describe your animation and watch it render.</h2>
+            <div class="motionly-focus-rig" data-edit="focus-rig" data-edit-label="Macro focus rig">
+              <div class="motionly-prompt" data-edit="prompt-shell" data-edit-label="Prompt">
+                <div class="motionly-prompt-line"><span class="motionly-prompt-copy" data-edit="prompt-copy" data-edit-label="Prompt text" data-field="content" data-field-label="Prompt" data-field-type="text" data-field-binding="text"></span><span class="motionly-caret" data-edit="prompt-caret" data-edit-label="Caret"></span></div>
+                <div class="motionly-action" data-edit="action-button" data-edit-label="Action button">↑</div>
+              </div>
+            </div>
+            <svg class="motionly-cursor" data-edit="cursor" data-edit-label="Cursor" viewBox="0 0 34 46" aria-hidden="true"><path d="M2 2l28 17-12 3 7 14-6 3-7-14-10 8z" fill="#fff" stroke="#0d0c11" stroke-width="2" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="motionly-face motionly-proof-face" data-edit="proof-face" data-edit-label="Product proof" data-scene="scene-03" data-hyperframe-component="before-after-wipe">
+          <aside class="motionly-sidebar" data-edit="proof-sidebar" data-edit-label="Proof navigation">
+            <div class="motionly-brand" data-edit="proof-brand" data-edit-label="Product name">Motionly AI</div>
+            <div class="motionly-nav-item is-active" data-edit="proof-nav-1" data-edit-label="Proof nav 1">Execution plan</div>
+            <div class="motionly-nav-item" data-edit="proof-nav-2" data-edit-label="Proof nav 2">Verification</div>
+          </aside>
+          <div class="motionly-workspace" data-edit="proof-workspace" data-edit-label="Proof workspace">
+            <div class="motionly-kicker" data-edit="proof-kicker" data-edit-label="Proof kicker">Seamless compilation</div>
+            <div class="motionly-response" data-edit="response-copy" data-edit-label="Response" data-field="content" data-field-label="Response" data-field-type="text" data-field-binding="text">Vector paths and keyframes compiled into executive-grade animation.</div>
+            <ul class="motionly-response-list" data-edit="response-list" data-edit-label="Response detail">
+              <li class="motionly-response-line" data-edit="response-line-1" data-edit-label="Response line 1">GSAP timeline bound with hardware-accelerated transforms</li>
+              <li class="motionly-response-line" data-edit="response-line-2" data-edit-label="Response line 2">Semantic HTML/SVG structure with scoped CSS variables</li>
+              <li class="motionly-response-line" data-edit="response-line-3" data-edit-label="Response line 3">Deterministic scrubbing and instant export ready</li>
+            </ul>
+            <div class="motionly-proof-card" data-edit="proof-card" data-edit-label="Proof card">
+              <div class="motionly-proof-label" data-edit="proof-label" data-edit-label="Proof label">Render Fidelity</div>
+              <div class="motionly-proof-value" data-edit="proof-value" data-edit-label="Proof value">98%</div>
+              <div class="motionly-proof-line"></div><div class="motionly-proof-line"></div><div class="motionly-proof-line"></div>
+            </div>
+          </div>
+        </div>
+        <div class="motionly-face motionly-final-face" data-edit="final-face" data-edit-label="Final promise" data-scene="scene-04" data-hyperframe-component="cta-lockup">
+          <div class="motionly-final-copy" data-edit="final-copy" data-edit-label="Final statement" data-field="content" data-field-label="Final statement" data-field-type="text" data-field-binding="text">From generative intent to <strong>motion.</strong></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</template>

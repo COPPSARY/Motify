@@ -9,3 +9,7 @@ coverage
 *.min.css
 package-lock.json
 pnpm-lock.yaml
+
+# Generated component source bundle; a single minified JSON line by design.
+registry/component-source.json
+src/ai/generated/prompt.ts

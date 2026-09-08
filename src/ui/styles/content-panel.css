@@ -1,4 +1,4 @@
-.code-editor-scope .me-content-panel {
+.code-editor-scope .me-left-panel {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -586,9 +586,12 @@
 }
 
 /* Preset Grid */
+/* The thumbnail art is lettered for a full-width card; below ~190px its kicker
+   and footnote clip, so the track floor keeps the wider left panel at one
+   column and only splits when there is genuinely room for two. */
 .code-editor-scope .me-preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
 }
 

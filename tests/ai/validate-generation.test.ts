@@ -271,6 +271,46 @@ describe("generated composition validation", () => {
       ).toThrow(/overlaps unrelated text/);
     });
 
+    it("rejects a resolve whose copy overflows the pill holding it", () => {
+      // The shape of a real failure: a sentence sized for the canvas dropped
+      // into a lockup sized for a word, so it spills out of both ends.
+      const overflowing = result(
+        `<template><main data-edit="stage"><div data-edit="brand-lockup" style="overflow:hidden;border-radius:80px;background:#16181d" data-rect="620,420,680,180"><p data-edit="final-copy" data-rect="540,470,840,80">Understand every voice. Decide with confidence.</p></div></main></template>`,
+        `export function buildTimeline({ root, timeline }) {
+          const copy = root.querySelector('[data-edit="final-copy"]');
+          timeline.set(copy, { autoAlpha: 1 }, 0);
+          timeline.to(copy, { y: 6, duration: 1.8 }, 0);
+        }`,
+      );
+      expect(() =>
+        validateGeneratedComposition(overflowing, {
+          prompt: "Close on the brand",
+          previousHtml: `<template><main data-edit="stage"><div data-edit="brand-lockup"><p data-edit="final-copy"></p></div></main></template>`,
+          previousDuration: 2,
+          previousScenes: scenes,
+        }),
+      ).toThrow(/escape its container/);
+    });
+
+    it("accepts copy that sits inside its carrier", () => {
+      const fitting = result(
+        `<template><main data-edit="stage"><div data-edit="brand-lockup" style="overflow:hidden;border-radius:80px;background:#16181d" data-rect="500,400,920,240"><p data-edit="final-copy" data-rect="560,460,800,120">Decide with confidence.</p></div></main></template>`,
+        `export function buildTimeline({ root, timeline }) {
+          const copy = root.querySelector('[data-edit="final-copy"]');
+          timeline.set(copy, { autoAlpha: 1 }, 0);
+          timeline.to(copy, { y: 6, duration: 1.8 }, 0);
+        }`,
+      );
+      expect(() =>
+        validateGeneratedComposition(fitting, {
+          prompt: "Close on the brand",
+          previousHtml: `<template><main data-edit="stage"><div data-edit="brand-lockup"><p data-edit="final-copy"></p></div></main></template>`,
+          previousDuration: 2,
+          previousScenes: scenes,
+        }),
+      ).not.toThrow();
+    });
+
     it("rejects a near-blank frame", () => {
       const blank = result(
         `<template><main data-edit="stage"><div data-edit="dot" data-rect="10,10,100,100">.</div><h1 data-edit="mark" data-rect="20,20,60,60">Hi</h1></main></template>`,
@@ -413,6 +453,528 @@ describe("generated composition validation", () => {
           previousScenes: foundationScenes,
         },
       ),
+    ).not.toThrow();
+  });
+});
+
+describe("dead air between beats", () => {
+  it("reports a long frozen stretch without blocking the film", () => {
+    const frozen = {
+      duration: 10,
+      scenes: [
+        { id: "main", label: "Main", start: 0, duration: 10, accent: "#fff" },
+      ],
+      compositionHtml: `<template><main data-edit="stage"><h1 data-edit="hook">Ship faster</h1><p data-edit="close">Every week</p></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const hook = root.querySelector('[data-edit="hook"]');
+        const close = root.querySelector('[data-edit="close"]');
+        timeline.set(close, { autoAlpha: 0 }, 0);
+        timeline.fromTo(hook, { y: 40 }, { y: 0, duration: 1 }, 0);
+        timeline.to(close, { autoAlpha: 1, y: -10, duration: 0.8 }, 9);
+      }`,
+      reply: "Done",
+    };
+    const validated = validateGeneratedComposition(frozen, {
+      prompt: "Make a teaser",
+      previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1><p data-edit="close"></p></main></template>`,
+      previousDuration: 10,
+      previousScenes: frozen.scenes,
+    });
+    expect(
+      validated.warnings.some((warning) => /still frame for/.test(warning)),
+    ).toBe(true);
+  });
+});
+
+describe("seams at render time", () => {
+  const seamScenes = [
+    { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+    { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+  ];
+  const seams = [
+    {
+      from: "scene-01",
+      to: "scene-02",
+      at: 1.6,
+      duration: 0.8,
+      carrier: "story-carrier",
+      mechanism: "morph" as const,
+      becomes: "the first plate stretches into the second",
+    },
+  ];
+  const previousHtml = `<template><main data-edit="stage"><div data-edit="story-carrier"></div><div data-edit="one"></div><div data-edit="two"></div></main></template>`;
+
+  function film(timelineJs: string) {
+    return {
+      duration: 4,
+      scenes: seamScenes,
+      seams,
+      compositionHtml: `<template><main data-edit="stage"><div data-edit="story-carrier" data-transition-carrier>Carrier</div><div data-edit="one" data-scene="scene-01">First beat</div><div data-edit="two" data-scene="scene-02">Second beat</div></main></template>`,
+      timelineJs,
+      reply: "Done",
+    };
+  }
+
+  /**
+   * The overlap a morph needs. Before seams existed this threw outright,
+   * because the outgoing beat was still on screen after the cut — so the only
+   * way past the check was to hide one beat and show the next.
+   */
+  it("lets the outgoing beat live through its own seam", () => {
+    const overlapping =
+      film(`export function buildTimeline({ root, timeline }) {
+      const one = root.querySelector('[data-edit="one"]');
+      const two = root.querySelector('[data-edit="two"]');
+      const carrier = root.querySelector('[data-edit="story-carrier"]');
+      timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+      timeline.to(one, { x: 10, duration: 1 }, 0);
+      timeline.set(two, { display: "block", autoAlpha: 1 }, 1.6);
+      timeline.to(carrier, { width: 900, x: 300, duration: 0.8 }, 1.6);
+      timeline.set(one, { display: "none", autoAlpha: 0 }, 2.4);
+      timeline.to(two, { x: 12, duration: 1.2 }, 2.4);
+    }`);
+    expect(() =>
+      validateGeneratedComposition(overlapping, {
+        prompt: "Polish the transition",
+        previousHtml,
+        previousDuration: 4,
+        previousScenes: seamScenes,
+      }),
+    ).not.toThrow();
+  });
+
+  it("still rejects an outgoing beat that outlives its seam", () => {
+    const lingering = film(`export function buildTimeline({ root, timeline }) {
+      const one = root.querySelector('[data-edit="one"]');
+      const two = root.querySelector('[data-edit="two"]');
+      const carrier = root.querySelector('[data-edit="story-carrier"]');
+      timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+      timeline.to(one, { x: 10, duration: 1 }, 0);
+      timeline.set(two, { display: "block", autoAlpha: 1 }, 1.6);
+      timeline.to(carrier, { width: 900, x: 300, duration: 0.8 }, 1.6);
+      timeline.to(two, { x: 12, duration: 1.2 }, 2.4);
+    }`);
+    expect(() =>
+      validateGeneratedComposition(lingering, {
+        prompt: "Polish the transition",
+        previousHtml,
+        previousDuration: 4,
+        previousScenes: seamScenes,
+      }),
+    ).toThrow(/stale layer from scene-01/);
+  });
+
+  /**
+   * The check a `morph()` call cannot satisfy on its own: the carrier is hidden
+   * for the whole boundary, so nothing visibly crosses it however the source
+   * reads.
+   */
+  it("reports a seam whose carrier is never on screen", () => {
+    const hiddenCarrier =
+      film(`export function buildTimeline({ root, timeline }) {
+      const one = root.querySelector('[data-edit="one"]');
+      const two = root.querySelector('[data-edit="two"]');
+      const carrier = root.querySelector('[data-edit="story-carrier"]');
+      timeline.set(carrier, { autoAlpha: 0 }, 0);
+      timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+      timeline.to(one, { x: 10, duration: 1 }, 0);
+      morph(timeline, carrier, { width: 900 }, { at: 1.6, duration: 0.8 });
+      timeline.set(two, { display: "block", autoAlpha: 1 }, 1.6);
+      timeline.set(one, { display: "none", autoAlpha: 0 }, 2.4);
+      timeline.to(two, { x: 12, duration: 1.2 }, 2.4);
+    }`);
+    const validated = validateGeneratedComposition(hiddenCarrier, {
+      prompt: "Polish the transition",
+      previousHtml,
+      previousDuration: 4,
+      previousScenes: seamScenes,
+    });
+    expect(
+      validated.warnings.some((warning) => /is a hard cut/.test(warning)),
+    ).toBe(true);
+  });
+
+  it("reports a carrier that leaves before the beats have swapped", () => {
+    const earlyExit = film(`export function buildTimeline({ root, timeline }) {
+      const one = root.querySelector('[data-edit="one"]');
+      const two = root.querySelector('[data-edit="two"]');
+      const carrier = root.querySelector('[data-edit="story-carrier"]');
+      timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+      timeline.to(one, { x: 10, duration: 1 }, 0);
+      timeline.set(two, { display: "block", autoAlpha: 1 }, 1.6);
+      timeline.to(carrier, { width: 900, duration: 0.4 }, 1.6);
+      timeline.set(carrier, { autoAlpha: 0 }, 2.0);
+      timeline.set(one, { display: "none", autoAlpha: 0 }, 2.4);
+      timeline.to(two, { x: 12, duration: 1.2 }, 2.4);
+    }`);
+    const validated = validateGeneratedComposition(earlyExit, {
+      prompt: "Polish the transition",
+      previousHtml,
+      previousDuration: 4,
+      previousScenes: seamScenes,
+    });
+    expect(
+      validated.warnings.some((warning) =>
+        /is not on screen after its seam/.test(warning),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("empty painted plates", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const plateScenes = [
+    { id: "main", label: "Main", start: 0, duration: 2, accent: "#fff" },
+  ];
+
+  /**
+   * The reported defect: the carrier keeps its own background lit through a
+   * stretch where neither the outgoing nor the incoming face is on screen, and
+   * the viewer watches a coloured rectangle sit in the middle of the frame.
+   */
+  it("rejects a painted carrier whose faces are all hidden", () => {
+    const plate = {
+      duration: 2,
+      scenes: plateScenes,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="morph-card" data-rect="700,400,500,280" style="background:#5b9dff;border-radius:24px"><div data-edit="slot-a" data-rect="720,420,460,240">Bug report</div></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const card = root.querySelector('[data-edit="morph-card"]');
+        const slot = root.querySelector('[data-edit="slot-a"]');
+        timeline.set(slot, { autoAlpha: 0 }, 0);
+        timeline.to(card, { x: 40, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(plate, {
+        prompt: "Make an ad for my issue tracker",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="morph-card"><div data-edit="slot-a"></div></div></main></template>`,
+        previousDuration: 2,
+        previousScenes: plateScenes,
+      }),
+    ).toThrow(/shows an empty plate.*morph-card/s);
+  });
+
+  it("accepts the same plate once its face is on screen", () => {
+    const filled = {
+      duration: 2,
+      scenes: plateScenes,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="morph-card" data-rect="700,400,500,280" style="background:#5b9dff;border-radius:24px"><div data-edit="slot-a" data-rect="720,420,460,240">Bug report</div></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const card = root.querySelector('[data-edit="morph-card"]');
+        timeline.to(card, { x: 40, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(filled, {
+        prompt: "Make an ad for my issue tracker",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="morph-card"><div data-edit="slot-a"></div></div></main></template>`,
+        previousDuration: 2,
+        previousScenes: plateScenes,
+      }),
+    ).not.toThrow();
+  });
+
+  /** A carrier with no surface of its own is the shape this rule steers toward. */
+  it("accepts an unpainted carrier holding nothing", () => {
+    const bare = {
+      duration: 2,
+      scenes: plateScenes,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="carrier" data-rect="700,400,500,280"><div data-edit="slot-a" data-rect="720,420,460,240">Bug report</div></div><h1 data-edit="hook" data-rect="200,120,900,120">Filing is instant</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const carrier = root.querySelector('[data-edit="carrier"]');
+        const slot = root.querySelector('[data-edit="slot-a"]');
+        timeline.set(slot, { autoAlpha: 0 }, 0);
+        timeline.to(carrier, { x: 40, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(bare, {
+        prompt: "Make an ad for my issue tracker",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="carrier"><div data-edit="slot-a"></div></div><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 2,
+        previousScenes: plateScenes,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("a frame the viewer can read", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 2, accent: "#fff" },
+  ];
+  const two = [
+    { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+    { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+  ];
+
+  /** The reported film: four small cards adrift in a mostly empty frame. */
+  it("rejects a beat whose largest object is a small card", () => {
+    const adrift = {
+      duration: 2,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="card-1" data-rect="200,200,260,90" style="background:#fff">Product Strategy</div><div data-edit="card-2" data-rect="1400,300,260,90" style="background:#fff">Launch Notes</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="card-1"]'), { x: 20, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(adrift, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="card-1"></div><div data-edit="card-2"></div></main></template>`,
+        previousDuration: 2,
+        previousScenes: one,
+      }),
+    ).toThrow(/small cards floating in empty space/);
+  });
+
+  it("accepts a beat composed around a subject at a readable size", () => {
+    const composed = {
+      duration: 2,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="200,300,1520,300" style="background:#fff">Filing is instant</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 20, duration: 1.6 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(composed, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 2,
+        previousScenes: one,
+      }),
+    ).not.toThrow();
+  });
+
+  /**
+   * The "why is each scene separate" report: both beats are individually well
+   * made, and every object is replaced at the cut.
+   */
+  it("rejects a cut where every object on screen is replaced at once", () => {
+    const unrelated = {
+      duration: 4,
+      scenes: two,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="one" data-scene="scene-01" data-rect="200,200,1400,500" style="background:#fff">Scattered work</div><div data-edit="two" data-scene="scene-02" data-rect="200,200,1400,500" style="background:#fff">A filed table</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+        timeline.to(one, { x: 20, duration: 1.5 }, 0);
+        timeline.set(one, { display: "none", autoAlpha: 0 }, 2);
+        timeline.set(two, { display: "block", autoAlpha: 1 }, 2);
+        timeline.to(two, { x: 20, duration: 1.5 }, 2);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(unrelated, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
+        previousDuration: 4,
+        previousScenes: two,
+      }),
+    ).toThrow(/Nothing survives the cut from scene-01 to scene-02/);
+  });
+
+  it("accepts a cut that carries one object across it", () => {
+    const carried = {
+      duration: 4,
+      scenes: two,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="carrier" data-rect="200,200,1400,500" style="background:#fff"><div data-edit="one" data-scene="scene-01" data-rect="300,260,600,120">Scattered</div><div data-edit="two" data-scene="scene-02" data-rect="300,450,600,120">Filed</div></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const carrier = root.querySelector('[data-edit="carrier"]');
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+        timeline.to(one, { x: 20, duration: 1.5 }, 0);
+        timeline.set(one, { display: "none", autoAlpha: 0 }, 2);
+        timeline.set(two, { display: "block", autoAlpha: 1 }, 2);
+        timeline.to(carrier, { x: 40, scaleY: 1.2, duration: 1.5 }, 2);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(carried, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="carrier"></div><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
+        previousDuration: 4,
+        previousScenes: two,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("lenient validation of the pass that ships", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 2, accent: "#fff" },
+  ];
+  const adrift = {
+    duration: 2,
+    scenes: one,
+    compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="card-1" data-rect="200,200,260,90" style="background:#fff">Product Strategy</div><div data-edit="card-2" data-rect="1400,300,260,90" style="background:#fff">Launch Notes</div></main></template>`,
+    timelineJs: `export function buildTimeline({ root, timeline }) {
+      timeline.to(root.querySelector('[data-edit="card-1"]'), { x: 20, duration: 1.6 }, 0);
+    }`,
+    reply: "Done",
+  };
+  const options = {
+    prompt: "make an ad",
+    previousHtml: `<template><main data-edit="stage"><div data-edit="card-1"></div><div data-edit="card-2"></div></main></template>`,
+    previousDuration: 2,
+    previousScenes: one,
+  };
+
+  /**
+   * What the user hit: the repair loop tolerated the weak beat, and then the
+   * winning pass was validated a second time and that call threw, so the film
+   * still arrived as an error with a Fix button.
+   */
+  it("hands back the film with a note instead of throwing", () => {
+    const validated = validateGeneratedComposition(adrift, {
+      ...options,
+      lenient: true,
+    });
+    expect(validated.duration).toBe(2);
+    expect(validated.scenes).toHaveLength(1);
+    expect(
+      validated.warnings.some((warning) =>
+        /small cards floating in empty space/.test(warning),
+      ),
+    ).toBe(true);
+  });
+
+  it("still refuses a film that renders no frame at all", () => {
+    const blank = {
+      ...adrift,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const stage = root.querySelector('[data-edit="stage"]');
+        timeline.set(stage, { display: "none" }, 0);
+        timeline.to({}, { duration: 2 }, 0);
+      }`,
+    };
+    expect(() =>
+      validateGeneratedComposition(blank, { ...options, lenient: true }),
+    ).toThrow(/no visible foreground/);
+  });
+
+  it("keeps throwing for the strict pass the repair loop runs on", () => {
+    expect(() => validateGeneratedComposition(adrift, options)).toThrow(
+      /small cards floating in empty space/,
+    );
+  });
+});
+
+describe("dissolving through nothing", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const two = [
+    { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+    { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+  ];
+  const markup = `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="one" data-scene="scene-01" data-rect="200,200,1400,500" style="background:#fff">Scattered work</div><div data-edit="two" data-scene="scene-02" data-rect="200,200,1400,500" style="background:#fff">A filed table</div></main></template>`;
+  const previousHtml = `<template><main data-edit="stage"><div data-edit="one"></div><div data-edit="two"></div></main></template>`;
+
+  /**
+   * The reported "dead frame" dissolve: the outgoing beat is cleared before the
+   * incoming one arrives, so the boundary passes through a blank screen.
+   */
+  it("rejects a cut that passes through an empty frame", () => {
+    const dissolve = {
+      duration: 4,
+      scenes: two,
+      compositionHtml: markup,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        timeline.set(two, { autoAlpha: 0 }, 0);
+        timeline.to(one, { x: 20, duration: 1.4 }, 0);
+        timeline.set(one, { autoAlpha: 0 }, 1.6);
+        timeline.set(two, { autoAlpha: 1 }, 2.4);
+        timeline.to(two, { x: 20, duration: 1.2 }, 2.4);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(dissolve, {
+        prompt: "make an ad",
+        previousHtml,
+        previousDuration: 4,
+        previousScenes: two,
+      }),
+    ).toThrow(/empty frame|blank frame/);
+  });
+
+  it("accepts a boundary where the incoming material is already arriving", () => {
+    const overlapped = {
+      duration: 4,
+      scenes: two,
+      seams: [
+        {
+          from: "scene-01",
+          to: "scene-02",
+          at: 1.6,
+          duration: 0.8,
+          carrier: "one",
+          mechanism: "morph" as const,
+          becomes: "the pile becomes the table",
+        },
+      ],
+      // Laid out apart, because the layout stub cannot apply the transform
+      // that would carry the outgoing beat clear of the incoming one.
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="one" data-scene="scene-01" data-rect="200,80,1400,420" style="background:#fff">Scattered work</div><div data-edit="two" data-scene="scene-02" data-rect="200,580,1400,420" style="background:#fff">A filed table</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        timeline.set(two, { autoAlpha: 0 }, 0);
+        timeline.to(one, { x: 20, duration: 1.4 }, 0);
+        timeline.set(two, { autoAlpha: 1 }, 1.6);
+        timeline.to(one, { x: 900, scaleY: 0.9, duration: 0.8 }, 1.6);
+        timeline.set(one, { autoAlpha: 0 }, 2.4);
+        timeline.to(two, { x: 20, duration: 1.2 }, 2.4);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(overlapped, {
+        prompt: "make an ad",
+        previousHtml,
+        previousDuration: 4,
+        previousScenes: two,
+      }),
     ).not.toThrow();
   });
 });

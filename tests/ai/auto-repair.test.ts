@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { repairGeneratedMarkup } from "../../src/ai/auto-repair";
 import { analyzeMotionQuality } from "../../src/ai/generation-guidance";
+import { createDynamicComposition } from "../../src/composition/dynamic-compiler";
+import { CompositionRuntime } from "../../src/composition/runtime";
 
 function composition(html: string) {
   return {
@@ -15,6 +17,37 @@ function composition(html: string) {
 }
 
 describe("deterministic markup repair", () => {
+  it("mounts sibling CSS in cascade order instead of dropping the film's styling", () => {
+    const original = {
+      ...composition(`<style>.css-repair-subject { color: red; }</style>
+        <template><style>.css-repair-subject { color: green; }</style>
+        <main data-edit="stage"><h1 class="css-repair-subject" data-edit="headline">Ship it</h1></main></template>
+        <style>.css-repair-subject { color: blue; font-size: 68px; }</style>`),
+      timelineJs: "export function buildTimeline() {}",
+    };
+    const { result, applied } = repairGeneratedMarkup(original);
+    expect(applied).toContain(
+      "moved authored styles inside the mounted template",
+    );
+    const root = document.createElement("div");
+    document.body.append(root);
+    const runtime = new CompositionRuntime(
+      createDynamicComposition(result.compositionHtml, result.timelineJs),
+      root,
+    );
+    try {
+      const headline = root.querySelector("h1");
+      if (!headline) throw new Error("Headline was not mounted");
+      expect(getComputedStyle(headline).color).toBe("rgb(0, 0, 255)");
+      expect(getComputedStyle(headline).fontSize).toBe("68px");
+      expect(root.querySelectorAll("style")).toHaveLength(3);
+      expect(repairGeneratedMarkup(result).applied).toEqual([]);
+    } finally {
+      runtime.destroy();
+      root.remove();
+    }
+  });
+
   it("marks a declared carrier role rather than the outer stage", () => {
     const { result, applied } = repairGeneratedMarkup(
       composition(
@@ -81,5 +114,38 @@ describe("deterministic markup repair", () => {
       ),
     );
     expect(applied).toContain("marked the persistent transition carrier");
+  });
+});
+
+describe("infinite loops are bounded before they reach the runtime", () => {
+  it("converts repeat: -1 into a single pass and reports it", () => {
+    const { result, applied } = repairGeneratedMarkup({
+      compositionHtml: `<template><main data-edit="stage" data-transition-carrier data-motionly-generation-profile="claude-foundation-v1"></main></template>`,
+      timelineJs: [
+        "export function buildTimeline({ root, timeline }) {",
+        "  timeline.to('.glow', { rotation: 360, duration: 8, repeat: -1, ease: 'none' }, 0);",
+        "  timeline.to('.aurora', { x: 40, duration: 3, repeat:-1, yoyo: true }, 0);",
+        "}",
+      ].join("\n"),
+      reply: "",
+    });
+    expect(result.timelineJs).not.toMatch(/repeat\s*:\s*-\s*1/);
+    expect(result.timelineJs).toContain("repeat: 0");
+    expect(applied.join(" ")).toContain("infinite ambient loop");
+    // The tweens themselves survive; only their unboundedness is removed.
+    expect(result.timelineJs).toContain("rotation: 360");
+    expect(result.timelineJs).toContain("yoyo: true");
+  });
+
+  it("leaves a finite timeline untouched", () => {
+    const timelineJs =
+      "export function buildTimeline({ timeline }) { timeline.to('.a', { x: 1, duration: 1, repeat: 2 }, 0); }";
+    const { result, applied } = repairGeneratedMarkup({
+      compositionHtml: `<template><main data-edit="stage" data-transition-carrier data-motionly-generation-profile="claude-foundation-v1"></main></template>`,
+      timelineJs,
+      reply: "",
+    });
+    expect(result.timelineJs).toBe(timelineJs);
+    expect(applied).toHaveLength(0);
   });
 });

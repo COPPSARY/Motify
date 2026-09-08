@@ -53,7 +53,7 @@ function normalizeGeminiModel(rawModel: string): string {
   // Correct hyphen typos to dots (e.g. gemini-3-5-flash-lite -> gemini-3.5-flash-lite)
   model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
   if (!model || model === "gemini-") {
-    return "gemini-3.5-flash-lite";
+    return "gemini-3.5-flash";
   }
   return model;
 }
@@ -158,7 +158,7 @@ export async function handleAiGenerateRequest(
       bodyObj?.model ||
       env["GEMINI_MODEL"] ||
       process.env["GEMINI_MODEL"] ||
-      "gemini-3.5-flash-lite"
+      "gemini-3.5-flash"
     ).trim();
     const model = normalizeGeminiModel(rawModel);
 
@@ -170,7 +170,10 @@ export async function handleAiGenerateRequest(
       return;
     }
 
-    const userMessage = buildMotionlyUserMessage(userPrompt, currentFiles);
+    const userMessage = await buildMotionlyUserMessage(
+      userPrompt,
+      currentFiles,
+    );
 
     const systemPrompt = loadSkillsPrompt();
     console.warn(

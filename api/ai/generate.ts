@@ -1,6 +1,7 @@
 export const maxDuration = 60;
 import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
 import { buildMotionlyUserMessage } from "../../src/ai/generation-guidance";
+import { DIRECTION_SYSTEM_PROMPT } from "../../src/ai/direction-pass";
 
 function normalizeGeminiModel(rawModel: string): string {
   let model = rawModel.trim().replace(/^models\//, "");
@@ -10,7 +11,7 @@ function normalizeGeminiModel(rawModel: string): string {
   }
   model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
   if (!model || model === "gemini-") {
-    return "gemini-3.5-flash-lite";
+    return "gemini-3.5-flash";
   }
   return model;
 }
@@ -28,6 +29,9 @@ export default async function handler(req: Request): Promise<Response> {
       userPrompt?: string;
       model?: string;
       repairAttempt?: boolean;
+      /** "direction" runs the planning turn and returns its raw text. */
+      mode?: "direction";
+      directionMessage?: string;
       currentFiles?: {
         compositionHtml?: string;
         timelineJs?: string;
@@ -52,7 +56,7 @@ export default async function handler(req: Request): Promise<Response> {
     const rawModel = (
       body.model ||
       process.env["GEMINI_MODEL"] ||
-      "gemini-3.5-flash-lite"
+      "gemini-3.5-flash"
     ).trim();
     const model = normalizeGeminiModel(rawModel);
 
@@ -69,13 +73,27 @@ export default async function handler(req: Request): Promise<Response> {
       );
     }
 
-    const userMessage = buildMotionlyUserMessage(userPrompt, currentFiles);
+    // The direction turn plans the film and writes no code, so it answers with
+    // its raw text and skips the composition system prompt entirely.
+    const isDirection = body.mode === "direction";
+    const systemPrompt = isDirection
+      ? DIRECTION_SYSTEM_PROMPT
+      : MOTIONLY_SYSTEM_PROMPT;
+    const userMessage = isDirection
+      ? (body.directionMessage ?? "")
+      : await buildMotionlyUserMessage(userPrompt, currentFiles);
+    if (isDirection && !userMessage) {
+      return new Response(
+        JSON.stringify({ error: "Missing directionMessage." }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const generationConfig: Record<string, unknown> = {
       response_mime_type: "application/json",
-      temperature: body.repairAttempt ? 0.35 : 0.65,
+      temperature: isDirection ? 0.85 : body.repairAttempt ? 0.35 : 0.65,
       maxOutputTokens: 65536,
     };
 
@@ -94,7 +112,7 @@ export default async function handler(req: Request): Promise<Response> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         system_instruction: {
-          parts: [{ text: MOTIONLY_SYSTEM_PROMPT }],
+          parts: [{ text: systemPrompt }],
         },
         contents: [
           {
@@ -138,6 +156,15 @@ export default async function handler(req: Request): Promise<Response> {
           headers: { "Content-Type": "application/json" },
         },
       );
+    }
+
+    // The direction turn's caller does its own parsing and tolerates a plan
+    // that comes back short, so the raw text goes straight back.
+    if (isDirection) {
+      return new Response(JSON.stringify({ text: rawText }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     let cleaned = rawText.trim();

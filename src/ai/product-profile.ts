@@ -7,6 +7,8 @@
  * architecture, and the single filmed interaction from the requested product's
  * own domain, otherwise every film looks like a dark AI chat clone.
  */
+import { selectFilmShape } from "./film-shape";
+
 export interface ProductProfile {
   /** Stable id used in tests, telemetry, and repair prompts. */
   id: string;
@@ -296,6 +298,43 @@ export function selectProductProfile(userPrompt: string): ProductProfile {
 
 export function buildProductIdentityBrief(userPrompt: string): string {
   const profile = selectProductProfile(userPrompt);
+  if (selectFilmShape(userPrompt) !== "task") {
+    const materials: Record<string, string> = {
+      "generic-saas":
+        "the real inputs and finished outputs named in the request",
+      "ai-assistant":
+        "a question, its supplied material, and a concrete answer or finished artifact",
+      "notes-writing":
+        "loose ideas, paper, ink strokes, notes and an organized finished document",
+      "audio-voice":
+        "a voice waveform, timed segments and the finished audio or transcript",
+      "analytics-data":
+        "labelled observations resolving into a legible pattern, with units and periods",
+      "developer-tool":
+        "code fragments, dependencies, a changed implementation and its working result",
+      "design-creative":
+        "words, images, shapes and the finished creative work they form",
+      commerce:
+        "the actual product, its materials, a choice and the delivered object",
+      collaboration:
+        "scattered messages, tasks and contributions converging into shared work",
+      "health-fitness":
+        "an activity, its progression and an observable personal result",
+      "security-infra":
+        "traffic or code passing through a scan, isolated threats and a clean result",
+      education:
+        "a question, worked steps and the learner's completed solution",
+    };
+    return [
+      `Category: ${profile.label} (${profile.id}).`,
+      `Visual material: ${materials[profile.id] ?? materials["generic-saas"]}.`,
+      `Palette and material: ${profile.palette}.`,
+      "Advertising direction: default to a bright neutral ground, ink-dark text and one brand accent unless supplied identity or the user specifies another theme.",
+      "Typography: centered Inter 68px/700 editorial sentences; oversized entry settles into readable words. Product content stays readable at the delivered shot size.",
+      "Product proof: transform the same input material into an output the viewer can judge. A close-up of a useful product detail is optional; navigation, sidebars, and an entire application shell are not required.",
+      "Resolve: carry the finished object into a prominent mark and a short promise on open ground. Use supplied facts; do not invent success percentages, latency or ROI.",
+    ].join("\n");
+  }
   return [
     `Category: ${profile.label} (${profile.id}).`,
     `Surface to build: ${profile.surface}.`,
