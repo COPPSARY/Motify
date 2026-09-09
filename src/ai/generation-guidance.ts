@@ -765,10 +765,30 @@ export function analyzeMotionQuality(
     executableTimeline,
     /\b(?:giantKineticCrop|waterfallTextReveal|wordSlideRotate|charSpringBounce|textReveal|morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|cameraPush|cameraPull|cameraZoomPan|stepSurgeCounter|perspectiveCardReveal|ambientWaves|motionArc|squashAndStretch)\s*\(/g,
   );
-  const cameraMoveCount = countMatches(
-    executableTimeline,
-    /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|fromTo)\s*\(\s*(?:cameraWorld|cameraStage|world)\b/g,
-  );
+  /**
+   * Camera *moves*, not the drift underneath a hold.
+   *
+   * The doctrine asks for a 1-3% settling drift on still beats so no frame is
+   * frozen, and those are authored on the world too. Counting them as moves
+   * made a correctly directed film look over-driven: the bundled foundation
+   * reads as six moves across four beats when four are real and two are
+   * drifts. The skill's own vocabulary separates them — camera and geometry
+   * moves ease on expo/power, a settling drift eases on sine.
+   */
+  const cameraMoveCount =
+    countMatches(
+      executableTimeline,
+      /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|fromTo)\s*\(\s*(?:cameraWorld|cameraStage|world)\b(?:(?!ease\s*:\s*["']sine)[^)])*\)/g,
+    ) +
+    // The camera helpers, which the runtime law tells the model to prefer.
+    // Counting only raw `timeline.to(world, ...)` meant a film that used
+    // cameraPush/cameraPull/cameraZoomPan scored zero and was told "the camera
+    // never travels" — a complaint no amount of correct authoring could clear,
+    // so every repair pass got the same note back.
+    countMatches(
+      executableTimeline,
+      /\b(?:cameraPush|cameraPull|cameraZoomPan|punchIn|zoomThrough|inverseZoomThrough|parallax\w*)\s*\(/g,
+    );
   const physicalHandoffCount = countMatches(
     executableTimeline,
     /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
@@ -1011,9 +1031,23 @@ export function analyzeMotionQuality(
       "multi-scene product film has no expansive data-camera-world and is likely toggling components inside one viewport",
     );
   }
-  if (sceneCount >= 3 && cameraMoveCount < 3) {
+  /**
+   * A floor and a ceiling.
+   *
+   * Asking for three moves "covering push, pan/track and pull/reframe" read as
+   * an instruction to use one of each, and combined with a rule that gave every
+   * beat its own tween it produced the ping-pong the references never do: push,
+   * pull, push, pull; left, right, left. The references hold the camera on
+   * statement beats and let the type carry the motion, so a film with more
+   * camera moves than beats is over-driven, not well directed.
+   */
+  if (sceneCount >= 3 && cameraMoveCount < 2) {
     warn(
-      "camera is not first-class; author at least three world moves covering push, pan/track, and pull/reframe",
+      "the camera never travels; give the space beats a motivated move — through a corridor, across the world, or into a detail worth inspecting",
+    );
+  } else if (sceneCount >= 3 && cameraMoveCount > sceneCount + 1) {
+    warn(
+      `the camera moves ${cameraMoveCount} times across ${sceneCount} beats; hold it on the statement beats and let the type carry the motion, so the film travels one direction instead of cycling push, pull, push, pull`,
     );
   } else if (sceneCount >= 3) {
     strengths.push("camera path drives scene-level composition changes");

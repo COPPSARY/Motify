@@ -40,9 +40,42 @@ function isVisiblyRendered(element: HTMLElement, root: HTMLElement): boolean {
   return true;
 }
 
+/**
+ * Atmosphere: the lit ground a beat sits in, rather than anything in it.
+ *
+ * This is how blank beats were shipping. Every emptiness check asked whether
+ * *something* was on screen, and a single decorative bloom answered yes — it
+ * carries a `data-edit` id, it is painted, and it covers plenty of the canvas,
+ * so a frame holding nothing but a blurred purple glow passed "renders no
+ * visible foreground", "holds a blank frame" and the subject floor at once.
+ *
+ * Identified conservatively. A heavy blur or an explicit background role is
+ * unambiguous; the id keywords are limited to words that only ever name
+ * atmosphere. Nothing here catches a sharp gradient sphere or a colour field
+ * used as an actual subject, because those are real shots in the catalogue.
+ */
+function isAtmosphere(element: HTMLElement): boolean {
+  if (element.dataset["backgroundRole"]) return true;
+  if ((element.textContent ?? "").trim().length > 0) return false;
+  if (element.querySelector("img, svg, video, canvas")) return false;
+  const id = element.dataset["edit"]?.toLowerCase() ?? "";
+  if (
+    /(?:^|-)(?:glow|bloom|aura|halo|vignette|grain|noise|backdrop|ambient)(?:-|$)/.test(
+      id,
+    )
+  ) {
+    return true;
+  }
+  const blur = /blur\(([\d.]+)px\)/.exec(
+    getComputedStyle(element).filter ?? "",
+  );
+  return blur ? Number(blur[1]) >= 12 : false;
+}
+
 function hasMeaningfulContent(element: HTMLElement): boolean {
   if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName)) return true;
   if ((element.textContent ?? "").trim().length >= 2) return true;
+  if (isAtmosphere(element)) return false;
   const id = element.dataset["edit"]?.toLowerCase() ?? "";
   return Boolean(id && !/^(stage|camera-world|world|background)$/.test(id));
 }
@@ -182,6 +215,8 @@ function frameSubjects(
     if (share < 0.004 || share > 0.6) return false;
     if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName))
       return true;
+    // The ground a beat sits in is not one of the beat's subjects.
+    if (isAtmosphere(element)) return false;
     if (isPainted(getComputedStyle(element))) return true;
     return Array.from(element.childNodes).some(
       (node) =>
@@ -309,7 +344,10 @@ function assertNoOverlappingText(
         }
         continue;
       }
-      if (ratio > 0.6) {
+      // Two different text runs sharing a quarter of the smaller one's box is
+      // already unreadable on screen; the old two-thirds threshold let a
+      // resolve whose lines collided pass as acceptable.
+      if (ratio > 0.25) {
         throw new Error(
           `Scene ${scene.id} overlaps unrelated text around ${time.toFixed(
             2,
@@ -573,6 +611,22 @@ const SEAM_MARGIN = 0.15;
  */
 const MORPH_MIN_CHANGE = 0.12;
 
+/** The `data-scene` beat a carrier is trapped inside, if any. */
+function enclosingScene(
+  element: HTMLElement,
+  root: HTMLElement,
+): string | null {
+  for (
+    let current: HTMLElement | null = element;
+    current && current !== root;
+    current = current.parentElement
+  ) {
+    const owner = current.dataset["scene"]?.trim();
+    if (owner) return owner;
+  }
+  return null;
+}
+
 /**
  * The one boundary check that cannot be satisfied by calling a helper.
  *
@@ -622,19 +676,37 @@ function seamRenderWarnings(
     const leavingRect = entering.getBoundingClientRect();
 
     if (!visibleEntering && !visibleLeaving) {
+      /**
+       * Almost always the same cause: the carrier was authored *inside* a
+       * `data-scene` container, and clearing that beat clears the carrier with
+       * it. The placement rule only forbade the carrier from carrying a
+       * `data-scene` tag of its own, so a nested carrier obeyed the letter of
+       * it and still vanished at every boundary — and the complaint that came
+       * back was unactionable, which is why repair passes could not clear it.
+       */
+      const trap = enclosingScene(entering, root);
       warnings.push(
-        `The seam at ${seam.at.toFixed(
-          1,
-        )}s is a hard cut: its carrier "${seam.carrier}" is hidden on both sides of the boundary.`,
+        trap
+          ? `The seam at ${seam.at.toFixed(
+              1,
+            )}s is a hard cut: its carrier "${seam.carrier}" lives inside the scene container "${trap}", so it is cleared along with that beat and never crosses anything. Move the carrier out of every data-scene subtree — it belongs directly in the camera world, as a sibling of the scene containers.`
+          : `The seam at ${seam.at.toFixed(
+              1,
+            )}s is a hard cut: its carrier "${seam.carrier}" is hidden on both sides of the boundary.`,
       );
       continue;
     }
     if (!visibleEntering || !visibleLeaving) {
       const missing = visibleEntering ? "after" : "before";
+      const trap = enclosingScene(entering, root);
       warnings.push(
-        `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
-          1,
-        )}s, so nothing visibly crosses that boundary.`,
+        trap
+          ? `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
+              1,
+            )}s because it lives inside the scene container "${trap}" and is cleared with that beat. Move the carrier out of every data-scene subtree, directly into the camera world.`
+          : `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
+              1,
+            )}s, so nothing visibly crosses that boundary.`,
       );
       continue;
     }
@@ -784,6 +856,249 @@ function assertNoDeadFrames(
       `The film holds a blank frame from ${runStart.toFixed(
         1,
       )}s: everything leaves the screen before the next beat arrives. Never dissolve through an empty frame — keep the ground and at least one object on screen and move the material spatially instead.`,
+    );
+  }
+}
+
+/**
+ * Whether the film ever puts a real statement on screen.
+ *
+ * Across every studied reference an editorial line spans 45-85% of the frame,
+ * and none contains a statement under roughly 70px at 1080. Generated output
+ * lands at 28-40px inside a pill with a grey subtitle beneath it, which is why
+ * the films read as slide decks and why a viewer cannot tell what is being
+ * claimed. Measured as a share of frame width so it holds at any canvas size.
+ */
+function assertFilmMakesAStatement(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  // Shorter than the briefest real film the skill contemplates. A two-second
+  // composition is a fragment or a fixture, and asking it for an editorial
+  // statement is asking the wrong question.
+  if (limit < 8) return;
+  let widest = 0;
+  const sample = (time: number): void => {
+    runtime.seek(Math.max(0, Math.min(limit, time)));
+    for (const leaf of textLeaves(visibleElements(root, rootRect, true))) {
+      const rect = leaf.getBoundingClientRect();
+      if (rect.height < 8) continue;
+      widest = Math.max(widest, rect.width / rootRect.width);
+    }
+  };
+  for (const scene of scenes) {
+    for (const progress of [0.3, 0.6, 0.9]) {
+      sample(scene.start + scene.duration * progress);
+    }
+  }
+  if (widest >= 0.3) return;
+  throw new Error(
+    `The film never states anything: its largest line of type spans only ${(
+      widest * 100
+    ).toFixed(
+      0,
+    )}% of the frame. Give at least one beat a full editorial statement at 96-150px, spanning 45-85% of the frame width, centred, with no subtitle beneath it.`,
+  );
+}
+
+/**
+ * Type running off the edge of the frame.
+ *
+ * `visibleElements` only asks whether an element intersects the viewport, so a
+ * line half outside it counts as on screen and passes every other check. The
+ * result is a resolve reading "Build your company's workspace in Not" with the
+ * mark itself cut away, which is the single most obviously broken thing a
+ * viewer can be shown.
+ *
+ * Sampled late in each beat only. Type is *supposed* to arrive cropped and
+ * oversized; what must not happen is that it is still clipped once it has
+ * settled.
+ */
+function assertTypeStaysInFrame(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  /** Antialiasing and descender slop, not a broken layout. */
+  const tolerance = 8;
+  const check = (time: number, scene: SceneDefinition): void => {
+    runtime.seek(Math.max(0, Math.min(limit, time)));
+    for (const leaf of textLeaves(visibleElements(root, rootRect, true))) {
+      const rect = leaf.getBoundingClientRect();
+      const over = Math.max(
+        rootRect.left - rect.left,
+        rect.right - rootRect.right,
+        rootRect.top - rect.top,
+        rect.bottom - rootRect.bottom,
+      );
+      if (over <= tolerance) continue;
+      throw new Error(
+        `Scene ${scene.id} lets settled type run ${Math.round(
+          over,
+        )}px outside the frame around ${time.toFixed(2)}s: "${(
+          leaf.textContent ?? ""
+        )
+          .trim()
+          .slice(
+            0,
+            40,
+          )}" is cut off by the edge of the canvas. Size the line to fit inside the viewport with margins, and centre it; a statement that spans more than 85% of the frame width is too long for its font size.`,
+      );
+    }
+  };
+  for (const scene of scenes) {
+    // Late in the beat: the entrance is allowed to be cropped, the hold is not.
+    check(scene.start + scene.duration * 0.65, scene);
+    check(scene.start + scene.duration * 0.92, scene);
+  }
+  const last = scenes.at(-1);
+  if (last) check(limit, last);
+}
+
+/**
+ * Beats that are the same picture with different words.
+ *
+ * The skill already requires adjacent beats to differ in framing, and this is
+ * the shape the requirement exists to prevent: a headline on the upper third
+ * and a small panel under it, five times, with the camera never moving. Nothing
+ * in the source reveals it — every beat is individually well formed — so it is
+ * measured as the geometry of what each beat actually puts on screen.
+ */
+function assertBeatsAreFramedDifferently(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0 || scenes.length < 3) return;
+  const canvasArea = rootRect.width * rootRect.height;
+  const framings = scenes.map((scene) => {
+    runtime.seek(
+      Math.max(0, Math.min(limit, scene.start + scene.duration * 0.7)),
+    );
+    const subjects = frameSubjects(
+      visibleElements(root, rootRect, true),
+      canvasArea,
+    );
+    let widest: DOMRect | null = null;
+    for (const element of subjects) {
+      const rect = element.getBoundingClientRect();
+      if (!widest || rect.width * rect.height > widest.width * widest.height) {
+        widest = rect;
+      }
+    }
+    return widest;
+  });
+
+  let repeats = 0;
+  const offenders: string[] = [];
+  for (let index = 0; index < framings.length - 1; index += 1) {
+    const first = framings[index];
+    const second = framings[index + 1];
+    if (!first || !second) continue;
+    const centreShift =
+      Math.hypot(
+        first.left + first.width / 2 - (second.left + second.width / 2),
+        first.top + first.height / 2 - (second.top + second.height / 2),
+      ) / Math.hypot(rootRect.width, rootRect.height);
+    const sizeRatio =
+      Math.min(first.width * first.height, second.width * second.height) /
+      Math.max(
+        1,
+        Math.max(first.width * first.height, second.width * second.height),
+      );
+    if (centreShift < 0.04 && sizeRatio > 0.85) {
+      repeats += 1;
+      offenders.push(`${scenes[index]?.id} and ${scenes[index + 1]?.id}`);
+    }
+  }
+  if (repeats < 2) return;
+  throw new Error(
+    `The film is one composition repeated: ${offenders
+      .slice(0, 3)
+      .join(
+        ", ",
+      )} put their subject at the same size in the same place. Adjacent beats must change framing — a wide after a macro, a full-bleed after a detail — and the camera must move between them, instead of swapping the copy inside a fixed layout.`,
+  );
+}
+
+/**
+ * A statement sharing its beat with objects that compete for the eye.
+ *
+ * In every reference film an editorial beat is one line on an otherwise empty
+ * ground, held for a second and a half with nothing beside it. Generated films
+ * put a headline on the upper third and park two or three small cards
+ * underneath, and the beat then says nothing, because the viewer cannot tell
+ * whether to read the sentence or inspect the cards.
+ *
+ * A full-bleed ground behind the type is fine — it is excluded by the same
+ * 60% ceiling `frameSubjects` uses everywhere — and so is one inline icon, so
+ * the rule only fires when a statement is genuinely sharing the frame.
+ */
+function assertStatementsStandAlone(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  const canvasArea = rootRect.width * rootRect.height;
+  for (const scene of scenes) {
+    // Late in the beat: an outgoing beat's material may still be leaving early
+    // on, and that overlap is the transition, not competition.
+    const time = Math.max(
+      0,
+      Math.min(limit, scene.start + scene.duration * 0.75),
+    );
+    runtime.seek(time);
+    const visible = visibleElements(root, rootRect, true);
+    const subjects = frameSubjects(visible, canvasArea);
+    if (subjects.length === 0) continue;
+
+    // Is this beat led by type? Only then does the rule apply.
+    const statement = textLeaves(visible)
+      .filter(
+        (leaf) => leaf.getBoundingClientRect().width / rootRect.width > 0.3,
+      )
+      .sort(
+        (first, second) =>
+          second.getBoundingClientRect().width -
+          first.getBoundingClientRect().width,
+      )[0];
+    if (!statement) continue;
+
+    const competing = subjects.filter((element) => {
+      if (element === statement) return false;
+      if (element.contains(statement) || statement.contains(element)) {
+        return false;
+      }
+      const rect = element.getBoundingClientRect();
+      // An inline icon sized to the type is part of the sentence.
+      const asTall = rect.height / statement.getBoundingClientRect().height;
+      return asTall > 1.6 && (rect.width * rect.height) / canvasArea > 0.02;
+    });
+    if (competing.length === 0) continue;
+    const named = competing
+      .slice(0, 3)
+      .map(
+        (element) => element.dataset["edit"] ?? element.tagName.toLowerCase(),
+      )
+      .join(", ");
+    throw new Error(
+      `Scene ${scene.id} makes its statement compete with ${competing.length} other object${
+        competing.length === 1 ? "" : "s"
+      } (${named}) at ${time.toFixed(
+        1,
+      )}s. A beat that exists to say something holds the sentence alone on the ground — no cards under it, no panels beside it. Move that material into its own beat and alternate statement, material, statement.`,
     );
   }
 }
@@ -1109,6 +1424,10 @@ export function validateGeneratedComposition(
       }
       assertBeatsShareMaterial(mounted, root, validated, limit);
       assertNoDeadFrames(mounted, root, limit);
+      assertFilmMakesAStatement(mounted, root, validated, limit);
+      assertTypeStaysInFrame(mounted, root, validated, limit);
+      assertBeatsAreFramedDifferently(mounted, root, validated, limit);
+      assertStatementsStandAlone(mounted, root, validated, limit);
       const finalScene = validated.at(-1);
       if (finalScene) {
         assertVisibleSceneFrame(

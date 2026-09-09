@@ -1594,22 +1594,115 @@ export function pullbackComplete(
   if (tail) {
     const tailLayer = ensureTextMotionLayer(tail);
     timeline.set(tail, { autoAlpha: 1 }, pullAt);
-    // Room, not opacity: the tail slides into the space the frame just opened.
+    // Measured off the reference: the tail does not travel in from off-screen.
+    // It occupies room the retreat has just opened, so it resolves in place —
+    // a short opacity ramp with a few pixels of lift, arriving left to right
+    // while the line is still shrinking. A 60% slide reads as a separate
+    // element joining the shot rather than as one sentence completing.
     splitText(tailLayer, "words")
       .filter((piece) => Boolean(piece.textContent?.trim()))
       .forEach((piece, index) => {
         timeline.fromTo(
           piece,
-          { xPercent: 60, autoAlpha: 0 },
+          { y: 10, autoAlpha: 0 },
           {
-            xPercent: 0,
+            y: 0,
             autoAlpha: 1,
-            duration: pullDuration * 0.6,
+            duration: pullDuration * 0.34,
             ease: options.settleEase ?? "back.out(1.3)",
           },
-          pullAt + pullDuration * 0.35 + index * (options.stagger ?? 0.06),
+          pullAt + pullDuration * 0.3 + index * (options.stagger ?? 0.07),
         );
       });
+  }
+  // The film never freezes on a settled line: it keeps breathing through the
+  // reading hold, which is what the references do under every statement.
+  timeline.to(
+    leadLayer,
+    { scale: endScale * 1.04, duration: 1.6, ease: "sine.inOut" },
+    pullAt + pullDuration,
+  );
+  return timeline;
+}
+
+export interface GrowCompleteOptions extends MotionOptions {
+  /** Where the opening fragment starts, as a share of its settled size. */
+  startScale?: number;
+  stagger?: number;
+  settleEase?: string;
+}
+
+/**
+ * **Grow and Complete.** The other way a sentence finishes itself, and the one
+ * the reference films use most.
+ *
+ * The opening fragment sits small and centred, then grows to full size while
+ * the rest of the sentence arrives beside it. The line re-centres continuously
+ * as words land, so the sentence never appears to grow rightward off its own
+ * centre — that re-centring is what makes it read as one line completing rather
+ * than as words being appended.
+ *
+ * Measured: the fragment grows over about 0.5s, words land 0.07s apart starting
+ * a third of the way in, and the whole build is done in roughly 0.75s.
+ */
+export function growAndComplete(
+  timeline: gsap.core.Timeline,
+  lead: HTMLElement | null | undefined,
+  tail: HTMLElement | null | undefined,
+  options: GrowCompleteOptions = {},
+): gsap.core.Timeline {
+  if (!lead) return timeline;
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.5;
+  const leadLayer = ensureTextMotionLayer(lead);
+
+  timeline.set(lead, { autoAlpha: 1, ...resolveCentering(lead) }, at);
+  timeline.fromTo(
+    leadLayer,
+    { scale: options.startScale ?? 0.55 },
+    {
+      scale: 1,
+      duration,
+      ease: options.ease ?? "power3.out",
+    },
+    at,
+  );
+
+  if (!tail) return timeline;
+  const tailLayer = ensureTextMotionLayer(tail);
+  const pieces = splitText(tailLayer, "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+  timeline.set(tail, { autoAlpha: 1 }, at);
+  pieces.forEach((piece, index) => {
+    timeline.fromTo(
+      piece,
+      { y: 10, autoAlpha: 0 },
+      {
+        y: 0,
+        autoAlpha: 1,
+        duration: duration * 0.7,
+        ease: options.settleEase ?? "back.out(1.3)",
+      },
+      at + duration * 0.36 + index * (options.stagger ?? 0.07),
+    );
+  });
+
+  // Re-centre the line as it fills out. The tail keeps its layout box, so the
+  // pair is shifted right by half that box at the start and released to zero as
+  // the words land — no reflow, and correct under reverse scrubbing.
+  const shift = tail.getBoundingClientRect().width / 2;
+  if (shift > 0) {
+    const line =
+      lead.parentElement && lead.parentElement === tail.parentElement
+        ? lead.parentElement
+        : null;
+    timeline.fromTo(
+      line ?? [lead, tail],
+      { x: shift },
+      { x: 0, duration, ease: options.ease ?? "power3.out" },
+      at,
+    );
   }
   return timeline;
 }

@@ -17,9 +17,9 @@ The target is an authored SaaS ad with varied shots. Product UI is useful eviden
 
 For a general SaaS ad, build a shot progression from the request: editorial hook -> product material or problem -> mechanism close-up -> visible result -> brand. Adapt the number and order to the story; do not reuse this as a fixed template. Two adjacent beats must differ in framing and in what visibly happens. Alternate wide, medium, and detail views with a reason for each move.
 
-- Default to a bright neutral ground with dark ink and one strong brand accent. Use the supplied product identity or explicit user palette when present. Dark can be a deliberate contrast beat; it is not a synonym for premium.
+- The ground is a lit space, never flat `#ffffff`: warm off-white with a blurred brand-hue bloom behind the subject, warm neutral grey, near-black with one warm source, or a full-bleed brand colour. Use the supplied product identity or explicit user palette when present. Dark is a deliberate contrast beat, not a synonym for premium.
 - Make the subject large enough to read. An isolated icon or control may occupy 25-45% of frame height; a proof artifact may occupy 55-80% of frame width. Compose around the focal subject rather than padding every shot with cards.
-- One bold, full-size editorial sentence per thought, centered in Inter 68px/700 at 1920x1080. Enter at scale 2.0+ with gradient fill and settle word-by-word with back.out(1.35). Do not add a tiny explanatory subtitle.
+- One bold, full-size editorial sentence per thought, centred, 96-150px/700 at 1920x1080 (150-220px for a two- or three-word statement), tracking -0.03em to -0.055em, spanning 45-85% of frame width. Enter cropped at scale 2.0+ and settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
 - A useful UI close-up may span an input and its result. Show the active detail, then leave it. Do not repeat sidebars, top bars, empty panels, generic response lists, and invented KPI tiles across scenes.
 - Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Use supplied images when available; otherwise use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
@@ -90,16 +90,192 @@ A state is not a caption. It is something on screen with mass, position, and beh
 
 The material must **persist through the chain**. The code that streamed is the code that gets flagged. The scattered ideas are the sentences in the finished document. The tangled routes are the optimised ones. Recognisable continuity is what makes the film an argument instead of a slideshow.
 
-## What the reference films actually teach
+## The reference standard
 
-Six published films were transcribed for this skill. Two are `task`-shape films for products whose interface genuinely is the product; four are not, and none of the four builds a dashboard.
+Seven published product films were studied frame by frame for this skill. You cannot watch them, so everything they do is written out below as construction you can execute. This is the bar. A film that does none of it is not a product film, it is a slide deck.
 
-- **Type breaking into an object.** A sentence settles, its words fly apart on separate vectors and depths, the last word shrinks to a point, becomes a glyph, the glyph rotates into a button, the button unfolds into the thing itself. One continuous carrier across four identities, no cut.
-- **A field at depth.** Real content cards at five or six Z depths with genuine titles and status, camera flying through them. This is what replaces "some cards fade in".
-- **Material bloom.** Geometric facets in a real material rotating around the centre while the positioning line assembles between them.
-- **A full-bleed colour beat.** The ground floods to one brand colour, one sentence in white, 1.5 to 2.5 seconds. Punctuation — twice per film at most.
-- **Orbit.** Elements travelling on arcs that draw themselves as they go, around a centre.
-- **The interface films** (`task` shape only): a photo docks into a composer; a question types character by character while the camera pans with the caret; a press produces the answer; a result card builds row by row; the same result reappears on a phone; pull back to the promise line. Even here the *content* carries the film, not the chrome.
+The single most common gap between generated output and these films is **scale and depth**. The references put one enormous thing on screen at a time, in a lit space with a real ground. Generated output puts four small rounded rectangles on flat white. Fix that first; everything else is detail.
+
+### The ground is a lit space, never flat white
+
+Not one of the seven uses plain `#ffffff`. Every ground is one of four kinds, and each carries light:
+
+1. **Warm off-white with a coloured bloom.** Ground `#F6F5F8`–`#EFEEF3`. Behind the focal object sits one or two soft radial glows in the brand hue at 25–45% opacity, 500–900px across, heavily blurred (`filter: blur(80px)` on an absolutely positioned circle). The frame reads as lit, not blank.
+2. **Warm neutral grey.** Ground `#E8E6E3`–`#EDEBE8`, no gradient, extremely restrained. Used when the content is photographic and must not compete.
+3. **Near-black with a single warm source.** Ground `#0B0B0D`–`#141318`, with one large radial gradient in the brand hue (orange, purple, red) bleeding from one edge or from behind the type at 30–60% opacity. Type on this ground carries a soft glow: `text-shadow: 0 0 40px <accent at 45%>`. Optionally a fine grain overlay at 3–6% opacity.
+4. **Full-bleed brand colour.** The entire viewport floods to one saturated brand colour — a coral `#EE4B3C`, a blue `#1A56F0`, a deep red — with white type. Held 1.5–2.5s. Use at most twice per film, as punctuation or as the final beat.
+
+The ground never changes to white, never goes transparent, and never empties. When the film moves between grounds it does so as a full-bleed wipe or flood driven by an object, never a fade.
+
+### Typography
+
+**Family.** A geometric or neo-grotesque sans throughout: `Inter`, `Söhne`, `General Sans`, `Satoshi`, or the platform stack `-apple-system, "SF Pro Display", Inter, sans-serif`. One family per film. Serif appears only if the brand's own wordmark is a serif.
+
+**Weight and tracking.** Statements are 600–780 weight with tight negative tracking, `letter-spacing: -0.03em` to `-0.055em`. Never a light weight for a statement. Never letter-spaced-out uppercase except for a kicker.
+
+**Size.** This is where generated output fails hardest. Measured across all seven films, an editorial statement occupies **45–85% of frame width**, with a cap height of **6–9% of frame height**. At 1920×1080 that is a `font-size` of **96–150px** for a one-line statement, and **150–220px** for a two- or three-word statement that fills the frame. A statement under 70px at 1080 does not appear anywhere in the references.
+
+**One thought, one line, no subtitle.** Every statement is a single sentence or fragment, centred, with nothing under it. A second line of smaller grey explanatory text under a headline appears in none of the seven and is the clearest signal of generated output.
+
+**The accent word.** Almost every statement colours exactly one word in the brand hue while the rest stays near-black or white: *"So, progress **slows**"* with `slows` in blue; *"Where the world builds **software**"* with `software` in purple; *"Select your desired **style**"* with `style` in red; *"All **connected**"*, *"Everywhere at **once.**"*. Two-tone within a single line, one accent word, never more.
+
+**Words arrive one at a time onto a fixed line.** A recurring construction: `Ideas.` holds, then `Notes.` appears beside it, then `Tasks.` — the line assembling in place with the earlier words never moving. Similarly `Translate.` → `Dub.` → `Distribute.` Build this by laying out all words in the final position and revealing each with a `y: 24 → 0` plus opacity on `back.out(1.4)`, 0.35–0.5s apart. Do not re-centre the line as words appear.
+
+**Punctuation as design.** Statements frequently end in a full stop that is itself an object — `Ideas.` `Books.` `Done.` — and a small four-point sparkle glyph `✦` sometimes closes a line.
+
+### The shot catalogue
+
+These are the shots the references are actually built from. Pick four to six per film; every one of them is a large, single-subject composition.
+
+**Full-bleed imagery under type.** A photograph, map, or texture fills the entire viewport and a very large statement sits over it in white or black. Nothing else in frame. This is the strongest opening in the set.
+
+**The 3D application panel.** The product UI is not a flat rectangle in the middle. It is a large panel rotated in three dimensions — `perspective: 1600px` on the world, `rotateY: 12–26deg`, `rotateX: 4–10deg`, `rotateZ: -3–6deg` — occupying 60–95% of frame width, with a real drop shadow (`0 60px 140px rgba(0,0,0,.28)`) and often bleeding off one edge of the frame. Two or three such panels at different depths and angles, with the camera travelling past them, is a standard beat.
+
+**A corridor of material at depth.** Five to nine real objects — document pages, code planes, PR cards, content thumbnails — placed at distinct Z depths from `translateZ(-1400px)` to `translateZ(300px)`, each with its own slight rotation, the nearest ones motion-blurred. The camera flies forward through the corridor. Every object carries genuine content: a real title, a real status pill, real body text. This shot replaces "some cards fade in".
+
+**The dimensional icon or device.** One app icon, phone, or artefact rendered as a solid object at 25–45% of frame height, tilted in perspective with a soft contact shadow, slowly rotating. Around it, five or six smaller related icons orbit on elliptical paths at varying depth.
+
+**Icons used as words.** A 3D icon sits inline inside a sentence at the same optical size as the type — *"Any language [folder icon] Instantly"* — and can then be dragged by a cursor out of the line and into a drop target. Icons are solid, dimensional, and lit, never flat monoline glyphs.
+
+**The macro edit.** Extreme close-up on a single word or control filling 30–60% of frame width, with a text selection highlight sweeping across it, a caret blinking, or a value changing in place. The camera pushes in to reach it and pulls back out.
+
+**The rolling picker.** A vertical list of eight to twelve real option names in light grey, scrolling continuously, with the currently selected one snapping to full black at the anchor line and a small marker beside it. Reads as a machine choosing.
+
+**Coloured status pills.** Rounded-full chips — `border-radius: 999px`, `padding: 10px 22px` — in saturated brand colours with white or dark text, each often carrying a small icon. Stacked in a column with 0.08s stagger, or connected by thin curved lines into a node graph.
+
+**The measured number.** One large figure at 8–14% of frame height with a unit and a period beside it, counting up, above a gradient-filled progress bar that fills in sync. Never an unlabelled sparkline.
+
+**The real terminal or timeline.** Monospace output in a dark window with traffic-light dots, lines appearing one at a time with checkmarks; or a video editor timeline with layered filmstrip and waveform tracks in distinct colours, a playhead, and real timecodes.
+
+**Geometry as metaphor.** Three large translucent circles in cyan, magenta and amber overlapping so the intersections blend additively; a soft multi-hue gradient sphere; an iridescent faceted form rotating slowly on black. Pure geometry at 30–50% of frame height, used where a UI would say nothing.
+
+**The brand close.** The mark and wordmark together, centred, occupying 25–40% of frame width, on open ground or a full-bleed brand colour, with at most four words under it or a bare URL. In one film the mark substitutes for a letter in the final word. The close is never a small pill and never a paragraph.
+
+### Camera
+
+The camera is a real instrument in every one of these films and it never stops.
+
+- **Push in** on the subject: `scale 1 → 1.35–1.8` over 1.2–2.0s, `expo.out` or `power4.out`.
+- **Pull back to reveal**: `scale 1.6 → 1` while the frame fills with what was outside it. This is the reveal move, and it is how a sentence completes itself.
+- **Lateral travel**: `x` moving 600–2400px through a wide `data-camera-world` at `power2.inOut`, following material rather than sliding for its own sake.
+- **Z-push through depth**: the world's `translateZ` advancing while layered objects pass the camera and blur.
+- **Orbit**: the world rotating 8–20deg on Y around a fixed subject.
+- **A settling drift** under every reading hold: 1–3% scale or 10–30px of travel, continuing, so no frame is ever locked.
+
+Adjacent beats contrast in *framing* — a macro follows a wide, a full-bleed follows a detail. They do not have to contrast in camera move, and alternating push with pull to manufacture contrast is the failure this rule is most often turned into. Most beats need no camera move at all.
+
+### Transitions between beats
+
+Every boundary in these films is carried by an object. The four that actually appear:
+
+1. **Object-led wipe.** A large shape, panel, or colour field sweeps across the frame in one direction and the next beat is already composed behind it. The wipe is the carrier.
+2. **Camera-continuous cut.** The camera is already travelling; the material changes while the movement's axis, direction and speed are preserved across the boundary, so the eye reads one continuous move.
+3. **Morph of the shared object.** A card becomes a window becomes a panel — one element whose width, height, radius and surface change continuously while its contents cross-fade inside it.
+4. **Scatter and reform.** A cluster of objects breaks apart on individual vectors with rotation and motion blur, travels, and reassembles as the next beat's composition.
+
+Never a cross-dissolve, never a fade through white or black, never a hard cut between two unrelated static layouts.
+
+## How to actually shoot the film, move by move
+
+Everything below was measured off the reference films frame by frame at 8 frames per second. The numbers are what those films really run at. Build the moves, do not invent your own — the difference between these and a slide deck is entirely in the timing.
+
+### Move A — The Oversize Pull-Back
+
+The signature opening. The line begins **larger than the frame**, cropped by both the left and right edges so only two or three words are legible, and shrinks until the whole sentence fits. The sentence completes because the frame effectively widened, not because words faded in.
+
+```
+t+0.00  line at scale 2.9, opacity 1, cropped by both edges
+t+0.00  → scale 1.0 over 0.65s, ease "expo.out"
+t+0.65  full sentence visible at reading size, centred
+t+0.65  hold 0.9s with a drift: scale 1.0 → 1.03, x 0 → -14
+t+1.55  exit: opacity → 0 over 0.3s, or blur 0 → 12px
+```
+
+Measured: the reference runs this in **0.6–0.75s**. It is fast. A two-second pull-back reads as sluggish. Use `macroSettle(timeline, line, { at, startScale: 2.9, blur: 0, duration: 0.65 })` and give the beat a matching `cameraPull`.
+
+### Move B — Grow and Complete
+
+The other way a sentence finishes itself, and the more useful one. The opening fragment sits **small and centred**, then grows while the rest of the sentence arrives beside it and the line re-centres continuously.
+
+```
+t+0.00  fragment "Import" at scale 0.55, opacity 1, centred
+t+0.00  → scale 1.0 over 0.50s, ease "power3.out"
+t+0.18  remaining words fade 0 → 1, left to right, 0.07s apart,
+        each also y 10 → 0 on "back.out(1.3)"
+        the line's x shifts left each time a word lands so the
+        whole sentence stays centred — never let it grow rightward
+t+0.55  complete sentence, centred, full size
+t+0.55  hold 1.0s with scale 1.0 → 1.04 continuing
+```
+
+The words arrive **ghosted then solid** — an opacity ramp, not a slide from off-screen. Total build is about **0.75s** for a five-word line.
+
+### Move C — Macro Settle, and the snap is the point
+
+```
+t+0.00  scale 3.0, blur 20px, opacity 0
+t+0.00  → opacity 1 over 0.12s
+t+0.05  → blur 20px → 0px over 0.25s, ease "power4.out"
+t+0.00  → scale 3.0 → 1.0 over 0.85s, ease "expo.out"
+t+0.85  settled, then drift scale 1.0 → 1.04 and x 0 → +22
+        across the rest of the hold
+```
+
+Focus resolves at **t+0.30**, a third of the way through the movement. The line is sharp while it is still travelling. Text that stays soft until it stops looks like a video artefact. Use `macroSettle(...)`, which already runs these numbers.
+
+### Move D — Ground flood
+
+Never cross-fade between beats. Flood the ground instead:
+
+```
+t+0.00  next ground colour enters as a full-bleed layer,
+        scaleY 0 → 1 from one edge, or x -100% → 0,
+        over 0.45s, ease "power3.inOut"
+t+0.10  outgoing type opacity → 0 over 0.2s, or blurs out
+t+0.30  incoming type begins Move B or Move C on the new ground
+```
+
+The frame is never empty: the new ground is already covering the viewport before the old type has finished leaving.
+
+### Move E — The object rises and never stops
+
+A device, icon or artefact enters from **outside the frame edge**, not by fading in:
+
+```
+t+0.00  y +55% (below the frame), rotation -8deg, scale 0.85
+t+0.00  → y 0, rotation 0, scale 1.0 over 1.1s, ease "expo.out"
+t+1.10  continuous rotation ±6deg and y ±12px for the whole beat,
+        so the object is never still
+```
+
+Size it at **30–45% of frame height**, tilt it `rotateY 14–22deg` with `perspective: 1600px`, and give it a real contact shadow.
+
+### Move F — Word-by-word onto a fixed line
+
+`Ideas.` → `Ideas. Notes.` → `Ideas. Notes. Tasks.` Lay all three out in their **final positions** first, hide the later ones, and reveal each with `y: 22 → 0` plus opacity on `back.out(1.4)`, **0.42s apart**. The earlier words never move.
+
+## The end-to-end film
+
+A 22-second film, beat by beat, with the times it actually runs at. Adapt the content; keep the structure, the scale changes, and the pacing.
+
+**Beat 1 — 0.0 to 4.2s. The claim, oversized.**
+Ground floods in as a full-bleed dark or brand colour. The opening statement plays **Move A**: starts cropped by both frame edges at scale 2.9, pulls back to reading size over 0.65s. Hold with a drift. One word in the brand hue. Camera: a slow `cameraPull` from 1.15 to 1.0 across the whole beat so the frame is never static.
+
+**Beat 2 — 4.2 to 8.6s. The problem, made physical.**
+Ground floods to the second colour (Move D). The subject is now an **object, not a sentence**: a device rising from below (Move E), a corridor of real cards at Z depths from -1400px with the near plane blurred, or overlapping translucent circles. It occupies 35–55% of the frame. A short line sits over it, entered with **Move C**, no larger than half the height of Beat 1's statement — the scale contrast between beats is what makes the film read as directed. Camera: a lateral track of 500–900px, opposite in direction to Beat 1's move.
+
+**Beat 3 — 8.6 to 13.4s. The mechanism, in macro.**
+Push in hard. `cameraPush` scale 1.0 → 1.55 over 1.4s on `expo.out`, landing on **one detail**: a word being selected with a highlight sweeping across it, a value counting up, a control being pressed, a caret typing. The detail fills 40–65% of frame width. This is the closest shot in the film and it must be genuinely close — if it looks like the previous beat with slightly bigger elements, it is not a macro.
+
+**Beat 4 — 13.4 to 17.8s. The result, pulled back.**
+`cameraPull` from 1.55 back to 0.95 over 1.6s, revealing what the mechanism produced: the finished artefact, the organised set, the generated image, the completed table — at 55–80% of frame width. A line above or below it plays **Move F**, three short words landing 0.42s apart.
+
+**Beat 5 — 17.8 to 22.0s. The brand.**
+Ground floods to the brand colour full-bleed (Move D). The mark and wordmark arrive together at **25–40% of frame width**, centred, with at most four words or a bare URL beneath. The mark enters at scale 0.7 with a `back.out(1.5)` over 0.6s; the words follow 0.25s later. Hold to the last frame with a 1.0 → 1.03 drift. Nothing else is in the frame.
+
+**The scale rhythm across those five beats is the film.** Huge → medium → macro → wide → medium. If every beat sits at the same size, no amount of correct colour or easing will save it. Write the scale of each beat's subject down before you author anything, and make sure no two adjacent beats match.
+
+**Only some beats get a camera move.** In the five beats above the camera holds through Beat 1 while the type pulls itself back, tracks once in Beat 2, pushes in Beat 3, holds again, then pulls back in Beat 5 — four moves across five beats, each continuing the same inward journey. What stops a still beat from freezing is the type or the object still moving inside it, plus a 1-3% drift, not a camera move bolted onto every beat.
 
 ## Laws that hold for every shape
 
@@ -139,7 +315,17 @@ Two ways to be safe, and you should usually take the first:
 - **Give the carrier no surface of its own.** Let the faces inside it paint the background, border and radius. Then the carrier is pure geometry, and an empty carrier is an invisible carrier.
 - **If the carrier must be painted** — a real card or window whose plate is the point — then its content is never all gone: overlap the outgoing face's exit with the incoming face's entrance so at least one is on screen in every frame, including every frame of the seam. Fade the plate's own background out with the last face that leaves it.
 
-The carrier is the exception, and the reason it must not carry a `data-scene` tag: it is the one thing meant to cross the boundary, and a `data-scene` tag would clear it mid-crossing. Tag scene containers, not the carrier. The carrier must be visibly on screen on *both* sides of its seam — the composition is seeked to `seam.at - 0.15s` and `seam.at + seam.duration + 0.15s` and the carrier is looked for in both frames. A `morph()` call on an element that is hidden, off camera, or unchanged in size and position at those two times is reported as a hard cut, whatever the source says.
+**The carrier lives outside every scene container.** It is a direct child of the `data-camera-world`, a *sibling* of the `data-scene` containers — never inside one, and never carrying a `data-scene` tag itself. This is the single most common way a carrier chain fails: the carrier is authored inside the beat it starts in, that beat is cleared at the cut as the rules require, and the carrier is cleared along with it, so nothing crosses the boundary however the handoff was written. Being outside the subtree is what lets it survive the clear.
+
+```
+<div data-camera-world>
+  <div data-edit="story-carrier" data-transition-carrier>...</div>  <-- crosses every boundary
+  <div data-scene="scene-01">...</div>                              <-- cleared at its seam
+  <div data-scene="scene-02">...</div>
+</div>
+```
+
+The carrier is the exception to clearing, and that is why it must not carry a `data-scene` tag: it is the one thing meant to cross the boundary. The carrier must be visibly on screen on *both* sides of its seam — the composition is seeked to `seam.at - 0.15s` and `seam.at + seam.duration + 0.15s` and the carrier is looked for in both frames. A `morph()` call on an element that is hidden, off camera, or unchanged in size and position at those two times is reported as a hard cut, whatever the source says.
 
 **Action causes result.** A press produces the menu, a scan produces the detection, a convergence produces the document. Nothing appears because the timeline reached a number.
 
@@ -149,7 +335,26 @@ The carrier is the exception, and the reason it must not carry a `data-scene` ta
 
 ## Two mechanical rules
 
-**Fill each beat with its camera move.** Every beat opens with one camera tween whose duration equals that beat's full duration, starting where the previous beat's camera ended. The camera is what fills holds — it is how the reference films never freeze. A dead stretch then cannot exceed a beat boundary.
+**A statement beat is the statement, alone.** When a beat exists to say something, the sentence is the only thing in the frame. No cards under it, no chips beside it, no panel behind it, no metric tiles in the corner. Nothing but the ground and the line.
+
+This is the sharpest single difference between the reference films and generated output. In the references, every editorial beat — *"clarity disappears"*, *"Import your own voiceovers"*, *"Select your desired style"*, *"Everywhere at once."*, *"Customize it"* — is one line on an otherwise empty ground, held for 1.5 to 2.5 seconds with nothing competing for the eye. Generated films put a headline on the upper third and park two or three small cards underneath it, and the result says nothing, because the viewer does not know whether to read the sentence or inspect the cards.
+
+Exactly two things may share the frame with a statement:
+
+- **A full-bleed ground or atmosphere behind it** — a photograph, a map, a colour flood, a rotating form, a blurred bloom. It fills the whole viewport and sits behind the type. It is the ground, not an object.
+- **One inline icon that is part of the sentence**, at the type's own optical size, sitting in the line where a word would be.
+
+If the beat needs to show material, that material is its own beat. Alternate: statement, material, statement, material. Never both at once.
+
+**The camera is still when the type is moving.** Do not put a camera move on every beat. On a statement beat the *type* does the moving — it grows, it pulls back, it settles — and the camera holds, with at most a 1–3% drift so the frame is not frozen. Adding a push on top of type that is already scaling produces two competing movements and reads as drift, not direction.
+
+The camera travels on **space beats**: flying through a corridor of material, tracking across a wide world, orbiting an object, pushing into a detail. Those are the beats built to be moved through, and they are where a camera move means something.
+
+**One dominant direction per film.** Pick a through-line — the camera works its way inward across the film, or travels consistently to the left, or descends. Every camera move advances that line. What kills a film is alternating for the sake of contrast: push, pull, push, pull, or left, right, left, right. That reads as a machine cycling through options, and it is worse than no camera at all.
+
+Concretely, over five beats: hold, track left 700px, push in 1.55, hold at the new scale, pull back to 0.95. Four moves across five beats, all of them continuing the same inward journey, and two beats where the camera does nothing because the type or the object is carrying the motion.
+
+**Motivate every move.** The camera pushes because there is something to look at closely. It pulls back because something outside the frame is about to matter. It tracks because the material continues in that direction. If you cannot say what the move is following, cut it and let the beat be still.
 
 **Name your world.** The stage's first child is the full-bleed world at `width:100%; height:100%`, with a `data-edit` id naming what it is: `scan-field`, `route-space`, `idea-field`, `product-surface`, `editor-canvas`, `workspace`. Everything else is a child of it.
 

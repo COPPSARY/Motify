@@ -978,3 +978,325 @@ describe("dissolving through nothing", () => {
     ).not.toThrow();
   });
 });
+
+describe("a film that states something", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const scene = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const previousHtml = `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`;
+
+  function film(rect: string) {
+    return {
+      duration: 12,
+      scenes: scene,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="${rect}" style="background:#f6f5f8">Filing is instant</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+  }
+  const options = {
+    prompt: "make an ad",
+    previousHtml,
+    previousDuration: 12,
+    previousScenes: scene,
+  };
+
+  /**
+   * The reported defect: a 28px headline inside a pill. Every studied
+   * reference puts a statement across 45-85% of the frame.
+   */
+  it("rejects a film whose largest line is a caption", () => {
+    // 550px of 1920 is 29% of frame width, so this is too narrow to be a
+    // statement — but tall enough (7.9% of the canvas) to clear the
+    // small-objects check first, which isolates the rule under test.
+    expect(() =>
+      validateGeneratedComposition(film("690,390,550,300"), options),
+    ).toThrow(/never states anything/);
+  });
+
+  it("accepts a film that puts a real statement on screen", () => {
+    // 1180px of 1920 is 61% — inside the 45-85% the references use.
+    expect(() =>
+      validateGeneratedComposition(film("370,420,1180,150"), options),
+    ).not.toThrow();
+  });
+
+  it("does not ask a two-second fragment for an editorial statement", () => {
+    const fragment = {
+      ...film("690,390,550,300"),
+      duration: 2,
+      // The timeline has to be short too: a composition adopts its timeline's
+      // real length, so a 10s tween would make this a film after all.
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 1.5 }, 0);
+      }`,
+      scenes: [
+        { id: "main", label: "Main", start: 0, duration: 2, accent: "#fff" },
+      ],
+    };
+    expect(() =>
+      validateGeneratedComposition(fragment, {
+        ...options,
+        previousDuration: 2,
+        previousScenes: fragment.scenes,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("the frame as the viewer sees it", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const move = `export function buildTimeline({ root, timeline }) {
+    timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 10 }, 0);
+  }`;
+
+  /**
+   * The reported resolve: the lockup sat off-centre and the mark itself was
+   * cut away by the right edge, reading "...workspace in Not".
+   */
+  it("rejects settled type that runs off the edge of the frame", () => {
+    // The line sits comfortably inside its parent — a 4000px camera world —
+    // and still runs off the right of the 1920px viewport. That is the real
+    // shape of the defect, and the only check that sees it is this one.
+    const clipped = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="camera-world" data-camera-world data-rect="0,0,4000,1080"><h1 data-edit="hook" data-rect="700,420,1400,150">Build your company workspace in Notion</h1></div></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(clipped, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).toThrow(/run \d+px outside the frame/);
+  });
+
+  it("accepts a wide world whose type is framed inside the viewport", () => {
+    const framed = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="camera-world" data-camera-world data-rect="0,0,4000,1080"><h1 data-edit="hook" data-rect="260,420,1400,150">Build your company workspace</h1></div></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(framed, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts a statement sized to sit inside the frame", () => {
+    const fits = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="260,420,1400,150">Build your company workspace</h1></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(fits, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).not.toThrow();
+  });
+
+  /**
+   * The reported film: five beats, each a headline on the upper third with a
+   * small panel beneath it, camera never moving. Every beat is individually
+   * well formed, which is why nothing in the source reveals it.
+   */
+  it("rejects a film that is one composition with the copy swapped", () => {
+    const beats = [0, 1, 2, 3].map((index) => ({
+      id: `scene-0${index + 1}`,
+      label: `0${index + 1}`,
+      start: index * 4,
+      duration: 4,
+      accent: "#fff",
+    }));
+    const panels = beats
+      .map(
+        (beat) =>
+          `<div data-edit="panel-${beat.id}" data-scene="${beat.id}" data-rect="360,300,1200,480" style="background:#fff">Panel ${beat.id}</div>`,
+      )
+      .join("");
+    const repeated = {
+      duration: 16,
+      scenes: beats,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="260,120,1400,140">One clear statement</h1>${panels}</main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const all = ${JSON.stringify(beats.map((b) => `panel-${b.id}`))};
+        all.forEach((id, index) => {
+          const el = root.querySelector('[data-edit="' + id + '"]');
+          timeline.set(el, { autoAlpha: 0 }, 0);
+          timeline.set(el, { autoAlpha: 1 }, index * 4);
+          timeline.to(el, { x: 8, duration: 3.5 }, index * 4);
+          if (index < 3) timeline.set(el, { autoAlpha: 0 }, index * 4 + 4);
+        });
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(repeated, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 16,
+        previousScenes: beats,
+      }),
+    ).toThrow(/one composition repeated/);
+  });
+});
+
+describe("a carrier trapped inside its own beat", () => {
+  const two = [
+    { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+    { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+  ];
+  const seams = [
+    {
+      from: "scene-01",
+      to: "scene-02",
+      at: 1.6,
+      duration: 0.8,
+      carrier: "story-carrier",
+      mechanism: "morph" as const,
+      becomes: "the plate becomes the panel",
+    },
+  ];
+
+  /**
+   * The reported loop: five seams, every carrier "hidden on both sides", and
+   * the complaint unchanged after each repair pass. The carrier obeyed the
+   * placement rule as written — it carried no `data-scene` tag — but sat inside
+   * a scene container, so clearing that beat cleared the carrier with it.
+   */
+  it("names the scene container that is clearing the carrier", () => {
+    const trapped = {
+      duration: 4,
+      scenes: two,
+      seams,
+      compositionHtml: `<template><main data-edit="stage"><div data-edit="camera-world" data-camera-world><div data-edit="beat-one" data-scene="scene-01"><div data-edit="story-carrier" data-transition-carrier>Carrier</div></div><div data-edit="beat-two" data-scene="scene-02">Second beat</div></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="beat-one"]');
+        const two = root.querySelector('[data-edit="beat-two"]');
+        const carrier = root.querySelector('[data-edit="story-carrier"]');
+        timeline.set(one, { autoAlpha: 0 }, 0);
+        timeline.set(two, { autoAlpha: 0 }, 0);
+        timeline.to(carrier, { x: 40, duration: 1.2 }, 0.2);
+        timeline.set(two, { autoAlpha: 1 }, 1.6);
+        timeline.to(two, { x: 20, duration: 1.2 }, 2.4);
+      }`,
+      reply: "Done",
+    };
+    const validated = validateGeneratedComposition(trapped, {
+      prompt: "Polish the transition",
+      previousHtml: `<template><main data-edit="stage"><div data-edit="story-carrier"></div></main></template>`,
+      previousDuration: 4,
+      previousScenes: two,
+    });
+    const note = validated.warnings.join(" ");
+    expect(note).toMatch(/lives inside the scene container "scene-01"/);
+    // The fix has to be actionable, or the repair pass cannot clear it.
+    expect(note).toMatch(/Move the carrier out of every data-scene subtree/);
+  });
+});
+
+describe("a beat holding nothing but its ground", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const options = {
+    prompt: "make an ad",
+    previousHtml: `<template><main data-edit="stage"><div data-edit="hook"></div></main></template>`,
+    previousDuration: 12,
+    previousScenes: one,
+  };
+  const drift = `export function buildTimeline({ root, timeline }) {
+    timeline.to(root.querySelector('[data-edit="ambient-glow"]'), { x: 30, duration: 10 }, 0);
+  }`;
+
+  /**
+   * The reported blank scenes. A decorative bloom carries a `data-edit` id, is
+   * painted, and covers plenty of the canvas, so it answered "yes, something is
+   * on screen" to every emptiness check at once and the beat shipped empty.
+   */
+  it("rejects a beat whose only occupant is a decorative bloom", () => {
+    const blank = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="ambient-glow" data-rect="560,240,800,600" style="background:#eee"></div></main></template>`,
+      timelineJs: drift,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(blank, options)).toThrow(
+      /no visible foreground/,
+    );
+  });
+
+  it("rejects a beat holding only an element tagged as a background role", () => {
+    const blank = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="signal-path" data-background-role="signal-path" data-rect="200,240,1500,600" style="background:#eee"></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="signal-path"]'), { x: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(blank, options)).toThrow(
+      /no visible foreground/,
+    );
+  });
+
+  /** A sharp gradient sphere is a real shot, not atmosphere. */
+  it("keeps treating an unblurred hero form as a subject", () => {
+    const hero = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="ambient-glow" data-rect="0,0,1900,1070" style="background:#f6f5f8"></div><div data-edit="hero-sphere" data-rect="660,290,600,500" style="background:#5b9dff">Sphere</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hero-sphere"]'), { rotation: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(hero, options)).not.toThrow();
+  });
+});

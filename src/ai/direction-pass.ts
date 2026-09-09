@@ -71,15 +71,17 @@ Required verbs: slides, scales, shatters, snaps, drags, fades, orbits, morphs, m
 If you cannot describe the exact physical geometry of a mechanism, you do not have a scene.
 
 Rule 2: The Ground and Environment
-Do not use vague terms like "clean." Define the environment as a 3D or 2.5D space. You must specify:
+Do not use vague terms like "clean." Never specify flat white. Define the environment as a 3D or 2.5D space with light in it. Pick one of the four grounds the reference films actually use, and give its hex:
 
-Exact or approximate hex palettes (e.g., #0D0D11).
+Warm off-white (#F6F5F8 to #EFEEF3) with one or two blurred brand-hue radial blooms behind the subject, 500-900px across, 25-45% opacity.
 
-Material textures (e.g., matte slate, frosted glass, noisy gradient).
+Warm neutral grey (#E8E6E3 to #EDEBE8), flat and restrained, for when the content is photographic.
 
-Lighting (e.g., harsh top spotlight, subtle ambient rim light).
+Near-black (#0B0B0D to #141318) with a single warm radial source bleeding from one edge, and type carrying a soft glow.
 
-Spatial depth (e.g., orthographic flat, deep Z-axis with depth of field).
+Full-bleed saturated brand colour with white type, held 1.5 to 2.5 seconds. At most twice in a film.
+
+Then state the material texture, the lighting direction, and the spatial depth (orthographic flat, or deep Z-axis with blur on the near plane).
 
 Rule 3: Typography as a Physical Object
 Type is not just read; it is choreographed. Choose one exact treatment for this film:
@@ -90,7 +92,41 @@ Macro Settle (macroSettle): Type arrives at 300% scale, heavily blurred, then sn
 
 Kinetic Anchor (kineticAnchor): One word is stationary while the rest of the sentence physically revolves or slides around it.
 
+Grow and Complete (growAndComplete): The opening fragment sits small and centred, grows to full size over 0.5s, and the rest of the sentence lands beside it 0.07s per word while the line re-centres. The build finishes in about 0.75s. This is the treatment the references use most.
+
 Each name in brackets is a built mechanic the builder calls directly, so name the treatment exactly and say which words are the lead, the tail, or the anchor. State the chosen treatment in typeTreatment.
+
+Scale is not optional. A statement spans 45-85% of frame width with a cap height of 6-9% of frame height — at 1920x1080 that is 96-150px, and 150-220px for a two- or three-word line. Weight 600-780, tracking -0.03em to -0.055em. One thought per beat on one line, with no smaller explanatory subtitle beneath it, ever. Colour exactly one word in the brand hue and say which word.
+
+Rule 3b2: A Statement Beat Is The Statement Alone
+When a beat exists to say something, the sentence is the only thing in the frame. No cards under it, no chips beside it, no panel behind it, no metric tiles in a corner. Only two things may share the frame with a statement: a full-bleed ground or atmosphere behind it (a photo, a map, a colour flood, a rotating form, a blurred bloom), and one inline icon at the type's own optical size sitting where a word would be. If the beat needs to show material, that material is its own beat. Alternate statement, material, statement, material — never both at once.
+
+Rule 3c: The Shot Vocabulary
+Every beat is one of these, and each is a large single-subject composition. Name the shot you are using in the beat's shot field:
+
+Full-bleed imagery under type — a photo, map or texture filling the viewport with one very large statement over it.
+
+The 3D application panel — the product UI rotated in perspective (rotateY 12-26deg), 60-95% of frame width, real drop shadow, often bleeding off one edge.
+
+A corridor of material at depth — five to nine real objects at distinct Z depths from -1400px to 300px, nearest ones motion-blurred, camera flying through. Every object carries genuine content.
+
+The dimensional icon or device — one solid artefact at 25-45% of frame height, tilted, contact shadow, with smaller icons orbiting it.
+
+Icons as words — a solid 3D icon inline inside a sentence at the type's optical size, draggable out of the line.
+
+The macro edit — extreme close-up on one word or control at 30-60% of frame width, with a selection highlight, caret, or value changing in place.
+
+The rolling picker — a vertical list of real option names scrolling, the selected one snapping to full black at an anchor line.
+
+Coloured status pills — rounded-full chips in saturated brand colours, stacked with stagger or connected by curved lines into a node graph.
+
+The measured number — one figure at 8-14% of frame height with unit and period, counting up over a gradient progress bar.
+
+The real terminal or timeline — monospace output with traffic-light dots and checkmarks, or an editor timeline with filmstrip and waveform tracks and real timecodes.
+
+Geometry as metaphor — overlapping translucent circles blending additively, a gradient sphere, or an iridescent faceted form rotating on black, at 30-50% of frame height.
+
+The brand close — mark and wordmark at 25-40% of frame width on open ground or full-bleed brand colour, at most four words or a bare URL beneath.
 
 Rule 3b: Interface Physics
 No cross-fades, dissolves, or fades to white or black — ever. The ground is constant for the whole film and the frame is never empty between beats. Elements enter and leave along vectors: cards slide up from below, lists expand outward, panels grow from the edge that anchors them. Rigid text and lines stay perfectly sharp while moving. Objects never drift in open space: put them on a visible grid, connect them with interface lines, or group them in one panel with real mass.
@@ -102,10 +138,20 @@ A cut at 8.0s with a 1.0s handoff is at: 7.5, duration: 1.0. Budget 0.35s to 1.8
 
 The carrier must be a literal element: a blinking cursor, a specific button, a geometric node, or a defined text glyph.
 
+The carrier belongs to the whole film, not to one beat. Name something that can plausibly live outside every scene and persist across several boundaries — the same object crossing three seams beats a fresh carrier at each one.
+
 Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms).
 
-Rule 5: The Tiling Beats
-Adjacent beats must contrast in framing (Wide to Macro) or camera movement (Pan to Z-push). Every beat requires a start state, an end state, and the physical action between them.
+Rule 5: The Tiling Beats and the Camera
+Do NOT give every beat a camera move. That is what produces push, pull, push, pull and left, right, left, right — a machine cycling through options, which is worse than no camera at all.
+
+On a statement beat the type does the moving and the camera holds, with at most a 1-3% drift. The camera travels only on space beats: flying through a corridor of material, tracking across a wide world, orbiting an object, or pushing into a detail worth inspecting. Across five beats expect about four moves, two of which are holds.
+
+Pick one dominant direction for the whole film — inward, or consistently left, or descending — and make every move advance it. Name what each move is following; if you cannot, make the beat still.
+
+The moves: push in (scale 1 to 1.35-1.8, expo.out), pull back to reveal (scale 1.6 to 1), lateral travel (600-2400px through a wide world), Z-push through depth, orbit 8-20deg on Y.
+
+Adjacent beats must contrast in FRAMING (Wide to Macro, full-bleed to detail). They do not need to contrast in camera move. Every beat requires a start state, an end state, and the physical action between them.
 
 Beats tile: each starts exactly where the last ends, and together they fill the requested duration.
 
