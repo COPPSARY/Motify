@@ -309,7 +309,10 @@ function assertNoOverlappingText(
         }
         continue;
       }
-      if (ratio > 0.6) {
+      // Two different text runs sharing a quarter of the smaller one's box is
+      // already unreadable on screen; the old two-thirds threshold let a
+      // resolve whose lines collided pass as acceptable.
+      if (ratio > 0.25) {
         throw new Error(
           `Scene ${scene.id} overlaps unrelated text around ${time.toFixed(
             2,
@@ -833,6 +836,131 @@ function assertFilmMakesAStatement(
   );
 }
 
+/**
+ * Type running off the edge of the frame.
+ *
+ * `visibleElements` only asks whether an element intersects the viewport, so a
+ * line half outside it counts as on screen and passes every other check. The
+ * result is a resolve reading "Build your company's workspace in Not" with the
+ * mark itself cut away, which is the single most obviously broken thing a
+ * viewer can be shown.
+ *
+ * Sampled late in each beat only. Type is *supposed* to arrive cropped and
+ * oversized; what must not happen is that it is still clipped once it has
+ * settled.
+ */
+function assertTypeStaysInFrame(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  /** Antialiasing and descender slop, not a broken layout. */
+  const tolerance = 8;
+  const check = (time: number, scene: SceneDefinition): void => {
+    runtime.seek(Math.max(0, Math.min(limit, time)));
+    for (const leaf of textLeaves(visibleElements(root, rootRect, true))) {
+      const rect = leaf.getBoundingClientRect();
+      const over = Math.max(
+        rootRect.left - rect.left,
+        rect.right - rootRect.right,
+        rootRect.top - rect.top,
+        rect.bottom - rootRect.bottom,
+      );
+      if (over <= tolerance) continue;
+      throw new Error(
+        `Scene ${scene.id} lets settled type run ${Math.round(
+          over,
+        )}px outside the frame around ${time.toFixed(2)}s: "${(
+          leaf.textContent ?? ""
+        )
+          .trim()
+          .slice(
+            0,
+            40,
+          )}" is cut off by the edge of the canvas. Size the line to fit inside the viewport with margins, and centre it; a statement that spans more than 85% of the frame width is too long for its font size.`,
+      );
+    }
+  };
+  for (const scene of scenes) {
+    // Late in the beat: the entrance is allowed to be cropped, the hold is not.
+    check(scene.start + scene.duration * 0.65, scene);
+    check(scene.start + scene.duration * 0.92, scene);
+  }
+  const last = scenes.at(-1);
+  if (last) check(limit, last);
+}
+
+/**
+ * Beats that are the same picture with different words.
+ *
+ * The skill already requires adjacent beats to differ in framing, and this is
+ * the shape the requirement exists to prevent: a headline on the upper third
+ * and a small panel under it, five times, with the camera never moving. Nothing
+ * in the source reveals it — every beat is individually well formed — so it is
+ * measured as the geometry of what each beat actually puts on screen.
+ */
+function assertBeatsAreFramedDifferently(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0 || scenes.length < 3) return;
+  const canvasArea = rootRect.width * rootRect.height;
+  const framings = scenes.map((scene) => {
+    runtime.seek(
+      Math.max(0, Math.min(limit, scene.start + scene.duration * 0.7)),
+    );
+    const subjects = frameSubjects(
+      visibleElements(root, rootRect, true),
+      canvasArea,
+    );
+    let widest: DOMRect | null = null;
+    for (const element of subjects) {
+      const rect = element.getBoundingClientRect();
+      if (!widest || rect.width * rect.height > widest.width * widest.height) {
+        widest = rect;
+      }
+    }
+    return widest;
+  });
+
+  let repeats = 0;
+  const offenders: string[] = [];
+  for (let index = 0; index < framings.length - 1; index += 1) {
+    const first = framings[index];
+    const second = framings[index + 1];
+    if (!first || !second) continue;
+    const centreShift =
+      Math.hypot(
+        first.left + first.width / 2 - (second.left + second.width / 2),
+        first.top + first.height / 2 - (second.top + second.height / 2),
+      ) / Math.hypot(rootRect.width, rootRect.height);
+    const sizeRatio =
+      Math.min(first.width * first.height, second.width * second.height) /
+      Math.max(
+        1,
+        Math.max(first.width * first.height, second.width * second.height),
+      );
+    if (centreShift < 0.04 && sizeRatio > 0.85) {
+      repeats += 1;
+      offenders.push(`${scenes[index]?.id} and ${scenes[index + 1]?.id}`);
+    }
+  }
+  if (repeats < 2) return;
+  throw new Error(
+    `The film is one composition repeated: ${offenders
+      .slice(0, 3)
+      .join(
+        ", ",
+      )} put their subject at the same size in the same place. Adjacent beats must change framing — a wide after a macro, a full-bleed after a detail — and the camera must move between them, instead of swapping the copy inside a fixed layout.`,
+  );
+}
+
 function assertAssetsUsed(html: string, tokens: readonly string[]): void {
   const missing = tokens.filter((token) => !html.includes(token));
   if (missing.length > 0) {
@@ -1155,6 +1283,8 @@ export function validateGeneratedComposition(
       assertBeatsShareMaterial(mounted, root, validated, limit);
       assertNoDeadFrames(mounted, root, limit);
       assertFilmMakesAStatement(mounted, root, validated, limit);
+      assertTypeStaysInFrame(mounted, root, validated, limit);
+      assertBeatsAreFramedDifferently(mounted, root, validated, limit);
       const finalScene = validated.at(-1);
       if (finalScene) {
         assertVisibleSceneFrame(

@@ -1053,3 +1053,126 @@ describe("a film that states something", () => {
     ).not.toThrow();
   });
 });
+
+describe("the frame as the viewer sees it", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const move = `export function buildTimeline({ root, timeline }) {
+    timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 10 }, 0);
+  }`;
+
+  /**
+   * The reported resolve: the lockup sat off-centre and the mark itself was
+   * cut away by the right edge, reading "...workspace in Not".
+   */
+  it("rejects settled type that runs off the edge of the frame", () => {
+    // The line sits comfortably inside its parent — a 4000px camera world —
+    // and still runs off the right of the 1920px viewport. That is the real
+    // shape of the defect, and the only check that sees it is this one.
+    const clipped = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="camera-world" data-camera-world data-rect="0,0,4000,1080"><h1 data-edit="hook" data-rect="700,420,1400,150">Build your company workspace in Notion</h1></div></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(clipped, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).toThrow(/run \d+px outside the frame/);
+  });
+
+  it("accepts a wide world whose type is framed inside the viewport", () => {
+    const framed = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="camera-world" data-camera-world data-rect="0,0,4000,1080"><h1 data-edit="hook" data-rect="260,420,1400,150">Build your company workspace</h1></div></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(framed, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts a statement sized to sit inside the frame", () => {
+    const fits = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="260,420,1400,150">Build your company workspace</h1></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(fits, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).not.toThrow();
+  });
+
+  /**
+   * The reported film: five beats, each a headline on the upper third with a
+   * small panel beneath it, camera never moving. Every beat is individually
+   * well formed, which is why nothing in the source reveals it.
+   */
+  it("rejects a film that is one composition with the copy swapped", () => {
+    const beats = [0, 1, 2, 3].map((index) => ({
+      id: `scene-0${index + 1}`,
+      label: `0${index + 1}`,
+      start: index * 4,
+      duration: 4,
+      accent: "#fff",
+    }));
+    const panels = beats
+      .map(
+        (beat) =>
+          `<div data-edit="panel-${beat.id}" data-scene="${beat.id}" data-rect="360,300,1200,480" style="background:#fff">Panel ${beat.id}</div>`,
+      )
+      .join("");
+    const repeated = {
+      duration: 16,
+      scenes: beats,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="260,120,1400,140">One clear statement</h1>${panels}</main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const all = ${JSON.stringify(beats.map((b) => `panel-${b.id}`))};
+        all.forEach((id, index) => {
+          const el = root.querySelector('[data-edit="' + id + '"]');
+          timeline.set(el, { autoAlpha: 0 }, 0);
+          timeline.set(el, { autoAlpha: 1 }, index * 4);
+          timeline.to(el, { x: 8, duration: 3.5 }, index * 4);
+          if (index < 3) timeline.set(el, { autoAlpha: 0 }, index * 4 + 4);
+        });
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(repeated, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`,
+        previousDuration: 16,
+        previousScenes: beats,
+      }),
+    ).toThrow(/one composition repeated/);
+  });
+});
