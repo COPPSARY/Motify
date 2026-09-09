@@ -1,17 +1,15 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { currentMotionlyUser, motionlyLoginUrl } from "../auth";
   import type { MotionlyUser } from "../auth";
   import {
     ArrowLeft,
-    Bot,
+    ArrowUp,
     Braces,
     Download,
     Eye,
     EyeOff,
     FileText,
-    FolderOpen,
-    Headphones,
     Image as ImageIcon,
     Layers3,
     Maximize2,
@@ -20,11 +18,8 @@
     Plus,
     RefreshCcw,
     Save,
-    Send,
-    Settings,
     SlidersHorizontal,
     Sparkles,
-    Type,
     Upload,
     Wand2,
     X,
@@ -37,16 +32,20 @@
     readEditorGroup,
   } from "../composition/editor-schema";
   import { hydratePresetAssets } from "../compositions/preset-assets";
-  import { generateWithDirectAi } from "../ai/direct-ai";
+  import { generateWithDirectAi, type DirectAiResult } from "../ai/direct-ai";
   import {
     userEditedIds,
     type GenerationPlanMemory,
   } from "../ai/generation-guidance";
   import {
-    GENERATION_FOUNDATION_PROFILE,
-    foundationFiles,
-    foundationScenes,
-  } from "../ai/generation-foundation";
+    resolveGenerationBasis,
+    type GenerationBasis,
+  } from "../ai/generation-basis";
+  import {
+    blankProjectFiles,
+    blankScenes,
+    createBlankComposition,
+  } from "./blank-project";
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import {
@@ -72,7 +71,6 @@
     ElementOverride,
     RuntimeEditorState,
     RuntimeSnapshot,
-    SceneDefinition,
   } from "../composition/types";
   import {
     appleNotesPreset,
@@ -102,7 +100,11 @@
   import AnimationControls from "./AnimationControls.svelte";
   import { generationStore, startNewGeneration } from "../stores/generation";
   import { uploadAsset } from "../api/assets";
-  import { validateGeneratedComposition } from "../ai/validate-generation";
+  import {
+    isFatalRenderFailure,
+    validateGeneratedComposition,
+    type ValidatedGeneration,
+  } from "../ai/validate-generation";
   import {
     clearLocalAssets,
     generationAsset,
@@ -118,7 +120,6 @@
   } from "../stores/project-drafts";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
-  import "./styles/navigation-rail.css";
   import "./styles/content-panel.css";
   import "./styles/preview-stage.css";
   import "./styles/properties-inspector.css";
@@ -126,8 +127,7 @@
   import "./styles/timeline-panel.css";
   import "./styles/editor-theme.css";
 
-  type EditorTab =
-    "media" | "audio" | "text" | "effects" | "scenes" | "ai" | "settings";
+  type EditorTab = "chat" | "presets";
 
   type TimelineMode = "project" | "scene";
 
@@ -136,36 +136,6 @@
     text: string;
   }
 
-  const initialProjectFiles: ProjectSourceFiles = {
-    "composition.html": `<template id="motionly-template">
-  <style>.motionly-stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: #080b14; }</style>
-  <main class="motionly-stage" data-edit="stage"></main>
-</template>`,
-    "styles.css": "",
-    "timeline.js": `export function buildTimeline({ root, timeline, register }) {
-  const stage = root.querySelector("[data-edit='stage']");
-  if (!stage) throw new Error("Motionly stage was not found.");
-  register("stage", stage);
-}`,
-    "index.ts": `import { defineComposition, type CompositionContext } from '@motionly/runtime';
-import compositionHtml from './composition.html?raw';
-import { buildTimeline } from './timeline.js';
-
-function mount(context: CompositionContext) {
-  const documentNode = new DOMParser().parseFromString(compositionHtml, 'text/html');
-  const template = documentNode.querySelector<HTMLTemplateElement>('#motionly-template');
-  if (!template) throw new Error('Motionly template was not found.');
-  context.root.replaceChildren(template.content.cloneNode(true));
-}
-
-export default defineComposition({
-  id: 'blank-composition', title: 'Untitled Motionly Project', description: 'Blank Motionly composition',
-  width: 1920, height: 1080, fps: 60, duration: 5,
-  scenes: [{ id: 'main', label: 'Main', start: 0, duration: 5, accent: '#7657ff', tracks: [{ id: 'stage', label: 'Stage', kind: 'Background', start: 0, end: 5 }] }],
-  sourcePreview: compositionHtml,
-  build(context) { mount(context); buildTimeline(context); },
-});`,
-  };
   const claudeProjectFiles = splitCompositionSource(
     claudeHtmlSource,
     claudeTimelineSource,
@@ -186,24 +156,6 @@ export default defineComposition({
     appleNotesTimelineSource,
     appleNotesAdapterSource,
   );
-  const blankScenes = [
-    {
-      id: "main",
-      label: "Main",
-      start: 0,
-      duration: 5,
-      accent: "#7657ff",
-      tracks: [
-        {
-          id: "stage",
-          label: "Stage",
-          kind: "Background" as const,
-          start: 0,
-          end: 5,
-        },
-      ],
-    },
-  ] as const;
   const previewApi = new ProjectsApi();
   const activeDraftKey = "active";
 
@@ -238,23 +190,25 @@ export default defineComposition({
   let uploadingMedia = false;
   let runtime: CompositionRuntime | null = null;
   let runtimeUnsubscribe: (() => void) | null = null;
-  let activeComposition: CompositionDefinition = claudePreset;
+  // The editor opens on an empty stage. A preset only enters the session when
+  // the user opens one, so a first prompt is never read as an edit of it.
+  let activeComposition: CompositionDefinition = createBlankComposition();
   let previewLoadSequence = 0;
   let projectStyles: HTMLStyleElement | null = null;
   let snapshot: RuntimeSnapshot = {
     time: 0,
     playing: false,
-    sceneId: claudePreset.scenes[0]?.id ?? "",
+    sceneId: blankScenes[0]?.id ?? "",
   };
-  let selectedSceneId = claudePreset.scenes[0]?.id ?? "";
+  let selectedSceneId = blankScenes[0]?.id ?? "";
   let selectedId = "";
   let zoom = 1;
   let fitScale = 0.5;
-  let activeTab: EditorTab = "media";
-  let mediaTab: "assets" | "presets" = "presets";
+  let activeTab: EditorTab = "chat";
   let exporting = false;
   let notice = "";
   let assistantDraft = "";
+  let composerInput: HTMLTextAreaElement;
   let assistantMessages: AssistantMessage[] = [];
   // Directorial memory: a follow-up prompt continues this film instead of
   // restarting from a blank stage.
@@ -346,7 +300,7 @@ export default defineComposition({
   }
   let timelineMode: TimelineMode = "project";
   let sourceOpen = false;
-  let cloudFiles = claudeProjectFiles;
+  let cloudFiles: ProjectSourceFiles = { ...blankProjectFiles };
   let cloudProject: ProjectSummary | null = null;
 
   interface SelectionRect {
@@ -374,7 +328,7 @@ export default defineComposition({
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
-      activeTab = "ai";
+      activeTab = "chat";
     }
     void currentMotionlyUser().then((user) => {
       currentUser = user;
@@ -526,7 +480,7 @@ export default defineComposition({
     assetObjectUrls = [];
     resetAssistantSession();
     cloudProject = null;
-    cloudFiles = { ...initialProjectFiles };
+    cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     timelineMode = "project";
     sourceOpen = false;
@@ -537,18 +491,7 @@ export default defineComposition({
       progress: 0,
       message: "",
     });
-    mountComposition(
-      createDynamicComposition(
-        combineCompositionSource(initialProjectFiles),
-        initialProjectFiles["timeline.js"],
-        {
-          id: "blank-composition",
-          title: "Untitled Motionly Project",
-          duration: 5,
-          scenes: blankScenes,
-        },
-      ),
-    );
+    mountComposition(createBlankComposition());
     runtime?.seek(0);
     captureEvent("project started", { source: "new_button" });
     showNotice("Started a new blank project and cleared local Motionly data.");
@@ -556,6 +499,7 @@ export default defineComposition({
 
   function loadClaudePreset(): void {
     previewLoadSequence += 1;
+    resetAssistantSession();
     cloudProject = null;
     cloudFiles = { ...claudeProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
@@ -1350,13 +1294,10 @@ export default defineComposition({
   function selectTab(tab: EditorTab): void {
     sourceOpen = false;
     activeTab = tab;
-    if (tab === "media") mediaTab = "assets";
-    if (tab === "effects") mediaTab = "presets";
   }
 
   function openTimelineSource(): void {
     sourceOpen = true;
-    activeTab = "text";
     showNotice("Opened the HTML source for the active GSAP composition.");
   }
 
@@ -1450,38 +1391,12 @@ export default defineComposition({
     }
   }
 
-  function assistantGenerationBasis(): {
-    files: ProjectSourceFiles;
-    duration: number;
-    scenes: readonly SceneDefinition[];
+  function assistantGenerationBasis(): GenerationBasis & {
     editorState?: Partial<RuntimeEditorState>;
-    generationProfile: "claude-foundation-v1" | "existing";
   } {
-    const currentSource = cloudFiles["composition.html"] ?? "";
-    const needsFoundation =
-      currentSource.length < 1200 ||
-      (activeComposition.id.startsWith("dynamic-comp-") &&
-        !currentSource.includes(GENERATION_FOUNDATION_PROFILE));
-    if (needsFoundation) {
-      return {
-        files: {
-          "composition.html": foundationFiles.compositionHtml,
-          "styles.css": "",
-          "timeline.js": foundationFiles.timelineJs,
-          "index.ts": "",
-        },
-        duration: 20,
-        scenes: foundationScenes,
-        generationProfile: "claude-foundation-v1",
-      };
-    }
-    return {
-      files: cloudFiles,
-      duration: activeComposition.duration,
-      scenes: activeComposition.scenes,
-      editorState: runtime?.exportEditorState(),
-      generationProfile: "existing",
-    };
+    const basis = resolveGenerationBasis(cloudFiles, activeComposition);
+    if (basis.generationProfile === "claude-foundation-v1") return basis;
+    return { ...basis, editorState: runtime?.exportEditorState() };
   }
 
   async function generateAndApplyAssistant(prompt: string): Promise<string> {
@@ -1491,6 +1406,42 @@ export default defineComposition({
     const generationAssets = await Promise.all(
       stagedAssets.map(generationAsset),
     );
+    /**
+     * Mount, seek and judge one candidate. This runs inside the generation
+     * loop, once per pass, so what the frames actually show drives a repair
+     * instead of surfacing to the user as an error with a Fix button.
+     *
+     * Successful validations are kept, keyed by the source they came from, so
+     * the pass that ships is not mounted a second time.
+     */
+    const validations = new Map<string, ValidatedGeneration>();
+    const renderKey = (candidate: DirectAiResult): string =>
+      `${candidate.compositionHtml}\u0000${candidate.timelineJs}`;
+    const validateCandidate = async (
+      candidate: DirectAiResult,
+      lenient = false,
+    ): Promise<ValidatedGeneration> => {
+      const rendered = await hydrateAssetTokens(
+        hydratePresetAssets(candidate.compositionHtml),
+        stagedAssets,
+      );
+      try {
+        return validateGeneratedComposition(candidate, {
+          prompt,
+          previousHtml: currentHtml,
+          previousDuration: basis.duration,
+          previousScenes: basis.scenes,
+          requiredAssetTokens: generationAssets.map((asset) => asset.token),
+          renderedHtml: rendered.source,
+          generationProfile: basis.generationProfile,
+          userEditedIds: userEditedIds(basis.editorState),
+          lenient,
+        });
+      } finally {
+        rendered.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+      }
+    };
+
     const result = await generateWithDirectAi(
       prompt,
       {
@@ -1510,22 +1461,39 @@ export default defineComposition({
           message: statusMsg,
         }));
       },
+      async (candidate) => {
+        try {
+          validations.set(
+            renderKey(candidate),
+            await validateCandidate(candidate),
+          );
+          return { ok: true as const };
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return {
+            ok: false as const,
+            message,
+            fatal: isFatalRenderFailure(message),
+          };
+        }
+      },
     );
 
     const hydrated = await hydrateAssetTokens(
       hydratePresetAssets(result.compositionHtml),
       stagedAssets,
     );
-    const validated = validateGeneratedComposition(result, {
-      prompt,
-      previousHtml: currentHtml,
-      previousDuration: basis.duration,
-      previousScenes: basis.scenes,
-      requiredAssetTokens: generationAssets.map((asset) => asset.token),
-      renderedHtml: hydrated.source,
-      generationProfile: basis.generationProfile,
-      userEditedIds: userEditedIds(basis.editorState),
-    });
+    /**
+     * The winning pass, mounted once more only if the loop never got a clean
+     * validation for it. That second look runs lenient: the loop already spent
+     * its repair passes on whatever is still open, so a directorial fault comes
+     * back as a note on a film the user can watch rather than an error over an
+     * empty canvas.
+     */
+    const validated =
+      validations.get(renderKey(result)) ??
+      (await validateCandidate(result, true));
     const title = result.title || "AI Generated Video";
     const adapter = createGeneratedAdapterSource({
       id: activeComposition.id,
@@ -1561,6 +1529,7 @@ export default defineComposition({
       subject: prompt,
       duration: validated.duration,
       direction: result.direction,
+      seams: result.seams,
       techniques: result.techniques,
     };
     runtime?.seek(0);
@@ -1612,6 +1581,31 @@ export default defineComposition({
     }
   }
 
+  /**
+   * The composer starts one line tall and grows with the draft, but only to the
+   * point where it still leaves the conversation readable; past that it scrolls
+   * instead of eating the panel.
+   */
+  const COMPOSER_MAX_HEIGHT = 132;
+
+  function resizeComposer(): void {
+    if (!composerInput) return;
+    composerInput.style.height = "auto";
+    composerInput.style.height = `${Math.min(
+      composerInput.scrollHeight,
+      COMPOSER_MAX_HEIGHT,
+    )}px`;
+  }
+
+  /** Enter sends, Shift+Enter starts a new line, as in every chat composer. */
+  function composerKeydown(event: KeyboardEvent): void {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    if (!assistantDraft.trim() || $generationStore.isActive || uploadingMedia)
+      return;
+    void submitAssistant(new SubmitEvent("submit"));
+  }
+
   async function submitAssistant(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const prompt = assistantDraft.trim();
@@ -1619,6 +1613,8 @@ export default defineComposition({
 
     assistantMessages = [...assistantMessages, { role: "user", text: prompt }];
     assistantDraft = "";
+    await tick();
+    resizeComposer();
 
     const generationStartedAt = performance.now();
     captureEvent("ai generation started", { prompt_length: prompt.length });
@@ -1995,54 +1991,8 @@ export default defineComposition({
 
   <div class="code-editor-scope">
     <div class="me-motion-editor" style="--timeline-height: 218px;">
-      <div class="me-workbench me-chat-open">
-        <nav class="me-nav-rail" aria-label="Editor tools">
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "media"}
-            data-tooltip="Media"
-            on:click={() => selectTab("media")}><FolderOpen size={20} /></button
-          >
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "audio"}
-            data-tooltip="Audio"
-            on:click={() => selectTab("audio")}><Headphones size={20} /></button
-          >
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "text"}
-            data-tooltip="Text"
-            on:click={() => selectTab("text")}><Type size={20} /></button
-          >
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "effects"}
-            data-tooltip="Effects"
-            on:click={() => selectTab("effects")}><Wand2 size={20} /></button
-          >
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "scenes"}
-            data-tooltip="Scenes"
-            on:click={() => selectTab("scenes")}><Layers3 size={20} /></button
-          >
-          <button
-            class="me-nav-item"
-            class:me-active={activeTab === "ai"}
-            data-tooltip="AI"
-            on:click={() => selectTab("ai")}><Bot size={20} /></button
-          >
-          <button
-            class="me-nav-item me-nav-settings"
-            class:me-active={activeTab === "settings"}
-            data-tooltip="Settings"
-            on:click={() => selectTab("settings")}
-            ><Settings size={20} /></button
-          >
-        </nav>
-
-        <aside class="me-content-panel">
+      <div class="me-workbench">
+        <aside class="me-left-panel">
           <div class="me-panel-header">
             {#if sourceOpen}
               <div class="me-panel-title"><Braces size={15} /> Source</div>
@@ -2051,38 +2001,27 @@ export default defineComposition({
                 aria-label="Close composition source"
                 on:click={() => (sourceOpen = false)}><X size={15} /></button
               >
-            {:else if activeTab === "media"}
+            {:else}
               <div class="me-panel-tabs">
                 <button
                   class="me-panel-tab"
-                  class:me-active={mediaTab === "assets"}
-                  on:click={() => (mediaTab = "assets")}>Assets</button
+                  class:me-active={activeTab === "chat"}
+                  on:click={() => selectTab("chat")}>Chat</button
                 >
                 <button
                   class="me-panel-tab"
-                  class:me-active={mediaTab === "presets"}
-                  on:click={() => (mediaTab = "presets")}>Presets</button
+                  class:me-active={activeTab === "presets"}
+                  on:click={() => selectTab("presets")}>Presets</button
                 >
               </div>
-              <button
-                class="me-import-header-btn me-tooltip"
-                data-tooltip="Import media"
-                on:click={() => mediaInput.click()}
-                ><Upload size={14} /> Import</button
-              >
-            {:else}
-              <div class="me-panel-title">
-                {#if activeTab === "text"}<Type size={15} /> Text{:else if activeTab === "effects"}<Wand2
-                    size={15}
-                  /> Motion{:else if activeTab === "scenes"}<Layers3
-                    size={15}
-                  /> Scenes{:else if activeTab === "audio"}<Headphones
-                    size={15}
-                  /> Audio{:else if activeTab === "settings"}<Settings
-                    size={15}
-                  /> Settings{:else}<Bot size={15} /> Assistant{/if}
-              </div>
-              {#if activeTab === "text"}
+              {#if activeTab === "presets"}
+                <button
+                  class="me-import-header-btn me-tooltip"
+                  data-tooltip="Import media"
+                  on:click={() => mediaInput.click()}
+                  ><Upload size={14} /> Import</button
+                >
+              {:else}
                 <button
                   class="me-header-icon-btn"
                   aria-label="Open composition HTML source"
@@ -2092,81 +2031,18 @@ export default defineComposition({
               {/if}
             {/if}
           </div>
-          <div class="me-panel-content">
-            {#if sourceOpen}
+
+          {#if sourceOpen}
+            <div class="me-panel-content">
               <h3 class="me-category-title">Composition source</h3>
               <div class="source-heading">
                 <Braces size={15} />
                 {cloudProject?.name ?? "Unsaved project"} / composition.html
               </div>
               <pre class="source-code">{cloudFiles["composition.html"]}</pre>
-            {:else if activeTab === "text"}
-              <h3 class="me-category-title">Text in this scene</h3>
-              <p class="me-category-hint">
-                Select a text layer to edit it. Its timeline bar shows only when
-                it is actually visible.
-              </p>
-              <div class="me-layer-list">
-                {#each sceneTracks.filter((track) => track.kind === "Text") as track (track.id)}
-                  <button
-                    class="me-layer-row"
-                    class:me-selected={selectedId === track.id}
-                    on:click={() => selectTrack(track)}
-                  >
-                    <span class="me-layer-icon"><Type size={14} /></span>
-                    <span class="me-layer-copy"
-                      ><strong>{track.label}</strong><small
-                        >{formatTimelineSeconds(track.end - track.start)} visible</small
-                      ></span
-                    >
-                  </button>
-                {/each}
-              </div>
-            {:else if activeTab === "scenes"}
-              <h3 class="me-category-title">Scenes</h3>
-              <div class="me-layer-list">
-                {#each activeComposition.scenes as scene}
-                  <button
-                    class="me-layer-row"
-                    class:me-selected={selectedSceneId === scene.id}
-                    on:click={() => enterScene(scene)}
-                  >
-                    <span class="me-layer-icon"><Layers3 size={14} /></span>
-                    <span class="me-layer-copy"
-                      ><strong>{scene.label}</strong><small
-                        >{formatTimelineSeconds(scene.duration)}</small
-                      ></span
-                    >
-                  </button>
-                {/each}
-              </div>
-            {:else if activeTab === "effects"}
-              <h3 class="me-category-title">Text animation</h3>
-              <p class="me-category-hint">
-                Motion presets write directly into the caller-owned GSAP
-                timeline.
-              </p>
-              <div class="me-effects-list">
-                <button
-                  class="me-effect-item"
-                  on:click={() =>
-                    showNotice("Word reveal is used in the active promo.")}
-                  ><Sparkles size={14} /> Word reveal · power4.out</button
-                >
-                <button
-                  class="me-effect-item"
-                  on:click={() =>
-                    showNotice("Character cascade is used in the CTA.")}
-                  ><Type size={14} /> Character cascade</button
-                >
-                <button
-                  class="me-effect-item"
-                  on:click={() =>
-                    showNotice("Directional handoffs overlap adjacent scenes.")}
-                  ><Layers3 size={14} /> Scene handoff</button
-                >
-              </div>
-            {:else if activeTab === "media" && mediaTab === "presets"}
+            </div>
+          {:else if activeTab === "presets"}
+            <div class="me-panel-content">
               <h3 class="me-category-title">Presets</h3>
               <div class="me-preset-grid">
                 <button class="me-preset-card" on:click={loadClaudePreset}>
@@ -2231,153 +2107,111 @@ export default defineComposition({
                 Fast kinetic type, native product UI, overlapping handoffs, and
                 one directed GSAP timeline. No generated media.
               </p>
-            {:else if activeTab === "media"}
-              <h3 class="me-category-title">Project assets</h3>
-              <div class="me-asset-grid project-asset-grid">
-                <div class="me-asset-card-wrap">
-                  <button
-                    class="me-asset-card me-tooltip"
-                    data-tooltip="Select logo.svg"
-                    on:click={() => (selectedId = "brand-token")}
+            </div>
+          {:else}
+            <section
+              class="ai-chat-panel"
+              aria-label="Motionly Assistant"
+              data-ph-no-autocapture
+            >
+              <header class="ai-chat-header">
+                <span
+                  ><Sparkles size={15} /><strong>Motionly Assistant</strong
+                  ></span
+                >
+              </header>
+              <div class="ai-chat-messages" aria-live="polite">
+                <div class="ai-chat-message assistant">
+                  Describe a scene, transition, camera move, or timing change.
+                  I’ll keep the composition code-first and GSAP-driven.
+                </div>
+                {#each assistantMessages as message}
+                  <div
+                    class:assistant={message.role === "assistant"}
+                    class:user={message.role === "user"}
+                    class:is-error={message.role === "assistant" &&
+                      isErrorMessage(message.text)}
+                    class="ai-chat-message"
                   >
-                    <span class="me-asset-thumbnail project-asset-thumbnail"
-                      ><img src="/logo.svg" alt="Motionly logo" /></span
-                    >
-                    <span class="me-asset-info"
-                      ><strong class="me-asset-name">logo.svg</strong><small
-                        >SVG · selectable</small
-                      ></span
-                    >
-                  </button>
-                </div>
-                <div class="me-asset-card-wrap">
-                  <button
-                    class="me-asset-card me-tooltip"
-                    data-tooltip="Select github.svg"
-                    on:click={() =>
-                      showNotice("github.svg is ready in public/.")}
-                  >
-                    <span class="me-asset-thumbnail project-asset-thumbnail"
-                      ><img src="/github.svg" alt="GitHub logo" /></span
-                    >
-                    <span class="me-asset-info"
-                      ><strong class="me-asset-name">github.svg</strong><small
-                        >SVG · public</small
-                      ></span
-                    >
-                  </button>
-                </div>
+                    <div>{message.text}</div>
+                    {#if message.role === "assistant" && isErrorMessage(message.text)}
+                      <button
+                        class="ai-fix-btn"
+                        disabled={$generationStore.isActive}
+                        on:click={() => handleFixError(message.text)}
+                      >
+                        <Wand2 size={12} />
+                        Fix
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+                {#if $generationStore.isActive}
+                  <div class="ai-chat-activity" aria-live="polite">
+                    <span class="ai-chat-activity-dot"></span>{activityVerb}…
+                  </div>
+                {/if}
               </div>
-              <div class="project-import-card">
-                <ImageIcon size={22} />
-                <div><strong>Add media</strong><span>Images and SVG</span></div>
-                <button
-                  class="me-import-media-button"
-                  on:click={() => mediaInput.click()}
-                  disabled={uploadingMedia}
-                  >{uploadingMedia ? "Uploading…" : "Import"}</button
-                >
-              </div>
-            {:else}
-              <div class="me-properties-empty compact-panel-empty">
-                <Sparkles size={26} /><strong
-                  >{activeTab === "audio"
-                    ? "No audio yet"
-                    : "Editor settings"}</strong
-                ><span
-                  >{activeTab === "audio"
-                    ? "Import an audio file to add a waveform track."
-                    : "The demo uses project defaults for preview and export."}</span
-                >
-              </div>
-            {/if}
-          </div>
-        </aside>
-
-        <aside class="me-chat-drawer" data-ph-no-autocapture>
-          <section class="ai-chat-panel" aria-label="Motionly Assistant">
-            <header class="ai-chat-header">
-              <span
-                ><Sparkles size={15} /><strong>Motionly Assistant</strong></span
-              >
-            </header>
-            <div class="ai-chat-messages" aria-live="polite">
-              <div class="ai-chat-message assistant">
-                Describe a scene, transition, camera move, or timing change.
-                I’ll keep the composition code-first and GSAP-driven.
-              </div>
-              {#each assistantMessages as message}
-                <div
-                  class:assistant={message.role === "assistant"}
-                  class:user={message.role === "user"}
-                  class:is-error={message.role === "assistant" &&
-                    isErrorMessage(message.text)}
-                  class="ai-chat-message"
-                >
-                  <div>{message.text}</div>
-                  {#if message.role === "assistant" && isErrorMessage(message.text)}
-                    <button
-                      class="ai-fix-btn"
-                      disabled={$generationStore.isActive}
-                      on:click={() => handleFixError(message.text)}
-                    >
-                      <Wand2 size={12} />
-                      Fix
-                    </button>
-                  {/if}
-                </div>
-              {/each}
-              {#if $generationStore.isActive}
-                <div class="ai-chat-activity" aria-live="polite">
-                  <span class="ai-chat-activity-dot"></span>{activityVerb}…
+              {#if stagedAssets.length > 0}
+                <div class="ai-chat-attachments" aria-label="Attached images">
+                  {#each stagedAssets as asset (asset.id)}
+                    <span class="ai-attachment" title={asset.name}>
+                      {#if stagedPreviews[asset.id]}
+                        <img
+                          class="ai-attachment-thumb"
+                          src={stagedPreviews[asset.id]}
+                          alt={asset.name}
+                        />
+                      {:else}
+                        <span class="ai-attachment-thumb ai-attachment-fallback"
+                          ><ImageIcon size={11} /></span
+                        >
+                      {/if}
+                      <span class="ai-attachment-name">{asset.name}</span>
+                      <button
+                        class="ai-attachment-remove"
+                        type="button"
+                        aria-label={`Remove ${asset.name}`}
+                        disabled={$generationStore.isActive}
+                        on:click={() => removeStagedAsset(asset)}
+                        ><X size={11} /></button
+                      >
+                    </span>
+                  {/each}
                 </div>
               {/if}
-            </div>
-            {#if stagedAssets.length > 0}
-              <div class="ai-chat-attachments" aria-label="Attached images">
-                {#each stagedAssets as asset (asset.id)}
-                  <span class="ai-attachment" title={asset.name}>
-                    {#if stagedPreviews[asset.id]}
-                      <img
-                        class="ai-attachment-thumb"
-                        src={stagedPreviews[asset.id]}
-                        alt={asset.name}
-                      />
-                    {:else}
-                      <span class="ai-attachment-thumb ai-attachment-fallback"
-                        ><ImageIcon size={11} /></span
-                      >
-                    {/if}
-                    <span class="ai-attachment-name">{asset.name}</span>
-                    <button
-                      class="ai-attachment-remove"
-                      type="button"
-                      aria-label={`Remove ${asset.name}`}
-                      disabled={$generationStore.isActive}
-                      on:click={() => removeStagedAsset(asset)}
-                      ><X size={11} /></button
-                    >
-                  </span>
-                {/each}
-              </div>
-            {/if}
-            <form class="ai-chat-composer" on:submit={submitAssistant}>
-              <textarea
-                aria-label="Assistant prompt"
-                on:paste={handlePaste}
-                placeholder="Make the CTA transition feel more cinematic…"
-                bind:value={assistantDraft}
-                disabled={$generationStore.isActive}
-              ></textarea>
-              <button
-                aria-label="Send assistant message"
-                disabled={!assistantDraft.trim() ||
-                  $generationStore.isActive ||
-                  uploadingMedia}
-                type="submit"><Send size={15} /></button
-              >
-            </form>
-          </section>
+              <form class="ai-chat-composer" on:submit={submitAssistant}>
+                <button
+                  class="ai-composer-add"
+                  type="button"
+                  aria-label="Attach an image"
+                  title="Attach an image"
+                  disabled={uploadingMedia || $generationStore.isActive}
+                  on:click={() => mediaInput.click()}><Plus size={17} /></button
+                >
+                <textarea
+                  class="ai-composer-input"
+                  aria-label="Assistant prompt"
+                  rows="1"
+                  placeholder="Ask anything"
+                  bind:this={composerInput}
+                  bind:value={assistantDraft}
+                  on:input={resizeComposer}
+                  on:keydown={composerKeydown}
+                  on:paste={handlePaste}
+                  disabled={$generationStore.isActive}
+                ></textarea>
+                <button
+                  class="ai-composer-send"
+                  aria-label="Send assistant message"
+                  disabled={!assistantDraft.trim() ||
+                    $generationStore.isActive ||
+                    uploadingMedia}
+                  type="submit"><ArrowUp size={17} /></button
+                >
+              </form>
+            </section>
+          {/if}
         </aside>
 
         <main class="me-preview-container">
@@ -2990,7 +2824,7 @@ export default defineComposition({
   <EarlyNoticeCard />
   <CloudProjectGallery
     bind:this={cloudProjects}
-    initialFiles={initialProjectFiles}
+    initialFiles={blankProjectFiles}
     width={1920}
     height={1080}
     fps={60}

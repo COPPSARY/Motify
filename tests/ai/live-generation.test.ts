@@ -4,7 +4,10 @@
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { repairGeneratedMarkup } from "../../src/ai/auto-repair";
-import { parseAiResponseText } from "../../src/ai/direct-ai";
+import {
+  DEFAULT_GEMINI_MODEL,
+  parseAiResponseText,
+} from "../../src/ai/direct-ai";
 import {
   analyzeMotionQuality,
   buildMotionlyUserMessage,
@@ -50,7 +53,7 @@ function envValue(name: string): string {
   }
 }
 
-const MODEL = envValue("MOTIONLY_EVAL_MODEL") || "gemini-3.5-flash-lite";
+const MODEL = envValue("MOTIONLY_EVAL_MODEL") || DEFAULT_GEMINI_MODEL;
 
 interface GeminiBody {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -150,8 +153,20 @@ async function generateLikeProduction(
   files: Parameters<typeof buildMotionlyUserMessage>[1],
   context: Parameters<typeof analyzeMotionQuality>[1],
 ): Promise<GeneratedComposition> {
+  // Opt-in replay of a captured failure lets a direction change be evaluated
+  // against the same bad film instead of buying another unrelated first draw.
+  const replayPath = process.env["MOTIONLY_EVAL_REPLAY"];
+  const replay = replayPath
+    ? (JSON.parse(readFileSync(replayPath, "utf8")) as {
+        prompt: string;
+        best: GeneratedComposition;
+      })
+    : undefined;
+  if (replay && replay.prompt !== prompt)
+    throw new Error("Replay brief does not match this evaluation request");
   let best = repairGeneratedMarkup(
-    await callGemini(buildMotionlyUserMessage(prompt, files), 0.65),
+    replay?.best ??
+      (await callGemini(await buildMotionlyUserMessage(prompt, files), 0.65)),
   ).result;
   let report = analyzeMotionQuality(best, context);
   summarize(`${label} — pass 1`, report);
@@ -159,10 +174,12 @@ async function generateLikeProduction(
   for (let pass = 1; pass <= 2 && report.requiresRepair; pass += 1) {
     const candidate = repairGeneratedMarkup(
       await callGemini(
-        buildMotionlyUserMessage(
+        await buildMotionlyUserMessage(
           buildQualityRepairPrompt(prompt, best, report),
           {
             ...files,
+            generationProfile: "existing",
+            directionPrompt: prompt,
             compositionHtml: best.compositionHtml,
             timelineJs: best.timelineJs,
           },
@@ -173,8 +190,9 @@ async function generateLikeProduction(
     const candidateReport = analyzeMotionQuality(candidate, context);
     summarize(`${label} — pass ${pass + 1} (repair)`, candidateReport);
     const improved =
-      candidateReport.blockingIssues.length < report.blockingIssues.length ||
-      candidateReport.score > report.score;
+      candidateReport.blockingIssues.length !== report.blockingIssues.length
+        ? candidateReport.blockingIssues.length < report.blockingIssues.length
+        : candidateReport.score > report.score;
     if (!improved) break;
     best = candidate;
     report = candidateReport;

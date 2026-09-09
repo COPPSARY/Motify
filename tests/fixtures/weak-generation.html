@@ -1,0 +1,237 @@
+<template id="motionly-composition-template">
+  <style>
+    .motionly-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: #f8fafc;
+      background: #090b10;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    .motionly-field {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(56,189,248,0.15), transparent 40%),
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 64px 64px, 64px 64px;
+    }
+    .motionly-world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    .motionly-carrier {
+      position: absolute;
+      left: 160px;
+      top: 120px;
+      width: 1600px;
+      height: 840px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(15,23,42,0.85);
+      border-radius: 32px;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.6);
+      transform-origin: center;
+    }
+    .motionly-face {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Scene 1: Hook */
+    .motionly-hook-copy {
+      max-width: 1200px;
+      font-size: 72px;
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+      font-weight: 800;
+      text-align: center;
+      margin: 0;
+    }
+    /* Scene 2: Chaos Pileup */
+    .np-stack {
+      position: relative;
+      width: 900px;
+      height: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .np-card {
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 24px;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      transform-origin: 50% 50%;
+    }
+    .np-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #38bdf8;
+      color: #0b1120;
+      display: grid;
+      place-items: center;
+      font-weight: 780;
+      font-size: 20px;
+    }
+    .np-title { font-size: 20px; font-weight: 700; color: #f8fafc; }
+    .np-body { font-size: 15px; color: #94a3b8; margin-top: 4px; }
+    .np-badge { padding: 6px 12px; border-radius: 999px; background: rgba(56,189,248,0.2); color: #38bdf8; font-weight: 700; font-size: 14px; }
+    
+    /* Scene 3: Before-After Wipe */
+    .baw-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+    .baw-panel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+    .baw-after {
+      z-index: 2;
+      clip-path: inset(0 100% 0 0);
+      background: linear-gradient(135deg, #0f172a, #1e1b4b);
+    }
+    .baw-before {
+      background: #0b0f19;
+    }
+    .baw-divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0%;
+      width: 4px;
+      background: #22c55e;
+      z-index: 3;
+      box-shadow: 0 0 20px #22c55e;
+    }
+    .mock-dashboard {
+      width: 100%;
+      max-width: 1100px;
+      padding: 40px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+    }
+    .mock-header { font-size: 32px; font-weight: 700; margin-bottom: 24px; }
+    .mock-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .mock-metric { padding: 24px; background: rgba(0,0,0,0.3); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); }
+    .mock-metric-val { font-size: 42px; font-weight: 800; color: #22c55e; margin-top: 10px; }
+
+    /* Scene 4: CTA Lockup */
+    .cl-lockup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .cl-action {
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin: 0 0 32px;
+      color: #f8fafc;
+    }
+    .cl-button {
+      padding: 20px 48px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: #07110d;
+      font-size: 24px;
+      font-weight: 800;
+      border: none;
+      box-shadow: 0 10px 30px rgba(34,197,94,0.3);
+      margin-bottom: 20px;
+    }
+    .cl-microcopy {
+      font-size: 18px;
+      color: #94a3b8;
+    }
+  </style>
+
+  <main class="motionly-stage" data-edit="stage" data-edit-label="Background" data-motionly-generation-profile="claude-foundation-v1">
+    <div class="motionly-field" data-background-role="carrier-grid"></div>
+    <div class="motionly-world" data-edit="camera-world" data-edit-label="Camera world" data-camera-world>
+      <section class="motionly-carrier" data-edit="story-carrier" data-edit-label="Story carrier" data-transition-carrier data-hyperframe-component="morph-swap">
+        
+        <!-- Scene 1 -->
+        <div class="motionly-face" data-edit="hook-face" data-edit-label="Hook" data-scene="scene-01">
+          <h1 class="motionly-hook-copy" data-edit="hook-copy" data-edit-label="Hook statement" data-field="content" data-field-label="Statement" data-field-type="text" data-field-binding="text">Generate professional motion graphics instantly with AI.</h1>
+        </div>
+
+        <!-- Scene 2 -->
+        <div class="motionly-face" data-edit="chaos-face" data-edit-label="Chaos Pileup" data-scene="scene-02">
+          <div class="np-stack" data-edit="np-stack" data-edit-label="Notification Stack">
+            <article class="np-card"><div class="np-icon">1</div><div><div class="np-title">Keyframes out of sync</div><div class="np-body">Manual timing mismatch on layer 4</div></div><span class="np-badge">Error</span></article>
+            <article class="np-card"><div class="np-icon">2</div><div><div class="np-title">Easing curve mismatch</div><div class="np-body">Bezier calculation timeout</div></div><span class="np-badge">Warning</span></article>
+            <article class="np-card"><div class="np-icon">3</div><div><div class="np-title">Layout reflow bottleneck</div><div class="np-body">DOM nodes exceeding frame budget</div></div><span class="np-badge">Critical</span></article>
+          </div>
+        </div>
+
+        <!-- Scene 3 -->
+        <div class="motionly-face" data-edit="proof-face" data-edit-label="Solution Wipe" data-scene="scene-03">
+          <div class="baw-stage">
+            <div class="baw-panel baw-before">
+              <div class="mock-dashboard">
+                <div class="mock-header">Manual Timeline Workflow</div>
+                <div class="mock-grid">
+                  <div class="mock-metric"><div class="mock-label">Render Time</div><div class="mock-metric-val">42m</div></div>
+                  <div class="mock-metric"><div class="mock-label">Iterations</div><div class="mock-metric-val">18</div></div>
+                  <div class="mock-metric"><div class="mock-label">Framerate</div><div class="mock-metric-val">24fps</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="baw-panel baw-after" data-edit="baw-after-panel" data-edit-label="AI After Panel">
+              <div class="mock-dashboard" style="background: rgba(34,197,94,0.05); border-color: rgba(34,197,94,0.3);">
+                <div class="mock-header" style="color: #22c55e;">Motionly AI Engine</div>
+                <div class="mock-grid">
+                  <div class="mock-metric"><div class="mock-label">Render Time</div><div class="mock-metric-val" data-edit="metric-1" data-edit-label="Metric 1">0.8s</div></div>
+                  <div class="mock-metric"><div class="mock-label">Iterations</div><div class="mock-metric-val" data-edit="metric-2" data-edit-label="Metric 2">1-Click</div></div>
+                  <div class="mock-metric"><div class="mock-label">Framerate</div><div class="mock-metric-val" data-edit="metric-3" data-edit-label="Metric 3">60fps</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="baw-divider" data-edit="baw-divider" data-edit-label="Wipe Divider"></div>
+          </div>
+        </div>
+
+        <!-- Scene 4 -->
+        <div class="motionly-face" data-edit="final-face" data-edit-label="Final Promise" data-scene="scene-04">
+          <div class="cl-lockup">
+            <h2 class="cl-action" data-edit="final-action" data-edit-label="Final Action">Bring your ideas to life.</h2>
+            <button class="cl-button" data-edit="final-btn" data-edit-label="CTA Button">Start Creating</button>
+            <p class="cl-microcopy" data-edit="final-micro" data-edit-label="Microcopy">Powered by Motionly AI Runtime</p>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+</template>

@@ -19,3 +19,13 @@ Do not add a DSL, parser, JSON scene representation, generated DOM layer, or a s
 The runtime quantizes explicit seeks to composition frames. Playback delegates to GSAP. Scene state is derived from the current time and scene metadata. Visual overrides are reapplied after timeline evaluation.
 
 Export seeks and captures the same mounted composition used by preview. This keeps text, SVG, transforms, media, and GSAP state deterministic between the editor and rendered frames.
+
+## Deployed AI prompt
+
+`npm run dev` and `npm run build` first run `scripts/build-ai-prompt.mjs`. It bundles `src/ai/system-runtime.md` and `.agents/skills/write-motionly/SKILL.md` into the committed `src/ai/generated/prompt.ts`. The generated module exports the complete system prompt, source paths, and a SHA-256 content version. Line endings are normalized; builds contain no timestamps or machine-specific paths.
+
+`src/ai/prompt.ts` is the stable re-export used by browser generation, the local Vite middleware, and `/api/ai/generate`. No browser filesystem reads or runtime skill downloads are needed. The external Render/cloud generation service has its own path and is outside this bundle.
+
+Permanent runtime and creative instructions belong in those two Markdown sources. `buildMotionlyUserMessage` supplies project-specific requests, assets, conversation, accepted source, and retrieved examples. `src/ai/repair-prompt.ts` supplies only the selected failures and corrections; repairs retain the same system prompt and edit the generated result in place.
+
+After changing a prompt source, run `npm run prompt:build` and commit the artifact with it. Restart an already-running dev server or run that command manually to refresh the bundle during development. `npm run prompt:check` fails without rewriting files if the artifact is missing or stale; CI runs it before the build can regenerate anything. The skill's JSON output contract includes `skills: ["write-motionly"]`. The schema is model guidance, not a second animation representation or a guarantee of rendered visual quality.

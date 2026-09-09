@@ -1,276 +1,399 @@
 ---
 name: write-motionly
-description: Create, edit, retime, review, and repair Motionly code-first HTML/CSS compositions animated by GSAP. Use for startup ads, SaaS explainers, product films, story pacing, narration sync, kinetic typography, semantic backgrounds, shape morphs, match cuts, particle transitions, UI cinematography, assets, and preview/export parity.
+description: Create, edit, retime, review, and repair Motionly HTML/CSS and GSAP product films, SaaS ads, kinetic typography, physical transitions, UI cinematography, and deterministic preview/export compositions.
 ---
 
 # Write Motionly compositions
 
-Build a directed product film, not decorated slides. Make every visual change explain, intensify, or resolve the current spoken thought.
+You are filming **what a product does to the world**, not what its interface looks like.
 
-## Preserve the runtime boundary
+The most common failure is treating "product video" as "pretty dashboard": a gradient, an app shell, a button press, some cards, a zoom out. That film communicates nothing, because the viewer only learns the product has a screen — which they already assumed. Build the concept first. An interface is one possible vocabulary for showing a concept, and usually not the right one.
 
-```text
-composition-name/
-|- composition.html   # semantic HTML/SVG and scoped CSS
-|- timeline.js        # GSAP choreography
-`- index.ts           # metadata and mounting adapter only
+The runtime law supplied before this skill governs execution and wins any conflict.
+
+## SaaS advertising direction
+
+The target is an authored SaaS ad with varied shots. Product UI is useful evidence when it shows a concrete action and its result. A full application window sitting on screen while its copy changes is not an ad structure.
+
+For a general SaaS ad, build a shot progression from the request: editorial hook -> product material or problem -> mechanism close-up -> visible result -> brand. Adapt the number and order to the story; do not reuse this as a fixed template. Two adjacent beats must differ in framing and in what visibly happens. Alternate wide, medium, and detail views with a reason for each move.
+
+- Default to a bright neutral ground with dark ink and one strong brand accent. Use the supplied product identity or explicit user palette when present. Dark can be a deliberate contrast beat; it is not a synonym for premium.
+- Make the subject large enough to read. An isolated icon or control may occupy 25-45% of frame height; a proof artifact may occupy 55-80% of frame width. Compose around the focal subject rather than padding every shot with cards.
+- One bold, full-size editorial sentence per thought, centered in Inter 68px/700 at 1920x1080. Enter at scale 2.0+ with gradient fill and settle word-by-word with back.out(1.35). Do not add a tiny explanatory subtitle.
+- A useful UI close-up may span an input and its result. Show the active detail, then leave it. Do not repeat sidebars, top bars, empty panels, generic response lists, and invented KPI tiles across scenes.
+- Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Use supplied images when available; otherwise use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
+- During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
+- End on a prominent mark and a short promise on open or full-bleed brand ground. Do not put the ending inside a small rounded pill.
+
+Borrow the reference shot design while obeying Motionly's MORPH, MATCH-CUT and PARTICLE-REASSEMBLE boundary rules. Recreate any reference edit that would break continuity with a real shared carrier.
+
+## Step 1 — Write the transformation chain
+
+Before choosing a single visual, write the chain: four to six states, from what the world looks like before the product to what it looks like after. This is the film. Each state is a beat.
+
+The form is always **input state -> the product's actual mechanism -> output state**.
+
+```
+AI security scanner
+  website -> SCANNER -> code streams through -> threats detected
+          -> red nodes isolate -> clean secure state
+
+Collaborative writing tool
+  messy ideas -> several people contribute -> ideas converge
+              -> document crystallises -> finished piece
+
+Delivery optimisation
+  orders -> many tangled routes -> routes reorganise
+         -> optimal paths emerge -> deliveries complete
+
+Motion-graphics generator
+  a sentence -> words break into parts -> parts take on motion
+             -> the sentence is now a moving scene
 ```
 
-- Treat HTML/CSS as the visual source of truth.
-- Write motion into the caller-owned GSAP timeline. A nested timeline is acceptable for proportional retiming, but add it to the caller timeline.
-- Keep `index.ts` thin: metadata, asset substitution, HTML mounting, and one builder call.
-- Never introduce `.motion`, a JSON animation DSL, generated DOM in TypeScript, a conversion layer, or a second renderer.
-- Keep stable `data-edit` ids and register editable elements.
-- Use `src/composition/presets.ts`; extend it only for reusable behavior.
+Compare the first one with the dashboard version it replaces: gradient -> dashboard -> scan button -> vulnerability cards -> zoom out. Nothing in that sequence is the product's mechanism. It is furniture.
 
-## Adapt the identity to the product
+Rules for the chain:
 
-The Claude, KiriTTS, and Apple Notes presets are the quality floor, not a skin. Rebuild the palette, theme, typography, chrome, information architecture, copy, and accent from the requested product's own domain before animating anything.
+- Every state must be **visually different from the one before it**, not the same screen with different copy.
+- The middle states are the product's mechanism. If you cannot name a mechanism, the film has no content yet — go back and find what actually changes.
+- Record each state in `direction` so the chain is inspectable.
 
-- Commit to one ground, one surface, one accent with a job, and one ink value.
-- A notes app is paper and ink; analytics is measured neutrals with tabular figures; a developer tool is a committed editor theme; an audio product is a studio with a real waveform.
-- Never emit the reference preset's brand, sidebar, or dark chat theme unless the user asked for that product.
-- Write specific, truthful copy. No lorem, no "Your Product Here", no gray placeholder bars standing in for content.
+## Step 2 — Choose the vocabulary
 
-Read [saas-product-ad.md](references/saas-product-ad.md) for the category defaults, construction order, camera grammar, and the checks that automatically reject slop.
+The user message carries a `FILM SHAPE` brief with a premise and a guard chosen for this request, and the retrieved mechanics are selected to match it. **Follow it.** The five shapes:
 
-## Prefer existing mechanics
+| Shape | The subject is | Interface? |
+| --- | --- | --- |
+| **transformation** (default) | material changing state: scattered to ordered, noise to signal, many to one | focused input/result evidence when useful |
+| **hero-object** | one artefact: a mark, a device, a symbol | no |
+| **editorial** | the words themselves; type and colour carry the argument | no |
+| **data** | real numbers, with units and periods | only as the surface holding them |
+| **task** | the interface itself, genuinely used | yes — this is the one |
 
-Before authoring a new mechanic, use one that exists: a Motionly preset from `src/composition/presets.ts` or a HyperFrames registry component. Pick them by role, one each, rather than stacking five variations of the same entrance:
+**The interface test.** Build a product UI only when *both* are true: the request asks to see the product used (a walkthrough, a tour, "show the app", "demo the interface"), **and** the interface is the thing the viewer must judge. An AI assistant whose entire product *is* the conversation surface passes. A security scanner, a logistics optimiser, a writing tool, an infrastructure product almost never do — their concept lives outside the screen.
 
-`focal typography -> product surface -> progressive construction -> interaction -> camera -> continuity -> proof -> deconstruction/close`
+When in doubt you are making a **transformation** film. The chain is the spine; focused product details may provide evidence, never become a repeated shell. Naming an AI assistant, analytics product, or a closing logo does not by itself request a walkthrough, a chart film, or a logo sting.
 
-Mark each adapted owner with `data-hyperframe-component="registry-name"`. Registry names are references, not callable functions. Hand-author a mechanic only when nothing covers it.
+## Step 3 — Make each state physical
 
-## Construct and deconstruct the product UI
+A state is not a caption. It is something on screen with mass, position, and behaviour.
 
-Build the interface in front of the viewer, in reading order:
+| State in the chain | How to stage it |
+| --- | --- |
+| Chaos, overload, mess | Many real objects crowding the frame, overlapping at depth, drifting inward. Not a caption saying "it is messy". |
+| A process running | Material physically travelling through a gate, beam, or aperture — streams of code, orders, words — with the gate reacting as it passes. |
+| Detection, selection | Some of the passing material changes state in place: colour, outline, isolation, being pulled out of the flow. |
+| Convergence, ordering | Scattered elements travel along arcs to their positions and lock, in a visible order, the layout resolving as they land. |
+| A result, a finished thing | One object built from the earlier material, held still enough to read, camera drifting. |
+| The promise | Pull back from that object to the mark and at most four words. |
 
-```text
-frame/chrome -> navigation -> working surface -> the record under work -> the active control -> the result
+The material must **persist through the chain**. The code that streamed is the code that gets flagged. The scattered ideas are the sentences in the finished document. The tangled routes are the optimised ones. Recognisable continuity is what makes the film an argument instead of a slideshow.
+
+## What the reference films actually teach
+
+Six published films were transcribed for this skill. Two are `task`-shape films for products whose interface genuinely is the product; four are not, and none of the four builds a dashboard.
+
+- **Type breaking into an object.** A sentence settles, its words fly apart on separate vectors and depths, the last word shrinks to a point, becomes a glyph, the glyph rotates into a button, the button unfolds into the thing itself. One continuous carrier across four identities, no cut.
+- **A field at depth.** Real content cards at five or six Z depths with genuine titles and status, camera flying through them. This is what replaces "some cards fade in".
+- **Material bloom.** Geometric facets in a real material rotating around the centre while the positioning line assembles between them.
+- **A full-bleed colour beat.** The ground floods to one brand colour, one sentence in white, 1.5 to 2.5 seconds. Punctuation — twice per film at most.
+- **Orbit.** Elements travelling on arcs that draw themselves as they go, around a centre.
+- **The interface films** (`task` shape only): a photo docks into a composer; a question types character by character while the camera pans with the caret; a press produces the answer; a result card builds row by row; the same result reappears on a phone; pull back to the promise line. Even here the *content* carries the film, not the chrome.
+
+## Laws that hold for every shape
+
+**The camera never stops and never resets.** Continuous motion from first frame to last — push, lateral travel, orbit, pull. It never snaps back to scale 1 between beats. Author one `data-camera-world` and move the viewport through it.
+
+**The frame is filled.** One continuous world, field, surface, or colour ground fills the viewport, and objects live inside it. Small boxes adrift in empty space is the failure this rule prevents — but "filled" means a world, not necessarily an app shell.
+
+**One beat, one subject, at a size you can read.** Every beat has a single thing the viewer is looking at, and it is large: a sentence spanning most of the frame, one object at 25-45% of frame height, a proof artifact at 55-80% of frame width. Three or four small cards spread around an empty frame is not a composition — it is a list, and the viewer cannot tell what to look at or what you are claiming. A frame whose largest object covers less than 3% of the canvas is rejected outright as "small cards float in empty space". If your beat is a set of items, either enlarge one of them to be the subject and let the rest support it, or gather them into a single object with real mass.
+
+**Consecutive beats share material.** Not a mechanism at the boundary — actual objects. Something visible before the cut is still visible after it, and it is the thing the next beat is built around. A film where every element is replaced at the cut plays back as separate films spliced together, however sound its carrier chain reads on paper, and it is rejected with "nothing survives the cut". This is stricter than the seam rule and it is the one a viewer actually feels: if you cannot point at the object that is on screen on both sides, the beats are not the same film.
+
+**Plan the carrier chain before the beats.** Write the chain first: one object at 0s, and what it becomes at each boundary — *the sentence becomes the glyph becomes the button becomes the product.* The beats are the states that chain passes through, not containers you fill and then look for a way out of. Two independently built panels cannot morph into each other; one element whose outline changes can.
+
+**Every boundary is a `seam`, and a seam owns time.** A boundary is not the instant one beat's `duration` runs out. It is an object in the returned JSON with a start, a length, a named carrier, and the two beats it joins — because a handoff given zero seconds is a cut no matter which helper you call. Budget **0.35–1.8s** for each one and schedule the handoff in `timeline.js` across exactly those seconds.
+
+**A seam straddles its cut.** Beats still tile: beat A's interval ends exactly where beat B's begins, at the cut time `c`. The seam opens *before* `c` and closes *after* it — `at < c` and `at + duration > c` — so the outgoing beat is still on screen as the carrier leaves and the incoming beat already exists as it arrives. A handoff scheduled beside the cut instead of across it has no frames in which both sides exist, and the film swaps instead of moving. A boundary at 8.0s with a 1.0s morph is `at: 7.5, duration: 1.0`, not `at: 8.0`.
+
+Because the seam straddles the cut, each beat's layers may be on screen slightly outside its own interval — from the start of its incoming seam to the end of its outgoing seam, and not one frame further.
+
+**Each boundary uses one mechanism**, and `techniques[].handoff` and `seams[].mechanism` must both name the one you built:
+
+- **MORPH** — the carrier's own outline changes continuously through width, height, radius, surface and role. Word to glyph to button to application is a morph. A zoom or blur followed by a different object is not.
+- **MATCH-CUT** — source and destination share position, size, silhouette, direction and speed at the cut, then continue that movement.
+- **PARTICLE-REASSEMBLE** — visible fragments leave a real source and travel to construct the destination.
+- **final-hold** — the ending only.
+
+Hard cuts, cross-dissolves, fade-to-black and opacity-only scene changes are forbidden between beats. Opacity may clean up internal faces *after* physical continuity is established. Maintain a dominant direction through connected seams: match axis, direction, velocity and motion phase rather than resetting at every boundary. Mark the owner `data-transition-carrier`.
+
+**Clear the outgoing beat — at the end of its seam, not at the cut.** Every element you tag `data-scene="<id>"` must be gone from the frame by `seam.at + seam.duration`, the moment its outgoing seam completes. Past that it is composited on top of the next beat and the film is rejected outright with "still shows the stale layer from <scene>". Before that it is *supposed* to be there: that overlap is the transition.
+
+Clear it in reverse hierarchy: innermost details leave first, along the vector the beat was travelling, then the container. `autoAlpha: 0`, `visibility: hidden`, `display: none`, an opacity at or under 0.02, or travelling fully outside the camera viewport all count as cleared; anything else still counts as on screen. Schedule it with `timeline.set(...)` or a tween that completes at the end of the seam — never an `onComplete` mutation, because scrubbing backwards must restore it.
+
+**The carrier is a container, never a shape.** A painted rectangle with nothing in it is the most common way a generated film reads as broken: the box keeps its own background, border and radius lit while the outgoing face has already left and the incoming one has not arrived, so the viewer watches a coloured plate sit in the middle of the frame. Any painted element between 2% and 60% of the frame that holds no visible content is rejected with "shows an empty plate".
+
+Two ways to be safe, and you should usually take the first:
+
+- **Give the carrier no surface of its own.** Let the faces inside it paint the background, border and radius. Then the carrier is pure geometry, and an empty carrier is an invisible carrier.
+- **If the carrier must be painted** — a real card or window whose plate is the point — then its content is never all gone: overlap the outgoing face's exit with the incoming face's entrance so at least one is on screen in every frame, including every frame of the seam. Fade the plate's own background out with the last face that leaves it.
+
+The carrier is the exception, and the reason it must not carry a `data-scene` tag: it is the one thing meant to cross the boundary, and a `data-scene` tag would clear it mid-crossing. Tag scene containers, not the carrier. The carrier must be visibly on screen on *both* sides of its seam — the composition is seeked to `seam.at - 0.15s` and `seam.at + seam.duration + 0.15s` and the carrier is looked for in both frames. A `morph()` call on an element that is hidden, off camera, or unchanged in size and position at those two times is reported as a hard cut, whatever the source says.
+
+**Action causes result.** A press produces the menu, a scan produces the detection, a convergence produces the document. Nothing appears because the timeline reached a number.
+
+**Type enters cropped and settles.** Important sentences arrive at scale 2.0 or greater, oversized and clipped by the frame, then settle into readable focus. Never simply faded in at final size.
+
+**The resolve is a pullback from the proof.** Retreat from the last real thing you showed to a mark and at most four words, on a clean or full-bleed brand ground with generous margins. Not a landing-page hero: no explanatory paragraph, no CTA button, no competing links. The film ends on an image, not on a signup form.
+
+## Two mechanical rules
+
+**Fill each beat with its camera move.** Every beat opens with one camera tween whose duration equals that beat's full duration, starting where the previous beat's camera ended. The camera is what fills holds — it is how the reference films never freeze. A dead stretch then cannot exceed a beat boundary.
+
+**Name your world.** The stage's first child is the full-bleed world at `width:100%; height:100%`, with a `data-edit` id naming what it is: `scan-field`, `route-space`, `idea-field`, `product-surface`, `editor-canvas`, `workspace`. Everything else is a child of it.
+
+**Keep the camera on the subject.** A viewport-sized world is valid. Enlarge it only for actual spatial travel; never require a 3200-5600px canvas to satisfy a score. Resolve the focal subject's position after parent and child transforms combine. The settled text and proof must remain inside the viewport with readable margins; intentional cropping belongs to the entrance or transition, not the reading hold.
+
+## Interface physics, not cinematic physics
+
+You are a motion designer moving real interface material, not a camera cutting between shots. Four rules, and they are checked against rendered frames.
+
+**Never dissolve, and never through an empty frame.** No cross-fades, no fade-to-white, no fade-to-black between beats. The ground is constant for the entire film: it does not brighten, does not go transparent, and never becomes a blank screen while one beat leaves and the next arrives. A stretch with nothing on screen is rejected with "holds a blank frame", and a boundary with an empty side is rejected with "passes through an empty frame".
+
+**Elements enter and leave along vectors.** Cards slide up from below. Lists expand outward from the row that owns them. Panels grow from the edge they are anchored to. Outgoing material travels off along one motivated direction in reverse hierarchy — innermost details first — while the carrier keeps moving. Opacity only ever cleans up a face *after* it has already physically left.
+
+**Snappy interface easing.** `power2.out` / `power3.out` for arrivals, `back.out(1.3-1.5)` for tactile landings, `power2.inOut` for lateral travel, `expo.out` for camera and geometry. Never `ease: "none"` or `"linear"` on a reveal — a constant-rate opacity ramp is what makes generated text read as a low-opacity overlay instead of an element loading onto a page. Every reveal carries a transform as well as its opacity.
+
+**Rigid material stays sharp.** Text and interface lines do not warp, smear, or blur while they move. Every `blur()` resolves to `blur(0px)`, and the only blur in the film is a deliberate macro-settle focus pull that lands sharp *before* the movement stops.
+
+**Anchor the layout to a structure.** Objects do not drift in open space. Either place them on a visible grid, connect them with interface lines that draw themselves, or group them inside one panel with real mass. Three nodes floating apart with nothing between them reads as a broken interface, not a composed frame — and a beat whose largest object is under 3% of the canvas is rejected outright.
+
+## Typography: use the built treatments
+
+Rule 3 of the direction brief names one treatment per film, and all three are callable presets. Use the preset rather than re-implementing it as an opacity fade:
+
+- **The Pullback Complete** — `pullbackComplete(timeline, lead, tail, { camera, at, startScale, hold })`. One massive cropped line settles; the camera pulls back and the rest of the sentence slides into the room the retreat opened. Pass the `data-camera-world` element as `camera` so the retreat and the completion are one move. The tail element is hidden for you until the pullback.
+- **Macro Settle** — `macroSettle(timeline, line, { at, startScale: 3, blur: 18 })`. Type arrives at 300% and heavily blurred, then snaps to crisp 100%. Focus resolves before the movement does; do not add your own blur tween.
+- **Kinetic Anchor** — `kineticAnchor(timeline, anchor, rest, { at, distance, rotation })`. One word holds absolutely still while the rest of the line travels around it on alternating vectors. Author the anchor word as its own element; the preset never tweens it.
+
+Each returns the split word elements, so you can hang a secondary action off them. Use exactly the treatment the direction chose.
+
+## Timing
+
+- Tactile actions (press, chip, toggle): **0.15-0.3s**
+- Type settle per word: **0.35-0.5s**, stagger **0.05-0.09s**
+- Camera and geometry moves: **0.9-1.4s**
+- Reading hold after the last word settles: **0.8-1.6s** for a short sentence
+- Result inspection hold: **1.5-3.0s**, camera still drifting
+
+`exitStart >= lastWordSettled + readingHold`, where `lastWordSettled = entryStart + (wordCount - 1) * stagger + wordDuration`. Compute it; do not estimate.
+
+**No stretch longer than 1.6s may pass with nothing scheduled.** During any hold one bounded action continues: material travelling, a counter, a scan, a drawn line, or the camera's own settle. A frozen frame is the single most reported defect.
+
+Easing: `back.out(1.2-1.6)` for tactile arrivals, `expo.out` / `power4.out` for camera and geometry, `power2.inOut` for lateral travel. Never `bounce.out` or `elastic.out`.
+
+## Scaling to the requested duration
+
+Keep the chain's order and drop or merge middle states — never compress every beat uniformly, and never cut the opening state or the resolve.
+
+- **10s or less**: three states. Before, mechanism, after.
+- **15s**: four states.
+- **20-25s**: five or six states, the full chain.
+- **30s or more**: deepen the mechanism with a second pass over the same material. Never bolt on an unrelated feature.
+
+## Using HyperFrames components
+
+Retrieved components arrive with real source, chosen to match the film shape. They are reference implementations, not callable functions.
+
+- Take their markup, CSS, and the mechanic. Discard script wrappers, CDN imports, independent clocks, and `data-composition-*` attributes.
+- Re-theme every colour, radius, and type choice to the requested product.
+- Drive them from `context.timeline` at explicit seconds.
+- Mark each adapted owner with `data-hyperframe-component="<name>"` and record it in `techniques`.
+- Use what the retrieved set gives you for your chain's states. Do not pad the list to hit a count.
+
+## Before returning
+
+1. Can I write out my transformation chain, and is each beat one of its states?
+2. Is the middle of the chain the product's actual mechanism, or is it furniture?
+3. Did I build an interface? If so, does the request pass the interface test, or did I reach for a dashboard out of habit?
+4. Does the same material persist from the first state to the last?
+5. Does the camera move continuously, without resetting between beats?
+6. Is any painted shape ever on screen with nothing inside it?
+7. Does an object visibly carry every boundary — and for each seam, is that object on screen and changing at both `at - 0.15s` and `at + duration + 0.15s`?
+8. Does every seam open before its cut and close after it, rather than starting at the cut?
+9. Is any stretch longer than 1.6s without a scheduled action?
+10. Does every sentence finish settling before its exit begins?
+11. Does the ending pull back from a real thing that was actually shown?
+
+Self-assigned scores and helper counts are not evidence. Answer the eleven questions.
+## Strict JSON output contract
+
+For embedded generation, return ONLY one JSON object satisfying this schema. No Markdown wrapper, comments, placeholders, or ellipses. Local file-authoring agents may write the same complete source files directly when the user requests repository edits.
+
+All scene and direction IDs must agree; one direction and technique entry per scene, and one `seams` entry per boundary — `scenes.length - 1` of them. Scene start/duration values use final playback seconds, tile without gaps, remain within total duration, and agree with GSAP; each seam straddles the cut between the two beats it names. Direction.hold states the actual settle and exit times and the reading interval. Direction.transition names the source, destination, mechanism, boundary time, and continuity; use final-hold only for the ending. Techniques list only mechanics actually implemented. skills lists the bundled skill actually applied, not unavailable skills.
+
+Every `seams[].carrier` must be a `data-edit` id that exists in compositionHtml and is tweened by name in timelineJs across that seam's own seconds. A carrier you never animate, or one that does not exist, is a rejected generation rather than a weak one.
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "duration",
+    "skills",
+    "scenes",
+    "direction",
+    "seams",
+    "techniques",
+    "compositionHtml",
+    "timelineJs",
+    "reply"
+  ],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "duration": { "type": "number", "exclusiveMinimum": 0 },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "const": "write-motionly" }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "start", "duration", "accent"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "start": { "type": "number", "minimum": 0 },
+          "duration": { "type": "number", "exclusiveMinimum": 0 },
+          "accent": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        }
+      }
+    },
+    "direction": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scene",
+          "composition",
+          "spatialRegion",
+          "cameraStart",
+          "cameraEnd",
+          "cameraTarget",
+          "primary",
+          "secondary",
+          "hold",
+          "transition"
+        ],
+        "properties": {
+          "scene": { "type": "string", "minLength": 1 },
+          "composition": { "type": "string", "minLength": 1 },
+          "spatialRegion": { "type": "string", "minLength": 1 },
+          "cameraStart": { "type": "string", "minLength": 1 },
+          "cameraEnd": { "type": "string", "minLength": 1 },
+          "cameraTarget": { "type": "string", "minLength": 1 },
+          "primary": { "type": "string", "minLength": 1 },
+          "secondary": { "type": "string", "minLength": 1 },
+          "hold": { "type": "string", "minLength": 1 },
+          "transition": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "seams": {
+      "type": "array",
+      "description": "One per scene boundary: scenes.length - 1 entries. Empty only for a single-scene film.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "at",
+          "duration",
+          "carrier",
+          "mechanism",
+          "becomes"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Scene id the carrier leaves."
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Scene id the carrier arrives in."
+          },
+          "at": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Playback second the handoff begins. Strictly before the cut between from and to."
+          },
+          "duration": {
+            "type": "number",
+            "minimum": 0.35,
+            "maximum": 1.8,
+            "description": "Seconds the handoff occupies. at + duration must land strictly after the cut, so both beats are on screen throughout."
+          },
+          "carrier": {
+            "type": "string",
+            "minLength": 1,
+            "description": "data-edit id of the one element that crosses this boundary. Must exist in compositionHtml and be tweened by name in timelineJs."
+          },
+          "mechanism": {
+            "enum": ["morph", "match-cut", "particle-reassemble"]
+          },
+          "becomes": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the carrier is entering the seam and what it becomes leaving it."
+          }
+        }
+      }
+    },
+    "techniques": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "beat",
+          "registryReference",
+          "motionlyPresets",
+          "sustainedMotion",
+          "handoff"
+        ],
+        "properties": {
+          "beat": { "type": "string", "minLength": 1 },
+          "registryReference": {
+            "type": "string",
+            "description": "Actual reused registry name, or none with a brief reason."
+          },
+          "motionlyPresets": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "sustainedMotion": { "type": "string", "minLength": 1 },
+          "handoff": {
+            "enum": ["morph", "match-cut", "particle-reassemble", "final-hold"]
+          }
+        }
+      }
+    },
+    "compositionHtml": { "type": "string", "minLength": 1 },
+    "timelineJs": { "type": "string", "minLength": 1 },
+    "reply": { "type": "string", "minLength": 1 }
+  }
+}
 ```
-
-- Offsets 18-64px, staggered starts +0.06s to +0.16s, durations 0.7-1.4s, `power3.out`/`power4.out` for structure and `back.out(1.2-1.5)` for tactile arrivals.
-- Group related regions; do not animate every divider, label, and icon independently.
-- Deconstruct in reverse hierarchy: internals clear along motivated vectors (a negative stagger reads well) while the carrier keeps its silhouette into the next role.
-- One simultaneous fade-in of the whole layout is an automatic failure, and so is a surface that simply disappears.
-
-## Direct the story first
-
-Use a clear change in belief:
-
-1. Hook: state the audience's desired outcome.
-2. Friction: make the obstacle recognizable.
-3. Consequence: visualize the cost, failure, or wasted effort.
-4. Turn: introduce the product as the answer.
-5. Proof: show the real interaction or product surface.
-6. Resolution: reduce the product to one memorable promise and CTA.
-
-Give every beat one spoken thought, one focal subject, one primary action, and one transition destination. Do not add visuals merely because the frame feels empty. Read [story-timing.md](references/story-timing.md) and [silicon-valley-motion.md](references/silicon-valley-motion.md) (Zelios & ElevenLabs 6 Laws) when scripting, retiming, or animating.
-
-## Use continuous transition ownership
-
-Every boundary must use one of these mechanisms:
-
-- **Morph:** keep one carrier visible while its geometry, surface, and role change.
-- **Match-cut:** align position, dimensions, silhouette, and motion before swapping internal content.
-- **Particle-reassemble:** emit fragments from a visible source and direct them toward a meaningful destination.
-
-Opacity may clean up internal faces after continuity is established; it must not be the transition itself. Prefer one persistent carrier across related beats, such as statement frame -> symbolic object -> prompt surface -> product window -> brand token. Read [transitions-camera.md](references/transitions-camera.md) before designing handoffs or camera paths.
-
-Seams obey the vector law from the `motion-doctrine` skill — read it before planning boundaries:
-
-- Same axis, same direction, matched speed, cut mid-motion on both sides. On z, direction is the sign of the scale change, so a receding exit must not be answered by a grow-from-small entry.
-- Pick one dominant direction for the film and use it for every ordinary seam; upward, z-forward, and z-backward are reserved and must mean something. Never run consecutive seams in opposing directions without a visible cause.
-- Repeat two or three transition vocabularies across the film rather than inventing one per boundary. Pick each from the job using the `saas-motion-design` catalog: camera push or UI feature zoom to inspect, card takeover or morph expansion for the same object in a new layout, whip pan or slide reveal to change section.
-
-## Compose editorial typography
-
-- Express each beat as one bold, full-sentence thought.
-- Never split one thought into a giant title plus a small gray subtitle.
-- Center the thought as a unit; use `xPercent: -50` and `yPercent: -50` for absolute centering.
-- Enter important thoughts giant and cropped, then settle into readable focus.
-- Animate words or characters in reading order with restrained stagger and spring overshoot.
-- Keep punctuation attached and preserve natural spaces.
-- Apply sentence-wide gradients in shared coordinates. Do not restart the gradient on every word.
-- Reserve gradients for emphasis and retain enough solid ink for immediate readability.
-- Give the completed sentence a real reading hold before its exit.
-
-Read [typography-backgrounds.md](references/typography-backgrounds.md) for split-text handling, hierarchy, background direction, and stability.
-
-## Direct the background as a story actor
-
-Choose one background system from the subject rather than layering generic atmosphere. Give it a beginning, a causal transformation, and a destination. Keep it subordinate to the focal subject, but make its state changes legible at video scale.
-
-- Notes/writing: paper structure, page planes, ruled rhythm, or a product-derived mark. Do not add a decorative path, dot, orbit, or squiggle unless it originates from a real UI object and docks into the next product state.
-- Audio: localized waveform energy emitted by the active source.
-- Analysis: scan field or measurement grid that advances with the proof.
-- Data: one trajectory, threshold, or scale system that actually encodes the claim.
-- Developer work: code planes or rails with real spatial depth.
-- Let the hook's background mark become the product's waveform, scan, connector, or final logo geometry instead of discarding it.
-- Attach light to causality: a press, recording pulse, scan head, successful state, or morph seam. Let it dissipate or become the next object.
-- Use full-canvas color only as an authored state change or brand resolve.
-- Avoid default auroras, mesh gradients, blurry blobs, orbit decoration, muddy veils, and motion with no narrative relationship.
-
-## Choreograph readable motion
-
-- Separate arrival, settle, readable hold, and departure.
-- Overlap transitions, but do not overlap competing messages.
-- Alternate energy: fast setup, readable settle, emphasized consequence, spacious proof.
-- Use `back.out(...)` for tactile text and controls; use `power3.inOut`, `power4.inOut`, or `expo.inOut` for camera and geometry.
-- During holds, keep progressing through a bounded story action: finish an ink path, scan, waveform phrase, evidence assembly, or subtle camera settle drift. Do not add idle drift merely to keep pixels moving.
-- Animate counters in fixed-width containers to prevent layout wobble.
-- Do not reveal a cursor until typing begins.
-- Preserve close prompt framing through its workspace morph unless the story motivates a pullback.
-- After showing UI, hold it for inspection, then use one deliberate camera move instead of repeated zooming.
-
-Physical principles (opacity is not animation):
-
-- A tween whose only property is opacity or `autoAlpha` is not an animation. Opacity cleans up a face after a physical handoff; every reveal, exit, and state change also moves, scales, or rotates.
-- Anticipate before a hero move (dip 6–10px or compress to ~0.94 for 0.12–0.2s), squash and stretch on impact with inverse `scaleX`/`scaleY` around 1.08/0.92, and let trailing parts follow through 0.04–0.12s behind their owner.
-- Objects travel arcs, not straight diagonals. The primary action ignites a secondary one on the same frame (`"<"`, `"<0.1"`).
-- Stage the hero by quieting the rest — dim, desaturate, or blur the supporting layer instead of adding competing motion.
-- Contrast timing: 0.15–0.3s snaps against 0.9–1.4s macro moves. Spend one exaggerated moment per film, at the climax.
-
-Timing intents (from `motion-doctrine`):
-
-- A single entry lands in ~0.8s; a longer buildup is a stagger, not one slow element. An exit runs ~75% of its entry. Total stagger stays under 0.5s.
-- Similar elements share one ease and duration intent. `bounce.out` and `elastic.out` are banned; entry overshoot is `back.out(1.4–1.7)`.
-- Schedule 0.3–0.75s of stillness between the major action and its result.
-- Every phase between entry and exit belongs to a named sustained-motion route: staged reveals, camera with intent, sequenced UI life, an acted-out sequence, or cursor-led action. Idle wobble is not a route.
-
-## Show real product behavior
-
-- Use authentic screenshots, supplied assets, or faithful product HTML/CSS.
-- Make the reveal causal: prompt -> action -> workspace.
-- Keep prompt controls credible and proportioned like a real composer.
-- Use a shared shell so the prompt physically becomes the product window.
-- Make the active task legible; decorative dashboards are not proof.
-- Collapse the product surface into the brand token or CTA with the same carrier.
-
-## Reference-grade calibration (Claude, KiriTTS, and Apple Notes)
-
-Every composition—whether a UI walkthrough, product ad, or conceptual motion graphic—must adhere to these reference-grade standards:
-
-1. **Destination-led Camera Storytelling, Macro Focus & Typing Follow**:
-   - Camera motion is a scene-level storyteller. Every move needs a named target and a reason; a settled reading hold does not need decorative drift.
-   - **Macro Zoom Focus**: Keep a complete product surface at `scale: 1.0 - 1.12`. For `scale: 1.35 - 2.2`, animate a dedicated local focus rig or cropped semantic region so the active control and resulting state remain legible. Never push the full app outside its carrier.
-   - **Real-Time Typing Follow Pan**: During character-by-character typing, the camera must smoothly pan horizontally following the advance of the text:
-     ```javascript
-     // Typing begins with inline typing
-     typeText(typedInput, "How many calories are in this ramen meal?", 3.3, 1.25);
-     // Camera smoothly pans rightward following the typed text
-     timeline.to(camera, { x: 320, duration: 1.25, ease: "sine.inOut" }, 3.3);
-     ```
-   - **Dramatic Re-Framing to Action Targets**: Glide rapidly from text input to action buttons with dramatic velocity contrast (`expo.inOut`, `power3.inOut`, duration 0.9s–1.2s):
-     ```javascript
-     timeline.to(camera, { scale: 2.3, x: -960, duration: 1.0, ease: "expo.inOut" }, 4.3);
-     ```
-   - **Hold Close Focus on Responses Before Pullback**: After triggering an action, hold the local focus rig close to the newly constructed response (`scale: 1.35 - 1.6`) for inspection before a motivated pullback reveals context.
-
-2. **Architectural UI Construction (Never Monolithic Simultaneous Fade-Ins)**:
-   - Reveal the few elements that establish hierarchy in reading order. Do not animate every divider, label, and icon independently.
-   - Group related interface regions, then construct those regions progressively with modest offsets (`y: 18 - 64px`), staggered delays (`+0.06s` to `+0.16s`), and role-appropriate non-linear eases:
-     ```javascript
-     // 1. Text header rises smoothly
-     timeline.fromTo(header, { y: 90, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.9, ease: "power3.out" }, 6.0);
-     // 2. Main card rises with physical settle
-     timeline.fromTo(mainCard, { y: 100, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1.0, ease: "back.out(1.2)" }, 6.1);
-     // 3. Highlight / spark blooms from center
-     timeline.fromTo(spark, { scale: 0.82, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.7, ease: "back.out(1.5)" }, 6.3);
-     // 4. Detail lines slide up progressively
-     timeline.fromTo(details, { autoAlpha: 1, y: 95 }, { autoAlpha: 1, y: 0, duration: 1.3, ease: "power4.out" }, 6.3);
-     // 5. Secondary controls/chat bar appear beneath
-     timeline.fromTo(bottomBar, { autoAlpha: 1, y: 45 }, { autoAlpha: 1, y: 0, duration: 1.4, ease: "power4.out" }, 6.4);
-     ```
-
-3. **Duration-Aware Easing**:
-   - Always calibrate duration to the physics of the chosen easing curve:
-     - **`inOut` / `expo.inOut`**: Requires generous duration (0.9s to 1.4s) for smooth acceleration and slow-motion deceleration. Using `inOut` with short durations (< 0.5s) produces unnatural, jarring motion.
-     - **Tactile Snappy Clicks & Carets**: Use short durations (0.08s to 0.25s) with `power2.out`, `power2.inOut`, or `back.out(2)`:
-       ```javascript
-       timeline.to(cursor, { scale: 0.82, duration: 0.08, yoyo: true, repeat: 1, ease: "power2.inOut" }, 5.45);
-       timeline.to(btn, { scale: 0.85, duration: 0.09, yoyo: true, repeat: 1, ease: "power2.inOut" }, 5.5);
-       ```
-     - **Physical Card Entrances**: Use 0.9s–1.4s with `back.out(1.2 - 1.5)` or `power4.out` to convey weight and momentum.
-
-4. **Introduce & Explain First (Marketing SaaS Flow)**:
-   - When presenting a product feature or capability, introduce and explain the problem or concept first using kinetic typography and shape morphing.
-   - Then construct the authentic product UI surface as the causal proof.
-   - Camera pushes macro-close into the live interaction, tracks the action, and pulls back into a resolved brand climax.
-
-5. **Source-Specific Full-Bleed Application Surface (Never Tiny Cards in a Void)**:
-   - NEVER place a small title + subtitle + tiny cards floating in a massive empty black void.
-   - Build a real, immersive application surface from the requested product's own information architecture and visual grammar. Use only the navbar, sidebar, tabs, workspace, and controls that product truthfully needs; do not clone Claude's chrome into every film.
-
-6. **Continuous Shape Morph & Carrier Transformation (Zero Fades)**:
-   - Scene transitions MUST use physical carrier transformations: a prompt shell expands into the studio window, an audio waveform's outline physically morphs into a transcription drop zone, or a track-matte wipe/laser beam slices across the frame.
-   - The outgoing element's geometry and silhouette continuously transform into the incoming element's boundary.
-
-7. **Strict Layer Segregation (Zero GPU Z-Fighting / Bleed-Through)**:
-   - Every scene container and overlay must initialize with `display: "none"` and `autoAlpha: 0` at `t = 0` (except the opening scene).
-   - The instant an outgoing scene finishes, set `display: "none"` and `autoAlpha: 0`. This completely eliminates Chromium GPU compositing artifacts, text jitter, and 3D z-fighting.
-
-8. **Deterministic Stepped Typewriting (0px Caret Gap)**:
-   - Use character slicing on an inline span with `steps(N)` on a tweened counter. Place an inline-block caret immediately adjacent with `vertical-align: -2px` to `-3px` matching font line-height.
-   - The caret reflows naturally with zero empty pixel gap.
-   - Never show a blinking cursor before typing begins.
-
-Before implementation, write a one-line story spine and a boundary inventory naming the carrier and MORPH, MATCH-CUT, or PARTICLE-REASSEMBLE technique at every seam. Before delivery, score story spine, composition/readability, transition continuity, camera intent, and deterministic execution from 1-5. Repair every axis below 4 and inspect browser frames at the hook, each seam, each interaction, and the final hold.
-
-Read [assets-export.md](references/assets-export.md) when importing media, using filters, or preparing export.
-
-## Build deterministically
-
-1. Set all hidden, transformed, and layered initial states at time `0`.
-2. Use explicit timeline positions for story beats.
-3. Keep scene and track metadata truthful to the timeline.
-4. Base timing on seconds. Changing fps adds samples; it must not alter speed.
-5. For global retiming, change a nested timeline's `timeScale` and scale metadata by the inverse factor.
-6. Seek representative frames and inspect continuous playback in a real browser.
-7. Verify preview/export parity, asset loading, text bounds, end-state cleanup, codec, and fps.
-
-## Keep generated elements editable
-
-- Give every meaningful element a stable, descriptive `data-edit` id (`prompt-shell`, `action-button`, `proof-value`), never `layer-3`.
-- Add `data-edit-label`, and declare component fields with `data-field`, `data-field-label`, `data-field-type`, `data-field-binding`, and `data-field-property`.
-- Reuse ids that already exist; renaming or dropping one destroys the user's selection, transform, and tween overrides.
-- Position elements with their own CSS and animate with transform/opacity so editor overrides compose with the timeline instead of fighting it.
-- Tag scene containers with `data-scene="scene-0n"` so stale layers are detectable.
-- On a follow-up request, continue the established film: keep its subject, palette, scene spine, carrier chain, ids, and every accepted asset. Change only what was asked.
-
-## Reject these failures
-
-- slideshow output: full-screen panels joined by opacity or display toggles, or a scene whose frame never changes;
-- simultaneous fade-in of an entire layout on one timestamp;
-- a stale layer from an earlier beat still composited under the current one;
-- a blank or near-blank sampled frame;
-- a timeline that stops long before the composition ends and leaves it frozen;
-- a supplied image that is ignored, substituted, or pasted as a floating sticker over working UI;
-- generic AI-dashboard filler: purple gradient tiles, unlabeled sparklines, six identical KPI cards;
-- title + subtitle + tiny card floating in a black void;
-- fade, cross-dissolve, or fade-to-black as a scene handoff;
-- static camera with no movement or zoom during feature explanations;
-- overlapping, reflowing, or clipped split words;
-- a separate repeated gradient on every word;
-- background motion that competes or has no meaning;
-- cursor blinking before typing;
-- product screenshot appearing without a causal bridge;
-- camera push, reset, then another unmotivated push;
-- filter, hidden screenshot, or backdrop blur surviving into the logo;
-- foreground beats too brief to read;
-- storyboard timing that differs from GSAP;
-- cross-origin or tainted export sources.
-
-## Reusable helper guidance
-
-- `morph`: persistent geometry and surface transformation.
-- `cameraZoomPan`, `cameraPush`, `cameraPull`: motivated reframing.
-- `wordSlideRotate`, `charSpringBounce`, `textReveal`: reading-order typography.
-- `giantKineticCrop`: high-emphasis giant-to-settle entrance.
-- `waterfallTextReveal`: HyperFrames-style binary word cascade plus one wrapper-level camera settle.
-- `continuousTextGradient`: one gradient across split words.
-- `gradientSweep`: temporary keyword emphasis.
-- `ambientWaves`: low-frequency background life.
-
-Use helpers as verbs, not a fixed style. Vary intensity, direction, duration, and visual language for the audience. Never copy a preset's exact colors, dimensions, copy, timestamps, or scene count.

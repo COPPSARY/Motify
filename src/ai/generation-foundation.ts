@@ -51,6 +51,45 @@ export const foundationScenes: readonly SceneDefinition[] = [
   },
 ];
 
+/**
+ * The foundation's own carrier chain: one `story-carrier` whose outline morphs
+ * from the hook plate into the product window, into the proof window, and down
+ * into the closing lockup. Each seam opens before its cut and closes after it,
+ * which is what lets both faces be on screen while the carrier crosses.
+ *
+ * Shipping these with the scaffold means the first thing every generation reads
+ * is a worked example of the contract it has to return.
+ */
+export const foundationSeams = [
+  {
+    from: "scene-01",
+    to: "scene-02",
+    at: 3.88,
+    duration: 1.37,
+    carrier: "story-carrier",
+    mechanism: "morph" as const,
+    becomes: "the hook plate stretches into the product window",
+  },
+  {
+    from: "scene-02",
+    to: "scene-03",
+    at: 9.74,
+    duration: 1.46,
+    carrier: "story-carrier",
+    mechanism: "morph" as const,
+    becomes: "the product window travels and reforms as the proof window",
+  },
+  {
+    from: "scene-03",
+    to: "scene-04",
+    at: 15.24,
+    duration: 1.51,
+    carrier: "story-carrier",
+    mechanism: "morph" as const,
+    becomes: "the proof window collapses into the closing lockup",
+  },
+];
+
 export const foundationHtml = `<template id="motionly-composition-template">
   <style>
     .motionly-stage {

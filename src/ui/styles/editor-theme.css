@@ -23,73 +23,10 @@
 }
 
 .code-editor-scope .me-workbench {
-  grid-template-columns:
-    52px var(--content-panel-width, 236px) 42px minmax(0, 1fr)
-    272px;
-}
-.code-editor-scope .me-workbench.me-chat-open {
-  grid-template-columns:
-    52px var(--content-panel-width, 236px) 300px minmax(0, 1fr)
-    272px;
+  grid-template-columns: var(--left-panel-width, 336px) minmax(0, 1fr) 272px;
 }
 
-.code-editor-scope .me-nav-rail {
-  position: relative;
-  z-index: 30;
-  width: 52px;
-  padding: 8px 6px;
-  gap: 6px;
-  background: rgba(18, 18, 20, 0.96);
-  border-right: 1px solid var(--hairline);
-}
-
-.code-editor-scope .me-nav-item {
-  position: relative;
-  width: 38px;
-  height: 38px;
-  border-radius: 7px;
-}
-.code-editor-scope .me-nav-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.07);
-}
-.code-editor-scope .me-nav-item.me-active {
-  color: var(--accent);
-  background: rgba(10, 132, 255, 0.14);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-.code-editor-scope .me-nav-settings {
-  margin-top: auto;
-}
-.code-editor-scope .me-nav-item::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  top: 50%;
-  left: calc(100% + 12px);
-  z-index: 100;
-  padding: 6px 9px;
-  border: 1px solid var(--hairline);
-  border-radius: 7px;
-  background: #242428;
-  color: #f7f7f8;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(4px, -50%);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease;
-}
-.code-editor-scope .me-nav-item:hover::after,
-.code-editor-scope .me-nav-item:focus-visible::after {
-  opacity: 1;
-  transform: translate(0, -50%);
-}
-
-.code-editor-scope .me-content-panel,
+.code-editor-scope .me-left-panel,
 .code-editor-scope .me-properties-panel,
 .code-editor-scope .me-timeline-toolbar,
 .code-editor-scope .me-panel-header,
@@ -97,7 +34,6 @@
   background: rgba(20, 20, 23, 0.92);
   border-color: var(--hairline);
 }
-.code-editor-scope .me-chat-drawer,
 .code-editor-scope .me-preview-container {
   background: linear-gradient(180deg, #111114 0%, #0e0e10 42%, #0c0c0e 100%);
 }
@@ -402,33 +338,15 @@
   gap: 8px;
 }
 
-/* Final matte refinement and strict rail/panel containment. */
-.code-editor-scope .me-workbench,
-.code-editor-scope .me-workbench.me-chat-open {
-  grid-template-columns:
-    52px var(--content-panel-width, 236px) 42px minmax(0, 1fr)
-    272px;
+/* Final matte refinement and strict panel containment. */
+.code-editor-scope .me-workbench {
+  grid-template-columns: var(--left-panel-width, 336px) minmax(0, 1fr) 272px;
   overflow: hidden;
   isolation: isolate;
   background: #0e0e10;
 }
-.code-editor-scope .me-workbench.me-chat-open {
-  grid-template-columns:
-    52px var(--content-panel-width, 236px) 300px minmax(0, 1fr)
-    272px;
-}
-.code-editor-scope .me-nav-rail {
+.code-editor-scope .me-left-panel {
   grid-column: 1;
-  box-sizing: border-box;
-  width: 52px;
-  min-width: 52px;
-  max-width: 52px;
-  overflow: visible;
-  background: #111113;
-  border-right: 1px solid var(--hairline);
-}
-.code-editor-scope .me-content-panel {
-  grid-column: 2;
   position: relative;
   z-index: 1;
   box-sizing: border-box;
@@ -477,18 +395,16 @@
 .code-editor-scope .me-motion-editor {
   background: linear-gradient(180deg, #101012 0%, #0e0e10 28%, #0d0d0f 100%);
 }
-.code-editor-scope .me-chat-drawer,
 .code-editor-scope .me-preview-container {
   background: linear-gradient(180deg, #111113 0%, #0e0e10 100%);
 }
-.code-editor-scope .me-content-panel,
+.code-editor-scope .me-left-panel,
 .code-editor-scope .me-properties-panel,
 .code-editor-scope .me-timeline-toolbar,
 .code-editor-scope .me-panel-header,
 .code-editor-scope .me-stage-meta {
   backdrop-filter: none;
 }
-.code-editor-scope .me-chat-drawer .ai-chat-panel,
 .code-editor-scope .me-preview-canvas,
 .code-editor-scope .me-dialog,
 .code-editor-scope .me-preset-card:hover,
@@ -498,31 +414,6 @@
 }
 .code-editor-scope .me-preview-canvas {
   box-shadow: 0 0 0 1px var(--hairline);
-}
-.code-editor-scope .me-assistant-expand {
-  border-color: var(--hairline);
-  background: #1a1a1d;
-  color: #a9a9b0;
-}
-.code-editor-scope .me-assistant-expand:hover {
-  background: #212125;
-  color: #fff;
-}
-.code-editor-scope .me-nav-item {
-  border-radius: 8px;
-  transition:
-    color 0.16s ease,
-    background 0.16s ease;
-}
-.code-editor-scope .me-nav-item.me-active {
-  color: #fff;
-  background: var(--accent);
-  box-shadow: none;
-}
-.code-editor-scope .me-nav-item::after {
-  border-radius: 6px;
-  background: #242427;
-  box-shadow: none;
 }
 .code-editor-scope .me-header-icon-btn,
 .code-editor-scope .me-meta-btn,
@@ -692,7 +583,6 @@
 .code-editor-scope .me-timeline-command,
 .code-editor-scope .me-property-align-actions button,
 .code-editor-scope .me-clip-action,
-.code-editor-scope .me-assistant-expand,
 .code-editor-scope .me-import-media-button {
   border-color: rgba(255, 255, 255, 0.1);
   background: #1b1b1e;
@@ -704,7 +594,6 @@
 .code-editor-scope .me-control-btn:hover,
 .code-editor-scope .me-timeline-command:hover,
 .code-editor-scope .me-property-align-actions button:hover,
-.code-editor-scope .me-assistant-expand:hover,
 .code-editor-scope .me-import-media-button:hover {
   border-color: rgba(255, 255, 255, 0.16);
   background: #242428;
@@ -716,16 +605,10 @@
 .code-editor-scope .me-control-btn:active,
 .code-editor-scope .me-timeline-command:active,
 .code-editor-scope .me-property-align-actions button:active,
-.code-editor-scope .me-assistant-expand:active,
 .code-editor-scope .me-import-media-button:active {
   background: #171719;
   box-shadow: none;
   transform: none;
-}
-.code-editor-scope .me-nav-item.me-active {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: #0a84ff;
-  box-shadow: none;
 }
 .code-editor-scope .me-icon-btn.me-active,
 .code-editor-scope .me-preset-option.me-active,
@@ -810,13 +693,9 @@
   background: rgba(10, 132, 255, 0.045);
 }
 
-.code-editor-scope .me-workbench.me-chat-open {
-  grid-template-columns:
-    52px var(--content-panel-width, 236px) 300px minmax(0, 1fr)
-    272px;
-}
-
-/* Quiet workspace grid, refined property controls, and logo-gradient interactions. */
+/* Quiet workspace grid,
+refined property controls,
+and logo-gradient interactions. */
 .code-editor-scope .me-stage {
   background-color: #0f0f11;
   background-image:
@@ -885,7 +764,6 @@
 .code-editor-scope .me-control-btn:hover,
 .code-editor-scope .me-timeline-command:hover,
 .code-editor-scope .me-property-align-actions button:hover,
-.code-editor-scope .me-assistant-expand:hover,
 .code-editor-scope .me-import-media-button:hover {
   border-color: rgba(138, 180, 255, 0.3);
   background: linear-gradient(
@@ -895,7 +773,6 @@
   );
   color: #f5f8f7;
 }
-.code-editor-scope .me-nav-item.me-active,
 .code-editor-scope .me-icon-btn.me-active,
 .code-editor-scope .me-preset-option.me-active,
 .code-editor-scope .me-easing-option.me-active {
@@ -971,7 +848,6 @@
   color: #a9d8f0;
   outline: none;
 }
-.code-editor-scope .me-nav-item.me-active,
 .code-editor-scope .me-icon-btn.me-active,
 .code-editor-scope .me-preset-option.me-active,
 .code-editor-scope .me-easing-option.me-active {
@@ -1063,14 +939,11 @@
 }
 
 @media (max-width: 900px) {
-  .code-editor-scope .me-workbench,
-  .code-editor-scope .me-workbench.me-chat-open {
+  .code-editor-scope .me-workbench {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .code-editor-scope .me-nav-rail,
-  .code-editor-scope .me-content-panel,
-  .code-editor-scope .me-chat-drawer,
+  .code-editor-scope .me-left-panel,
   .code-editor-scope .me-properties-panel {
     display: none;
   }
