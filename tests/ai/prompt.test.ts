@@ -57,8 +57,14 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("reverse hierarchy");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("autoAlpha: 0");
     // The carrier is the deliberate exception and must stay untagged.
+    // The rule this replaced only forbade the carrier from carrying a
+    // `data-scene` tag of its own, so a carrier nested inside a scene container
+    // obeyed the letter of it and was still cleared with that beat.
     expect(MOTIONLY_SYSTEM_PROMPT).toContain(
-      "Tag scene containers, not the carrier",
+      "The carrier lives outside every scene container",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "a *sibling* of the `data-scene` containers",
     );
   });
 

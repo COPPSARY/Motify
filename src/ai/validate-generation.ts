@@ -576,6 +576,22 @@ const SEAM_MARGIN = 0.15;
  */
 const MORPH_MIN_CHANGE = 0.12;
 
+/** The `data-scene` beat a carrier is trapped inside, if any. */
+function enclosingScene(
+  element: HTMLElement,
+  root: HTMLElement,
+): string | null {
+  for (
+    let current: HTMLElement | null = element;
+    current && current !== root;
+    current = current.parentElement
+  ) {
+    const owner = current.dataset["scene"]?.trim();
+    if (owner) return owner;
+  }
+  return null;
+}
+
 /**
  * The one boundary check that cannot be satisfied by calling a helper.
  *
@@ -625,19 +641,37 @@ function seamRenderWarnings(
     const leavingRect = entering.getBoundingClientRect();
 
     if (!visibleEntering && !visibleLeaving) {
+      /**
+       * Almost always the same cause: the carrier was authored *inside* a
+       * `data-scene` container, and clearing that beat clears the carrier with
+       * it. The placement rule only forbade the carrier from carrying a
+       * `data-scene` tag of its own, so a nested carrier obeyed the letter of
+       * it and still vanished at every boundary — and the complaint that came
+       * back was unactionable, which is why repair passes could not clear it.
+       */
+      const trap = enclosingScene(entering, root);
       warnings.push(
-        `The seam at ${seam.at.toFixed(
-          1,
-        )}s is a hard cut: its carrier "${seam.carrier}" is hidden on both sides of the boundary.`,
+        trap
+          ? `The seam at ${seam.at.toFixed(
+              1,
+            )}s is a hard cut: its carrier "${seam.carrier}" lives inside the scene container "${trap}", so it is cleared along with that beat and never crosses anything. Move the carrier out of every data-scene subtree — it belongs directly in the camera world, as a sibling of the scene containers.`
+          : `The seam at ${seam.at.toFixed(
+              1,
+            )}s is a hard cut: its carrier "${seam.carrier}" is hidden on both sides of the boundary.`,
       );
       continue;
     }
     if (!visibleEntering || !visibleLeaving) {
       const missing = visibleEntering ? "after" : "before";
+      const trap = enclosingScene(entering, root);
       warnings.push(
-        `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
-          1,
-        )}s, so nothing visibly crosses that boundary.`,
+        trap
+          ? `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
+              1,
+            )}s because it lives inside the scene container "${trap}" and is cleared with that beat. Move the carrier out of every data-scene subtree, directly into the camera world.`
+          : `The carrier "${seam.carrier}" is not on screen ${missing} its seam at ${seam.at.toFixed(
+              1,
+            )}s, so nothing visibly crosses that boundary.`,
       );
       continue;
     }

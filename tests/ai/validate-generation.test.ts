@@ -1176,3 +1176,57 @@ describe("the frame as the viewer sees it", () => {
     ).toThrow(/one composition repeated/);
   });
 });
+
+describe("a carrier trapped inside its own beat", () => {
+  const two = [
+    { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+    { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+  ];
+  const seams = [
+    {
+      from: "scene-01",
+      to: "scene-02",
+      at: 1.6,
+      duration: 0.8,
+      carrier: "story-carrier",
+      mechanism: "morph" as const,
+      becomes: "the plate becomes the panel",
+    },
+  ];
+
+  /**
+   * The reported loop: five seams, every carrier "hidden on both sides", and
+   * the complaint unchanged after each repair pass. The carrier obeyed the
+   * placement rule as written — it carried no `data-scene` tag — but sat inside
+   * a scene container, so clearing that beat cleared the carrier with it.
+   */
+  it("names the scene container that is clearing the carrier", () => {
+    const trapped = {
+      duration: 4,
+      scenes: two,
+      seams,
+      compositionHtml: `<template><main data-edit="stage"><div data-edit="camera-world" data-camera-world><div data-edit="beat-one" data-scene="scene-01"><div data-edit="story-carrier" data-transition-carrier>Carrier</div></div><div data-edit="beat-two" data-scene="scene-02">Second beat</div></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="beat-one"]');
+        const two = root.querySelector('[data-edit="beat-two"]');
+        const carrier = root.querySelector('[data-edit="story-carrier"]');
+        timeline.set(one, { autoAlpha: 0 }, 0);
+        timeline.set(two, { autoAlpha: 0 }, 0);
+        timeline.to(carrier, { x: 40, duration: 1.2 }, 0.2);
+        timeline.set(two, { autoAlpha: 1 }, 1.6);
+        timeline.to(two, { x: 20, duration: 1.2 }, 2.4);
+      }`,
+      reply: "Done",
+    };
+    const validated = validateGeneratedComposition(trapped, {
+      prompt: "Polish the transition",
+      previousHtml: `<template><main data-edit="stage"><div data-edit="story-carrier"></div></main></template>`,
+      previousDuration: 4,
+      previousScenes: two,
+    });
+    const note = validated.warnings.join(" ");
+    expect(note).toMatch(/lives inside the scene container "scene-01"/);
+    // The fix has to be actionable, or the repair pass cannot clear it.
+    expect(note).toMatch(/Move the carrier out of every data-scene subtree/);
+  });
+});

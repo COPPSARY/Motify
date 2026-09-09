@@ -315,7 +315,17 @@ Two ways to be safe, and you should usually take the first:
 - **Give the carrier no surface of its own.** Let the faces inside it paint the background, border and radius. Then the carrier is pure geometry, and an empty carrier is an invisible carrier.
 - **If the carrier must be painted** — a real card or window whose plate is the point — then its content is never all gone: overlap the outgoing face's exit with the incoming face's entrance so at least one is on screen in every frame, including every frame of the seam. Fade the plate's own background out with the last face that leaves it.
 
-The carrier is the exception, and the reason it must not carry a `data-scene` tag: it is the one thing meant to cross the boundary, and a `data-scene` tag would clear it mid-crossing. Tag scene containers, not the carrier. The carrier must be visibly on screen on *both* sides of its seam — the composition is seeked to `seam.at - 0.15s` and `seam.at + seam.duration + 0.15s` and the carrier is looked for in both frames. A `morph()` call on an element that is hidden, off camera, or unchanged in size and position at those two times is reported as a hard cut, whatever the source says.
+**The carrier lives outside every scene container.** It is a direct child of the `data-camera-world`, a *sibling* of the `data-scene` containers — never inside one, and never carrying a `data-scene` tag itself. This is the single most common way a carrier chain fails: the carrier is authored inside the beat it starts in, that beat is cleared at the cut as the rules require, and the carrier is cleared along with it, so nothing crosses the boundary however the handoff was written. Being outside the subtree is what lets it survive the clear.
+
+```
+<div data-camera-world>
+  <div data-edit="story-carrier" data-transition-carrier>...</div>  <-- crosses every boundary
+  <div data-scene="scene-01">...</div>                              <-- cleared at its seam
+  <div data-scene="scene-02">...</div>
+</div>
+```
+
+The carrier is the exception to clearing, and that is why it must not carry a `data-scene` tag: it is the one thing meant to cross the boundary. The carrier must be visibly on screen on *both* sides of its seam — the composition is seeked to `seam.at - 0.15s` and `seam.at + seam.duration + 0.15s` and the carrier is looked for in both frames. A `morph()` call on an element that is hidden, off camera, or unchanged in size and position at those two times is reported as a hard cut, whatever the source says.
 
 **Action causes result.** A press produces the menu, a scan produces the detection, a convergence produces the document. Nothing appears because the timeline reached a number.
 

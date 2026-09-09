@@ -775,10 +775,20 @@ export function analyzeMotionQuality(
    * drifts. The skill's own vocabulary separates them — camera and geometry
    * moves ease on expo/power, a settling drift eases on sine.
    */
-  const cameraMoveCount = countMatches(
-    executableTimeline,
-    /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|fromTo)\s*\(\s*(?:cameraWorld|cameraStage|world)\b(?:(?!ease\s*:\s*["']sine)[^)])*\)/g,
-  );
+  const cameraMoveCount =
+    countMatches(
+      executableTimeline,
+      /(?:\btimeline|\btl|\bsceneTl|\bmaster)\.(?:to|fromTo)\s*\(\s*(?:cameraWorld|cameraStage|world)\b(?:(?!ease\s*:\s*["']sine)[^)])*\)/g,
+    ) +
+    // The camera helpers, which the runtime law tells the model to prefer.
+    // Counting only raw `timeline.to(world, ...)` meant a film that used
+    // cameraPush/cameraPull/cameraZoomPan scored zero and was told "the camera
+    // never travels" — a complaint no amount of correct authoring could clear,
+    // so every repair pass got the same note back.
+    countMatches(
+      executableTimeline,
+      /\b(?:cameraPush|cameraPull|cameraZoomPan|punchIn|zoomThrough|inverseZoomThrough|parallax\w*)\s*\(/g,
+    );
   const physicalHandoffCount = countMatches(
     executableTimeline,
     /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,

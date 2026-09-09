@@ -138,6 +138,8 @@ A cut at 8.0s with a 1.0s handoff is at: 7.5, duration: 1.0. Budget 0.35s to 1.8
 
 The carrier must be a literal element: a blinking cursor, a specific button, a geometric node, or a defined text glyph.
 
+The carrier belongs to the whole film, not to one beat. Name something that can plausibly live outside every scene and persist across several boundaries — the same object crossing three seams beats a fresh carrier at each one.
+
 Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms).
 
 Rule 5: The Tiling Beats and the Camera
