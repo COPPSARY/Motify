@@ -1,0 +1,322 @@
+<template id="motionly-composition-template">
+  <style>
+    /*
+     * A worked example at the reference standard, built to be read by the
+     * generator as much as watched. Every choice here is one the studied films
+     * make: a lit ground rather than flat white, statements that hold the frame
+     * alone at 96-150px, one carrier crossing every boundary, and a camera that
+     * holds while the type carries the motion.
+     */
+    .rf-stage {
+      --ink: #0b0b0d;
+      --paper: #f6f5f8;
+      --brand: #ee4b3c;
+      --brand-deep: #c9351f;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--ink);
+      color: #fff;
+      font-family: Inter, "SF Pro Display", -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Atmosphere. Never a subject: tagged so the validator reads it as ground. */
+    .rf-bloom {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 1500px;
+      height: 1100px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(
+        circle at 50% 50%,
+        rgba(238, 105, 60, 0.55),
+        rgba(238, 75, 60, 0.14) 42%,
+        transparent 68%
+      );
+      filter: blur(60px);
+      pointer-events: none;
+    }
+    .rf-grain {
+      position: absolute;
+      inset: 0;
+      opacity: 0.05;
+      background-image: radial-gradient(
+        rgba(255, 255, 255, 0.7) 1px,
+        transparent 1px
+      );
+      background-size: 3px 3px;
+      pointer-events: none;
+    }
+
+    .rf-world {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+
+    /*
+     * The carrier. A direct child of the world and a sibling of every scene
+     * container, so clearing a beat never clears it. It is the only element
+     * that crosses a boundary, and it does so five times: an accent bar, the
+     * full-bleed colour ground, a style chip, the plate behind an edited word,
+     * and the brand ground.
+     */
+    .rf-carrier {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 220px;
+      height: 10px;
+      margin: -5px 0 0 -110px;
+      border-radius: 999px;
+      background: var(--brand);
+      transform-origin: 50% 50%;
+      will-change: transform, width, height;
+    }
+
+    .rf-scene {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    /* Statements hold the frame alone, at reference scale. */
+    .rf-line {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 82%;
+      margin: 0;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      font-size: 118px;
+      line-height: 1.02;
+      font-weight: 720;
+      letter-spacing: -0.045em;
+    }
+    .rf-line--tight {
+      font-size: 132px;
+    }
+    .rf-accent {
+      color: var(--brand);
+    }
+    .rf-on-brand {
+      color: #fff;
+    }
+
+    /* Beat 2 sets its two halves on one row so the line re-centres as it fills. */
+    .rf-row {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 0.28em;
+      white-space: nowrap;
+      transform: translate(-50%, -50%);
+      font-size: 118px;
+      line-height: 1;
+      font-weight: 720;
+      letter-spacing: -0.045em;
+    }
+    .rf-row h1 {
+      margin: 0;
+      font: inherit;
+    }
+
+    /* Beat 3: real interface objects with mass, stacked in a column. */
+    .rf-chips {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+      transform: translate(-50%, -50%);
+    }
+    .rf-chip {
+      padding: 26px 62px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 54px;
+      font-weight: 640;
+      letter-spacing: -0.02em;
+      box-shadow: 0 26px 60px rgba(201, 53, 31, 0.32);
+      transform-origin: 50% 50%;
+    }
+
+    /* Beat 4: the macro edit. One word, filling the frame, being changed. */
+    .rf-macro {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink);
+      font-size: 150px;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+    }
+    .rf-macro-caret {
+      width: 6px;
+      height: 132px;
+      background: var(--brand);
+    }
+    .rf-selection {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 940px;
+      height: 190px;
+      margin: -95px 0 0 -470px;
+      border: 4px solid var(--brand);
+      border-radius: 10px;
+      background: rgba(238, 75, 60, 0.14);
+      transform-origin: 0% 50%;
+    }
+
+    /* Beat 5: the mark, large, on open brand ground. */
+    .rf-lockup {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: flex;
+      align-items: center;
+      gap: 34px;
+      transform: translate(-50%, -50%);
+    }
+    .rf-mark {
+      position: relative;
+      width: 132px;
+      height: 132px;
+    }
+    .rf-petal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 46px;
+      height: 96px;
+      margin: -48px 0 0 -23px;
+      border-radius: 999px;
+      background: #fff;
+      transform-origin: 50% 50%;
+    }
+    .rf-wordmark {
+      margin: 0;
+      font-size: 132px;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      color: #fff;
+    }
+    .rf-promise {
+      position: absolute;
+      left: 50%;
+      top: 63%;
+      transform: translateX(-50%);
+      margin: 0;
+      font-size: 34px;
+      font-weight: 560;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.86);
+      white-space: nowrap;
+    }
+  </style>
+
+  <main
+    class="rf-stage"
+    data-edit="stage"
+    data-edit-label="Stage"
+    data-motionly-generation-profile="claude-foundation-v1"
+  >
+    <div class="rf-bloom" data-edit="warm-bloom" data-background-role="bloom"></div>
+    <div class="rf-grain" data-edit="grain-field" data-background-role="grain"></div>
+
+    <div
+      class="rf-world"
+      data-edit="camera-world"
+      data-edit-label="Camera world"
+      data-camera-world
+    >
+      <div
+        class="rf-carrier"
+        data-edit="story-carrier"
+        data-edit-label="Story carrier"
+        data-transition-carrier
+      ></div>
+
+      <section class="rf-scene" data-edit="beat-claim" data-scene="scene-01-claim">
+        <h1
+          class="rf-line rf-line--tight"
+          data-edit="claim-line"
+          data-edit-label="Opening statement"
+          data-field="content"
+          data-field-label="Opening statement"
+          data-field-type="text"
+          data-field-binding="text"
+        >
+          Text becomes motion.
+        </h1>
+      </section>
+
+      <section class="rf-scene" data-edit="beat-import" data-scene="scene-02-import">
+        <div class="rf-row" data-edit="import-row" data-edit-label="Completing line">
+          <h1 class="rf-on-brand" data-edit="import-lead" data-edit-label="Lead word">
+            Import
+          </h1>
+          <h1 class="rf-on-brand" data-edit="import-tail" data-edit-label="Rest of line">
+            your own voice.
+          </h1>
+        </div>
+      </section>
+
+      <section class="rf-scene" data-edit="beat-styles" data-scene="scene-03-styles">
+        <div class="rf-chips" data-edit="style-chips" data-edit-label="Style options">
+          <div class="rf-chip" data-edit="chip-calm">Calm</div>
+          <div class="rf-chip" data-edit="chip-cinematic">Cinematic</div>
+          <div class="rf-chip" data-edit="chip-punchy">Punchy</div>
+        </div>
+      </section>
+
+      <section class="rf-scene" data-edit="beat-edit" data-scene="scene-04-edit">
+        <div class="rf-selection" data-edit="edit-selection" data-edit-label="Selection"></div>
+        <div class="rf-macro" data-edit="macro-word" data-edit-label="Edited word">
+          <span data-edit="macro-text">Hera</span>
+          <span class="rf-macro-caret" data-edit="macro-caret"></span>
+        </div>
+      </section>
+
+      <section class="rf-scene" data-edit="beat-brand" data-scene="scene-05-brand">
+        <div class="rf-lockup" data-edit="brand-lockup" data-edit-label="Brand lockup">
+          <div class="rf-mark" data-edit="brand-mark" data-edit-label="Mark">
+            <span class="rf-petal" data-edit="petal-1"></span>
+            <span class="rf-petal" data-edit="petal-2"></span>
+            <span class="rf-petal" data-edit="petal-3"></span>
+          </div>
+          <h1
+            class="rf-wordmark"
+            data-edit="brand-wordmark"
+            data-edit-label="Wordmark"
+            data-field="content"
+            data-field-label="Wordmark"
+            data-field-type="text"
+            data-field-binding="text"
+          >
+            Hera
+          </h1>
+        </div>
+        <p class="rf-promise" data-edit="brand-promise" data-edit-label="Promise">
+          Every voice, in motion.
+        </p>
+      </section>
+    </div>
+  </main>
+</template>
