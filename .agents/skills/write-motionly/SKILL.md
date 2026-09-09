@@ -17,9 +17,9 @@ The target is an authored SaaS ad with varied shots. Product UI is useful eviden
 
 For a general SaaS ad, build a shot progression from the request: editorial hook -> product material or problem -> mechanism close-up -> visible result -> brand. Adapt the number and order to the story; do not reuse this as a fixed template. Two adjacent beats must differ in framing and in what visibly happens. Alternate wide, medium, and detail views with a reason for each move.
 
-- Default to a bright neutral ground with dark ink and one strong brand accent. Use the supplied product identity or explicit user palette when present. Dark can be a deliberate contrast beat; it is not a synonym for premium.
+- The ground is a lit space, never flat `#ffffff`: warm off-white with a blurred brand-hue bloom behind the subject, warm neutral grey, near-black with one warm source, or a full-bleed brand colour. Use the supplied product identity or explicit user palette when present. Dark is a deliberate contrast beat, not a synonym for premium.
 - Make the subject large enough to read. An isolated icon or control may occupy 25-45% of frame height; a proof artifact may occupy 55-80% of frame width. Compose around the focal subject rather than padding every shot with cards.
-- One bold, full-size editorial sentence per thought, centered in Inter 68px/700 at 1920x1080. Enter at scale 2.0+ with gradient fill and settle word-by-word with back.out(1.35). Do not add a tiny explanatory subtitle.
+- One bold, full-size editorial sentence per thought, centred, 96-150px/700 at 1920x1080 (150-220px for a two- or three-word statement), tracking -0.03em to -0.055em, spanning 45-85% of frame width. Enter cropped at scale 2.0+ and settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
 - A useful UI close-up may span an input and its result. Show the active detail, then leave it. Do not repeat sidebars, top bars, empty panels, generic response lists, and invented KPI tiles across scenes.
 - Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Use supplied images when available; otherwise use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
@@ -90,16 +90,90 @@ A state is not a caption. It is something on screen with mass, position, and beh
 
 The material must **persist through the chain**. The code that streamed is the code that gets flagged. The scattered ideas are the sentences in the finished document. The tangled routes are the optimised ones. Recognisable continuity is what makes the film an argument instead of a slideshow.
 
-## What the reference films actually teach
+## The reference standard
 
-Six published films were transcribed for this skill. Two are `task`-shape films for products whose interface genuinely is the product; four are not, and none of the four builds a dashboard.
+Seven published product films were studied frame by frame for this skill. You cannot watch them, so everything they do is written out below as construction you can execute. This is the bar. A film that does none of it is not a product film, it is a slide deck.
 
-- **Type breaking into an object.** A sentence settles, its words fly apart on separate vectors and depths, the last word shrinks to a point, becomes a glyph, the glyph rotates into a button, the button unfolds into the thing itself. One continuous carrier across four identities, no cut.
-- **A field at depth.** Real content cards at five or six Z depths with genuine titles and status, camera flying through them. This is what replaces "some cards fade in".
-- **Material bloom.** Geometric facets in a real material rotating around the centre while the positioning line assembles between them.
-- **A full-bleed colour beat.** The ground floods to one brand colour, one sentence in white, 1.5 to 2.5 seconds. Punctuation — twice per film at most.
-- **Orbit.** Elements travelling on arcs that draw themselves as they go, around a centre.
-- **The interface films** (`task` shape only): a photo docks into a composer; a question types character by character while the camera pans with the caret; a press produces the answer; a result card builds row by row; the same result reappears on a phone; pull back to the promise line. Even here the *content* carries the film, not the chrome.
+The single most common gap between generated output and these films is **scale and depth**. The references put one enormous thing on screen at a time, in a lit space with a real ground. Generated output puts four small rounded rectangles on flat white. Fix that first; everything else is detail.
+
+### The ground is a lit space, never flat white
+
+Not one of the seven uses plain `#ffffff`. Every ground is one of four kinds, and each carries light:
+
+1. **Warm off-white with a coloured bloom.** Ground `#F6F5F8`–`#EFEEF3`. Behind the focal object sits one or two soft radial glows in the brand hue at 25–45% opacity, 500–900px across, heavily blurred (`filter: blur(80px)` on an absolutely positioned circle). The frame reads as lit, not blank.
+2. **Warm neutral grey.** Ground `#E8E6E3`–`#EDEBE8`, no gradient, extremely restrained. Used when the content is photographic and must not compete.
+3. **Near-black with a single warm source.** Ground `#0B0B0D`–`#141318`, with one large radial gradient in the brand hue (orange, purple, red) bleeding from one edge or from behind the type at 30–60% opacity. Type on this ground carries a soft glow: `text-shadow: 0 0 40px <accent at 45%>`. Optionally a fine grain overlay at 3–6% opacity.
+4. **Full-bleed brand colour.** The entire viewport floods to one saturated brand colour — a coral `#EE4B3C`, a blue `#1A56F0`, a deep red — with white type. Held 1.5–2.5s. Use at most twice per film, as punctuation or as the final beat.
+
+The ground never changes to white, never goes transparent, and never empties. When the film moves between grounds it does so as a full-bleed wipe or flood driven by an object, never a fade.
+
+### Typography
+
+**Family.** A geometric or neo-grotesque sans throughout: `Inter`, `Söhne`, `General Sans`, `Satoshi`, or the platform stack `-apple-system, "SF Pro Display", Inter, sans-serif`. One family per film. Serif appears only if the brand's own wordmark is a serif.
+
+**Weight and tracking.** Statements are 600–780 weight with tight negative tracking, `letter-spacing: -0.03em` to `-0.055em`. Never a light weight for a statement. Never letter-spaced-out uppercase except for a kicker.
+
+**Size.** This is where generated output fails hardest. Measured across all seven films, an editorial statement occupies **45–85% of frame width**, with a cap height of **6–9% of frame height**. At 1920×1080 that is a `font-size` of **96–150px** for a one-line statement, and **150–220px** for a two- or three-word statement that fills the frame. A statement under 70px at 1080 does not appear anywhere in the references.
+
+**One thought, one line, no subtitle.** Every statement is a single sentence or fragment, centred, with nothing under it. A second line of smaller grey explanatory text under a headline appears in none of the seven and is the clearest signal of generated output.
+
+**The accent word.** Almost every statement colours exactly one word in the brand hue while the rest stays near-black or white: *"So, progress **slows**"* with `slows` in blue; *"Where the world builds **software**"* with `software` in purple; *"Select your desired **style**"* with `style` in red; *"All **connected**"*, *"Everywhere at **once.**"*. Two-tone within a single line, one accent word, never more.
+
+**Words arrive one at a time onto a fixed line.** A recurring construction: `Ideas.` holds, then `Notes.` appears beside it, then `Tasks.` — the line assembling in place with the earlier words never moving. Similarly `Translate.` → `Dub.` → `Distribute.` Build this by laying out all words in the final position and revealing each with a `y: 24 → 0` plus opacity on `back.out(1.4)`, 0.35–0.5s apart. Do not re-centre the line as words appear.
+
+**Punctuation as design.** Statements frequently end in a full stop that is itself an object — `Ideas.` `Books.` `Done.` — and a small four-point sparkle glyph `✦` sometimes closes a line.
+
+### The shot catalogue
+
+These are the shots the references are actually built from. Pick four to six per film; every one of them is a large, single-subject composition.
+
+**Full-bleed imagery under type.** A photograph, map, or texture fills the entire viewport and a very large statement sits over it in white or black. Nothing else in frame. This is the strongest opening in the set.
+
+**The 3D application panel.** The product UI is not a flat rectangle in the middle. It is a large panel rotated in three dimensions — `perspective: 1600px` on the world, `rotateY: 12–26deg`, `rotateX: 4–10deg`, `rotateZ: -3–6deg` — occupying 60–95% of frame width, with a real drop shadow (`0 60px 140px rgba(0,0,0,.28)`) and often bleeding off one edge of the frame. Two or three such panels at different depths and angles, with the camera travelling past them, is a standard beat.
+
+**A corridor of material at depth.** Five to nine real objects — document pages, code planes, PR cards, content thumbnails — placed at distinct Z depths from `translateZ(-1400px)` to `translateZ(300px)`, each with its own slight rotation, the nearest ones motion-blurred. The camera flies forward through the corridor. Every object carries genuine content: a real title, a real status pill, real body text. This shot replaces "some cards fade in".
+
+**The dimensional icon or device.** One app icon, phone, or artefact rendered as a solid object at 25–45% of frame height, tilted in perspective with a soft contact shadow, slowly rotating. Around it, five or six smaller related icons orbit on elliptical paths at varying depth.
+
+**Icons used as words.** A 3D icon sits inline inside a sentence at the same optical size as the type — *"Any language [folder icon] Instantly"* — and can then be dragged by a cursor out of the line and into a drop target. Icons are solid, dimensional, and lit, never flat monoline glyphs.
+
+**The macro edit.** Extreme close-up on a single word or control filling 30–60% of frame width, with a text selection highlight sweeping across it, a caret blinking, or a value changing in place. The camera pushes in to reach it and pulls back out.
+
+**The rolling picker.** A vertical list of eight to twelve real option names in light grey, scrolling continuously, with the currently selected one snapping to full black at the anchor line and a small marker beside it. Reads as a machine choosing.
+
+**Coloured status pills.** Rounded-full chips — `border-radius: 999px`, `padding: 10px 22px` — in saturated brand colours with white or dark text, each often carrying a small icon. Stacked in a column with 0.08s stagger, or connected by thin curved lines into a node graph.
+
+**The measured number.** One large figure at 8–14% of frame height with a unit and a period beside it, counting up, above a gradient-filled progress bar that fills in sync. Never an unlabelled sparkline.
+
+**The real terminal or timeline.** Monospace output in a dark window with traffic-light dots, lines appearing one at a time with checkmarks; or a video editor timeline with layered filmstrip and waveform tracks in distinct colours, a playhead, and real timecodes.
+
+**Geometry as metaphor.** Three large translucent circles in cyan, magenta and amber overlapping so the intersections blend additively; a soft multi-hue gradient sphere; an iridescent faceted form rotating slowly on black. Pure geometry at 30–50% of frame height, used where a UI would say nothing.
+
+**The brand close.** The mark and wordmark together, centred, occupying 25–40% of frame width, on open ground or a full-bleed brand colour, with at most four words under it or a bare URL. In one film the mark substitutes for a letter in the final word. The close is never a small pill and never a paragraph.
+
+### Camera
+
+The camera is a real instrument in every one of these films and it never stops.
+
+- **Push in** on the subject: `scale 1 → 1.35–1.8` over 1.2–2.0s, `expo.out` or `power4.out`.
+- **Pull back to reveal**: `scale 1.6 → 1` while the frame fills with what was outside it. This is the reveal move, and it is how a sentence completes itself.
+- **Lateral travel**: `x` moving 600–2400px through a wide `data-camera-world` at `power2.inOut`, following material rather than sliding for its own sake.
+- **Z-push through depth**: the world's `translateZ` advancing while layered objects pass the camera and blur.
+- **Orbit**: the world rotating 8–20deg on Y around a fixed subject.
+- **A settling drift** under every reading hold: 1–3% scale or 10–30px of travel, continuing, so no frame is ever locked.
+
+Adjacent beats must contrast in camera: a push follows a lateral track, a macro follows a wide. Never two pushes in a row at the same rate.
+
+### Transitions between beats
+
+Every boundary in these films is carried by an object. The four that actually appear:
+
+1. **Object-led wipe.** A large shape, panel, or colour field sweeps across the frame in one direction and the next beat is already composed behind it. The wipe is the carrier.
+2. **Camera-continuous cut.** The camera is already travelling; the material changes while the movement's axis, direction and speed are preserved across the boundary, so the eye reads one continuous move.
+3. **Morph of the shared object.** A card becomes a window becomes a panel — one element whose width, height, radius and surface change continuously while its contents cross-fade inside it.
+4. **Scatter and reform.** A cluster of objects breaks apart on individual vectors with rotation and motion blur, travels, and reassembles as the next beat's composition.
+
+Never a cross-dissolve, never a fade through white or black, never a hard cut between two unrelated static layouts.
 
 ## Laws that hold for every shape
 

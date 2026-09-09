@@ -978,3 +978,78 @@ describe("dissolving through nothing", () => {
     ).not.toThrow();
   });
 });
+
+describe("a film that states something", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const scene = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const previousHtml = `<template><main data-edit="stage"><h1 data-edit="hook"></h1></main></template>`;
+
+  function film(rect: string) {
+    return {
+      duration: 12,
+      scenes: scene,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><h1 data-edit="hook" data-rect="${rect}" style="background:#f6f5f8">Filing is instant</h1></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+  }
+  const options = {
+    prompt: "make an ad",
+    previousHtml,
+    previousDuration: 12,
+    previousScenes: scene,
+  };
+
+  /**
+   * The reported defect: a 28px headline inside a pill. Every studied
+   * reference puts a statement across 45-85% of the frame.
+   */
+  it("rejects a film whose largest line is a caption", () => {
+    // 550px of 1920 is 29% of frame width, so this is too narrow to be a
+    // statement — but tall enough (7.9% of the canvas) to clear the
+    // small-objects check first, which isolates the rule under test.
+    expect(() =>
+      validateGeneratedComposition(film("690,390,550,300"), options),
+    ).toThrow(/never states anything/);
+  });
+
+  it("accepts a film that puts a real statement on screen", () => {
+    // 1180px of 1920 is 61% — inside the 45-85% the references use.
+    expect(() =>
+      validateGeneratedComposition(film("370,420,1180,150"), options),
+    ).not.toThrow();
+  });
+
+  it("does not ask a two-second fragment for an editorial statement", () => {
+    const fragment = {
+      ...film("690,390,550,300"),
+      duration: 2,
+      // The timeline has to be short too: a composition adopts its timeline's
+      // real length, so a 10s tween would make this a film after all.
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 30, duration: 1.5 }, 0);
+      }`,
+      scenes: [
+        { id: "main", label: "Main", start: 0, duration: 2, accent: "#fff" },
+      ],
+    };
+    expect(() =>
+      validateGeneratedComposition(fragment, {
+        ...options,
+        previousDuration: 2,
+        previousScenes: fragment.scenes,
+      }),
+    ).not.toThrow();
+  });
+});

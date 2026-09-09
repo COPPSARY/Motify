@@ -415,7 +415,12 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain(
       "The resolve is a pullback from the proof",
     );
-    expect(MOTIONLY_SYSTEM_PROMPT).toContain("A field at depth");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("A corridor of material at depth");
+    // The measured facts, not adjectives: without these the model reverts to
+    // small cards on flat white.
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("45–85% of frame width");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("The ground is a lit space");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("The accent word");
   });
   it("blocks a composition with no motion and flags one that mostly fades", () => {
     const fadeOnly = analyzeMotionQuality({

@@ -788,6 +788,51 @@ function assertNoDeadFrames(
   }
 }
 
+/**
+ * Whether the film ever puts a real statement on screen.
+ *
+ * Across every studied reference an editorial line spans 45-85% of the frame,
+ * and none contains a statement under roughly 70px at 1080. Generated output
+ * lands at 28-40px inside a pill with a grey subtitle beneath it, which is why
+ * the films read as slide decks and why a viewer cannot tell what is being
+ * claimed. Measured as a share of frame width so it holds at any canvas size.
+ */
+function assertFilmMakesAStatement(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  // Shorter than the briefest real film the skill contemplates. A two-second
+  // composition is a fragment or a fixture, and asking it for an editorial
+  // statement is asking the wrong question.
+  if (limit < 8) return;
+  let widest = 0;
+  const sample = (time: number): void => {
+    runtime.seek(Math.max(0, Math.min(limit, time)));
+    for (const leaf of textLeaves(visibleElements(root, rootRect, true))) {
+      const rect = leaf.getBoundingClientRect();
+      if (rect.height < 8) continue;
+      widest = Math.max(widest, rect.width / rootRect.width);
+    }
+  };
+  for (const scene of scenes) {
+    for (const progress of [0.3, 0.6, 0.9]) {
+      sample(scene.start + scene.duration * progress);
+    }
+  }
+  if (widest >= 0.3) return;
+  throw new Error(
+    `The film never states anything: its largest line of type spans only ${(
+      widest * 100
+    ).toFixed(
+      0,
+    )}% of the frame. Give at least one beat a full editorial statement at 96-150px, spanning 45-85% of the frame width, centred, with no subtitle beneath it.`,
+  );
+}
+
 function assertAssetsUsed(html: string, tokens: readonly string[]): void {
   const missing = tokens.filter((token) => !html.includes(token));
   if (missing.length > 0) {
@@ -1109,6 +1154,7 @@ export function validateGeneratedComposition(
       }
       assertBeatsShareMaterial(mounted, root, validated, limit);
       assertNoDeadFrames(mounted, root, limit);
+      assertFilmMakesAStatement(mounted, root, validated, limit);
       const finalScene = validated.at(-1);
       if (finalScene) {
         assertVisibleSceneFrame(
