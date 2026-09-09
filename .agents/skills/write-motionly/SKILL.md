@@ -19,7 +19,7 @@ For a general SaaS ad, build a shot progression from the request: editorial hook
 
 - The ground is a lit space, never flat `#ffffff`: warm off-white with a blurred brand-hue bloom behind the subject, warm neutral grey, near-black with one warm source, or a full-bleed brand colour. Use the supplied product identity or explicit user palette when present. Dark is a deliberate contrast beat, not a synonym for premium.
 - Make the subject large enough to read. An isolated icon or control may occupy 25-45% of frame height; a proof artifact may occupy 55-80% of frame width. Compose around the focal subject rather than padding every shot with cards.
-- One bold, full-size editorial sentence per thought, centred, 96-150px/700 at 1920x1080 (150-220px for a two- or three-word statement), tracking -0.03em to -0.055em, spanning 45-85% of frame width. Enter cropped at scale 2.0+ and settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
+- One editorial sentence per thought, centred, weight 700, tracking -0.03em to -0.055em. Size it for the beat, not to a rule: a quiet opener sits at 25-35% of frame width (about 76-90px at 1080), a dramatic beat at 60-75% (about 180-215px), and a close at 20-30%. Settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
 - A useful UI close-up may span an input and its result. Show the active detail, then leave it. Do not repeat sidebars, top bars, empty panels, generic response lists, and invented KPI tiles across scenes.
 - Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Use supplied images when available; otherwise use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
@@ -113,7 +113,17 @@ The ground never changes to white, never goes transparent, and never empties. Wh
 
 **Weight and tracking.** Statements are 600–780 weight with tight negative tracking, `letter-spacing: -0.03em` to `-0.055em`. Never a light weight for a statement. Never letter-spaced-out uppercase except for a kicker.
 
-**Size.** This is where generated output fails hardest. Measured across all seven films, an editorial statement occupies **45–85% of frame width**, with a cap height of **6–9% of frame height**. At 1920×1080 that is a `font-size` of **96–150px** for a one-line statement, and **150–220px** for a two- or three-word statement that fills the frame. A statement under 70px at 1080 does not appear anywhere in the references.
+**Size varies enormously, and the variation is the point.** Measured frame by frame in one reference film: a quiet opening statement spans **25% of frame width** (~5% cap height, about 76px at 1080); a dramatic beat spans **69%** (~14% cap height, about 210px); the brand close spans **20%**. Three statements in one film, and the largest is three times the smallest.
+
+So there is no single correct size, and setting every statement large is a real failure mode — it crowds the frame, leaves nothing for the object beats, and flattens the film into one loud note. Choose per beat:
+
+| The beat | Share of frame width | About, at 1080 |
+| --- | --- | --- |
+| A quiet opener or a connective line | 25–35% | 76–90px |
+| The one beat that has to land | 60–75% | 180–215px |
+| The brand close | 20–30% | 60–90px |
+
+**The oversized moment comes from the camera, not the type.** In the reference the line that fills the frame edge to edge is a *normal* statement with a camera pushed into it — it starts at reading size, the camera pushes until the words are cropped by both edges, and then it settles back. Set the type modestly and let the push do the work.
 
 **One thought, one line, no subtitle.** Every statement is a single sentence or fragment, centred, with nothing under it. A second line of smaller grey explanatory text under a headline appears in none of the seven and is the clearest signal of generated output.
 
@@ -122,6 +132,8 @@ The ground never changes to white, never goes transparent, and never empties. Wh
 **Words arrive one at a time onto a fixed line.** A recurring construction: `Ideas.` holds, then `Notes.` appears beside it, then `Tasks.` — the line assembling in place with the earlier words never moving. Similarly `Translate.` → `Dub.` → `Distribute.` Build this by laying out all words in the final position and revealing each with a `y: 24 → 0` plus opacity on `back.out(1.4)`, 0.35–0.5s apart. Do not re-centre the line as words appear.
 
 **Punctuation as design.** Statements frequently end in a full stop that is itself an object — `Ideas.` `Books.` `Done.` — and a small four-point sparkle glyph `✦` sometimes closes a line.
+
+**Objects carry the film; type punctuates it.** The reference is mostly *things*: a solid app icon alone at 25-30% of frame height, a phone tilted in perspective with real app icons orbiting it, a blue dimensional ribbon curving through the frame, eight content cards at depth with the camera flying through them, coloured pills with a title, a subtitle and a small icon. Between those, a short statement holds for a second and a half and then gets out of the way. If your film is statements with material underneath them, you have it backwards: alternate an object beat and a type beat, and let the objects have the screen time.
 
 ### The shot catalogue
 

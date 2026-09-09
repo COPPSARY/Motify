@@ -4,8 +4,9 @@
      * A worked example at the reference standard, built to be read by the
      * generator as much as watched. Every choice here is one the studied films
      * make: a lit ground rather than flat white, statements that hold the frame
-     * alone at 96-150px, one carrier crossing every boundary, and a camera that
-     * holds while the type carries the motion.
+     * alone and vary threefold in scale across the film, one carrier crossing
+     * every boundary, and a camera that holds while the type carries the
+     * motion.
      */
     .rf-stage {
       --ink: #0b0b0d;
@@ -94,13 +95,14 @@
       margin: 0;
       transform: translate(-50%, -50%);
       text-align: center;
-      font-size: 118px;
-      line-height: 1.02;
+      /* The one beat that has to land: 68% of frame width at 1080. */
+      font-size: 196px;
+      line-height: 0.98;
       font-weight: 720;
       letter-spacing: -0.045em;
     }
     .rf-line--tight {
-      font-size: 132px;
+      font-size: 196px;
     }
     .rf-accent {
       color: var(--brand);
@@ -120,7 +122,8 @@
       gap: 0.28em;
       white-space: nowrap;
       transform: translate(-50%, -50%);
-      font-size: 118px;
+      /* A connective line, deliberately a third of the dramatic beat. */
+      font-size: 82px;
       line-height: 1;
       font-weight: 720;
       letter-spacing: -0.045em;
@@ -196,8 +199,8 @@
     }
     .rf-mark {
       position: relative;
-      width: 132px;
-      height: 132px;
+      width: 96px;
+      height: 96px;
     }
     .rf-petal {
       position: absolute;
@@ -212,7 +215,8 @@
     }
     .rf-wordmark {
       margin: 0;
-      font-size: 132px;
+      /* The close sits small: about 24% of frame width with the mark. */
+      font-size: 84px;
       font-weight: 700;
       letter-spacing: -0.05em;
       color: #fff;

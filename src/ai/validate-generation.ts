@@ -901,7 +901,7 @@ function assertFilmMakesAStatement(
       widest * 100
     ).toFixed(
       0,
-    )}% of the frame. Give at least one beat a full editorial statement at 96-150px, spanning 45-85% of the frame width, centred, with no subtitle beneath it.`,
+    )}% of the frame. Give the one beat that has to land a statement spanning 60-75% of the frame width — about 180-215px at 1080 — centred, with no subtitle beneath it. Other beats may carry much smaller lines; what is missing is a moment that lands.`,
   );
 }
 

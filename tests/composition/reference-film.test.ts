@@ -98,8 +98,11 @@ describe("the reference-standard film", () => {
   it("uses the measured type moves rather than reinventing them", () => {
     expect(timelineSource).toMatch(/macroSettle\(/);
     expect(timelineSource).toMatch(/growAndComplete\(/);
-    // Statements are set at reference scale, not caption size.
-    expect(compositionHtml).toMatch(/font-size:\s*1[13][82]px/);
+    // Scale varies threefold across the film, which is the point: a dramatic
+    // beat, a connective line at roughly a third of it, and a modest close.
+    expect(compositionHtml).toMatch(/font-size:\s*196px/);
+    expect(compositionHtml).toMatch(/font-size:\s*82px/);
+    expect(compositionHtml).toMatch(/font-size:\s*84px/);
   });
 
   it("grounds every beat in a lit space rather than flat white", () => {
