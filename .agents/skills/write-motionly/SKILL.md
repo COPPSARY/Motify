@@ -162,7 +162,7 @@ The camera is a real instrument in every one of these films and it never stops.
 - **Orbit**: the world rotating 8–20deg on Y around a fixed subject.
 - **A settling drift** under every reading hold: 1–3% scale or 10–30px of travel, continuing, so no frame is ever locked.
 
-Adjacent beats must contrast in camera: a push follows a lateral track, a macro follows a wide. Never two pushes in a row at the same rate.
+Adjacent beats contrast in *framing* — a macro follows a wide, a full-bleed follows a detail. They do not have to contrast in camera move, and alternating push with pull to manufacture contrast is the failure this rule is most often turned into. Most beats need no camera move at all.
 
 ### Transitions between beats
 
@@ -275,7 +275,7 @@ Ground floods to the brand colour full-bleed (Move D). The mark and wordmark arr
 
 **The scale rhythm across those five beats is the film.** Huge → medium → macro → wide → medium. If every beat sits at the same size, no amount of correct colour or easing will save it. Write the scale of each beat's subject down before you author anything, and make sure no two adjacent beats match.
 
-**Every beat opens with a camera tween whose duration equals the beat.** Push, track, pull, orbit — and the next beat's camera starts where the last one ended. This is what keeps the film from freezing during reading holds, and it is why the references never feel static even when the type is simply sitting there.
+**Only some beats get a camera move.** In the five beats above the camera holds through Beat 1 while the type pulls itself back, tracks once in Beat 2, pushes in Beat 3, holds again, then pulls back in Beat 5 — four moves across five beats, each continuing the same inward journey. What stops a still beat from freezing is the type or the object still moving inside it, plus a 1-3% drift, not a camera move bolted onto every beat.
 
 ## Laws that hold for every shape
 
@@ -325,7 +325,26 @@ The carrier is the exception, and the reason it must not carry a `data-scene` ta
 
 ## Two mechanical rules
 
-**Fill each beat with its camera move.** Every beat opens with one camera tween whose duration equals that beat's full duration, starting where the previous beat's camera ended. The camera is what fills holds — it is how the reference films never freeze. A dead stretch then cannot exceed a beat boundary.
+**A statement beat is the statement, alone.** When a beat exists to say something, the sentence is the only thing in the frame. No cards under it, no chips beside it, no panel behind it, no metric tiles in the corner. Nothing but the ground and the line.
+
+This is the sharpest single difference between the reference films and generated output. In the references, every editorial beat — *"clarity disappears"*, *"Import your own voiceovers"*, *"Select your desired style"*, *"Everywhere at once."*, *"Customize it"* — is one line on an otherwise empty ground, held for 1.5 to 2.5 seconds with nothing competing for the eye. Generated films put a headline on the upper third and park two or three small cards underneath it, and the result says nothing, because the viewer does not know whether to read the sentence or inspect the cards.
+
+Exactly two things may share the frame with a statement:
+
+- **A full-bleed ground or atmosphere behind it** — a photograph, a map, a colour flood, a rotating form, a blurred bloom. It fills the whole viewport and sits behind the type. It is the ground, not an object.
+- **One inline icon that is part of the sentence**, at the type's own optical size, sitting in the line where a word would be.
+
+If the beat needs to show material, that material is its own beat. Alternate: statement, material, statement, material. Never both at once.
+
+**The camera is still when the type is moving.** Do not put a camera move on every beat. On a statement beat the *type* does the moving — it grows, it pulls back, it settles — and the camera holds, with at most a 1–3% drift so the frame is not frozen. Adding a push on top of type that is already scaling produces two competing movements and reads as drift, not direction.
+
+The camera travels on **space beats**: flying through a corridor of material, tracking across a wide world, orbiting an object, pushing into a detail. Those are the beats built to be moved through, and they are where a camera move means something.
+
+**One dominant direction per film.** Pick a through-line — the camera works its way inward across the film, or travels consistently to the left, or descends. Every camera move advances that line. What kills a film is alternating for the sake of contrast: push, pull, push, pull, or left, right, left, right. That reads as a machine cycling through options, and it is worse than no camera at all.
+
+Concretely, over five beats: hold, track left 700px, push in 1.55, hold at the new scale, pull back to 0.95. Four moves across five beats, all of them continuing the same inward journey, and two beats where the camera does nothing because the type or the object is carrying the motion.
+
+**Motivate every move.** The camera pushes because there is something to look at closely. It pulls back because something outside the frame is about to matter. It tracks because the material continues in that direction. If you cannot say what the move is following, cut it and let the beat be still.
 
 **Name your world.** The stage's first child is the full-bleed world at `width:100%; height:100%`, with a `data-edit` id naming what it is: `scan-field`, `route-space`, `idea-field`, `product-surface`, `editor-canvas`, `workspace`. Everything else is a child of it.
 

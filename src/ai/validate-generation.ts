@@ -961,6 +961,79 @@ function assertBeatsAreFramedDifferently(
   );
 }
 
+/**
+ * A statement sharing its beat with objects that compete for the eye.
+ *
+ * In every reference film an editorial beat is one line on an otherwise empty
+ * ground, held for a second and a half with nothing beside it. Generated films
+ * put a headline on the upper third and park two or three small cards
+ * underneath, and the beat then says nothing, because the viewer cannot tell
+ * whether to read the sentence or inspect the cards.
+ *
+ * A full-bleed ground behind the type is fine — it is excluded by the same
+ * 60% ceiling `frameSubjects` uses everywhere — and so is one inline icon, so
+ * the rule only fires when a statement is genuinely sharing the frame.
+ */
+function assertStatementsStandAlone(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  const canvasArea = rootRect.width * rootRect.height;
+  for (const scene of scenes) {
+    // Late in the beat: an outgoing beat's material may still be leaving early
+    // on, and that overlap is the transition, not competition.
+    const time = Math.max(
+      0,
+      Math.min(limit, scene.start + scene.duration * 0.75),
+    );
+    runtime.seek(time);
+    const visible = visibleElements(root, rootRect, true);
+    const subjects = frameSubjects(visible, canvasArea);
+    if (subjects.length === 0) continue;
+
+    // Is this beat led by type? Only then does the rule apply.
+    const statement = textLeaves(visible)
+      .filter(
+        (leaf) => leaf.getBoundingClientRect().width / rootRect.width > 0.3,
+      )
+      .sort(
+        (first, second) =>
+          second.getBoundingClientRect().width -
+          first.getBoundingClientRect().width,
+      )[0];
+    if (!statement) continue;
+
+    const competing = subjects.filter((element) => {
+      if (element === statement) return false;
+      if (element.contains(statement) || statement.contains(element)) {
+        return false;
+      }
+      const rect = element.getBoundingClientRect();
+      // An inline icon sized to the type is part of the sentence.
+      const asTall = rect.height / statement.getBoundingClientRect().height;
+      return asTall > 1.6 && (rect.width * rect.height) / canvasArea > 0.02;
+    });
+    if (competing.length === 0) continue;
+    const named = competing
+      .slice(0, 3)
+      .map(
+        (element) => element.dataset["edit"] ?? element.tagName.toLowerCase(),
+      )
+      .join(", ");
+    throw new Error(
+      `Scene ${scene.id} makes its statement compete with ${competing.length} other object${
+        competing.length === 1 ? "" : "s"
+      } (${named}) at ${time.toFixed(
+        1,
+      )}s. A beat that exists to say something holds the sentence alone on the ground — no cards under it, no panels beside it. Move that material into its own beat and alternate statement, material, statement.`,
+    );
+  }
+}
+
 function assertAssetsUsed(html: string, tokens: readonly string[]): void {
   const missing = tokens.filter((token) => !html.includes(token));
   if (missing.length > 0) {
@@ -1285,6 +1358,7 @@ export function validateGeneratedComposition(
       assertFilmMakesAStatement(mounted, root, validated, limit);
       assertTypeStaysInFrame(mounted, root, validated, limit);
       assertBeatsAreFramedDifferently(mounted, root, validated, limit);
+      assertStatementsStandAlone(mounted, root, validated, limit);
       const finalScene = validated.at(-1);
       if (finalScene) {
         assertVisibleSceneFrame(

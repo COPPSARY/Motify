@@ -83,8 +83,17 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
   });
 
   it("keeps reference-grade camera and hold guidance internally consistent", () => {
-    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+    // The rule this replaced — a camera tween on every beat, contrasting with
+    // its neighbour — is what produced push, pull, push, pull in real output.
+    expect(MOTIONLY_SYSTEM_PROMPT).not.toContain(
       "Fill each beat with its camera move",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "The camera is still when the type is moving",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("One dominant direction per film");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "A statement beat is the statement, alone",
     );
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("lastWordSettled");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain(
@@ -271,7 +280,7 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
         timeline.set([copy, carrier], { autoAlpha: 0 }, 0);
         timeline.fromTo(copy, { y: 40 }, { y: 0, duration: 0.5 }, 0.1);
         timeline.fromTo(carrier, { scale: 0.9 }, { scale: 1, duration: 0.5 }, 0.2);
-        timeline.fromTo(world, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0.3);
+        timeline.fromTo(world, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "sine.out" }, 0.3);
         wordSlideRotate(timeline, copy, { at: 0.2 });
         giantKineticCrop(timeline, copy, { at: 0.2 });
         timeline.to(carrier, { x: 40, duration: 0.5 }, 1);
@@ -280,10 +289,9 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
         morph(timeline, carrier, { width: 600 }, { at: 4 });
         timeline.to(carrier, { rotation: 4, duration: 0.5 }, 5);
         timeline.to(carrier, { rotation: 0, duration: 0.5 }, 6);
-        timeline.to(world, { x: -300, scale: 1.1, duration: 1 }, 3);
-        timeline.to(world, { x: -900, scale: 1.1, duration: 1 }, 6);
-        timeline.to(world, { x: -1200, scale: 0.9, duration: 1 }, 9);
-        timeline.to(world, { scale: 1.45, x: -1400, duration: 1 }, 4.5);
+        timeline.to(world, { x: -900, scale: 1.1, duration: 1.2, ease: "expo.out" }, 3);
+        timeline.to(world, { x: -940, scale: 1.12, duration: 2.2, ease: "sine.inOut" }, 4.4);
+        timeline.to(world, { x: -1400, scale: 1.45, duration: 1.2, ease: "expo.out" }, 7.6);
         timeline.to(cursor, { scale: 0.86, duration: 0.09, yoyo: true, repeat: 1 }, 5.4);
         matchCut(timeline, copy, carrier, { at: 8 });
         timeline.to(shell, { y: -40, autoAlpha: 0, duration: 0.5 }, 7.4);

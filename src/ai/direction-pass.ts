@@ -98,6 +98,9 @@ Each name in brackets is a built mechanic the builder calls directly, so name th
 
 Scale is not optional. A statement spans 45-85% of frame width with a cap height of 6-9% of frame height — at 1920x1080 that is 96-150px, and 150-220px for a two- or three-word line. Weight 600-780, tracking -0.03em to -0.055em. One thought per beat on one line, with no smaller explanatory subtitle beneath it, ever. Colour exactly one word in the brand hue and say which word.
 
+Rule 3b2: A Statement Beat Is The Statement Alone
+When a beat exists to say something, the sentence is the only thing in the frame. No cards under it, no chips beside it, no panel behind it, no metric tiles in a corner. Only two things may share the frame with a statement: a full-bleed ground or atmosphere behind it (a photo, a map, a colour flood, a rotating form, a blurred bloom), and one inline icon at the type's own optical size sitting where a word would be. If the beat needs to show material, that material is its own beat. Alternate statement, material, statement, material — never both at once.
+
 Rule 3c: The Shot Vocabulary
 Every beat is one of these, and each is a large single-subject composition. Name the shot you are using in the beat's shot field:
 
@@ -138,9 +141,15 @@ The carrier must be a literal element: a blinking cursor, a specific button, a g
 Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms).
 
 Rule 5: The Tiling Beats and the Camera
-The camera is a real instrument and it never stops. Every beat names a move: push in (scale 1 to 1.35-1.8, expo.out), pull back to reveal (scale 1.6 to 1, the move that completes a sentence), lateral travel (600-2400px through a wide world), Z-push through depth, or an orbit of 8-20deg on Y. Under every reading hold a settling drift of 1-3% scale or 10-30px continues, so no frame is ever locked.
+Do NOT give every beat a camera move. That is what produces push, pull, push, pull and left, right, left, right — a machine cycling through options, which is worse than no camera at all.
 
-Adjacent beats must contrast in framing (Wide to Macro) or camera movement (Pan to Z-push). Never two pushes in a row at the same rate. Every beat requires a start state, an end state, and the physical action between them.
+On a statement beat the type does the moving and the camera holds, with at most a 1-3% drift. The camera travels only on space beats: flying through a corridor of material, tracking across a wide world, orbiting an object, or pushing into a detail worth inspecting. Across five beats expect about four moves, two of which are holds.
+
+Pick one dominant direction for the whole film — inward, or consistently left, or descending — and make every move advance it. Name what each move is following; if you cannot, make the beat still.
+
+The moves: push in (scale 1 to 1.35-1.8, expo.out), pull back to reveal (scale 1.6 to 1), lateral travel (600-2400px through a wide world), Z-push through depth, orbit 8-20deg on Y.
+
+Adjacent beats must contrast in FRAMING (Wide to Macro, full-bleed to detail). They do not need to contrast in camera move. Every beat requires a start state, an end state, and the physical action between them.
 
 Beats tile: each starts exactly where the last ends, and together they fill the requested duration.
 

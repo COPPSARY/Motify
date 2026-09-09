@@ -131,8 +131,12 @@ const ISSUE_REMEDIES: ReadonlyArray<readonly [string, string]> = [
     "Carry one object through several boundaries — the sentence becomes the glyph becomes the button becomes the product — instead of introducing a fresh carrier at every cut.",
   ],
   [
-    "camera is not first-class",
-    "Reframe the named input material, transforming subject, and result at readable shot sizes. Do not add arbitrary camera moves to satisfy a count.",
+    "the camera never travels",
+    "Give the space beats — a corridor of material, a wide world, a detail worth inspecting — one motivated move each. Leave the statement beats still; the type is already moving on those.",
+  ],
+  [
+    "the camera moves",
+    "Cut the camera back to the beats that need it. Hold it still on every statement beat and let the type carry the motion there. Pick one dominant direction for the film — inward, or consistently left — and make each remaining move advance it, instead of alternating push with pull to manufacture contrast.",
   ],
   [
     "multi-scene product film has no expansive",
