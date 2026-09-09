@@ -20,6 +20,7 @@ describe("GSAP-first motion presets", () => {
       "errorWobble",
       "giantKineticCrop",
       "gradientSweep",
+      "growAndComplete",
       "impactShake",
       "inverseZoomThrough",
       "kineticAnchor",

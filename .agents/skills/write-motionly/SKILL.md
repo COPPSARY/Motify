@@ -175,6 +175,108 @@ Every boundary in these films is carried by an object. The four that actually ap
 
 Never a cross-dissolve, never a fade through white or black, never a hard cut between two unrelated static layouts.
 
+## How to actually shoot the film, move by move
+
+Everything below was measured off the reference films frame by frame at 8 frames per second. The numbers are what those films really run at. Build the moves, do not invent your own — the difference between these and a slide deck is entirely in the timing.
+
+### Move A — The Oversize Pull-Back
+
+The signature opening. The line begins **larger than the frame**, cropped by both the left and right edges so only two or three words are legible, and shrinks until the whole sentence fits. The sentence completes because the frame effectively widened, not because words faded in.
+
+```
+t+0.00  line at scale 2.9, opacity 1, cropped by both edges
+t+0.00  → scale 1.0 over 0.65s, ease "expo.out"
+t+0.65  full sentence visible at reading size, centred
+t+0.65  hold 0.9s with a drift: scale 1.0 → 1.03, x 0 → -14
+t+1.55  exit: opacity → 0 over 0.3s, or blur 0 → 12px
+```
+
+Measured: the reference runs this in **0.6–0.75s**. It is fast. A two-second pull-back reads as sluggish. Use `macroSettle(timeline, line, { at, startScale: 2.9, blur: 0, duration: 0.65 })` and give the beat a matching `cameraPull`.
+
+### Move B — Grow and Complete
+
+The other way a sentence finishes itself, and the more useful one. The opening fragment sits **small and centred**, then grows while the rest of the sentence arrives beside it and the line re-centres continuously.
+
+```
+t+0.00  fragment "Import" at scale 0.55, opacity 1, centred
+t+0.00  → scale 1.0 over 0.50s, ease "power3.out"
+t+0.18  remaining words fade 0 → 1, left to right, 0.07s apart,
+        each also y 10 → 0 on "back.out(1.3)"
+        the line's x shifts left each time a word lands so the
+        whole sentence stays centred — never let it grow rightward
+t+0.55  complete sentence, centred, full size
+t+0.55  hold 1.0s with scale 1.0 → 1.04 continuing
+```
+
+The words arrive **ghosted then solid** — an opacity ramp, not a slide from off-screen. Total build is about **0.75s** for a five-word line.
+
+### Move C — Macro Settle, and the snap is the point
+
+```
+t+0.00  scale 3.0, blur 20px, opacity 0
+t+0.00  → opacity 1 over 0.12s
+t+0.05  → blur 20px → 0px over 0.25s, ease "power4.out"
+t+0.00  → scale 3.0 → 1.0 over 0.85s, ease "expo.out"
+t+0.85  settled, then drift scale 1.0 → 1.04 and x 0 → +22
+        across the rest of the hold
+```
+
+Focus resolves at **t+0.30**, a third of the way through the movement. The line is sharp while it is still travelling. Text that stays soft until it stops looks like a video artefact. Use `macroSettle(...)`, which already runs these numbers.
+
+### Move D — Ground flood
+
+Never cross-fade between beats. Flood the ground instead:
+
+```
+t+0.00  next ground colour enters as a full-bleed layer,
+        scaleY 0 → 1 from one edge, or x -100% → 0,
+        over 0.45s, ease "power3.inOut"
+t+0.10  outgoing type opacity → 0 over 0.2s, or blurs out
+t+0.30  incoming type begins Move B or Move C on the new ground
+```
+
+The frame is never empty: the new ground is already covering the viewport before the old type has finished leaving.
+
+### Move E — The object rises and never stops
+
+A device, icon or artefact enters from **outside the frame edge**, not by fading in:
+
+```
+t+0.00  y +55% (below the frame), rotation -8deg, scale 0.85
+t+0.00  → y 0, rotation 0, scale 1.0 over 1.1s, ease "expo.out"
+t+1.10  continuous rotation ±6deg and y ±12px for the whole beat,
+        so the object is never still
+```
+
+Size it at **30–45% of frame height**, tilt it `rotateY 14–22deg` with `perspective: 1600px`, and give it a real contact shadow.
+
+### Move F — Word-by-word onto a fixed line
+
+`Ideas.` → `Ideas. Notes.` → `Ideas. Notes. Tasks.` Lay all three out in their **final positions** first, hide the later ones, and reveal each with `y: 22 → 0` plus opacity on `back.out(1.4)`, **0.42s apart**. The earlier words never move.
+
+## The end-to-end film
+
+A 22-second film, beat by beat, with the times it actually runs at. Adapt the content; keep the structure, the scale changes, and the pacing.
+
+**Beat 1 — 0.0 to 4.2s. The claim, oversized.**
+Ground floods in as a full-bleed dark or brand colour. The opening statement plays **Move A**: starts cropped by both frame edges at scale 2.9, pulls back to reading size over 0.65s. Hold with a drift. One word in the brand hue. Camera: a slow `cameraPull` from 1.15 to 1.0 across the whole beat so the frame is never static.
+
+**Beat 2 — 4.2 to 8.6s. The problem, made physical.**
+Ground floods to the second colour (Move D). The subject is now an **object, not a sentence**: a device rising from below (Move E), a corridor of real cards at Z depths from -1400px with the near plane blurred, or overlapping translucent circles. It occupies 35–55% of the frame. A short line sits over it, entered with **Move C**, no larger than half the height of Beat 1's statement — the scale contrast between beats is what makes the film read as directed. Camera: a lateral track of 500–900px, opposite in direction to Beat 1's move.
+
+**Beat 3 — 8.6 to 13.4s. The mechanism, in macro.**
+Push in hard. `cameraPush` scale 1.0 → 1.55 over 1.4s on `expo.out`, landing on **one detail**: a word being selected with a highlight sweeping across it, a value counting up, a control being pressed, a caret typing. The detail fills 40–65% of frame width. This is the closest shot in the film and it must be genuinely close — if it looks like the previous beat with slightly bigger elements, it is not a macro.
+
+**Beat 4 — 13.4 to 17.8s. The result, pulled back.**
+`cameraPull` from 1.55 back to 0.95 over 1.6s, revealing what the mechanism produced: the finished artefact, the organised set, the generated image, the completed table — at 55–80% of frame width. A line above or below it plays **Move F**, three short words landing 0.42s apart.
+
+**Beat 5 — 17.8 to 22.0s. The brand.**
+Ground floods to the brand colour full-bleed (Move D). The mark and wordmark arrive together at **25–40% of frame width**, centred, with at most four words or a bare URL beneath. The mark enters at scale 0.7 with a `back.out(1.5)` over 0.6s; the words follow 0.25s later. Hold to the last frame with a 1.0 → 1.03 drift. Nothing else is in the frame.
+
+**The scale rhythm across those five beats is the film.** Huge → medium → macro → wide → medium. If every beat sits at the same size, no amount of correct colour or easing will save it. Write the scale of each beat's subject down before you author anything, and make sure no two adjacent beats match.
+
+**Every beat opens with a camera tween whose duration equals the beat.** Push, track, pull, orbit — and the next beat's camera starts where the last one ended. This is what keeps the film from freezing during reading holds, and it is why the references never feel static even when the type is simply sitting there.
+
 ## Laws that hold for every shape
 
 **The camera never stops and never resets.** Continuous motion from first frame to last — push, lateral travel, orbit, pull. It never snaps back to scale 1 between beats. Author one `data-camera-world` and move the viewport through it.

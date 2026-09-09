@@ -43,6 +43,7 @@ These are callable functions, unlike registry component names. Use relevant help
 - pullbackComplete(timeline, lead, tail, { camera, at, startScale, endScale, hold, stagger, settleEase })
 - macroSettle(timeline, element, { at, startScale, endScale, blur, unit, stagger, duration, ease })
 - kineticAnchor(timeline, anchor, orbiting, { at, distance, rotation, stagger, duration, ease })
+- growAndComplete(timeline, lead, tail, { at, startScale, duration, stagger, settleEase })
 
 Do not invent names or add a positional time argument after an options object. A helper call does not prove a transition works: author and align the actual source and destination geometry.
 

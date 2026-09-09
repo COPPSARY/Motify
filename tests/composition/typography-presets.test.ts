@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import gsap from "gsap";
 import {
+  growAndComplete,
   kineticAnchor,
   macroSettle,
   pullbackComplete,
@@ -57,13 +58,15 @@ describe("the Pullback Complete", () => {
     expect(Number(gsap.getProperty(camera, "scale"))).toBeCloseTo(1, 1);
     expect(Number(gsap.getProperty(tail, "opacity"))).toBeGreaterThan(0.9);
 
-    // The tail took up room rather than fading in on the spot.
+    // Measured off the reference: the tail resolves in the room the retreat
+    // opened, lifting a few pixels rather than travelling in from off-screen.
     const words = tail.querySelectorAll<HTMLElement>(".motionly-split-item");
     expect(words.length).toBeGreaterThan(0);
-    at(timeline, 2.1);
-    expect(
-      Math.abs(Number(gsap.getProperty(words[0]!, "xPercent"))),
-    ).toBeGreaterThan(0);
+    at(timeline, 2.05);
+    expect(Math.abs(Number(gsap.getProperty(words[0]!, "y")))).toBeGreaterThan(
+      0,
+    );
+    expect(Number(gsap.getProperty(words[0]!, "xPercent"))).toBe(0);
     root.remove();
   });
 });
@@ -124,6 +127,37 @@ describe("Kinetic Anchor", () => {
     for (const word of words) {
       expect(Number(gsap.getProperty(word, "x"))).toBeCloseTo(0, 1);
       expect(Number(gsap.getProperty(word, "rotation"))).toBeCloseTo(0, 1);
+    }
+    root.remove();
+  });
+});
+
+describe("Grow and Complete", () => {
+  it("grows the fragment while the rest of the line lands beside it", () => {
+    const root = stage(
+      `<div><h1 data-edit="lead">Import</h1><h1 data-edit="tail">your own voiceovers</h1></div>`,
+    );
+    const lead = root.querySelector<HTMLElement>('[data-edit="lead"]')!;
+    const tail = root.querySelector<HTMLElement>('[data-edit="tail"]')!;
+    const timeline = gsap.timeline({ paused: true });
+
+    growAndComplete(timeline, lead, tail, { at: 0, duration: 0.5 });
+    const layer = lead.querySelector<HTMLElement>(
+      ".motionly-text-motion-layer",
+    )!;
+
+    // Opens small and centred, with the tail not yet readable.
+    at(timeline, 0.02);
+    expect(Number(gsap.getProperty(layer, "scale"))).toBeLessThan(0.7);
+    const words = tail.querySelectorAll<HTMLElement>(".motionly-split-item");
+    expect(Number(gsap.getProperty(words[0]!, "opacity"))).toBeLessThan(0.2);
+
+    // Grown to full size with the sentence complete, inside 0.75s.
+    at(timeline, 0.78);
+    expect(Number(gsap.getProperty(layer, "scale"))).toBeCloseTo(1, 1);
+    for (const word of words) {
+      expect(Number(gsap.getProperty(word, "opacity"))).toBeGreaterThan(0.9);
+      expect(Number(gsap.getProperty(word, "y"))).toBeCloseTo(0, 1);
     }
     root.remove();
   });

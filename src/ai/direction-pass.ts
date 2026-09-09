@@ -92,6 +92,8 @@ Macro Settle (macroSettle): Type arrives at 300% scale, heavily blurred, then sn
 
 Kinetic Anchor (kineticAnchor): One word is stationary while the rest of the sentence physically revolves or slides around it.
 
+Grow and Complete (growAndComplete): The opening fragment sits small and centred, grows to full size over 0.5s, and the rest of the sentence lands beside it 0.07s per word while the line re-centres. The build finishes in about 0.75s. This is the treatment the references use most.
+
 Each name in brackets is a built mechanic the builder calls directly, so name the treatment exactly and say which words are the lead, the tail, or the anchor. State the chosen treatment in typeTreatment.
 
 Scale is not optional. A statement spans 45-85% of frame width with a cap height of 6-9% of frame height — at 1920x1080 that is 96-150px, and 150-220px for a two- or three-word line. Weight 600-780, tracking -0.03em to -0.055em. One thought per beat on one line, with no smaller explanatory subtitle beneath it, ever. Colour exactly one word in the brand hue and say which word.
