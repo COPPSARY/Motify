@@ -1230,3 +1230,73 @@ describe("a carrier trapped inside its own beat", () => {
     expect(note).toMatch(/Move the carrier out of every data-scene subtree/);
   });
 });
+
+describe("a beat holding nothing but its ground", () => {
+  let restore: () => void = () => {};
+  beforeEach(() => {
+    restore = stubLayout();
+  });
+  afterEach(() => {
+    restore();
+  });
+
+  const one = [
+    { id: "main", label: "Main", start: 0, duration: 12, accent: "#fff" },
+  ];
+  const options = {
+    prompt: "make an ad",
+    previousHtml: `<template><main data-edit="stage"><div data-edit="hook"></div></main></template>`,
+    previousDuration: 12,
+    previousScenes: one,
+  };
+  const drift = `export function buildTimeline({ root, timeline }) {
+    timeline.to(root.querySelector('[data-edit="ambient-glow"]'), { x: 30, duration: 10 }, 0);
+  }`;
+
+  /**
+   * The reported blank scenes. A decorative bloom carries a `data-edit` id, is
+   * painted, and covers plenty of the canvas, so it answered "yes, something is
+   * on screen" to every emptiness check at once and the beat shipped empty.
+   */
+  it("rejects a beat whose only occupant is a decorative bloom", () => {
+    const blank = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="ambient-glow" data-rect="560,240,800,600" style="background:#eee"></div></main></template>`,
+      timelineJs: drift,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(blank, options)).toThrow(
+      /no visible foreground/,
+    );
+  });
+
+  it("rejects a beat holding only an element tagged as a background role", () => {
+    const blank = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="signal-path" data-background-role="signal-path" data-rect="200,240,1500,600" style="background:#eee"></div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="signal-path"]'), { x: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(blank, options)).toThrow(
+      /no visible foreground/,
+    );
+  });
+
+  /** A sharp gradient sphere is a real shot, not atmosphere. */
+  it("keeps treating an unblurred hero form as a subject", () => {
+    const hero = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="ambient-glow" data-rect="0,0,1900,1070" style="background:#f6f5f8"></div><div data-edit="hero-sphere" data-rect="660,290,600,500" style="background:#5b9dff">Sphere</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hero-sphere"]'), { rotation: 30, duration: 10 }, 0);
+      }`,
+      reply: "Done",
+    };
+    expect(() => validateGeneratedComposition(hero, options)).not.toThrow();
+  });
+});

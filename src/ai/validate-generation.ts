@@ -40,9 +40,42 @@ function isVisiblyRendered(element: HTMLElement, root: HTMLElement): boolean {
   return true;
 }
 
+/**
+ * Atmosphere: the lit ground a beat sits in, rather than anything in it.
+ *
+ * This is how blank beats were shipping. Every emptiness check asked whether
+ * *something* was on screen, and a single decorative bloom answered yes — it
+ * carries a `data-edit` id, it is painted, and it covers plenty of the canvas,
+ * so a frame holding nothing but a blurred purple glow passed "renders no
+ * visible foreground", "holds a blank frame" and the subject floor at once.
+ *
+ * Identified conservatively. A heavy blur or an explicit background role is
+ * unambiguous; the id keywords are limited to words that only ever name
+ * atmosphere. Nothing here catches a sharp gradient sphere or a colour field
+ * used as an actual subject, because those are real shots in the catalogue.
+ */
+function isAtmosphere(element: HTMLElement): boolean {
+  if (element.dataset["backgroundRole"]) return true;
+  if ((element.textContent ?? "").trim().length > 0) return false;
+  if (element.querySelector("img, svg, video, canvas")) return false;
+  const id = element.dataset["edit"]?.toLowerCase() ?? "";
+  if (
+    /(?:^|-)(?:glow|bloom|aura|halo|vignette|grain|noise|backdrop|ambient)(?:-|$)/.test(
+      id,
+    )
+  ) {
+    return true;
+  }
+  const blur = /blur\(([\d.]+)px\)/.exec(
+    getComputedStyle(element).filter ?? "",
+  );
+  return blur ? Number(blur[1]) >= 12 : false;
+}
+
 function hasMeaningfulContent(element: HTMLElement): boolean {
   if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName)) return true;
   if ((element.textContent ?? "").trim().length >= 2) return true;
+  if (isAtmosphere(element)) return false;
   const id = element.dataset["edit"]?.toLowerCase() ?? "";
   return Boolean(id && !/^(stage|camera-world|world|background)$/.test(id));
 }
@@ -182,6 +215,8 @@ function frameSubjects(
     if (share < 0.004 || share > 0.6) return false;
     if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName))
       return true;
+    // The ground a beat sits in is not one of the beat's subjects.
+    if (isAtmosphere(element)) return false;
     if (isPainted(getComputedStyle(element))) return true;
     return Array.from(element.childNodes).some(
       (node) =>
