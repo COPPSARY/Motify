@@ -77,6 +77,9 @@
     claudePreset,
     kiriTtsPreset,
     motionlyPromoPreset,
+    recoupPreset,
+    relayPreset,
+    tesseraPreset,
   } from "../compositions/presets";
   import appleNotesHtmlSource from "../compositions/presets/apple-notesapp/composition.html?raw";
   import appleNotesAdapterSource from "../compositions/presets/apple-notesapp/index.ts?raw";
@@ -90,6 +93,15 @@
   import motionlyPromoHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
   import motionlyPromoAdapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
   import motionlyPromoTimelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
+  import tesseraHtmlSource from "../compositions/presets/tessera/composition.html?raw";
+  import tesseraAdapterSource from "../compositions/presets/tessera/index.ts?raw";
+  import tesseraTimelineSource from "../compositions/presets/tessera/timeline.js?raw";
+  import relayHtmlSource from "../compositions/presets/relay/composition.html?raw";
+  import relayAdapterSource from "../compositions/presets/relay/index.ts?raw";
+  import relayTimelineSource from "../compositions/presets/relay/timeline.js?raw";
+  import recoupHtmlSource from "../compositions/presets/recoup/composition.html?raw";
+  import recoupAdapterSource from "../compositions/presets/recoup/index.ts?raw";
+  import recoupTimelineSource from "../compositions/presets/recoup/timeline.js?raw";
   import promoLogoUrl from "../compositions/presets/motionly-promo/logo.svg?url";
   import promoUiScreenshotUrl from "../compositions/presets/motionly-promo/ui-screenshot.png?url";
   import {
@@ -112,6 +124,7 @@
     readLocalAsset,
     storeLocalAsset,
     type LocalAssetReference,
+    type AssetIntent,
   } from "../stores/local-assets";
   import {
     clearProjectDrafts,
@@ -155,6 +168,21 @@
     appleNotesHtmlSource,
     appleNotesTimelineSource,
     appleNotesAdapterSource,
+  );
+  const tesseraProjectFiles = splitCompositionSource(
+    tesseraHtmlSource,
+    tesseraTimelineSource,
+    tesseraAdapterSource,
+  );
+  const relayProjectFiles = splitCompositionSource(
+    relayHtmlSource,
+    relayTimelineSource,
+    relayAdapterSource,
+  );
+  const recoupProjectFiles = splitCompositionSource(
+    recoupHtmlSource,
+    recoupTimelineSource,
+    recoupAdapterSource,
   );
   const previewApi = new ProjectsApi();
   const activeDraftKey = "active";
@@ -539,6 +567,39 @@
     mountComposition(appleNotesPreset);
     captureEvent("preset loaded", { preset_name: "apple_notes" });
     showNotice("Apple Notes 24s Product Film loaded.");
+  }
+
+  function loadTesseraPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...tesseraProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(tesseraPreset);
+    captureEvent("preset loaded", { preset_name: "tessera" });
+    showNotice("Tessera 20s data-contract film loaded.");
+  }
+
+  function loadRelayPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...relayProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(relayPreset);
+    captureEvent("preset loaded", { preset_name: "relay" });
+    showNotice("Relay 26s film loaded.");
+  }
+
+  function loadRecoupPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...recoupProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(recoupPreset);
+    captureEvent("preset loaded", { preset_name: "recoup" });
+    showNotice("Recoup 26s liquid-glass SaaS ad loaded.");
   }
 
   async function mountSavedProject(project: ProjectSummary): Promise<void> {
@@ -1338,6 +1399,30 @@
     }
   }
 
+  /**
+   * An image the user has not yet told us the purpose of. The prompt is held
+   * until they do, because a screenshot used as a reference and a logo used as
+   * an asset produce opposite instructions to the model.
+   */
+  $: pendingAssets = stagedAssets.filter((asset) => !asset.intent);
+  $: classifiedAssets = stagedAssets.filter((asset) => asset.intent);
+
+  function classifyStagedAsset(
+    asset: LocalAssetReference,
+    intent: AssetIntent,
+  ): void {
+    stagedAssets = stagedAssets.map((item) =>
+      item.id === asset.id ? { ...item, intent } : item,
+    );
+    captureEvent("asset intent chosen", { intent });
+    showNotice(
+      intent === "reference"
+        ? `${asset.name} kept as a reference — it will be matched, not placed on screen.`
+        : `${asset.name} moved into project media — it will appear in the film.`,
+    );
+    scheduleDraftSave();
+  }
+
   function removeStagedAsset(asset: LocalAssetReference): void {
     stagedAssets = stagedAssets.filter((item) => item.id !== asset.id);
     const preview = stagedPreviews[asset.id];
@@ -2086,6 +2171,47 @@
                     <small>24s · 2.5D Expansive Camera</small></span
                   >
                 </button>
+                <button class="me-preset-card" on:click={loadTesseraPreset}>
+                  <span class="me-preset-thumbnail tessera-thumbnail">
+                    <span class="promo-thumbnail-art"
+                      ><small>DATA CONTRACT</small><strong
+                        >ONE<br /><em>SHAPE.</em></strong
+                      ><i>CORRIDOR · GATE · CONTRACT</i></span
+                    >
+                  </span>
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Tessera</strong>
+                    <small>20s · Transformation, no UI shell</small></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadRelayPreset}>
+                  <span class="me-preset-thumbnail relay-thumbnail"
+                    ><span class="promo-thumbnail-art"
+                      ><small>REVIEW AND HANDOFF</small><strong
+                        >PASS<br /><em>IT ON.</em></strong
+                      ><i>26 SECOND PRODUCT FILM</i></span
+                    ></span
+                  >
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Relay</strong><small
+                      >26s &middot; Review and handoff</small
+                    ></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadRecoupPreset}>
+                  <span class="me-preset-thumbnail recoup-thumbnail"
+                    ><span class="promo-thumbnail-art"
+                      ><small>FAILED PAYMENT RECOVERY</small><strong
+                        >WIN IT<br /><em>BACK.</em></strong
+                      ><i>LIQUID GLASS &middot; 3D CAMERA</i></span
+                    ></span
+                  >
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Recoup</strong><small
+                      >26s &middot; Liquid glass, 3D camera</small
+                    ></span
+                  >
+                </button>
                 <button
                   class="me-preset-card"
                   on:click={loadMotionlyPromoPreset}
@@ -2152,10 +2278,57 @@
                   </div>
                 {/if}
               </div>
-              {#if stagedAssets.length > 0}
+              {#each pendingAssets as asset (asset.id)}
+                <div class="ai-attachment-intent">
+                  {#if stagedPreviews[asset.id]}
+                    <img
+                      class="ai-intent-thumb"
+                      src={stagedPreviews[asset.id]}
+                      alt={asset.name}
+                    />
+                  {:else}
+                    <span class="ai-intent-thumb ai-attachment-fallback"
+                      ><ImageIcon size={16} /></span
+                    >
+                  {/if}
+                  <div class="ai-intent-body">
+                    <strong class="ai-intent-question"
+                      >Is this a reference or an asset?</strong
+                    >
+                    <span class="ai-intent-name">{asset.name}</span>
+                    <div class="ai-intent-actions">
+                      <button
+                        type="button"
+                        class="ai-intent-choice"
+                        on:click={() => classifyStagedAsset(asset, "reference")}
+                        >Reference<small>Match what it shows</small></button
+                      >
+                      <button
+                        type="button"
+                        class="ai-intent-choice"
+                        on:click={() => classifyStagedAsset(asset, "asset")}
+                        >Asset<small>Put it in the video</small></button
+                      >
+                    </div>
+                  </div>
+                  <button
+                    class="ai-attachment-remove"
+                    type="button"
+                    aria-label={`Discard ${asset.name}`}
+                    disabled={$generationStore.isActive}
+                    on:click={() => removeStagedAsset(asset)}
+                    ><X size={11} /></button
+                  >
+                </div>
+              {/each}
+              {#if classifiedAssets.length > 0}
                 <div class="ai-chat-attachments" aria-label="Attached images">
-                  {#each stagedAssets as asset (asset.id)}
-                    <span class="ai-attachment" title={asset.name}>
+                  {#each classifiedAssets as asset (asset.id)}
+                    <span
+                      class="ai-attachment"
+                      class:is-reference={asset.intent === "reference"}
+                      title={`${asset.name} — ${asset.intent === "reference" ? "reference" : "project media"}`}
+                    >
                       {#if stagedPreviews[asset.id]}
                         <img
                           class="ai-attachment-thumb"
@@ -2168,6 +2341,11 @@
                         >
                       {/if}
                       <span class="ai-attachment-name">{asset.name}</span>
+                      <span class="ai-attachment-intent-tag"
+                        >{asset.intent === "reference"
+                          ? "reference"
+                          : "media"}</span
+                      >
                       <button
                         class="ai-attachment-remove"
                         type="button"
@@ -2206,7 +2384,8 @@
                   aria-label="Send assistant message"
                   disabled={!assistantDraft.trim() ||
                     $generationStore.isActive ||
-                    uploadingMedia}
+                    uploadingMedia ||
+                    pendingAssets.length > 0}
                   type="submit"><ArrowUp size={17} /></button
                 >
               </form>
