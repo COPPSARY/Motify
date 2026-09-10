@@ -770,7 +770,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
         scale: 1,
         autoAlpha: 1,
         duration: 1.05,
-        ease: "power3.out",
+        ease: EASE.arrive,
       },
       35.4 + i * 0.075,
     ),
