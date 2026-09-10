@@ -29,6 +29,7 @@ The deployed model has no filesystem, browser, or skill-loading tools. The skill
 These are callable functions, unlike registry component names. Use relevant helpers with their real signatures:
 
 - giantKineticCrop(timeline, element, { at, startScale, endScale, duration, panX, unit: "words", stagger, settleEase })
+- editorialTextReveal(timeline, element, { at, duration, stagger, distance, blur, ease }) — readable words on a fixed baseline, with focus resolving early; preserves nested emphasis and spaces.
 - waterfallTextReveal(timeline, element, { at, startScale, endScale, panX, startX, startY, rotateX, rotateY, stagger, duration, ease })
 - wordSlideRotate(timeline, element, { at, distance, stagger, rotation, duration, ease })
 - charSpringBounce(timeline, element, { at, distance, stagger, duration, ease })

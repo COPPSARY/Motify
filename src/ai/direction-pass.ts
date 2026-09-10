@@ -98,6 +98,9 @@ Each name in brackets is a built mechanic the builder calls directly, so name th
 
 Size each statement for its beat rather than to one rule. Measured in the reference films: a quiet opener spans 25-35% of frame width (about 76-90px at 1080), the one beat that has to land spans 60-75% (about 180-215px), and the brand close spans 20-30%. The largest statement in a film is roughly three times the smallest, and that spread is what gives the film shape — setting every line large crowds the frame and flattens it. The edge-to-edge moment comes from a camera push into a normally sized line, not from bigger type. Weight 600-780, tracking -0.03em to -0.055em. One thought per beat on one line, never a smaller explanatory subtitle beneath it. Colour exactly one word in the brand hue and say which word.
 
+Rule 3a: Grow To The Edge, Then Retreat Somewhere New
+The strongest move in this vocabulary. A line settles at reading size, keeps growing past comfortable until the frame crops it and only two or three words are legible, holds there for half a second, and then the camera pulls back — landing not where it started but on something new that is already composed and waiting in the space that opens up: the object the line was about, the interface it names, the mark it resolves into. The zoom and the retreat are one gesture with a turn in the middle. Retreating to the shot you began in is the wobble this whole vocabulary exists to avoid. Name the destination when you use it.
+
 Rule 3b1: Objects Carry The Film
 The reference films are mostly things, not words: a solid app icon alone at 25-30% of frame height, a phone tilted in perspective with real app icons orbiting it, a dimensional ribbon curving through the frame, eight content cards at depth with the camera flying through, coloured pills carrying a title and a small icon. Statements punctuate between them for a second and a half. Give the objects the screen time and alternate object beat, type beat, object beat.
 
@@ -146,6 +149,8 @@ The carrier belongs to the whole film, not to one beat. Name something that can 
 Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms).
 
 Rule 5: The Tiling Beats and the Camera
+Reserve a reading area for the incoming subject and specify when outgoing material has cleared it. A shared object can remain while its surrounding interface exits. Do not send a tilted application through foreground text, leave an empty morph plate over the next scene, or reveal a full feature catalogue in a short hold. Choose one or two capabilities and show their result. A library may show the chosen option plus two alternatives; keep the full roster in its picker. At a processing gate, admit one record at a time, resolve its fields, then give it a separate output slot before the next arrives. The final comparison must fit in the frame. Reference examples teach mechanisms, not layouts to copy.
+
 Do NOT give every beat a camera move. That is what produces push, pull, push, pull and left, right, left, right — a machine cycling through options, which is worse than no camera at all.
 
 On a statement beat the type does the moving and the camera holds, with at most a 1-3% drift. The camera travels only on space beats: flying through a corridor of material, tracking across a wide world, orbiting an object, or pushing into a detail worth inspecting. Across five beats expect about four moves, two of which are holds.

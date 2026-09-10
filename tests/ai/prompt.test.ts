@@ -157,7 +157,10 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     });
     expect(message).toContain("Keep the bottle centered");
     expect(message).toContain("motionly-asset://asset-1");
-    expect(message).toContain("Every supplied image is required");
+    // An unclassified image is still placeable, and it is declared required.
+    expect(message).toContain("IMAGES TO PLACE");
+    expect(message).toContain("Each one is required");
+    expect(message).toContain("No reference images supplied.");
     expect(message).toContain("LOCAL EDITOR OVERRIDES");
     expect(message).toContain("sine.inOut");
   });
