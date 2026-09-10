@@ -204,6 +204,98 @@
   font-size: 10px;
 }
 
+/* An image whose purpose has not been chosen yet holds the prompt, so it is
+   a card with a question rather than a chip in the attachment row. */
+.code-editor-scope .ai-attachment-intent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid #3a3f49;
+  border-radius: 10px;
+  background: #1e2126;
+}
+
+.code-editor-scope .ai-intent-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: #2a2d33;
+  flex: none;
+}
+
+.code-editor-scope .ai-intent-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.code-editor-scope .ai-intent-question {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e6e9ef;
+}
+
+.code-editor-scope .ai-intent-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #878d99;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-intent-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.code-editor-scope .ai-intent-choice {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid #3a3f49;
+  border-radius: 7px;
+  background: #262a30;
+  color: #e6e9ef;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-editor-scope .ai-intent-choice small {
+  font-size: 9px;
+  font-weight: 400;
+  color: #878d99;
+}
+
+.code-editor-scope .ai-intent-choice:hover {
+  border-color: #5b6472;
+  background: #2d323a;
+}
+
+.code-editor-scope .ai-attachment.is-reference {
+  border-style: dashed;
+}
+
+.code-editor-scope .ai-attachment-intent-tag {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #2f333a;
+  color: #9aa1ad;
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .code-editor-scope .ai-attachment-thumb {
   width: 24px;
   height: 24px;

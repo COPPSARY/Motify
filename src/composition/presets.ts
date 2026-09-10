@@ -1,4 +1,52 @@
 import gsap from "gsap";
+import { CustomEase } from "gsap/CustomEase";
+
+gsap.registerPlugin(CustomEase);
+
+/**
+ * The film's ease vocabulary.
+ *
+ * GSAP's stock curves top out at a narrow dynamic range: `power2.inOut` moves
+ * at only 3x its mean velocity at the fastest point, and `sine.inOut` at 1.57.
+ * Stretched over the two-to-five second travels a film is actually built from,
+ * that reads as constant velocity — the middle of the move has no ramp in it.
+ *
+ * These are registered `CustomEase` curves with the range a time ramp needs.
+ * Each is annotated with its peak-to-mean velocity ratio (linear = 1.00) and,
+ * for the arrival curves, how much distance it covers in the first 20% of its
+ * duration — `expo.out` covers 93% there, which is why an oversized entrance
+ * built on it is gone before it can be read.
+ *
+ * Pick by what the motion *is*, not by how long it lasts:
+ *
+ * - `EASE.cameraRamp` — a camera or world travelling a long way. Holds, blasts
+ *   through the middle, settles. Use for lateral tracks and z-flies.
+ * - `EASE.travel` — an object crossing the frame under its own direction.
+ * - `EASE.material` — a carrier's own outline changing. Weighted, not snappy.
+ * - `EASE.arrive` — something landing in place. Fast off the mark, long tail,
+ *   but still legible at the start.
+ * - `EASE.depart` — something accelerating out of frame. Peaks at the exit.
+ * - `EASE.settle` — an oversized element pulling back to rest.
+ *
+ * Ambient drift and breathing loops stay on `sine.inOut`, and a constant-rate
+ * readout — an audio playhead, a progress bar — stays on `none`. Neither is a
+ * directed move, so neither wants a ramp.
+ */
+export const EASE = {
+  /** peak 5.90x, 3% covered by 20% — a true hold-blast-settle ramp. */
+  cameraRamp: CustomEase.create("motionlyCameraRamp", "M0,0 C0.8,0 0.14,1 1,1"),
+  /** peak 3.82x, front-loaded ramp for directed object travel. */
+  travel: CustomEase.create("motionlyTravel", "M0,0 C0.62,0 0.16,1 1,1"),
+  /** peak 3.75x, slightly heavier through the middle than `travel`. */
+  material: CustomEase.create("motionlyMaterial", "M0,0 C0.66,0 0.2,1 1,1"),
+  /** peak 5.25x at t=0, 72% covered by 20% — punchier than `power2.out`
+   *  (49%) without `expo.out`'s two-frame collapse. */
+  arrive: CustomEase.create("motionlyArrive", "M0,0 C0.16,0.84 0.22,1 1,1"),
+  /** peak 8.68x at t=1 — accelerates all the way out. */
+  depart: CustomEase.create("motionlyDepart", "M0,0 C0.55,0 0.92,0.3 1,1"),
+  /** peak 6.00x at t=0, 73% covered by 20% — for giant-to-settle pullbacks. */
+  settle: CustomEase.create("motionlySettle", "M0,0 C0.12,0.72 0.16,1 1,1"),
+} as const;
 
 export interface MotionOptions {
   at?: gsap.Position;

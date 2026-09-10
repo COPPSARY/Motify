@@ -435,7 +435,18 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("A corridor of material at depth");
     // The measured facts, not adjectives: without these the model reverts to
     // small cards on flat white.
-    expect(MOTIONLY_SYSTEM_PROMPT).toContain("Size varies enormously, and the variation is the point");
+    // The rule this replaced forced every statement to one large size. Measured
+    // frame by frame, the reference varies threefold within a single film, and
+    // that spread is what gives the film shape.
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "Size varies enormously, and the variation is the point",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "The oversized moment comes from the camera, not the type",
+    );
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain(
+      "Objects carry the film; type punctuates it",
+    );
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("The ground is a lit space");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("The accent word");
   });

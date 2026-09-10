@@ -4,3 +4,4 @@ export { kiriTtsPreset } from "./KiriTTS";
 export { motionlyPromoPreset } from "./motionly-promo";
 export { tesseraPreset } from "./tessera";
 export { relayPreset } from "./relay";
+export { recoupPreset } from "./recoup";

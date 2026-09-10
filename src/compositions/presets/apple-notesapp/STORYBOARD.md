@@ -25,3 +25,9 @@ Story spine: an easy-to-lose thought is captured, organized in Notes, available 
 ## Browser checkpoints
 
 Inspect 1.0, 4.7, 8.8, 10.7, 14.8, 18.7, 21.8, and 23.4 seconds. At each settled frame, the focal subject must be obvious and no essential text or active control may be clipped.
+
+## Type system
+
+Set in SF Pro Display, the same display family as the KiriTTS preset, loaded from `public/fonts/sf-pro-display/` through the shared `__ASSET_SF_FONT_BASE__` placeholder. Only Regular, Medium and Bold ship, so every weight in the composition resolves to one of those three cuts — asking the renderer to synthesize 600, 650, 750 or 800 is what made the two presets read as different type systems even though they named the same family.
+
+The palette stays Apple's own: paper ground, ink text, and the Notes yellow and blue. Sharing the face is a house typographic system, not a reason to repaint one product in another product's colours.

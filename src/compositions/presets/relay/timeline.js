@@ -1,4 +1,4 @@
-import { editorialTextReveal, morph } from "../../../composition/presets";
+import { EASE, editorialTextReveal, morph } from "../../../composition/presets";
 
 /** One brief survives the whole journey. Paper -> review -> approved packet ->
  * delivered brief -> mark. An editorial concept for a fictional handoff tool. */
@@ -22,9 +22,9 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
   const place = (el, x = 0, y = 0, extra = {}) =>
     t.set(el, { xPercent: -50, yPercent: -50, x, y, ...extra }, 0);
   const show = (el, at, duration = 0.6) =>
-    t.to(el, { autoAlpha: 1, duration, ease: "power2.out" }, at);
+    t.to(el, { autoAlpha: 1, duration, ease: EASE.arrive }, at);
   const exit = (el, at, to = {}, duration = 0.65) =>
-    t.to(el, { ...to, autoAlpha: 0, duration, ease: "power2.inOut" }, at);
+    t.to(el, { ...to, autoAlpha: 0, duration, ease: EASE.depart }, at);
   const words = (el, at) =>
     editorialTextReveal(t, el, {
       at,
@@ -34,7 +34,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
       blur: 2,
     });
   const shape = (to, at, duration = 1) =>
-    morph(t, paper, to, { at, duration, ease: "power3.inOut" });
+    morph(t, paper, to, { at, duration, ease: EASE.material });
 
   t.set(world, { x: 0, y: 0, scale: 1, transformOrigin: "50% 50%" }, 0);
   t.set(
@@ -83,7 +83,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
   t.fromTo(
     paper,
     { autoAlpha: 0, y: 180, rotationY: -16 },
-    { autoAlpha: 1, y: 100, rotationY: -8, duration: 1, ease: "power3.out" },
+    { autoAlpha: 1, y: 100, rotationY: -8, duration: 1, ease: EASE.arrive },
     0.45,
   );
   notes.forEach((note, i) =>
@@ -95,7 +95,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
         y: i === 0 ? -15 : i === 1 ? 65 : 360,
         rotationY: 0,
         duration: 0.75,
-        ease: "power3.out",
+        ease: EASE.arrive,
       },
       1.05 + i * 0.22,
     ),
@@ -118,7 +118,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
         rotation: 0,
         autoAlpha: 0,
         duration: 0.95,
-        ease: "power3.inOut",
+        ease: EASE.depart,
       },
       4 + i * 0.12,
     ),
@@ -142,12 +142,12 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
   ["Copy", "Sound", "Final"].forEach((name, i) => {
     t.to(
       get("relay" + name + "Check"),
-      { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" },
+      { strokeDashoffset: 0, duration: 0.45, ease: EASE.arrive },
       6.2 + i * 1.05,
     );
     t.to(
       get("relay" + name + "Status"),
-      { x: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" },
+      { x: 0, autoAlpha: 1, duration: 0.45, ease: EASE.arrive },
       6.35 + i * 1.05,
     );
   });
@@ -158,12 +158,12 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
   t.fromTo(
     stamp,
     { autoAlpha: 0, scale: 1.6, y: 80 },
-    { autoAlpha: 1, scale: 1, y: 160, duration: 0.45, ease: "power3.in" },
+    { autoAlpha: 1, scale: 1, y: 160, duration: 0.45, ease: EASE.depart },
     9.45,
   );
   t.to(
     paper,
-    { rotationY: -8, rotationX: 4, duration: 1.2, ease: "power2.inOut" },
+    { rotationY: -8, rotationX: 4, duration: 1.2, ease: EASE.material },
     10.25,
   );
   t.to(stamp, { rotation: -12, duration: 2, ease: "sine.inOut" }, 10.2);
@@ -177,7 +177,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
       clipPath: "inset(45% 0 45% 0)",
       autoAlpha: 0,
       duration: 0.75,
-      ease: "power2.inOut",
+      ease: EASE.material,
     },
     14.15,
   );
@@ -199,7 +199,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
   show(tray, 15.6, 0.6);
   t.to(
     get("relayRoute"),
-    { clipPath: "inset(0 0% 0 0)", duration: 2.6, ease: "none" },
+    { clipPath: "inset(0 0% 0 0)", duration: 2.6, ease: EASE.cameraRamp },
     15.4,
   );
   t.to(
@@ -210,7 +210,7 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
       rotation: -7,
       rotationY: -16,
       duration: 1.45,
-      ease: "power2.inOut",
+      ease: EASE.travel,
     },
     15.5,
   );
@@ -223,11 +223,11 @@ export function buildRelayTimeline({ root, timeline: t, register }) {
       rotationY: -5,
       rotationX: 3,
       duration: 1.2,
-      ease: "power3.out",
+      ease: EASE.settle,
     },
     16.95,
   );
-  t.to(world, { x: -1050, duration: 2.65, ease: "power2.inOut" }, 15.65);
+  t.to(world, { x: -1050, duration: 2.65, ease: EASE.cameraRamp }, 15.65);
   words(titles[3], 18.15);
   exit(get("relayRoute"), 18.45, {}, 0.55);
   shape(

@@ -9,6 +9,8 @@ import appleNotesLogoUrl from "./apple-notes.svg?url";
 import noteSketchUrl from "./9c01cb4e40808bf2daaf2cf718464742.png?url";
 import checklistAssetUrl from "./Checklist-in-iPhone-notes.jpg?url";
 
+const sfFontBaseUrl = `${import.meta.env.BASE_URL}fonts/sf-pro-display/`;
+
 const PLAYBACK_SCALE = 1.3;
 export const APPLE_NOTES_PRESET_DURATION = 24.0 * PLAYBACK_SCALE;
 
@@ -174,7 +176,8 @@ function mountHtml(root: HTMLElement): void {
   container.innerHTML = compositionHtml
     .replaceAll("__ASSET_NOTES_LOGO__", appleNotesLogoUrl)
     .replaceAll("__ASSET_NOTE_SKETCH__", noteSketchUrl)
-    .replaceAll("__ASSET_CHECKLIST__", checklistAssetUrl);
+    .replaceAll("__ASSET_CHECKLIST__", checklistAssetUrl)
+    .replaceAll("__ASSET_SF_FONT_BASE__", sfFontBaseUrl);
   const template = container.querySelector(
     "#notes-preset-template",
   ) as HTMLTemplateElement | null;

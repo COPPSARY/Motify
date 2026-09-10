@@ -1,4 +1,4 @@
-import { editorialTextReveal } from "../../../composition/presets";
+import { EASE, editorialTextReveal } from "../../../composition/presets";
 
 /**
  * Tessera, 20 seconds.
@@ -47,13 +47,13 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
     t.set(el, { xPercent: -50, yPercent: -50, ...extra }, 0);
 
   const leave = (el, at, to = {}, duration = 0.7) =>
-    t.to(el, { ...to, autoAlpha: 0, duration, ease: "power2.inOut" }, at);
+    t.to(el, { ...to, autoAlpha: 0, duration, ease: EASE.depart }, at);
 
   const kickerIn = (el, at) =>
     t.fromTo(
       el,
       { autoAlpha: 0, y: -438 },
-      { autoAlpha: 1, y: -404, duration: 0.6, ease: "power3.out" },
+      { autoAlpha: 1, y: -404, duration: 0.6, ease: EASE.arrive },
       at,
     );
 
@@ -124,8 +124,8 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
     { filter: "blur(0px)", duration: 0.42, ease: "power4.out" },
     0.16,
   );
-  t.to(claim, { scale: 3.08, duration: 0.85, ease: "sine.inOut" }, 0.05);
-  t.to(claim, { scale: 1, duration: 1.05, ease: "expo.out" }, 0.9);
+  t.to(claim, { scale: 3.08, duration: 0.85, ease: EASE.material }, 0.05);
+  t.to(claim, { scale: 1, duration: 1.05, ease: EASE.settle }, 0.9);
   t.to(claim, { scale: 1.03, x: -12, duration: 1.1, ease: "sine.inOut" }, 1.95);
 
   /* ---- seam 01>02 / 3.9-5.1 — the claim recedes into the corridor ----- */
@@ -135,7 +135,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
   // next beat is built from.
   t.to(
     claim,
-    { z: -1500, autoAlpha: 0, duration: 1.05, ease: "power2.in" },
+    { z: -1500, autoAlpha: 0, duration: 1.05, ease: EASE.depart },
     3.9,
   );
   flybys.forEach((el, i) =>
@@ -144,7 +144,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
   records.forEach((el, i) =>
     t.to(el, { autoAlpha: 1, duration: 0.45 }, 4.05 + i * 0.07),
   );
-  t.to(corridor, { z: 3300, duration: 5.25, ease: "power1.inOut" }, 3.95);
+  t.to(corridor, { z: 3300, duration: 5.25, ease: EASE.cameraRamp }, 3.95);
 
   /* ---- 02 / 4.5-9 — a corridor of mismatched material ----------------- */
 
@@ -158,7 +158,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
         y: flybyY[i] * 2.2,
         autoAlpha: 0,
         duration: 0.9,
-        ease: "power2.in",
+        ease: EASE.depart,
       },
       5.4 + i * 0.75,
     ),
@@ -167,11 +167,11 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
 
   /* ---- seam 02>03 / 8.4-9.6 — the gate arrives on the same move ------- */
 
-  t.to(gate, { autoAlpha: 1, duration: 0.7, ease: "power2.out" }, 8.4);
+  t.to(gate, { autoAlpha: 1, duration: 0.7, ease: EASE.arrive }, 8.4);
   t.fromTo(
     beam,
     { scaleX: 0, transformOrigin: "50% 50%" },
-    { scaleX: 1, duration: 0.8, ease: "power3.out" },
+    { scaleX: 1, duration: 0.8, ease: EASE.arrive },
     8.6,
   );
   kickerIn(kickers.gate, 9.1);
@@ -192,7 +192,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
         scale: 1.35,
         rotationY: 0,
         duration: crossAt[i] - 9,
-        ease: "none",
+        ease: EASE.travel,
       },
       9,
     );
@@ -216,7 +216,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
         y: (i - 2) * 98,
         scale: 0.54,
         duration: 0.55,
-        ease: "power3.inOut",
+        ease: EASE.travel,
       },
       crossAt[i] + 0.4,
     );
@@ -248,7 +248,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
 
   t.to(
     gate,
-    { autoAlpha: 0, scale: 1.08, duration: 1, ease: "power2.inOut" },
+    { autoAlpha: 0, scale: 1.08, duration: 1, ease: EASE.depart },
     13.5,
   );
 
@@ -272,7 +272,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
         y: resultSlots[i][1],
         scale: 0.95,
         duration: 0.9,
-        ease: "power3.inOut",
+        ease: EASE.travel,
       },
       13.65 + i * 0.055,
     ),
@@ -292,12 +292,12 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
         scale: 0.05,
         autoAlpha: 0,
         duration: 0.85,
-        ease: "power3.inOut",
+        ease: EASE.depart,
       },
       16.9 + i * 0.07,
     ),
   );
-  t.to(camera, { x: 0, scale: 1, duration: 1.2, ease: "expo.out" }, 17);
+  t.to(camera, { x: 0, scale: 1, duration: 1.2, ease: EASE.settle }, 17);
   t.fromTo(
     mark,
     { scale: 0.18, autoAlpha: 0 },
@@ -305,7 +305,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
       scale: 1,
       autoAlpha: 1,
       duration: 0.9,
-      ease: "power3.out",
+      ease: EASE.arrive,
       immediateRender: false,
     },
     17.35,
@@ -329,7 +329,7 @@ export function buildTesseraTimeline({ root, timeline: t, register }) {
   t.fromTo(
     get("tessWordmark"),
     { autoAlpha: 0, y: 122 },
-    { autoAlpha: 1, y: 84, duration: 0.7, ease: "power3.out" },
+    { autoAlpha: 1, y: 84, duration: 0.7, ease: EASE.arrive },
     18.05,
   );
   editorialTextReveal(t, get("tessBrandLine"), {

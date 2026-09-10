@@ -1,0 +1,242 @@
+<template id="recoup-preset-template">
+  <style>
+    @font-face { font-family:"SF Pro Display";font-weight:500;font-style:normal;font-display:block;src:url("__ASSET_SF_FONT_BASE__SFPRODISPLAYMEDIUM.OTF") format("opentype"); }
+    @font-face { font-family:"SF Pro Display";font-weight:700;font-style:normal;font-display:block;src:url("__ASSET_SF_FONT_BASE__SFPRODISPLAYBOLD.OTF") format("opentype"); }
+    .rcp-film,.rcp-film * { box-sizing:border-box; }
+    .rcp-film { position:relative;width:100%;height:100%;overflow:hidden;background:#020408;color:#F4F8FC;font-family:"SF Pro Display",sans-serif;font-weight:500;font-variant-numeric:tabular-nums; }
+    .rcp-film h1,.rcp-film h2,.rcp-film h3,.rcp-film p { margin:0; }
+
+    /* ---- the ground -----------------------------------------------------
+       Glass is only glass when something is behind it. This aurora field is
+       the light the whole film refracts, and it never stops moving. */
+    .rcp-aurora { position:absolute;inset:-10%;filter:blur(120px); }
+    .rcp-blob { position:absolute;border-radius:50%; }
+    /* One key behind the subject, one cool rim. Two sources, not four. */
+    .rcp-blob-key { width:1500px;height:1100px;left:20%;top:8%;background:#0F7A55;opacity:.5; }
+    .rcp-blob-rim { width:1250px;height:1250px;left:52%;top:26%;background:#1B2F8A;opacity:.42; }
+    /* A floor that recedes, so the camera moves are actually visible. A flat
+       2D wash behind a 3D rig makes a dolly read as nothing at all. */
+    .rcp-grid { position:absolute;left:50%;top:50%;width:6400px;height:5000px;margin:-2500px 0 0 -3200px;
+      transform-origin:50% 50%;
+      background-image:linear-gradient(#9BF0CE38 1px,transparent 1px),linear-gradient(90deg,#9BF0CE38 1px,transparent 1px);
+      background-size:180px 180px;
+      -webkit-mask-image:radial-gradient(ellipse at 50% 50%,#000 3%,transparent 52%);
+      mask-image:radial-gradient(ellipse at 50% 50%,#000 3%,transparent 52%); }
+    .rcp-vignette { position:absolute;inset:0;background:radial-gradient(ellipse at 50% 44%,transparent 22%,#020408 82%); }
+    /* Grain kills the banding a heavy blur always produces, and gives the
+       ground a surface instead of a smooth digital wash. */
+    .rcp-grain { position:absolute;inset:0;pointer-events:none;opacity:.07;mix-blend-mode:overlay;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+    /* ---- the camera rig -------------------------------------------------
+       One perspective, one preserve-3d world. Everything the camera does is
+       done to `.rcp-cam`; nothing else fakes depth. */
+    .rcp-stage { position:absolute;inset:0;perspective:1900px;perspective-origin:50% 50%; }
+    /* Type rides above the world on a flat layer, so a dolly never rescales it. */
+    .rcp-hud { position:absolute;inset:0;pointer-events:none; }
+    .rcp-cam { position:absolute;inset:0;transform-style:preserve-3d; }
+
+    /* ---- liquid glass ---------------------------------------------------
+       A clear pane, a specular rim, and one moving highlight whose angle the
+       timeline drives, so light travels across a pane as the pane turns. */
+    .lg { position:absolute;left:50%;top:50%;border-radius:38px;overflow:hidden;transform-style:preserve-3d;
+      background:linear-gradient(135deg,#FFFFFF2E,#FFFFFF0C 44%,#FFFFFF06);
+      backdrop-filter:blur(26px) saturate(185%);-webkit-backdrop-filter:blur(26px) saturate(185%);
+      box-shadow:inset 0 1px 0 #FFFFFF6B,inset 0 -1px 0 #FFFFFF1F,inset 1px 0 0 #FFFFFF2E,inset -1px 0 0 #FFFFFF2E,0 52px 130px #00000094,0 6px 22px #0000005C; }
+    /* Content panes are tinted so type stays readable over a saturated
+       ground. Still glass — just darker glass. */
+    .lg-tint { background:linear-gradient(150deg,#0A1018D6,#0A1018A8 46%,#101A26B8);
+      backdrop-filter:blur(34px) saturate(150%);-webkit-backdrop-filter:blur(34px) saturate(150%); }
+    .lg-spec { position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+      background:
+        radial-gradient(ellipse 34% 116% at var(--lx,24%) var(--ly,4%),#FFFFFF33,#FFFFFF0F 46%,transparent 64%),
+        radial-gradient(ellipse 96% 62% at calc(var(--lx,24%) + 16%) -14%,#FFFFFF14,transparent 68%);
+      opacity:var(--s,1); }
+    /* The lip: a bright top edge that falls off fast, the way a real bevel
+       catches a key light. This is what says "glass", not the face sheen. */
+    .lg-lip { position:absolute;left:0;right:0;top:0;height:42%;border-radius:inherit;pointer-events:none;
+      background:linear-gradient(#FFFFFF2B,transparent 72%); }
+    /* A thin bright bevel that survives the blur, the way a real edge does. */
+    .lg-edge { position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+      border:1.5px solid transparent;
+      background:linear-gradient(calc(var(--a,116) * 1deg),#FFFFFFC4,#FFFFFF2E 34%,#FFFFFF0A 58%,#FFFFFF87) border-box;
+      opacity:var(--e,1);
+      -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+      -webkit-mask-composite:xor;mask-composite:exclude; }
+
+    /* ---- type ----------------------------------------------------------- */
+    .rcp-line { position:absolute;left:50%;top:50%;width:1660px;text-align:center;font-size:106px;line-height:1.02;letter-spacing:-.055em;font-weight:700;text-shadow:0 8px 40px #00000070; }
+    .rcp-line em { font-style:normal;color:#FF7A8F; }
+    .rcp-line b { font-weight:700;color:#5BF0AE; }
+    .rcp-kicker { position:absolute;left:50%;top:50%;width:1480px;text-align:center;font-size:44px;letter-spacing:-.03em;color:#C3D2E2;text-shadow:0 4px 24px #00000080; }
+    .rcp-kicker b { font-weight:700;color:#FFFFFF; }
+
+    /* ---- shared interface atoms ----------------------------------------- */
+    .rcp-eyebrow { display:flex;align-items:center;gap:14px;font-size:20px;letter-spacing:.16em;color:#A9BDD2; }
+    .rcp-eyebrow span:last-child { margin-left:auto;letter-spacing:.05em; }
+    .rcp-dot { width:10px;height:10px;border-radius:50%;background:#FF7A8F;box-shadow:0 0 16px #FF7A8F;flex:none; }
+    .rcp-state { position:relative;flex:none;margin-left:auto;width:214px;height:46px; }
+    .rcp-state em { position:absolute;right:0;top:0;font-style:normal;padding:10px 20px;border-radius:999px;
+      font-size:20px;letter-spacing:.05em;font-weight:700;white-space:nowrap; }
+    .rcp-state em.is-ok { background:#41E39B26;color:#5BF0AE;box-shadow:inset 0 0 0 1px #41E39B52; }
+    .rcp-state em.is-warn { background:#FFB84D26;color:#FFCE85;box-shadow:inset 0 0 0 1px #FFB84D52; }
+    .rcp-state em.is-bad { background:#FF6B8A26;color:#FF9DAE;box-shadow:inset 0 0 0 1px #FF6B8A52; }
+    .rcp-unpaid { display:flex;align-items:center;gap:14px;font-size:22px;letter-spacing:.14em;color:#FF9DAE; }
+    .rcp-unpaid b { width:9px;height:9px;border-radius:50%;background:#FF6B8A;box-shadow:0 0 14px #FF6B8A;flex:none; }
+    .rcp-avatar { width:56px;height:56px;border-radius:16px;flex:none;display:grid;place-items:center;font-size:24px;font-weight:700;letter-spacing:-.02em;background:#FFFFFF1F;color:#EAF2FA;box-shadow:inset 0 1px 0 #FFFFFF3D; }
+
+    /* ---- a charge plate, the atom the film is built from ---------------- */
+    .rcp-plate { width:760px;height:132px;border-radius:30px; }
+    .rcp-plate-in { position:absolute;inset:0;display:flex;align-items:center;gap:22px;padding:0 32px; }
+    .rcp-plate-in h3 { font-size:33px;letter-spacing:-.03em;font-weight:500; }
+    .rcp-plate-in small { display:block;font-size:20px;color:#A9BDD2;margin-top:4px; }
+    .rcp-plate-in .rcp-amount { margin-left:auto;font-size:36px;font-weight:700;letter-spacing:-.035em;color:#FF9DAE; }
+
+    /* ---- the carrier ---------------------------------------------------- */
+    .rcp-card { width:760px;height:132px;border-radius:30px; }
+    .rcp-face { position:absolute;inset:0;overflow:hidden;border-radius:inherit; }
+
+    /* 02 — the running total, its own pane at its own depth */
+    .rcp-total { width:660px;height:284px;border-radius:34px; }
+    .rcp-total-in { position:absolute;inset:0;padding:32px 38px;display:flex;flex-direction:column;justify-content:space-between; }
+    .rcp-total-in span { font-size:22px;letter-spacing:.15em;color:#A9BDD2; }
+    .rcp-total-in strong { font-size:92px;font-weight:700;letter-spacing:-.055em;color:#FF9DAE;line-height:1;text-shadow:0 0 50px #FF6B8A5C; }
+
+    /* 03 — the mechanism */
+    .rcp-retry { padding:42px 50px; }
+    .rcp-retry-head { display:flex;align-items:center;gap:24px; }
+    .rcp-retry-head .rcp-avatar { width:80px;height:80px;border-radius:22px;font-size:34px; }
+    .rcp-retry-head h3 { font-size:48px;font-weight:700;letter-spacing:-.04em; }
+    .rcp-retry-head small { font-size:25px;color:#A9BDD2;display:block;margin-top:5px; }
+    .rcp-retry-head .rcp-amount { margin-left:auto;font-size:62px;font-weight:700;letter-spacing:-.05em;color:#FF9DAE; }
+    .rcp-attempts { margin-top:34px; }
+    .rcp-attempt { position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;padding:22px 26px;border-radius:18px;margin-bottom:15px;font-size:28px;letter-spacing:-.02em;
+      background:#FFFFFF0F;box-shadow:inset 0 1px 0 #FFFFFF26,inset 0 0 0 1px #FFFFFF14; }
+    .rcp-attempt i { font-style:normal;color:#A9BDD2;font-size:22px;letter-spacing:.1em;width:154px;flex:none;white-space:nowrap; }
+    .rcp-attempt > em { font-style:normal;font-size:25px;color:#A9BDD2;margin-left:auto; }
+    .rcp-status { position:relative;margin-left:auto;min-width:200px;text-align:right; }
+    .rcp-status em { font-style:normal;font-size:25px;color:#A9BDD2; }
+    .rcp-status em.is-win { color:#5BF0AE;font-weight:700;text-shadow:0 0 22px #5BF0AE7A; }
+    .rcp-attempt.is-win { background:#41E39B26;box-shadow:inset 0 1px 0 #FFFFFF3D,inset 0 0 0 1px #41E39B5C,0 0 44px #41E39B2E; }
+    .rcp-check { width:40px;height:40px;flex:none;fill:none;stroke:#5BF0AE;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 12px #5BF0AE99); }
+    .rcp-sweep { position:absolute;inset:0;background:linear-gradient(90deg,transparent,#5BF0AE3D 44%,#5BF0AE8A 50%,#5BF0AE3D 56%,transparent); }
+    .rcp-sweep.is-bad { background:linear-gradient(90deg,transparent,#FF6B8A33 44%,#FF6B8A70 50%,#FF6B8A33 56%,transparent); }
+    .rcp-attempt.is-bad { box-shadow:inset 0 1px 0 #FFFFFF26,inset 0 0 0 1px #FF6B8A4D; }
+
+    /* 04 — the result */
+    .rcp-result { padding:46px 54px;display:flex;flex-direction:column; }
+    .rcp-figures { display:flex;align-items:flex-end;gap:70px;margin-top:24px; }
+    .rcp-figure strong { display:block;font-size:112px;font-weight:700;letter-spacing:-.06em;color:#5BF0AE;line-height:1;text-shadow:0 0 60px #41E39B5C; }
+    .rcp-figure span { display:block;font-size:23px;letter-spacing:.14em;color:#A9BDD2;margin-top:14px; }
+    .rcp-figure.is-rate strong { font-size:78px;color:#FFFFFF;text-shadow:0 0 50px #FFFFFF3D; }
+    .rcp-chart { display:flex;align-items:flex-end;gap:16px;height:196px;margin-top:auto; }
+    .rcp-chart i { flex:1;height:100%;border-radius:10px 10px 4px 4px;transform-origin:50% 100%;
+      background:linear-gradient(#8CFFD1,#2FBF83);box-shadow:inset 0 1px 0 #FFFFFF8A,0 0 30px #41E39B47; }
+
+    /* 05 — the mark */
+    .rcp-mark-face { display:grid;place-items:center;padding:38px;background:linear-gradient(150deg,#5BF0AE,#1FA872); }
+    .rcp-mark-face svg { width:100%;height:100%;fill:none;stroke:#04241A;stroke-width:9;stroke-linecap:round;stroke-linejoin:round; }
+    .rcp-wordmark { position:absolute;left:50%;top:50%;font-size:132px;font-weight:700;letter-spacing:-.068em;text-shadow:0 10px 50px #00000080; }
+    .rcp-cta { position:absolute;left:50%;top:50%;padding:24px 56px;border-radius:999px;font-size:35px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;color:#04241A;
+      background:linear-gradient(150deg,#8CFFD1,#3CD894);box-shadow:inset 0 1px 0 #FFFFFFAD,0 20px 60px #1FA87259; }
+  </style>
+
+  <main class="rcp-film" data-edit="rcpFilmRoot">
+    <div class="rcp-aurora" data-edit="rcpAurora">
+      <div class="rcp-blob rcp-blob-key" data-edit="rcpKey"></div>
+      <div class="rcp-blob rcp-blob-rim" data-edit="rcpRim"></div>
+    </div>
+    <div class="rcp-vignette"></div>
+
+    <div class="rcp-stage">
+      <div class="rcp-cam" data-edit="rcpCam" data-camera-world>
+
+        <div class="rcp-grid" data-edit="rcpGrid"></div>
+
+
+        <!-- Three more declined charges, each its own pane at its own depth.
+             They are the corridor in beat 2 and the mass the carrier absorbs. -->
+        <div class="lg lg-tint rcp-plate" data-edit="rcpPlateB">
+          <span class="lg-spec"></span><span class="lg-lip"></span><span class="lg-edge"></span>
+          <div class="rcp-plate-in"><span class="rcp-dot"></span><div><h3>Halden Works</h3><small>Team &middot; Card expired</small></div><span class="rcp-amount">$680</span></div>
+        </div>
+        <div class="lg lg-tint rcp-plate" data-edit="rcpPlateC">
+          <span class="lg-spec"></span><span class="lg-lip"></span><span class="lg-edge"></span>
+          <div class="rcp-plate-in"><span class="rcp-dot"></span><div><h3>Arbor &amp; Tide</h3><small>Scale &middot; Do not honour</small></div><span class="rcp-amount">$1,290</span></div>
+        </div>
+        <div class="lg lg-tint rcp-plate" data-edit="rcpPlateD">
+          <span class="lg-spec"></span><span class="lg-lip"></span><span class="lg-edge"></span>
+          <div class="rcp-plate-in"><span class="rcp-dot"></span><div><h3>Kestrel Ventures</h3><small>Enterprise &middot; Issuer decline</small></div><span class="rcp-amount">$4,150</span></div>
+        </div>
+
+        <div class="lg lg-tint rcp-total" data-edit="rcpTotalPane">
+          <span class="lg-spec"></span><span class="lg-lip"></span><span class="lg-edge"></span>
+          <div class="rcp-total-in"><span>TOTAL AT RISK &middot; LAST 30 DAYS</span><strong data-edit="rcpRiskValue">$0</strong><span class="rcp-unpaid" data-edit="rcpUnpaid"><b></b><span data-edit="rcpElapsedValue">DAY 0</span><span>UNPAID</span></span></div>
+        </div>
+
+        <!-- The carrier. One pane of glass whose outline, depth and face carry
+             the whole film. A sibling of every scene, never inside one. -->
+        <article class="lg lg-tint rcp-card" data-edit="rcpCard" data-transition-carrier>
+          <span class="lg-spec" data-edit="rcpCardSpec"></span><span class="lg-lip"></span><span class="lg-edge" data-edit="rcpCardEdge"></span>
+
+          <div class="rcp-face" data-edit="rcpChargeFace">
+            <div class="rcp-plate-in">
+              <span class="rcp-dot"></span>
+              <div><h3>Nordvik Studio</h3><small>Scale &middot; Insufficient funds</small></div>
+              <span class="rcp-state">
+                <em class="is-ok" data-edit="rcpStateActive">Active</em>
+                <em class="is-warn" data-edit="rcpStatePast">Past due</em>
+                <em class="is-bad" data-edit="rcpStateSusp">Suspended</em>
+              </span>
+              <span class="rcp-amount" style="margin-left:26px">$1,290</span>
+            </div>
+          </div>
+
+          <div class="rcp-face rcp-retry" data-edit="rcpRetryFace">
+            <div class="rcp-retry-head">
+              <div class="rcp-avatar">NS</div>
+              <div><h3>Nordvik Studio</h3><small>Scale &middot; Visa &bull;&bull;&bull;&bull; 4412</small></div>
+              <span class="rcp-state">
+                <em class="is-bad" data-edit="rcpRetrySusp">Suspended</em>
+                <em class="is-ok" data-edit="rcpRetryActive">Active</em>
+              </span>
+              <span class="rcp-amount" data-edit="rcpRetryAmount" style="margin-left:28px">$1,290</span>
+            </div>
+            <div class="rcp-attempts">
+              <div class="rcp-attempt" data-edit="rcpAttemptA"><span class="rcp-sweep is-bad" data-edit="rcpSweepA"></span><i>RETRY 01</i><span>Tue 09:14</span><span class="rcp-status"><em data-edit="rcpStatusA">Declined</em></span></div>
+              <div class="rcp-attempt" data-edit="rcpAttemptB"><span class="rcp-sweep is-bad" data-edit="rcpSweepB"></span><i>RETRY 02</i><span>Thu 18:40</span><span class="rcp-status"><em data-edit="rcpStatusB">Declined</em></span></div>
+              <div class="rcp-attempt" data-edit="rcpAttemptC"><span class="rcp-sweep" data-edit="rcpSweepC"></span><i>RETRY 03</i><span>Sat 11:02</span><svg class="rcp-check" viewBox="0 0 40 40"><path data-edit="rcpCheck" d="M10 20l7 7 14-15" pathLength="1"/></svg><span class="rcp-status"><em class="is-win" data-edit="rcpStatusC">Recovered</em></span></div>
+            </div>
+          </div>
+
+          <div class="rcp-face rcp-result" data-edit="rcpResultFace">
+            <div class="rcp-eyebrow"><span>RECOVERED THIS MONTH</span><span>RECOUP</span></div>
+            <div class="rcp-figures">
+              <div class="rcp-figure"><strong data-edit="rcpRecoveredValue">$0</strong><span>REVENUE RETURNED</span></div>
+              <div class="rcp-figure is-rate"><strong data-edit="rcpRateValue">0%</strong><span>OF FAILED CHARGES</span></div>
+            </div>
+            <div class="rcp-chart" data-edit="rcpChart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+
+          <div class="rcp-face rcp-mark-face" data-edit="rcpBrandFace">
+            <svg viewBox="0 0 100 100"><path d="M30 32h30a22 22 0 0 1 0 44H36"/><path d="M48 64 36 76l12 12"/></svg>
+          </div>
+        </article>
+
+      </div>
+    </div>
+    <div class="rcp-hud" data-edit="rcpHud">
+        <section data-scene="leak"><h1 class="rcp-line" data-edit="rcpLeakLine">A card declines.<br>A customer <em>disappears.</em></h1></section>
+        <section data-scene="ledger"></section>
+        <section data-scene="pitch"><h1 class="rcp-line" data-edit="rcpPitchLine">So Recoup tries again.<br><b>When the bank will say yes.</b></h1></section>
+        <section data-scene="retry"></section>
+        <section data-scene="result"></section>
+        <section data-scene="brand">
+          <div class="rcp-wordmark" data-edit="rcpWordmark">Recoup</div>
+          <p class="rcp-line" data-edit="rcpClose" style="font-size:60px;font-weight:500">Stop losing revenue you already earned.</p>
+          <div class="rcp-cta" data-edit="rcpCta">Start recovering &rarr; recoup.io</div>
+        </section>
+    </div>
+    <div class="rcp-grain"></div>
+  </main>
+</template>

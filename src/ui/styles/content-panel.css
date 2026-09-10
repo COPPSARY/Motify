@@ -894,3 +894,7 @@
 .code-editor-scope .relay-thumbnail .promo-thumbnail-art { border-color:#e4604760; color:#253749; }
 .code-editor-scope .relay-thumbnail .promo-thumbnail-art em { color:#e46047; }
 .code-editor-scope .relay-thumbnail .promo-thumbnail-art i { color:#6d685e; }
+.code-editor-scope .recoup-thumbnail { padding:12px; background:linear-gradient(135deg,#1F7F5C,#2B4BD8 55%,#C2295A); }
+.code-editor-scope .recoup-thumbnail .promo-thumbnail-art { border-color:#FFFFFF4D; color:#FFFFFF; backdrop-filter:blur(10px); background:#0A101859; }
+.code-editor-scope .recoup-thumbnail .promo-thumbnail-art em { color:#8CFFD1; }
+.code-editor-scope .recoup-thumbnail .promo-thumbnail-art i { color:#D7E4F0; }

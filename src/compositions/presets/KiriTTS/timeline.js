@@ -1,4 +1,5 @@
 import {
+  EASE,
   editorialTextReveal,
   morph,
   splitText,
@@ -60,16 +61,16 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
     t.set(el, { xPercent: -50, yPercent: -50, x, y, ...extra }, 0);
 
   /** Point the camera at a world coordinate; origin stays the frame centre. */
-  const look = (at, x, y, scale, duration = 1.2, ease = "power2.inOut") =>
+  const look = (at, x, y, scale, duration = 1.2, ease = EASE.cameraRamp) =>
     t.to(camera, { x: -x * scale, y: -y * scale, scale, duration, ease }, at);
 
   /** Nothing is switched off: every exit travels for a real duration. */
   const leave = (el, at, to = {}, duration = 0.75) =>
-    t.to(el, { ...to, autoAlpha: 0, duration, ease: "power2.inOut" }, at);
+    t.to(el, { ...to, autoAlpha: 0, duration, ease: EASE.depart }, at);
 
   /** The carrier's own outline changing — the only shape that morphs. */
   const shape = (styles, at, duration = 1) =>
-    morph(t, host, styles, { at, duration, ease: "power2.inOut" });
+    morph(t, host, styles, { at, duration, ease: EASE.material });
 
   const click = (el, at) =>
     t.to(
@@ -226,14 +227,14 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   t.to(hook, { autoAlpha: 1, duration: 0.22, ease: "power2.out" }, 0.05);
   t.to(hook, { filter: "blur(0px)", duration: 0.44, ease: "power4.out" }, 0.18);
   t.to(hook, { scale: 3.3, duration: 0.9, ease: "sine.inOut" }, 0.05);
-  t.to(hook, { scale: 1, duration: 1.1, ease: "expo.out" }, 0.95);
+  t.to(hook, { scale: 1, duration: 1.1, ease: EASE.settle }, 0.95);
   t.to(hook, { scale: 1.03, duration: 0.9, ease: "sine.inOut" }, 2.05);
 
   // The retreat is what makes the room, and Khmer rises into the room it
   // opens — the claim answered in the language it is about, rather than
   // replaced by a second slide that looks exactly like the first.
-  look(3, 0, -30, 0.74, 1.5, "expo.out");
-  t.to(hook, { y: -132, duration: 1.5, ease: "expo.out" }, 3);
+  look(3, 0, -30, 0.74, 1.5, EASE.settle);
+  t.to(hook, { y: -132, duration: 1.5, ease: EASE.travel }, 3);
   const khmerWords = editorialTextReveal(t, khmer, {
     at: 3.45,
     duration: 0.55,
@@ -244,7 +245,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   t.fromTo(
     khmer,
     { y: 210 },
-    { y: 96, duration: 1.2, ease: "expo.out", immediateRender: false },
+    { y: 96, duration: 1.2, ease: EASE.travel, immediateRender: false },
     3.45,
   );
   t.to(khmer, { scale: 1.03, duration: 1.6, ease: "sine.inOut" }, 4.8);
@@ -266,15 +267,15 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   );
   t.to(
     hook,
-    { scale: 0.05, y: -170, autoAlpha: 0, duration: 1, ease: "power3.inOut" },
+    { scale: 0.05, y: -170, autoAlpha: 0, duration: 1, ease: EASE.depart },
     6.3,
   );
   t.to(
     khmer,
-    { scale: 0.05, y: -170, autoAlpha: 0, duration: 1, ease: "power3.inOut" },
+    { scale: 0.05, y: -170, autoAlpha: 0, duration: 1, ease: EASE.depart },
     6.4,
   );
-  look(6.35, 0, -60, 0.86, 1.35, "expo.out");
+  look(6.35, 0, -60, 0.86, 1.35, EASE.settle);
   t.fromTo(
     mark,
     { scale: 0.26, autoAlpha: 0, rotationY: -24 },
@@ -326,7 +327,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
       borderColor: "transparent",
       boxShadow: "none",
       duration: 1.15,
-      ease: "power2.inOut",
+      ease: EASE.material,
     },
     9.85,
   );
@@ -338,7 +339,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
       width: 34,
       height: 34,
       duration: 1.15,
-      ease: "power2.inOut",
+      ease: EASE.material,
     },
     9.85,
   );
@@ -466,10 +467,10 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   t.fromTo(
     scroll,
     { y: 0 },
-    { y: -318, duration: 1.15, ease: "power2.inOut", immediateRender: false },
+    { y: -318, duration: 1.15, ease: EASE.travel, immediateRender: false },
     15.85,
   );
-  t.to(cursor, { x: -472, y: -120, duration: 0.5, ease: "power2.inOut" }, 16.6);
+  t.to(cursor, { x: -472, y: -120, duration: 0.5, ease: EASE.travel }, 16.6);
   click(cursor, 17.15);
   click(maly, 17.15);
   t.to(
@@ -502,7 +503,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   );
 
   // Pull back off the macro to press the button and watch the result arrive.
-  look(17.75, 0, 30, 1.06, 1.35, "expo.out");
+  look(17.75, 0, 30, 1.06, 1.35, EASE.settle);
   t.to(cursor, { x: 186, y: 377, duration: 0.8, ease: "power2.inOut" }, 17.9);
   click(cursor, 18.4);
   click(get("kiriGenerateButton"), 18.4);
@@ -517,7 +518,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   );
   t.to(
     waveBase,
-    { clipPath: "inset(0 0% 0 0)", duration: 1.25, ease: "power2.inOut" },
+    { clipPath: "inset(0 0% 0 0)", duration: 1.25, ease: EASE.material },
     18.8,
   );
   t.fromTo(
@@ -574,7 +575,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   );
   t.to(
     get("kiriAudioLabel"),
-    { x: 0, y: -32, duration: 1, ease: "power2.inOut" },
+    { x: 0, y: -32, duration: 1, ease: EASE.travel },
     20.2,
   );
 
@@ -582,7 +583,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
 
   // The camera is still tight from the picker; the retreat is what shows that
   // the one voice chosen came out of thirteen.
-  look(19.9, 0, -20, 0.92, 1.6, "expo.out");
+  look(19.9, 0, -20, 0.92, 1.6, EASE.settle);
   t.fromTo(
     get("kiriVoicesKicker"),
     { autoAlpha: 0, y: -352 },
@@ -630,7 +631,7 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   );
   t.to(
     get("kiriAudioLabel"),
-    { y: 442, duration: 1.2, ease: "power2.inOut" },
+    { y: 442, duration: 1.2, ease: EASE.travel },
     25.45,
   );
   look(25.5, 0, 0, 1, 1.3);
@@ -849,8 +850,8 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   /* ---- 07 / 38.5-44 — the platform, in its own words ------------------ */
 
   // Two proof actions, each with its own reading window. No feature grid.
-  look(38.5, 0, 20, 0.94, 1.3, "power2.inOut");
-  t.to(mark, { y: -380, duration: 1.3, ease: "power2.inOut" }, 38.5);
+  look(38.5, 0, 20, 0.94, 1.3, EASE.cameraRamp);
+  t.to(mark, { y: -380, duration: 1.3, ease: EASE.travel }, 38.5);
   const [apiProof, browserProof] = featureCards;
   t.fromTo(
     apiProof,
@@ -914,10 +915,10 @@ export function buildKiriTtsTimeline({ root, timeline: t, register }) {
   leave(get("kiriFeaturesKicker"), 43.45, { y: 486 }, 0.55);
   t.to(
     mark,
-    { y: -300, scale: 0.76, duration: 1.3, ease: "power2.inOut" },
+    { y: -300, scale: 0.76, duration: 1.3, ease: EASE.travel },
     43.5,
   );
-  look(43.5, 0, -10, 1, 1.4, "expo.out");
+  look(43.5, 0, -10, 1, 1.4, EASE.settle);
 
   /* ---- 08 / 44-48 — the close ----------------------------------------- */
 

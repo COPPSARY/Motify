@@ -6,6 +6,7 @@ export type MotionlyAnalyticsEvent =
   | "ai generation completed"
   | "ai generation failed"
   | "ai generation started"
+  | "asset intent chosen"
   | "frame exported"
   | "media uploaded"
   | "preset loaded"
