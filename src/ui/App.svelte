@@ -1638,6 +1638,14 @@ export default defineComposition({
                   >
                 {/each}
               </div>
+            {:else}
+              <div class="me-chat-empty-assets">
+                <ImageIcon size={16} />
+                <span
+                  >No assets added yet. Paste or import media to use it in your
+                  project.</span
+                >
+              </div>
             {/if}
             <form class="ai-chat-composer" on:submit={submitAssistant}>
               <textarea
@@ -2087,6 +2095,12 @@ export default defineComposition({
                     <span class="me-clip-text">{scene.label}</span>
                     <small>{formatTimelineSeconds(scene.duration)}</small>
                   </button>
+                {:else}
+                  <div class="me-empty-state">
+                    <Sparkles size={18} />
+                    <strong>No scenes yet</strong>
+                    <span>Add a scene to start building your composition.</span>
+                  </div>
                 {/each}
               </div>
             </div>
@@ -2145,6 +2159,14 @@ export default defineComposition({
                     ></button
                   >
                 </div>
+              </div>
+            {:else}
+              <div class="me-empty-state">
+                <Sparkles size={18} />
+                <strong>Timeline is empty</strong>
+                <span
+                  >Add an element to this scene to create a timeline track.</span
+                >
               </div>
             {/each}
           {/if}
