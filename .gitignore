@@ -24,3 +24,6 @@ scratch/
 
 # Live AI eval output: real generations, regenerated on demand.
 tests/.eval-output/
+
+# Local render inspection output
+tests/.render/
