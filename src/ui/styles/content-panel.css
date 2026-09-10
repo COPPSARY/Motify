@@ -1,4 +1,4 @@
-.code-editor-scope .me-content-panel {
+.code-editor-scope .me-left-panel {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -586,9 +586,12 @@
 }
 
 /* Preset Grid */
+/* The thumbnail art is lettered for a full-width card; below ~190px its kicker
+   and footnote clip, so the track floor keeps the wider left panel at one
+   column and only splits when there is genuinely room for two. */
 .code-editor-scope .me-preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
 }
 
@@ -665,40 +668,62 @@
   color: #5ce0d0;
 }
 
-.code-editor-scope .flowdesk-thumbnail {
+.code-editor-scope .apple-notes-thumbnail {
   padding: 12px;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.6), transparent 45%),
-    radial-gradient(
-      circle at 80% 80%,
-      rgba(16, 185, 129, 0.4),
-      transparent 45%
-    ),
-    #0f172a;
+  background: radial-gradient(circle at 50% 20%, #2a281e 0%, #0d0c0a 100%);
 }
 
-.code-editor-scope .flowdesk-thumbnail .promo-thumbnail-art em {
-  color: #818cf8;
+.code-editor-scope .apple-notes-thumbnail .promo-thumbnail-art em {
+  color: #ffcc00;
 }
 
-.code-editor-scope .ai-notes-thumbnail {
+.code-editor-scope .apple-notes-thumbnail .promo-thumbnail-art {
+  border-color: rgba(255, 204, 0, 0.25);
+  color: #f7f7f2;
+}
+
+.code-editor-scope .apple-notes-thumbnail .promo-thumbnail-art i {
+  color: #ffd60a;
+}
+
+.code-editor-scope .claude-thumbnail {
   padding: 12px;
-  background:
-    radial-gradient(
-      circle at 20% 20%,
-      rgba(99, 102, 241, 0.7),
-      transparent 45%
-    ),
-    radial-gradient(
-      circle at 80% 80%,
-      rgba(168, 85, 247, 0.5),
-      transparent 45%
-    ),
-    #090b10;
+  background: #d97757;
 }
 
-.code-editor-scope .ai-notes-thumbnail .promo-thumbnail-art em {
-  color: #818cf8;
+.code-editor-scope .claude-thumbnail .promo-thumbnail-art {
+  border-color: rgba(255, 250, 244, 0.32);
+  color: #fffaf4;
+}
+
+.code-editor-scope .claude-thumbnail .promo-thumbnail-art em {
+  color: #2b2926;
+}
+
+.code-editor-scope .claude-thumbnail .promo-thumbnail-art i {
+  color: #ffd8cc;
+}
+
+.code-editor-scope .kiritts-thumbnail {
+  padding: 12px;
+  background: radial-gradient(
+    circle at 50% 20%,
+    rgba(0, 210, 255, 0.35) 0%,
+    #0d0d0e 100%
+  );
+}
+
+.code-editor-scope .kiritts-thumbnail .promo-thumbnail-art {
+  border-color: rgba(0, 210, 255, 0.4);
+  color: #ffffff;
+}
+
+.code-editor-scope .kiritts-thumbnail .promo-thumbnail-art em {
+  color: #00d2ff;
+}
+
+.code-editor-scope .kiritts-thumbnail .promo-thumbnail-art i {
+  color: #10b981;
 }
 
 .code-editor-scope .promo-thumbnail-art {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createDynamicComposition,
+  extractTimelineFunctionName,
   sanitizeTimelineScript,
 } from "../../src/composition/dynamic-compiler";
 import { CompositionRuntime } from "../../src/composition/runtime";
@@ -87,5 +88,44 @@ describe("dynamic-compiler", () => {
     runtime = new CompositionRuntime(dynamicComp, root);
     expect(runtime.timeline.duration()).toBeGreaterThan(0);
     expect(runtime.elements.has("box")).toBe(true);
+  });
+
+  it("runs buildTimeline even when a helper is named after the timeline", () => {
+    const js = `
+      function animateTimelineCamera(timeline, target) {
+        timeline.to(target, { duration: 0.5, x: 40 });
+      }
+
+      export function buildTimeline(context) {
+        const box = context.root.querySelector("[data-edit='box']");
+        animateTimelineCamera(context.timeline, box);
+        context.timeline.to(box, { duration: 3, opacity: 1 });
+      }
+    `;
+
+    expect(extractTimelineFunctionName(js)).toBe("buildTimeline");
+
+    const dynamicComp = createDynamicComposition(
+      `<template><div data-edit="box">Hello</div></template>`,
+      js,
+      { duration: 1 },
+    );
+    root = document.createElement("div");
+    document.body.append(root);
+
+    runtime = new CompositionRuntime(dynamicComp, root);
+    // The helper alone is 0.5s; only the real entry point reaches 3.5s.
+    expect(runtime.timeline.duration()).toBeGreaterThan(3);
+  });
+
+  it("falls back to the closest build*Timeline entry point", () => {
+    expect(
+      extractTimelineFunctionName(
+        [
+          "function timelineLabels() {}",
+          "function buildPromoTimeline(context) {}",
+        ].join("\n"),
+      ),
+    ).toBe("buildPromoTimeline");
   });
 });

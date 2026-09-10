@@ -24,38 +24,28 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns:
-    52px var(--content-panel-width, 260px) 50px minmax(0, 1fr)
-    300px;
+  grid-template-columns: var(--left-panel-width, 340px) minmax(0, 1fr) 300px;
 }
 
-.code-editor-scope .me-workbench.me-chat-open {
-  grid-template-columns:
-    52px var(--content-panel-width, 260px) 324px minmax(0, 1fr)
-    300px;
-}
-
-.code-editor-scope .me-chat-drawer {
+.code-editor-scope .me-left-panel {
+  position: relative;
   box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 8px;
   overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
-    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px), #0b0c0e;
-  background-size: 32px 32px;
+  background: #111214;
+  border-right: 1px solid #24262a;
 }
 
-.code-editor-scope .me-chat-drawer .ai-chat-panel {
+.code-editor-scope .ai-chat-panel {
   flex: 1;
   height: auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid #2a2d33;
-  border-radius: 10px;
   background: #111214;
   overflow: hidden;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
@@ -213,79 +203,165 @@
   grid-template-columns: minmax(0, 1fr) 32px;
   gap: 8px;
   padding: 10px;
+.code-editor-scope .ai-chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
   border-top: 1px solid #292b30;
+  background: #17191d;
 }
 
-.code-editor-scope .ai-chat-composer textarea {
-  min-height: 62px;
-  resize: none;
-  box-sizing: border-box;
-  padding: 9px 10px;
+.code-editor-scope .ai-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 4px 3px 3px;
   border: 1px solid #30333a;
   border-radius: 7px;
-  outline: 0;
-  background: #181a1e;
-  color: #eef0f3;
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.45;
+  background: #202227;
+  color: #cfd3da;
+  font-size: 10px;
 }
 
-.code-editor-scope .ai-chat-composer textarea:focus {
-  border-color: #5f8fe8;
+.code-editor-scope .ai-attachment-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #2a2d33;
+  flex: none;
 }
 
-.code-editor-scope .ai-chat-composer button {
-  align-self: end;
-  width: 32px;
-  height: 32px;
+.code-editor-scope .ai-attachment-fallback {
+  display: grid;
+  place-items: center;
+  color: #7d838e;
+}
+
+.code-editor-scope .ai-attachment-name {
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-attachment-remove {
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(120, 168, 255, 0.45);
-  border-radius: 7px;
-  background: #294d85;
-  color: white;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #8b919c;
   cursor: pointer;
 }
 
-.code-editor-scope .ai-chat-composer button:disabled {
-  border-color: #30333a;
-  background: #202227;
-  color: #636872;
+.code-editor-scope .ai-attachment-remove:hover:not(:disabled) {
+  background: #34373e;
+  color: #f2f4f7;
+}
+
+.code-editor-scope .ai-attachment-remove:disabled {
+  color: #4d525a;
   cursor: default;
 }
 
-.code-editor-scope .me-chat-drawer.me-collapsed {
-  display: flex;
-  justify-content: center;
-  padding-top: 14px;
+/* A single pill that holds the add button, the growing input, and send —
+   the row reads as one control rather than three stacked boxes. */
+.code-editor-scope .ai-chat-composer {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: end;
+  gap: 8px;
+  margin: 10px;
+  padding: 8px 9px;
+  border: 1px solid #33373e;
+  border-radius: 22px;
+  background: #1b1d21;
+  transition: border-color 0.16s ease;
 }
 
-.code-editor-scope .me-assistant-expand {
-  width: 28px;
-  height: 28px;
+.code-editor-scope .ai-chat-composer:focus-within {
+  border-color: #4b535f;
+}
+
+.code-editor-scope .ai-composer-input {
+  align-self: center;
+  box-sizing: border-box;
+  height: 24px;
+  max-height: 132px;
+  padding: 3px 2px;
+  overflow-y: auto;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #eef0f3;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3f47 transparent;
+}
+
+.code-editor-scope .ai-composer-input::placeholder {
+  color: #7c828c;
+}
+
+.code-editor-scope .ai-composer-add,
+.code-editor-scope .ai-composer-send {
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid #244f78;
-  border-radius: 6px;
-  background: #111f2c;
-  color: #0a84ff;
+  border-radius: 50%;
   cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.code-editor-scope .ai-composer-add {
+  border: 0;
+  background: transparent;
+  color: #9aa0a9;
+}
+
+.code-editor-scope .ai-composer-add:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef0f3;
+}
+
+/* Send carries the accent only while there is something to send. */
+.code-editor-scope .ai-composer-send {
+  border: 0;
+  background: var(--accent, #0a84ff);
+  color: #fff;
+}
+
+.code-editor-scope .ai-composer-send:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.code-editor-scope .ai-composer-add:disabled,
+.code-editor-scope .ai-composer-send:disabled {
+  background: #2a2d33;
+  color: #6a707a;
+  cursor: default;
 }
 
 /* Navigation Rail */
 @media (max-width: 900px) {
-  .code-editor-scope .me-workbench,
-  .code-editor-scope .me-workbench.me-chat-open {
+  .code-editor-scope .me-workbench {
     grid-template-columns: 1fr;
   }
 
-  .code-editor-scope .me-nav-rail,
-  .code-editor-scope .me-content-panel,
-  .code-editor-scope .me-chat-drawer,
-  .code-editor-scope .me-chat-drawer.me-collapsed,
+  .code-editor-scope .me-left-panel,
   .code-editor-scope .me-properties-panel {
     display: none;
   }

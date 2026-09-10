@@ -123,4 +123,24 @@ describe("code-first composition runtime", { timeout: 60_000 }, () => {
     runtime.setOverride("intro-brand-name", { hidden: false });
     expect(layer?.style.visibility).toBe("");
   });
+
+  it("exports and restores visual, animation, and tween editor state", () => {
+    runtime.setOverride("intro-brand-name", { x: 12, scale: 1.1 });
+    runtime.setAnimationOverride("intro-brand-name", {
+      speed: 1.2,
+      ease: "sine.inOut",
+    });
+    const tween = runtime.getTweenDescriptors("intro-brand-name")[0];
+    expect(tween).toBeDefined();
+    if (!tween) throw new Error("Expected an intro tween.");
+    runtime.setTweenOverride("intro-brand-name", tween.id, { duration: 0.75 });
+
+    const state = runtime.exportEditorState();
+    expect(state.elements["intro-brand-name"]).toMatchObject({
+      x: 12,
+      scale: 1.1,
+    });
+    expect(state.animations["intro-brand-name"]).toMatchObject({ speed: 1.2 });
+    expect(state.tweens[tween.id]).toMatchObject({ duration: 0.75 });
+  });
 });

@@ -10,6 +10,20 @@ const output = resolve(workspace, "artifacts/code-first-qa");
 if (!output.startsWith(`${resolve(workspace)}${sep}`))
   throw new Error("Invalid QA output path.");
 
+/** The left panel's tabs are addressed by label, the way a user reaches them. */
+function clickPanelTab(browser, label) {
+  return browser.evaluate(
+    `[...document.querySelectorAll('.me-panel-tab')].find((tab) => tab.textContent.trim() === ${JSON.stringify(label)})?.click()`,
+  );
+}
+
+/** Presets are opened from the gallery, the way a user reaches them. */
+function openPreset(browser, name) {
+  return browser.evaluate(
+    `[...document.querySelectorAll('.me-preset-card')].find((card) => card.textContent.includes(${JSON.stringify(name)}))?.click()`,
+  );
+}
+
 async function chromePath() {
   const candidates = [
     process.env["MOTIONLY_CHROME"],
@@ -180,6 +194,35 @@ try {
     await wait(100);
   }
 
+  // The editor must open on nothing. A preset mounted at startup was read by
+  // the generator as the user's own project, so a first prompt came back as
+  // that preset re-themed instead of as the film that was asked for.
+  const freshEditor = await browser.evaluate(`(() => ({
+    editIds: [...document.querySelectorAll('.composition-root [data-edit]')].map((element) => element.dataset.edit),
+    scenes: document.querySelectorAll('.me-project-scene-clip').length,
+  }))()`);
+  if (freshEditor.scenes !== 1 || freshEditor.editIds.join(",") !== "stage")
+    throw new Error(
+      `A fresh editor was not blank: ${JSON.stringify(freshEditor)}`,
+    );
+
+  // Everything below inspects the Claude preset's choreography, which the
+  // editor used to mount at startup. It is now opened the way a user opens it.
+  await clickPanelTab(browser, "Presets");
+  await wait(60);
+  await openPreset(browser, "Claude");
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const mounted = await browser.evaluate(
+      "document.querySelectorAll('.composition-root [data-edit]').length",
+    );
+    if (mounted > 1) break;
+    if (attempt === 99)
+      throw new Error("The preset did not mount from the gallery.");
+    await wait(100);
+  }
+  await clickPanelTab(browser, "Chat");
+  await wait(60);
+
   const masterTimeline = await browser.evaluate(`(() => ({
     ruler: document.querySelector('.me-ruler-label')?.textContent?.trim(),
     scenes: [...document.querySelectorAll('.me-project-scene-clip')].map((clip) => ({
@@ -191,8 +234,8 @@ try {
   }))()`);
   if (
     masterTimeline.ruler !== "MASTER" ||
-    masterTimeline.scenes.length !== 7 ||
-    masterTimeline.handoffs !== 6
+    masterTimeline.scenes.length < 2 ||
+    masterTimeline.handoffs !== masterTimeline.scenes.length - 1
   )
     throw new Error(
       `Master timeline did not show the whole film: ${JSON.stringify(masterTimeline)}`,
@@ -205,25 +248,24 @@ try {
     join(output, "master-timeline.png"),
     Buffer.from(masterScreenshot.result.data, "base64"),
   );
-  await browser.evaluate(
-    "document.querySelector('button[data-tooltip=Text]')?.click()",
-  );
+  await clickPanelTab(browser, "Presets");
   await wait(60);
-  const textPanel = await browser.evaluate(`(() => ({
+  const presetPanel = await browser.evaluate(`(() => ({
     category: document.querySelector('.me-panel-content .me-category-title')?.textContent?.trim(),
+    cards: document.querySelectorAll('.me-preset-card').length,
     sourceVisible: Boolean(document.querySelector('.source-code')),
   }))()`);
-  if (textPanel.category !== "Text in this scene" || textPanel.sourceVisible)
+  if (
+    presetPanel.category !== "Presets" ||
+    presetPanel.cards < 1 ||
+    presetPanel.sourceVisible
+  )
     throw new Error(
-      `Text tool unexpectedly exposed composition source: ${JSON.stringify(textPanel)}`,
+      `Presets tab did not render its gallery: ${JSON.stringify(presetPanel)}`,
     );
-  await browser.evaluate(
-    "document.querySelector('button[data-tooltip=Media]')?.click()",
-  );
+  await clickPanelTab(browser, "Chat");
   await wait(60);
-  await browser.evaluate(
-    "document.querySelector('[data-scene-id=brand]')?.click()",
-  );
+  await browser.evaluate("document.querySelector('[data-scene-id]')?.click()");
   await wait(80);
   const localTimeline = await browser.evaluate(`(() => ({
     ruler: document.querySelector('.me-ruler-label')?.textContent?.trim(),
@@ -231,7 +273,8 @@ try {
     widths: [...document.querySelectorAll('.scene-timeline-clip')].map((clip) => getComputedStyle(clip).width),
   }))()`);
   if (
-    localTimeline.ruler !== "Prompts become video" ||
+    !localTimeline.ruler ||
+    localTimeline.ruler === "MASTER" ||
     !localTimeline.hasExit ||
     new Set(localTimeline.widths).size < 2
   )
@@ -484,9 +527,7 @@ try {
     throw new Error(
       "The removed GSAP timeline debug control is still visible.",
     );
-  await browser.evaluate(
-    "document.querySelector('button[data-tooltip=Text]')?.click()",
-  );
+  await clickPanelTab(browser, "Chat");
   await wait(80);
   await browser.evaluate(
     "document.querySelector('button[aria-label=\"Open composition HTML source\"]')?.click()",
@@ -509,17 +550,20 @@ try {
     "document.querySelector('button[aria-label=\"Close composition source\"]')?.click()",
   );
 
-  await browser.evaluate(
-    "document.querySelector('button[aria-label=\"Open assistant\"]')?.click()",
-  );
+  await clickPanelTab(browser, "Chat");
   await wait(100);
   const assistantOpened = await browser.evaluate(`(() => ({
-    open: document.querySelector('.me-workbench')?.classList.contains('me-chat-open'),
+    panel: Boolean(document.querySelector('.me-left-panel .ai-chat-panel')),
     prompt: Boolean(document.querySelector('textarea[aria-label="Assistant prompt"]')),
+    attach: Boolean(document.querySelector('.ai-composer-add')),
   }))()`);
-  if (!assistantOpened.open || !assistantOpened.prompt)
+  if (
+    !assistantOpened.panel ||
+    !assistantOpened.prompt ||
+    !assistantOpened.attach
+  )
     throw new Error(
-      `Assistant drawer did not open: ${JSON.stringify(assistantOpened)}`,
+      `Assistant did not occupy the left panel: ${JSON.stringify(assistantOpened)}`,
     );
   await browser.evaluate(`(() => {
     const prompt = document.querySelector('textarea[aria-label="Assistant prompt"]');

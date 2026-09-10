@@ -18,8 +18,10 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "npm run prompt:build && vite",
+    "build": "npm run prompt:build && node scripts/build-registry-source.mjs && tsc && vite build",
+    "prompt:build": "node scripts/build-ai-prompt.mjs",
+    "prompt:check": "node scripts/build-ai-prompt.mjs --check",
     "preview": "vite preview",
     "type-check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest",
@@ -27,17 +29,20 @@
     "test:coverage": "vitest run --coverage",
     "qa:editor": "node qa/editor-browser-qa.mjs",
     "qa:timeline": "node qa/timeline-editor-qa.mjs",
+    "registry:build-manifest": "node scripts/build-registry-manifest.mjs",
     "render:video": "node scripts/render-video.mjs",
     "lint": "eslint src tests examples templates --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,svelte,css}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"templates/**/*.ts\" \"qa/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,svelte,css}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"templates/**/*.ts\" \"qa/**/*.mjs\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "registry:build-source": "node scripts/build-registry-source.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
     "gsap": "^3.15.0",
     "lucide-svelte": "^1.0.1",
     "mp4-muxer": "^5.2.2",
+    "posthog-js": "^1.427.3",
     "svelte": "^5.56.4",
     "webm-muxer": "^5.1.4"
   },

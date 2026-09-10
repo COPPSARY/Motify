@@ -39,6 +39,24 @@ export interface GiantCropOptions extends MotionOptions {
   startScale?: number;
   endScale?: number;
   panX?: number;
+  unit?: "words" | "chars";
+  stagger?: number;
+  settleEase?: string;
+  xPercent?: number;
+  yPercent?: number;
+}
+
+export interface WaterfallTextOptions extends MotionOptions {
+  startScale?: number;
+  endScale?: number;
+  panX?: number;
+  startX?: number;
+  startY?: number;
+  rotateX?: number;
+  rotateY?: number;
+  stagger?: number;
+  xPercent?: number;
+  yPercent?: number;
 }
 
 export interface SquashStretchOptions extends MotionOptions {
@@ -446,22 +464,70 @@ export function cameraZoomPan(
   );
 }
 
+function resolveCentering(
+  element: HTMLElement | null | undefined,
+  explicitXPercent?: number,
+  explicitYPercent?: number,
+): { xPercent?: number; yPercent?: number } {
+  if (!element) return {};
+  // Layout belongs to authored CSS. Inferring centering from class names or a
+  // pre-existing transform makes GSAP replace the wrapper transform and can
+  // collapse an otherwise centered sentence against the edge of the stage.
+  return {
+    ...(explicitXPercent !== undefined ? { xPercent: explicitXPercent } : {}),
+    ...(explicitYPercent !== undefined ? { yPercent: explicitYPercent } : {}),
+  };
+}
+
+function ensureTextMotionLayer(element: HTMLElement): HTMLElement {
+  const existing = Array.from(element.children).find((child) =>
+    child.classList.contains("motionly-text-motion-layer"),
+  ) as HTMLElement | undefined;
+  if (existing) return existing;
+
+  const layer = document.createElement("span");
+  layer.className = "motionly-text-motion-layer";
+  layer.style.display = "inline-block";
+  layer.style.maxWidth = "100%";
+  layer.style.transformOrigin = "50% 55%";
+  layer.style.willChange = "transform, opacity, filter";
+  layer.append(...Array.from(element.childNodes));
+  element.append(layer);
+  return layer;
+}
+
 export function giantKineticCrop(
   timeline: gsap.core.Timeline,
   element: HTMLElement | null | undefined,
   options: GiantCropOptions = {},
 ): HTMLElement[] {
   if (!element) return [];
-  const chars = splitText(element, "chars");
+  const motionLayer = ensureTextMotionLayer(element);
+  const pieces = splitText(motionLayer, options.unit ?? "chars").filter(
+    (piece) => Boolean(piece.textContent?.trim()),
+  );
   const startScale = options.startScale ?? 2.8;
   const endScale = options.endScale ?? 1.0;
   const duration = options.duration ?? 0.88;
-
-  timeline.fromTo(
+  const centering = resolveCentering(
     element,
+    options.xPercent,
+    options.yPercent,
+  );
+
+  // Keep the sentence wrapper fixed in its authored layout. The visual zoom
+  // happens on a dedicated inner layer, so centered text cannot be pushed or
+  // clipped when the timeline is scrubbed or an editor override is applied.
+  timeline.set(
+    element,
+    { autoAlpha: 1, perspective: 1200, ...centering },
+    options.at,
+  );
+  timeline.fromTo(
+    motionLayer,
     {
       scale: startScale,
-      x: options.panX ?? 240,
+      x: options.panX ?? 0,
       filter: "blur(14px)",
       autoAlpha: 0,
     },
@@ -476,22 +542,90 @@ export function giantKineticCrop(
     options.at,
   );
 
-  chars.forEach((char, i) => {
-    const microOffset = i % 3 === 0 ? -16 : i % 3 === 1 ? 12 : -6;
+  pieces.forEach((piece, i) => {
+    const microOffset = i % 3 === 0 ? -12 : i % 3 === 1 ? 10 : -4;
     timeline.fromTo(
-      char,
-      { y: microOffset * 2.5, autoAlpha: 0 },
+      piece,
+      {
+        y: microOffset * 2,
+        autoAlpha: 0,
+        transformOrigin: "50% 65%",
+      },
       {
         y: 0,
         autoAlpha: 1,
-        duration: duration * 0.7,
-        ease: "back.out(1.5)",
+        duration: duration * 0.72,
+        ease: options.settleEase ?? "back.out(1.35)",
       },
-      ((options.at as number) ?? 0) + i * 0.02,
+      ((options.at as number) ?? 0) + i * (options.stagger ?? 0.045),
     );
   });
 
-  return chars;
+  return pieces;
+}
+
+export function waterfallTextReveal(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: WaterfallTextOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const motionLayer = ensureTextMotionLayer(element);
+  const words = splitText(motionLayer, "words").filter((word) =>
+    Boolean(word.textContent?.trim()),
+  );
+  const at = typeof options.at === "number" ? options.at : 0;
+  const duration = options.duration ?? 0.55;
+  const stagger = options.stagger ?? 0.055;
+  const centering = resolveCentering(
+    element,
+    options.xPercent,
+    options.yPercent,
+  );
+
+  timeline.set(words, { autoAlpha: 0 }, 0);
+  timeline.set(element, { autoAlpha: 1, perspective: 1200, ...centering }, at);
+  timeline.fromTo(
+    motionLayer,
+    {
+      scale: options.startScale ?? 2.2,
+      x: options.panX ?? 0,
+    },
+    {
+      scale: options.endScale ?? 1,
+      x: 0,
+      duration: duration + words.length * stagger,
+      ease: "expo.out",
+    },
+    at,
+  );
+
+  words.forEach((word, index) => {
+    const wordAt = at + index * stagger;
+    timeline.fromTo(
+      word,
+      {
+        autoAlpha: 0,
+        x: options.startX ?? 0,
+        y: options.startY ?? 44,
+        rotateX: options.rotateX ?? 0,
+        rotateY: options.rotateY ?? 0,
+        transformOrigin: "50% 70%",
+      },
+      {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        rotateX: 0,
+        rotateY: 0,
+        duration,
+        ease: options.ease ?? "back.out(1.35)",
+      },
+      wordAt,
+    );
+  });
+
+  return words;
 }
 
 export function ambientWaves(
@@ -1359,4 +1493,343 @@ export function inverseZoomThrough(
   );
 
   return timeline.add(sub, options.at);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Rule 3: typography as a physical object.
+ *
+ * The three treatments the direction pass chooses between, as callable
+ * mechanics rather than prose the build turn has to reinvent. Naming a
+ * treatment in the direction and leaving the implementation open produced the
+ * same clumsy result every time: a low-opacity text overlay easing in on
+ * `autoAlpha`, which reads as a slide deck rather than as type with mass.
+ *
+ * Each one keeps the authored wrapper fixed and animates a dedicated inner
+ * layer, so centred text cannot be pushed out of the frame or clipped when the
+ * timeline is scrubbed or an editor override is applied.
+ * ------------------------------------------------------------------------- */
+
+export interface PullbackCompleteOptions extends MotionOptions {
+  /** The camera world or stage the pullback moves. */
+  camera?: Target;
+  /** How large the opening fragment sits before the camera retreats. */
+  startScale?: number;
+  endScale?: number;
+  /** Seconds the settled fragment holds before the camera starts moving. */
+  hold?: number;
+  stagger?: number;
+  settleEase?: string;
+}
+
+/**
+ * **The Pullback Complete.** One massive cropped line settles; the camera pulls
+ * back and the rest of the sentence arrives in the negative space the retreat
+ * opened up. The pullback and the completion are one move — the tail never
+ * fades in on its own, it occupies room that was always there.
+ */
+export function pullbackComplete(
+  timeline: gsap.core.Timeline,
+  lead: HTMLElement | null | undefined,
+  tail: HTMLElement | null | undefined,
+  options: PullbackCompleteOptions = {},
+): gsap.core.Timeline {
+  if (!lead) return timeline;
+  const at = (options.at as number) ?? 0;
+  const startScale = options.startScale ?? 2.6;
+  const endScale = options.endScale ?? 1;
+  const settleDuration = options.duration ?? 0.9;
+  const hold = options.hold ?? 0.5;
+  const leadLayer = ensureTextMotionLayer(lead);
+
+  timeline.set(lead, { autoAlpha: 1, ...resolveCentering(lead) }, at);
+  // The tail is absent until the retreat opens room for it. Hiding only its
+  // words would leave the container occupying the frame from the first beat,
+  // which is the difference between a sentence completing and one that was
+  // always there with half of it invisible.
+  if (tail) timeline.set(tail, { autoAlpha: 0 }, at);
+  timeline.fromTo(
+    leadLayer,
+    { scale: startScale, autoAlpha: 0 },
+    {
+      scale: startScale,
+      autoAlpha: 1,
+      duration: settleDuration * 0.35,
+      ease: "power2.out",
+    },
+    at,
+  );
+  splitText(leadLayer, "words")
+    .filter((piece) => Boolean(piece.textContent?.trim()))
+    .forEach((piece, index) => {
+      timeline.fromTo(
+        piece,
+        { y: 34, autoAlpha: 0 },
+        {
+          y: 0,
+          autoAlpha: 1,
+          duration: settleDuration * 0.7,
+          ease: options.settleEase ?? "back.out(1.4)",
+        },
+        at + index * (options.stagger ?? 0.06),
+      );
+    });
+
+  // The retreat. Scaling the line down and the camera out are the same gesture,
+  // so the fragment appears to stay put while the frame widens around it.
+  const pullAt = at + settleDuration + hold;
+  const pullDuration = options.duration ?? 1.1;
+  timeline.to(
+    leadLayer,
+    { scale: endScale, duration: pullDuration, ease: "expo.out" },
+    pullAt,
+  );
+  if (options.camera) {
+    timeline.to(
+      options.camera,
+      { scale: endScale, duration: pullDuration, ease: "expo.out" },
+      pullAt,
+    );
+  }
+
+  if (tail) {
+    const tailLayer = ensureTextMotionLayer(tail);
+    timeline.set(tail, { autoAlpha: 1 }, pullAt);
+    // Measured off the reference: the tail does not travel in from off-screen.
+    // It occupies room the retreat has just opened, so it resolves in place —
+    // a short opacity ramp with a few pixels of lift, arriving left to right
+    // while the line is still shrinking. A 60% slide reads as a separate
+    // element joining the shot rather than as one sentence completing.
+    splitText(tailLayer, "words")
+      .filter((piece) => Boolean(piece.textContent?.trim()))
+      .forEach((piece, index) => {
+        timeline.fromTo(
+          piece,
+          { y: 10, autoAlpha: 0 },
+          {
+            y: 0,
+            autoAlpha: 1,
+            duration: pullDuration * 0.34,
+            ease: options.settleEase ?? "back.out(1.3)",
+          },
+          pullAt + pullDuration * 0.3 + index * (options.stagger ?? 0.07),
+        );
+      });
+  }
+  // The film never freezes on a settled line: it keeps breathing through the
+  // reading hold, which is what the references do under every statement.
+  timeline.to(
+    leadLayer,
+    { scale: endScale * 1.04, duration: 1.6, ease: "sine.inOut" },
+    pullAt + pullDuration,
+  );
+  return timeline;
+}
+
+export interface GrowCompleteOptions extends MotionOptions {
+  /** Where the opening fragment starts, as a share of its settled size. */
+  startScale?: number;
+  stagger?: number;
+  settleEase?: string;
+}
+
+/**
+ * **Grow and Complete.** The other way a sentence finishes itself, and the one
+ * the reference films use most.
+ *
+ * The opening fragment sits small and centred, then grows to full size while
+ * the rest of the sentence arrives beside it. The line re-centres continuously
+ * as words land, so the sentence never appears to grow rightward off its own
+ * centre — that re-centring is what makes it read as one line completing rather
+ * than as words being appended.
+ *
+ * Measured: the fragment grows over about 0.5s, words land 0.07s apart starting
+ * a third of the way in, and the whole build is done in roughly 0.75s.
+ */
+export function growAndComplete(
+  timeline: gsap.core.Timeline,
+  lead: HTMLElement | null | undefined,
+  tail: HTMLElement | null | undefined,
+  options: GrowCompleteOptions = {},
+): gsap.core.Timeline {
+  if (!lead) return timeline;
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.5;
+  const leadLayer = ensureTextMotionLayer(lead);
+
+  timeline.set(lead, { autoAlpha: 1, ...resolveCentering(lead) }, at);
+  timeline.fromTo(
+    leadLayer,
+    { scale: options.startScale ?? 0.55 },
+    {
+      scale: 1,
+      duration,
+      ease: options.ease ?? "power3.out",
+    },
+    at,
+  );
+
+  if (!tail) return timeline;
+  const tailLayer = ensureTextMotionLayer(tail);
+  const pieces = splitText(tailLayer, "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+  timeline.set(tail, { autoAlpha: 1 }, at);
+  pieces.forEach((piece, index) => {
+    timeline.fromTo(
+      piece,
+      { y: 10, autoAlpha: 0 },
+      {
+        y: 0,
+        autoAlpha: 1,
+        duration: duration * 0.7,
+        ease: options.settleEase ?? "back.out(1.3)",
+      },
+      at + duration * 0.36 + index * (options.stagger ?? 0.07),
+    );
+  });
+
+  // Re-centre the line as it fills out. The tail keeps its layout box, so the
+  // pair is shifted right by half that box at the start and released to zero as
+  // the words land — no reflow, and correct under reverse scrubbing.
+  const shift = tail.getBoundingClientRect().width / 2;
+  if (shift > 0) {
+    const line =
+      lead.parentElement && lead.parentElement === tail.parentElement
+        ? lead.parentElement
+        : null;
+    timeline.fromTo(
+      line ?? [lead, tail],
+      { x: shift },
+      { x: 0, duration, ease: options.ease ?? "power3.out" },
+      at,
+    );
+  }
+  return timeline;
+}
+
+export interface MacroSettleOptions extends MotionOptions {
+  /** Opening scale. Rule 3 calls for 300%. */
+  startScale?: number;
+  endScale?: number;
+  /** Blur in pixels at the opening scale. */
+  blur?: number;
+  unit?: "words" | "chars";
+  stagger?: number;
+}
+
+/**
+ * **Macro Settle.** Type arrives at 300% scale, heavily blurred, then snaps
+ * into crisp 100% focus.
+ *
+ * The snap is the point: the blur resolves in the middle of the move on a
+ * `power4.out`, so the line is sharp well before it stops travelling. Text that
+ * stays soft while it is still moving reads as a video artefact rather than as
+ * a lens finding focus.
+ */
+export function macroSettle(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: MacroSettleOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.85;
+  const layer = ensureTextMotionLayer(element);
+  const pieces = splitText(layer, options.unit ?? "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+
+  timeline.set(element, { autoAlpha: 1, ...resolveCentering(element) }, at);
+  timeline.fromTo(
+    layer,
+    {
+      scale: options.startScale ?? 3,
+      autoAlpha: 0,
+      filter: "blur(" + String(options.blur ?? 18) + "px)",
+    },
+    {
+      scale: options.endScale ?? 1,
+      autoAlpha: 1,
+      duration,
+      ease: options.ease ?? "expo.out",
+    },
+    at,
+  );
+  // Focus lands before the movement does.
+  timeline.to(
+    layer,
+    { filter: "blur(0px)", duration: duration * 0.45, ease: "power4.out" },
+    at + duration * 0.25,
+  );
+  pieces.forEach((piece, index) => {
+    timeline.fromTo(
+      piece,
+      { autoAlpha: 0 },
+      { autoAlpha: 1, duration: duration * 0.3, ease: "power2.out" },
+      at + index * (options.stagger ?? 0.035),
+    );
+  });
+  return pieces;
+}
+
+export interface KineticAnchorOptions extends MotionOptions {
+  /** How far the moving words travel before they settle around the anchor. */
+  distance?: number;
+  /** Degrees of rotation the moving words carry through the move. */
+  rotation?: number;
+  stagger?: number;
+}
+
+/**
+ * **Kinetic Anchor.** One word holds absolutely still while the rest of the
+ * sentence physically revolves or slides around it.
+ *
+ * The anchor is never tweened. Everything the viewer reads as movement belongs
+ * to the words travelling past it, which is what makes the still word register
+ * as the subject of the line rather than as text that simply failed to animate.
+ */
+export function kineticAnchor(
+  timeline: gsap.core.Timeline,
+  anchor: HTMLElement | null | undefined,
+  orbiting: HTMLElement | null | undefined,
+  options: KineticAnchorOptions = {},
+): HTMLElement[] {
+  if (!anchor) return [];
+  const at = (options.at as number) ?? 0;
+  const duration = options.duration ?? 0.8;
+  const distance = options.distance ?? 120;
+
+  timeline.set(anchor, { autoAlpha: 1, scale: 1, x: 0, y: 0 }, at);
+
+  if (!orbiting) return [];
+  const layer = ensureTextMotionLayer(orbiting);
+  const pieces = splitText(layer, "words").filter((piece) =>
+    Boolean(piece.textContent?.trim()),
+  );
+  timeline.set(orbiting, { autoAlpha: 1 }, at);
+  pieces.forEach((piece, index) => {
+    // Alternating arrival vectors read as travel around the anchor rather than
+    // as one block of text sliding in.
+    const direction = index % 2 === 0 ? 1 : -1;
+    timeline.fromTo(
+      piece,
+      {
+        x: distance * direction,
+        y: -distance * 0.35 * direction,
+        rotation: (options.rotation ?? 8) * direction,
+        autoAlpha: 0,
+        transformOrigin: "50% 50%",
+      },
+      {
+        x: 0,
+        y: 0,
+        rotation: 0,
+        autoAlpha: 1,
+        duration,
+        ease: options.ease ?? "back.out(1.4)",
+      },
+      at + index * (options.stagger ?? 0.07),
+    );
+  });
+  return pieces;
 }

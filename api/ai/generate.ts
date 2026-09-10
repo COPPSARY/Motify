@@ -1,5 +1,7 @@
 export const maxDuration = 60;
 import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
+import { buildMotionlyUserMessage } from "../../src/ai/generation-guidance";
+import { DIRECTION_SYSTEM_PROMPT } from "../../src/ai/direction-pass";
 
 function normalizeGeminiModel(rawModel: string): string {
   let model = rawModel.trim().replace(/^models\//, "");
@@ -9,7 +11,7 @@ function normalizeGeminiModel(rawModel: string): string {
   }
   model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
   if (!model || model === "gemini-") {
-    return "gemini-3.5-flash-lite";
+    return "gemini-3.5-flash";
   }
   return model;
 }
@@ -26,7 +28,25 @@ export default async function handler(req: Request): Promise<Response> {
     const body = (await req.json()) as {
       userPrompt?: string;
       model?: string;
-      currentFiles?: { compositionHtml?: string; timelineJs?: string };
+      repairAttempt?: boolean;
+      /** "direction" runs the planning turn and returns its raw text. */
+      mode?: "direction";
+      directionMessage?: string;
+      currentFiles?: {
+        compositionHtml?: string;
+        timelineJs?: string;
+        stylesCss?: string;
+        indexTs?: string;
+        conversation?: readonly { role: "user" | "assistant"; text: string }[];
+        editorState?: Record<string, unknown>;
+        assets?: readonly {
+          id: string;
+          name: string;
+          mimeType: string;
+          dataBase64: string;
+          token: string;
+        }[];
+      };
     };
 
     const userPrompt = body.userPrompt ?? "";
@@ -36,7 +56,7 @@ export default async function handler(req: Request): Promise<Response> {
     const rawModel = (
       body.model ||
       process.env["GEMINI_MODEL"] ||
-      "gemini-3.5-flash-lite"
+      "gemini-3.5-flash"
     ).trim();
     const model = normalizeGeminiModel(rawModel);
 
@@ -53,67 +73,51 @@ export default async function handler(req: Request): Promise<Response> {
       );
     }
 
-    const hasExistingCode = Boolean(
-      currentFiles.compositionHtml && currentFiles.compositionHtml.length > 50,
-    );
-
-    const choreographyMandate = `
-CRITICAL MOTION CHOREOGRAPHY RULES:
-1. FOCUS ON 1 FOCAL SUBJECT PER BEAT (ZERO SLOP):
-   - Focus on ONE spoken thought or ONE focal subject per beat.
-   - DO NOT create card containers packed with title + subtitle + chips! No random floating pills or badge clutter.
-2. GSAP PRESETS & KINETIC TYPOGRAPHY:
-   - Use built-in Motionly presets directly: wordSlideRotate, charSpringBounce, giantKineticCrop, morph, cameraPush, spring, textReveal.
-   - Editorial statements enter with kinetic zoom (scale: 2.0+ settling to 1.0) or word-by-word spring overshoot bounce (back.out(1.35)).
-3. SHAPE MORPHS & DYNAMIC COLOR THEMES:
-   - Transition boundaries MUST use physical shape morphs (width/height/borderRadius) or match cuts. ZERO opacity fades!
-   - Dynamically shift color themes across beats (e.g. Alabaster light mode to rich brand dark mode) with GSAP on stage and world. Pick striking colors suited to the prompt.
-4. VALID EXECUTABLE CODE:
-   Deliver valid HTML in compositionHtml and valid GSAP in timelineJs with buildTimeline(context).`;
-
-    const userMessage = hasExistingCode
-      ? `User Request: ${userPrompt}
-
-Current composition.html:
-\`\`\`html
-${currentFiles.compositionHtml ?? ""}
-\`\`\`
-
-Current timeline.js:
-\`\`\`javascript
-${currentFiles.timelineJs ?? ""}
-\`\`\`
-
-Please update the composition HTML/CSS and GSAP timeline.js to fulfill the user request according to the Motionly skills and rules.
-${choreographyMandate}`
-      : `User Request: ${userPrompt}
-
-Please create a motion graphics composition to fulfill the user request according to the Motionly skills and rules.
-${choreographyMandate}`;
+    // The direction turn plans the film and writes no code, so it answers with
+    // its raw text and skips the composition system prompt entirely.
+    const isDirection = body.mode === "direction";
+    const systemPrompt = isDirection
+      ? DIRECTION_SYSTEM_PROMPT
+      : MOTIONLY_SYSTEM_PROMPT;
+    const userMessage = isDirection
+      ? (body.directionMessage ?? "")
+      : await buildMotionlyUserMessage(userPrompt, currentFiles);
+    if (isDirection && !userMessage) {
+      return new Response(
+        JSON.stringify({ error: "Missing directionMessage." }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const generationConfig: Record<string, unknown> = {
       response_mime_type: "application/json",
-      temperature: 0.7,
-      maxOutputTokens: 8192,
+      temperature: isDirection ? 0.85 : body.repairAttempt ? 0.35 : 0.65,
+      maxOutputTokens: 65536,
     };
 
     if (model.includes("3.7")) {
       generationConfig["thinking_config"] = { thinking_budget: 0 };
     }
 
+    const imageParts = (currentFiles.assets ?? []).map((asset) => ({
+      inline_data: {
+        mime_type: asset.mimeType,
+        data: asset.dataBase64,
+      },
+    }));
     const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         system_instruction: {
-          parts: [{ text: MOTIONLY_SYSTEM_PROMPT }],
+          parts: [{ text: systemPrompt }],
         },
         contents: [
           {
             role: "user",
-            parts: [{ text: userMessage }],
+            parts: [{ text: userMessage }, ...imageParts],
           },
         ],
         generationConfig,
@@ -152,6 +156,15 @@ ${choreographyMandate}`;
           headers: { "Content-Type": "application/json" },
         },
       );
+    }
+
+    // The direction turn's caller does its own parsing and tolerates a plan
+    // that comes back short, so the raw text goes straight back.
+    if (isDirection) {
+      return new Response(JSON.stringify({ text: rawText }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     let cleaned = rawText.trim();

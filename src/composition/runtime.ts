@@ -3,7 +3,10 @@ import type {
   AnimationOverride,
   CompositionDefinition,
   ElementOverride,
+  RuntimeEditorState,
   RuntimeSnapshot,
+  TweenDescriptor,
+  TweenOverride,
 } from "./types";
 
 export type RuntimeListener = (snapshot: RuntimeSnapshot) => void;
@@ -18,9 +21,16 @@ export class CompositionRuntime {
     string,
     Pick<AnimationOverride, "speed" | "ease">
   >();
+  private readonly tweenOverrides = new Map<string, TweenOverride>();
+  private readonly tweenIds = new WeakMap<gsap.core.Tween, string>();
   private readonly tweenBaselines = new WeakMap<
     gsap.core.Tween,
-    { timeScale: number; ease: gsap.EaseString | gsap.EaseFunction | undefined }
+    {
+      timeScale: number;
+      ease: gsap.EaseString | gsap.EaseFunction | undefined;
+      start: number;
+      duration: number;
+    }
   >();
   private playing = false;
   private lastPlaybackNotification = 0;
@@ -165,18 +175,114 @@ export class CompositionRuntime {
     };
     this.animationOverrides.set(id, next);
     for (const tween of this.elementTweens(id)) {
-      let baseline = this.tweenBaselines.get(tween);
-      if (!baseline) {
-        baseline = {
-          timeScale: tween.timeScale(),
-          ease: tween.vars.ease,
-        };
-        this.tweenBaselines.set(tween, baseline);
-      }
+      const baseline = this.tweenBaseline(tween);
       tween.timeScale(baseline.timeScale * next.speed);
-      tween.vars.ease = next.ease;
+      const tweenId = this.tweenId(
+        id,
+        tween,
+        this.elementTweens(id).indexOf(tween),
+      );
+      tween.vars.ease = this.tweenOverrides.get(tweenId)?.ease ?? next.ease;
       tween.invalidate();
     }
+    this.seek(this.time);
+  }
+
+  getTweenDescriptors(id: string): TweenDescriptor[] {
+    return this.elementTweens(id).map((tween, index) => {
+      const tweenId = this.tweenId(id, tween, index);
+      const vars = tween.vars as Record<string, unknown>;
+      const ignored = new Set([
+        "duration",
+        "ease",
+        "delay",
+        "overwrite",
+        "stagger",
+        "onStart",
+        "onUpdate",
+        "onComplete",
+        "immediateRender",
+        "id",
+      ]);
+      const properties = Object.keys(vars).filter((key) => !ignored.has(key));
+      const start = this.globalTweenStart(tween);
+      const duration = tween.duration();
+      return {
+        id: tweenId,
+        targetId: id,
+        properties,
+        start,
+        duration,
+        end: start + duration,
+        ease: String(vars["ease"] ?? "power3.inOut"),
+      };
+    });
+  }
+
+  setTweenOverride(id: string, tweenId: string, patch: TweenOverride): void {
+    const tweens = this.elementTweens(id);
+    const tween = tweens.find(
+      (candidate, index) => this.tweenId(id, candidate, index) === tweenId,
+    );
+    if (!tween) return;
+    const baseline = this.tweenBaseline(tween);
+    const current = this.tweenOverrides.get(tweenId) ?? {};
+    const next: TweenOverride = {
+      ...current,
+      ...patch,
+    };
+    if (next.start !== undefined) {
+      next.start = Math.max(0, Math.min(this.definition.duration, next.start));
+      tween.startTime(next.start);
+    } else {
+      tween.startTime(baseline.start);
+    }
+    if (next.duration !== undefined) {
+      const maximum = Math.max(
+        1 / this.definition.fps,
+        this.definition.duration - (next.start ?? this.globalTweenStart(tween)),
+      );
+      next.duration = Math.max(
+        1 / this.definition.fps,
+        Math.min(maximum, next.duration),
+      );
+      tween.duration(next.duration);
+    } else {
+      tween.duration(baseline.duration);
+    }
+    if (next.ease !== undefined) tween.vars.ease = next.ease;
+    tween.invalidate();
+    this.tweenOverrides.set(tweenId, next);
+    this.seek(this.time);
+  }
+
+  exportEditorState(): RuntimeEditorState {
+    return {
+      elements: Object.fromEntries(
+        [...this.overrides].map(([id, value]) => [id, { ...value }]),
+      ),
+      animations: Object.fromEntries(
+        [...this.animationOverrides].map(([id, value]) => [id, { ...value }]),
+      ),
+      tweens: Object.fromEntries(
+        [...this.tweenOverrides].map(([id, value]) => [id, { ...value }]),
+      ),
+    };
+  }
+
+  importEditorState(state?: Partial<RuntimeEditorState>): void {
+    if (!state) return;
+    for (const [id, override] of Object.entries(state.elements ?? {})) {
+      this.overrides.set(id, { ...override });
+    }
+    for (const [id, override] of Object.entries(state.animations ?? {})) {
+      this.setAnimationOverride(id, override);
+    }
+    for (const [tweenId, override] of Object.entries(state.tweens ?? {})) {
+      const targetId = tweenId.split(":tween")[0] ?? "";
+      this.setTweenOverride(targetId, tweenId, override);
+    }
+    this.applyOverrides();
     this.seek(this.time);
   }
 
@@ -256,6 +362,35 @@ export class CompositionRuntime {
     return Array.from(new Set(this.timeline.getTweensOf(targets))).filter(
       (tween) => tween.duration() > 0,
     );
+  }
+
+  private tweenBaseline(tween: gsap.core.Tween) {
+    let baseline = this.tweenBaselines.get(tween);
+    if (!baseline) {
+      baseline = {
+        timeScale: tween.timeScale(),
+        ease: tween.vars.ease,
+        start: tween.startTime(),
+        duration: tween.duration(),
+      };
+      this.tweenBaselines.set(tween, baseline);
+    }
+    return baseline;
+  }
+
+  private tweenId(id: string, tween: gsap.core.Tween, index: number): string {
+    const authoredId =
+      typeof tween.vars.id === "string" ? tween.vars.id.trim() : "";
+    const existing = this.tweenIds.get(tween);
+    const value =
+      existing ||
+      (authoredId ? `${id}:tween:${authoredId}` : `${id}:tween-${index + 1}`);
+    this.tweenIds.set(tween, value);
+    return value;
+  }
+
+  private globalTweenStart(tween: gsap.core.Tween): number {
+    return Math.max(0, tween.startTime());
   }
 
   private applyTextOverride(element: HTMLElement, value: string): void {
