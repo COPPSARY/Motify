@@ -339,6 +339,27 @@
   );
 }
 
+.code-editor-scope .me-empty-state {
+  height: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #777d86;
+  font-size: 11px;
+  text-align: center;
+}
+
+.code-editor-scope .me-empty-state strong {
+  color: #b8bcc3;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-empty-state span {
+  color: #676d75;
+}
+
 .code-editor-scope .me-ruler-tick {
   position: absolute;
   top: 8px;

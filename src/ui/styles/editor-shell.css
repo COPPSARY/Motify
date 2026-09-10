@@ -182,6 +182,27 @@
   }
 }
 
+.code-editor-scope .me-chat-empty-assets {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-top: 1px solid #333;
+  color: #777d86;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.code-editor-scope .me-chat-empty-assets svg {
+  flex: 0 0 auto;
+  color: #676d75;
+}
+
+.code-editor-scope .ai-chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 8px;
+  padding: 10px;
 .code-editor-scope .ai-chat-attachments {
   display: flex;
   flex-wrap: wrap;

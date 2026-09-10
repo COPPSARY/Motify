@@ -2195,6 +2195,62 @@
                     uploadingMedia}
                   type="submit"><ArrowUp size={17} /></button
                 >
+                  <div>{message.text}</div>
+                  {#if message.role === "assistant" && isErrorMessage(message.text)}
+                    <button
+                      class="ai-fix-btn"
+                      disabled={$generationStore.isActive}
+                      on:click={() => handleFixError(message.text)}
+                    >
+                      <Wand2 size={12} />
+                      Fix
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+              {#if $generationStore.isActive}
+                <div class="ai-chat-activity" aria-live="polite">
+                  <span class="ai-chat-activity-dot"></span>{activityVerb}…
+                </div>
+              {/if}
+            </div>
+            {#if stagedAssets.length > 0}
+              <div
+                style="padding: 10px; background: #222; border-top: 1px solid #333; font-size: 12px; display: flex; gap: 8px;"
+              >
+                {#each stagedAssets as asset}
+                  <span
+                    style="background: #444; padding: 2px 6px; border-radius: 4px;"
+                    >{asset.name}</span
+                  >
+                {/each}
+              </div>
+            {:else}
+              <div class="me-chat-empty-assets">
+                <ImageIcon size={16} />
+                <span
+                  >No assets added yet. Paste or import media to use it in your
+                  project.</span
+                >
+              </div>
+            {/if}
+            <form class="ai-chat-composer" on:submit={submitAssistant}>
+              <textarea
+                aria-label="Assistant prompt"
+                on:paste={handlePaste}
+                placeholder="Make the CTA transition feel more cinematic…"
+                bind:value={assistantDraft}
+                disabled={$generationStore.isActive}
+              ></textarea>
+              <button
+                aria-label="Send assistant message"
+                disabled={!assistantDraft.trim() ||
+                  $generationStore.isActive ||
+                  uploadingMedia}
+                type="submit"><Send size={15} /></button
+              >
+            </form>
+          </section>
               </form>
             </section>
           {/if}
@@ -2740,6 +2796,12 @@
                     <span class="me-clip-text">{scene.label}</span>
                     <small>{formatTimelineSeconds(scene.duration)}</small>
                   </button>
+                {:else}
+                  <div class="me-empty-state">
+                    <Sparkles size={18} />
+                    <strong>No scenes yet</strong>
+                    <span>Add a scene to start building your composition.</span>
+                  </div>
                 {/each}
               </div>
             </div>
@@ -2798,6 +2860,14 @@
                     ></button
                   >
                 </div>
+              </div>
+            {:else}
+              <div class="me-empty-state">
+                <Sparkles size={18} />
+                <strong>Timeline is empty</strong>
+                <span
+                  >Add an element to this scene to create a timeline track.</span
+                >
               </div>
             {/each}
           {/if}
