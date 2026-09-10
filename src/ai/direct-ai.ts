@@ -17,6 +17,24 @@ import {
 } from "./direction-pass";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 import { buildQualityRepairPrompt } from "./repair-prompt";
+import { isFatalRenderFailure } from "./validate-generation";
+import {
+  callAiProvider,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+  DEFAULT_OPENAI_COMPATIBLE_MODEL,
+  normalizeAiProvider,
+  normalizeGeminiModel,
+  type AiProvider,
+} from "./provider";
+
+export {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+  DEFAULT_OPENAI_COMPATIBLE_MODEL,
+  normalizeGeminiModel,
+};
+export type { AiProvider };
 
 export type DirectAiResult = GeneratedComposition;
 
@@ -31,24 +49,42 @@ export type DirectAiResult = GeneratedComposition;
  *
  * Override per deployment with VITE_GEMINI_MODEL / GEMINI_MODEL.
  */
-export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+export interface ClientAiSettings {
+  provider: AiProvider;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
 
-export function normalizeGeminiModel(rawModel: string): string {
-  let model = rawModel.trim().replace(/^models\//, "");
-  model = model.replace(/\s+/g, "-");
-  if (!model.startsWith("gemini-") && !model.startsWith("gemma-")) {
-    model = `gemini-${model}`;
+function clientEnv(): Record<string, string | undefined> {
+  return import.meta.env as Record<string, string | undefined>;
+}
+
+export function getClientAiSettings(): ClientAiSettings {
+  const env = clientEnv();
+  const provider = normalizeAiProvider(env["VITE_AI_PROVIDER"]);
+  if (provider === "openai-compatible") {
+    return {
+      provider,
+      apiKey: (env["VITE_OPENAI_COMPATIBLE_API_KEY"] ?? "").trim(),
+      model:
+        (env["VITE_OPENAI_COMPATIBLE_MODEL"] ?? "").trim() ||
+        DEFAULT_OPENAI_COMPATIBLE_MODEL,
+      baseUrl:
+        (env["VITE_OPENAI_COMPATIBLE_BASE_URL"] ?? "").trim() ||
+        DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+    };
   }
-  model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
-  return !model || model === "gemini-" ? DEFAULT_GEMINI_MODEL : model;
+  return {
+    provider,
+    apiKey: getClientGeminiApiKey(),
+    model: getClientGeminiModel(),
+    baseUrl: "",
+  };
 }
 
 export function getClientGeminiApiKey(): string {
-  if (typeof window !== "undefined") {
-    const customKey = localStorage.getItem("motionly_gemini_api_key");
-    if (customKey?.trim()) return customKey.trim();
-  }
-  const env = import.meta.env as Record<string, string | undefined>;
+  const env = clientEnv();
   return (env["VITE_GEMINI_API_KEY"] ?? "").trim();
 }
 
@@ -66,11 +102,7 @@ export function directionPassEnabled(): boolean {
 }
 
 export function getClientGeminiModel(): string {
-  if (typeof window !== "undefined") {
-    const customModel = localStorage.getItem("motionly_gemini_model");
-    if (customModel?.trim()) return customModel.trim();
-  }
-  const env = import.meta.env as Record<string, string | undefined>;
+  const env = clientEnv();
   return (env["VITE_GEMINI_MODEL"] ?? "").trim() || DEFAULT_GEMINI_MODEL;
 }
 
@@ -151,84 +183,42 @@ export function parseAiResponseText(rawText: string): DirectAiResult {
   };
 }
 
-interface GeminiResponseBody {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
-  }>;
-}
-
 /**
- * One Gemini call, returning raw text. Both turns use it: the direction turn
+ * One provider call, returning raw text. Both turns use it: the direction turn
  * parses a small plan out of it, the build turn a whole composition.
  */
-async function callClientGemini(
-  apiKey: string,
+async function callClientProvider(
+  settings: ClientAiSettings,
   systemPrompt: string,
   userMessage: string,
   temperature: number,
-  imageParts: readonly unknown[],
+  currentFiles: GenerationFiles,
 ): Promise<string> {
-  const model = normalizeGeminiModel(getClientGeminiModel());
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const generationConfig: Record<string, unknown> = {
-    response_mime_type: "application/json",
+  return callAiProvider({
+    provider: settings.provider,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    baseUrl: settings.baseUrl || undefined,
+    systemPrompt,
+    userMessage,
     temperature,
-    maxOutputTokens: 65536,
-  };
-  if (model.includes("3.7")) {
-    generationConfig["thinking_config"] = { thinking_budget: 0 };
-  }
-  const response = await fetch(geminiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [
-        { role: "user", parts: [{ text: userMessage }, ...imageParts] },
-      ],
-      generationConfig,
-    }),
+    assets: currentFiles.assets,
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    let message = `Gemini API error (${response.status})`;
-    try {
-      const errorBody = JSON.parse(errorText) as {
-        error?: { message?: string };
-      };
-      message = errorBody.error?.message ?? message;
-    } catch {
-      if (errorText) message = errorText;
-    }
-    throw new Error(message);
-  }
-  const data = (await response.json()) as GeminiResponseBody;
-  const rawText = data.candidates?.[0]?.content?.parts?.find(
-    (part) => typeof part.text === "string",
-  )?.text;
-  if (!rawText) throw new Error("Empty response received from Gemini.");
-  return rawText;
 }
 
-function assetImageParts(currentFiles: GenerationFiles): unknown[] {
-  return (currentFiles.assets ?? []).map((asset) => ({
-    inline_data: { mime_type: asset.mimeType, data: asset.dataBase64 },
-  }));
-}
-
-async function requestClientGemini(
-  apiKey: string,
+async function requestClientProvider(
+  settings: ClientAiSettings,
   userPrompt: string,
   currentFiles: GenerationFiles,
   repairAttempt: boolean,
 ): Promise<DirectAiResult> {
   return parseAiResponseText(
-    await callClientGemini(
-      apiKey,
+    await callClientProvider(
+      settings,
       MOTIONLY_SYSTEM_PROMPT,
       await buildMotionlyUserMessage(userPrompt, currentFiles),
       repairAttempt ? 0.35 : 0.65,
-      assetImageParts(currentFiles),
+      currentFiles,
     ),
   );
 }
@@ -264,7 +254,7 @@ async function requestBackend(
  * is a far better outcome than an error where a video should be.
  */
 async function requestDirection(
-  apiKey: string,
+  settings: ClientAiSettings,
   userPrompt: string,
   currentFiles: GenerationFiles,
 ): Promise<FilmDirection | null> {
@@ -273,13 +263,13 @@ async function requestDirection(
     conversation: currentFiles.conversation,
     assetNames: (currentFiles.assets ?? []).map((asset) => asset.name),
   });
-  const rawText = apiKey
-    ? await callClientGemini(
-        apiKey,
+  const rawText = settings.apiKey
+    ? await callClientProvider(
+        settings,
         DIRECTION_SYSTEM_PROMPT,
         message,
         0.85,
-        assetImageParts(currentFiles),
+        currentFiles,
       )
     : await requestBackendDirection(message);
   return parseDirectionResponse(rawText);
@@ -321,9 +311,9 @@ export type RenderVerdict =
       message: string;
       /**
        * Whether shipping this anyway would leave the user with nothing usable —
-       * a composition that renders no frame, or an edit that would destroy
-       * layers they shaped by hand. Everything else is a film they can watch,
-       * judge and ask us to change, which is worth more than an empty canvas.
+       * a composition with no rendered frame or an empty declared scene, or an
+       * edit that would destroy layers they shaped by hand. Everything else is
+       * a film they can watch, judge and ask us to change.
        */
       fatal: boolean;
     };
@@ -342,10 +332,30 @@ function graded(result: DirectAiResult): DirectAiResult {
  * outranks a higher score, because score rewards breadth while blocking issues
  * are the ones that make a film unusable.
  */
-function isImprovement(
+/**
+ * Blocking issues that leave the film unusable rather than merely flawed: it
+ * does not parse, renders no frame, or holds an empty declared beat.
+ */
+function fatalCount(report: MotionQualityReport): number {
+  return report.blockingIssues.filter(isFatalRenderFailure).length;
+}
+
+export function isImprovement(
   candidate: MotionQualityReport,
   incumbent: MotionQualityReport,
 ): boolean {
+  /**
+   * Severity before count. Comparing only how many blocking issues each pass
+   * carries let a film that does not run displace one that does: a candidate
+   * whose single blocking issue was "timeline.js does not parse as JavaScript"
+   * beat an incumbent holding two lesser complaints, because one is fewer than
+   * two. A live flash-lite run degraded 73 -> 31 exactly this way. A pass that
+   * is fatal in a way the incumbent is not can never be an improvement, however
+   * short its list.
+   */
+  const candidateFatal = fatalCount(candidate);
+  const incumbentFatal = fatalCount(incumbent);
+  if (candidateFatal !== incumbentFatal) return candidateFatal < incumbentFatal;
   if (candidate.blockingIssues.length !== incumbent.blockingIssues.length) {
     return candidate.blockingIssues.length < incumbent.blockingIssues.length;
   }
@@ -372,10 +382,10 @@ export async function generateWithDirectAi(
   onProgress?: (status: string) => void,
   checkRender?: RenderCheck,
 ): Promise<DirectAiResult> {
-  const clientApiKey = getClientGeminiApiKey();
-  const request = clientApiKey
+  const settings = getClientAiSettings();
+  const request = settings.apiKey
     ? (prompt: string, files: GenerationFiles, repair: boolean) =>
-        requestClientGemini(clientApiKey, prompt, files, repair)
+        requestClientProvider(settings, prompt, files, repair)
     : requestBackend;
   const directionPrompt =
     currentFiles.directionPrompt ??
@@ -410,7 +420,7 @@ export async function generateWithDirectAi(
     onProgress?.("Writing the creative direction: story, ground, and seams...");
     try {
       const direction = await requestDirection(
-        clientApiKey,
+        settings,
         userPrompt,
         currentFiles,
       );

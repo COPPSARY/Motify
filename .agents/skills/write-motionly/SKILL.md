@@ -450,7 +450,7 @@ Rule 3 of the direction brief names one treatment per film, and all three are ca
 - **Macro Settle** — `macroSettle(timeline, line, { at, startScale: 3, blur: 18 })`. Type arrives at 300% and heavily blurred, then snaps to crisp 100%. Focus resolves before the movement does; do not add your own blur tween.
 - **Kinetic Anchor** — `kineticAnchor(timeline, anchor, rest, { at, distance, rotation })`. One word holds absolutely still while the rest of the line travels around it on alternating vectors. Author the anchor word as its own element; the preset never tweens it.
 
-Each returns the split word elements, so you can hang a secondary action off them. Use exactly the treatment the direction chose.
+`macroSettle` and `kineticAnchor` return the split word elements, so you can hang a secondary action off them. `pullbackComplete` returns the timeline, not an array — destructuring it crashes the film. Check the return type in the runtime API reference before you index or spread any preset's result. Use exactly the treatment the direction chose.
 
 ## Timing
 

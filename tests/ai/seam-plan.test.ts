@@ -40,7 +40,7 @@ describe("seam plan", () => {
     expect(report.issues).toEqual([]);
     expect(report.planned).toBe(true);
     expect(report.strengths).toContain(
-      "every scene boundary has a budgeted seam bound to a real carrier",
+      "the seam plan budgets every scene boundary against a real carrier",
     );
   });
 

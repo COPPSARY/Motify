@@ -408,6 +408,84 @@ function sceneRenderWindows(
   return windows;
 }
 
+/** The nearest scene owner for an element, including the element itself. */
+function sceneOwner(element: HTMLElement, root: HTMLElement): string | null {
+  for (
+    let current: HTMLElement | null = element;
+    current && current !== root;
+    current = current.parentElement
+  ) {
+    const owner = current.dataset["scene"]?.trim();
+    if (owner) return owner;
+  }
+  return null;
+}
+
+/**
+ * Content authored for one declared beat, rather than a persistent ground or
+ * carrier that happens to remain visible while that beat is empty.
+ */
+function sceneVisualElements(
+  root: HTMLElement,
+  rootRect: DOMRect,
+  sceneId: string,
+): HTMLElement[] {
+  const hasLayout = rootRect.width > 0 && rootRect.height > 0;
+  return Array.from(
+    root.querySelectorAll<HTMLElement>("[data-scene], [data-scene] *"),
+  )
+    .filter((element) => sceneOwner(element, root) === sceneId)
+    .filter((element) => isVisiblyRendered(element, root))
+    .filter((element) => !isAtmosphere(element))
+    .filter((element) => {
+      const ownsText = Array.from(element.childNodes).some(
+        (node) =>
+          node.nodeType === Node.TEXT_NODE &&
+          (node.textContent ?? "").trim().length > 0,
+      );
+      const recognizable =
+        ["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName) ||
+        ownsText ||
+        isPainted(getComputedStyle(element));
+      if (!recognizable) return false;
+      if (!hasLayout) return true;
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 4 || rect.height < 4) return false;
+      return (
+        rect.right > rootRect.left &&
+        rect.left < rootRect.right &&
+        rect.bottom > rootRect.top &&
+        rect.top < rootRect.bottom
+      );
+    });
+}
+
+/**
+ * A storyboard entry is not proof that a beat exists. Models sometimes return
+ * four or five scene records while only authoring one visible DOM layer. The
+ * global frame checks then see a persistent carrier or background and accept
+ * every timestamp, leaving empty scene buttons in the editor.
+ */
+function assertSceneRendersOwnedContent(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scene: SceneDefinition,
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  for (const progress of [0.25, 0.5, 0.75]) {
+    const time = Math.max(
+      0,
+      Math.min(limit, scene.start + scene.duration * progress),
+    );
+    runtime.seek(time);
+    if (sceneVisualElements(root, rootRect, scene.id).length > 0) return;
+  }
+  throw new Error(
+    `Scene ${scene.id} never renders visible scene content. Its storyboard entry is present, but every layer owned by data-scene="${scene.id}" is empty, hidden, or off screen.`,
+  );
+}
+
 /**
  * A layer that belongs to another beat but is still on screen. Generated films
  * fail this when an outgoing scene is faded but never cleared, so the new beat
@@ -434,6 +512,76 @@ function assertNoStaleLayers(
   }
 }
 
+/** Share of the canvas the visible foreground actually paints, clipped to it. */
+function coverageRatio(
+  visible: readonly HTMLElement[],
+  rootRect: DOMRect,
+): number {
+  const canvasArea = Math.max(1, rootRect.width * rootRect.height);
+  const covered = visible.reduce((total, element) => {
+    const rect = element.getBoundingClientRect();
+    const width = Math.max(
+      0,
+      Math.min(rect.right, rootRect.right) - Math.max(rect.left, rootRect.left),
+    );
+    const height = Math.max(
+      0,
+      Math.min(rect.bottom, rootRect.bottom) - Math.max(rect.top, rootRect.top),
+    );
+    return total + width * height;
+  }, 0);
+  return covered / canvasArea;
+}
+
+/**
+ * The frames a transition actually occupies.
+ *
+ * Scene frames are sampled at 0.25, 0.5 and 0.8 of each beat, which is always
+ * well inside it. A seam at 4.6s running 0.8s covers 4.6-5.4s, while the beat
+ * before it is sampled at 4.0s and the beat after at 6.25s — so the entire
+ * handoff went unlooked at, and the near-blank floor below never applied to the
+ * one stretch of film most likely to be empty.
+ *
+ * What that let through, in an exported film: at every boundary both scenes
+ * switched off and the only thing left on the canvas was the transition carrier
+ * — a ~40px pill covering 0.08% of a 1920x1080 frame, alone on an empty stage
+ * for a fifth of a second. A carrier is supposed to enter matching the outgoing
+ * surface and leave matching the incoming one, so the swap happens underneath
+ * it; one that stays a dot reads as a stray dot, because that is what it is.
+ */
+function assertSeamFramesHoldTheFilm(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  seams: readonly SeamDirection[],
+  limit: number,
+): void {
+  for (const seam of seams) {
+    if (seam.duration <= 0) continue;
+    for (const progress of [0.25, 0.5, 0.75]) {
+      const time = Math.max(
+        0,
+        Math.min(limit, seam.at + seam.duration * progress),
+      );
+      runtime.seek(time);
+      const rootRect = root.getBoundingClientRect();
+      const hasLayout = rootRect.width > 0 && rootRect.height > 0;
+      const visible = visibleElements(root, rootRect, hasLayout);
+      const where = `the ${seam.from} to ${seam.to} handoff at ${time.toFixed(2)}s`;
+      if (visible.length === 0) {
+        throw new Error(
+          `The composition renders no visible foreground during ${where}; the outgoing beat leaves before the incoming one arrives, so the film cuts to an empty stage.`,
+        );
+      }
+      if (!hasLayout) continue;
+      if (coverageRatio(visible, rootRect) < 0.03) {
+        throw new Error(
+          `The composition renders a near-blank frame during ${where}; carry the outgoing surface into the incoming one so the handoff covers the cut, instead of hiding both beats and leaving the carrier alone on the canvas.`,
+        );
+      }
+    }
+  }
+}
+
 function assertVisibleSceneFrame(
   runtime: CompositionRuntime,
   root: HTMLElement,
@@ -455,20 +603,7 @@ function assertVisibleSceneFrame(
 
   if (!hasLayout) return;
 
-  const canvasArea = Math.max(1, rootRect.width * rootRect.height);
-  const coverage = visible.reduce((total, element) => {
-    const rect = element.getBoundingClientRect();
-    const width = Math.max(
-      0,
-      Math.min(rect.right, rootRect.right) - Math.max(rect.left, rootRect.left),
-    );
-    const height = Math.max(
-      0,
-      Math.min(rect.bottom, rootRect.bottom) - Math.max(rect.top, rootRect.top),
-    );
-    return total + width * height;
-  }, 0);
-  if (coverage / canvasArea < 0.03) {
+  if (coverageRatio(visible, rootRect) < 0.03) {
     throw new Error(
       `Scene ${scene.id} renders a near-blank frame around ${time.toFixed(2)}s.`,
     );
@@ -1196,6 +1331,37 @@ function scenesFromMarkup(
   }));
 }
 
+function sceneIdsFromMarkup(html: string): readonly string[] {
+  const documentNode = new DOMParser().parseFromString(html, "text/html");
+  const template = documentNode.querySelector("template");
+  const scope: ParentNode = template?.content ?? documentNode;
+  return Array.from(scope.querySelectorAll<HTMLElement>("[data-scene]"))
+    .map((element) => element.dataset["scene"]?.trim() ?? "")
+    .filter(Boolean);
+}
+
+function assertDeclaredScenesAreAuthored(
+  scenes: readonly SceneDefinition[],
+  html: string,
+): void {
+  if (scenes.length < 2) return;
+  const declaredIds = scenes.map((scene) => scene.id.trim());
+  const uniqueIds = new Set(declaredIds);
+  if (uniqueIds.size !== declaredIds.length) {
+    throw new Error(
+      "AI returned duplicate scene IDs, so multiple storyboard entries point at the same beat.",
+    );
+  }
+  const authoredIds = new Set(sceneIdsFromMarkup(html));
+  const missing = declaredIds.filter((id) => !authoredIds.has(id));
+  if (missing.length === 0) return;
+  throw new Error(
+    `AI declared ${scenes.length} scenes but did not author data-scene layers for: ${missing.join(
+      ", ",
+    )}. Every storyboard scene must have visible composition content.`,
+  );
+}
+
 interface NormalizedScenes {
   /** The storyboard the editor shows and the runtime navigates. */
   readonly scenes: readonly SceneDefinition[];
@@ -1235,16 +1401,14 @@ function normalizedScenes(
 /**
  * Which render failures are worth refusing the film over.
  *
- * A composition that renders no frame, or an edit that would delete layers the
- * user shaped by hand, leaves them with nothing or destroys something only they
- * can redo. Everything else — a beat composed too small, beats that share
- * nothing across a cut, a plate with no content, text overrunning its container
- * — describes a film they can watch, judge and ask us to change. The repair
- * loop spends its passes trying to clear those; when it cannot, an honest note
- * on a watchable film beats an error over an empty canvas.
+ * A composition that renders no frame, includes an empty declared beat, or
+ * deletes layers the user shaped by hand leaves the editor unusable or destroys
+ * work only the user can redo. Directorial faults such as small framing, weak
+ * continuity, or overflowing type can still ship after the repair loop has
+ * spent its passes, with an honest note attached.
  */
 export function isFatalRenderFailure(message: string): boolean {
-  return /renders no visible foreground|near-blank frame|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
+  return /renders no visible foreground|near-blank frame|holds a blank frame|passes through an empty frame|never renders visible scene content|did not author data-scene layers|duplicate scene IDs|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
     message,
   );
 }
@@ -1333,6 +1497,11 @@ export function validateGeneratedComposition(
     duration,
     options.generationProfile === "claude-foundation-v1",
   );
+  const requiresAuthoredSceneLayers =
+    allowStructuralChange && (result.scenes?.length ?? 0) > 1;
+  if (requiresAuthoredSceneLayers) {
+    assertDeclaredScenesAreAuthored(scenes, result.compositionHtml);
+  }
   for (const scene of scenes) {
     if (
       !Number.isFinite(scene.start) ||
@@ -1408,6 +1577,14 @@ export function validateGeneratedComposition(
     // Captured so the closure keeps the non-null narrowing the mount gives us.
     const mounted = runtime;
     const inspectFrames = (): void => {
+      // Check every declared beat first. A weaker global-frame complaint (for
+      // example, an empty future layer being treated as stale) must not mask a
+      // missing scene and let lenient validation ship it as a warning.
+      if (requiresAuthoredSceneLayers) {
+        for (const scene of validated) {
+          assertSceneRendersOwnedContent(mounted, root, scene, limit);
+        }
+      }
       for (const scene of validated) {
         for (const progress of [0.25, 0.5, 0.8]) {
           const time = Math.min(limit, scene.start + scene.duration * progress);
@@ -1422,6 +1599,7 @@ export function validateGeneratedComposition(
         }
         assertSceneDevelops(mounted, root, scene, limit);
       }
+      assertSeamFramesHoldTheFilm(mounted, root, seams, limit);
       assertBeatsShareMaterial(mounted, root, validated, limit);
       assertNoDeadFrames(mounted, root, limit);
       assertFilmMakesAStatement(mounted, root, validated, limit);

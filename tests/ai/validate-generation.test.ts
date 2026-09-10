@@ -413,6 +413,64 @@ describe("generated composition validation", () => {
     expect(validated.scenes[1]?.start).toBeCloseTo(2);
   });
 
+  it("rejects storyboard scenes that have no authored scene layer", () => {
+    const declared = [
+      { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+      { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+      { id: "scene-03", label: "Three", start: 4, duration: 2, accent: "#fff" },
+    ];
+    const film = {
+      duration: 6,
+      scenes: declared,
+      compositionHtml: `<template><main data-edit="stage"><section data-scene="scene-01" data-edit="hook">Ask</section><section data-scene="scene-02" data-edit="proof">Answer</section></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 20, duration: 3 }, 0);
+        timeline.to(root.querySelector('[data-edit="proof"]'), { x: 20, duration: 3 }, 3);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(film, {
+        prompt: "Make a product film for Vault",
+        previousHtml: `<template><main data-edit="stage"></main></template>`,
+        previousDuration: 6,
+        previousScenes: [],
+        generationProfile: "claude-foundation-v1",
+        lenient: true,
+      }),
+    ).toThrow(/did not author data-scene layers for: scene-03/);
+  });
+
+  it("rejects a declared scene whose own content stays hidden", () => {
+    const restore = stubLayout();
+    try {
+      const film = {
+        duration: 4,
+        scenes: twoScenes,
+        compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="carrier" data-transition-carrier data-rect="200,200,1400,500">Persistent subject</div><section data-scene="scene-01" data-edit="one" data-rect="300,260,800,180">First beat</section><section data-scene="scene-02" data-edit="two" data-rect="300,260,800,180"><h2 data-edit="hidden-proof" data-rect="360,300,680,120" style="opacity:0">Missing beat</h2></section></main></template>`,
+        timelineJs: `export function buildTimeline({ root, timeline }) {
+          const carrier = root.querySelector('[data-edit="carrier"]');
+          const one = root.querySelector('[data-edit="one"]');
+          timeline.to(carrier, { x: 30, duration: 4 }, 0);
+          timeline.set(one, { autoAlpha: 0 }, 2.1);
+        }`,
+        reply: "Done",
+      };
+      expect(() =>
+        validateGeneratedComposition(film, {
+          prompt: "Make a product film for Vault",
+          previousHtml: `<template><main data-edit="stage"></main></template>`,
+          previousDuration: 4,
+          previousScenes: [],
+          generationProfile: "claude-foundation-v1",
+          lenient: true,
+        }),
+      ).toThrow(/scene-02 never renders visible scene content/i);
+    } finally {
+      restore();
+    }
+  });
+
   it("extends the composition to fit a longer authored timeline", () => {
     const longer = {
       duration: 2,

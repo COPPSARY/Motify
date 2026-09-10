@@ -30,13 +30,27 @@ describe("strengths cannot buy off defects", () => {
     (issue) => !report.blockingIssues.includes(issue),
   );
 
-  it("repairs the frozen stretch without demanding an application shell", () => {
-    // Retain the dead-stretch repair while allowing object-based composition.
-    expect(report.blockingIssues.join(" ")).toContain("with nothing scheduled");
+  it("reports the frozen stretch without demanding an application shell", () => {
+    // Retain the dead-stretch report while allowing object-based composition.
+    expect(report.issues.join(" ")).toContain("between scheduled moves");
     expect(report.issues.join(" ")).not.toContain(
       "build the application surface",
     );
     expect(advisory.length).toBeGreaterThanOrEqual(2);
+  });
+
+  /**
+   * The gap is measured from call positions alone, so it cannot tell a frozen
+   * frame from one long move and it reads stray numbers as positions — it
+   * claims 136s of dead air in relay, a film that never freezes. It stays a
+   * hint; `deadAirWarnings` decides the question against the mounted film. The
+   * draw still fails the gate, just not on this measure's word alone.
+   */
+  it("does not withhold a film on the position-only gap estimate", () => {
+    expect(report.blockingIssues.join(" ")).not.toContain(
+      "between scheduled moves",
+    );
+    expect(report.requiresRepair).toBe(true);
   });
 
   it("counts more strengths than defects and still fails the gate", () => {

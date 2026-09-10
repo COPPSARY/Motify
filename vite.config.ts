@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { createGeminiMiddleware } from "./src/ai/gemini-server";
+import { createAiMiddleware } from "./src/ai/gemini-server";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -9,9 +9,9 @@ export default defineConfig(({ mode }) => {
     plugins: [
       svelte(),
       {
-        name: "motionly-gemini-ai",
+        name: "motionly-ai-provider",
         configureServer(server) {
-          server.middlewares.use(createGeminiMiddleware(env));
+          server.middlewares.use(createAiMiddleware(env));
         },
       },
     ],

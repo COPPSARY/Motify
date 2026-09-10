@@ -86,19 +86,138 @@ function geminiResponse(payload: unknown): Response {
   } as unknown as Response;
 }
 
+function openAiResponse(payload: unknown): Response {
+  return {
+    ok: true,
+    json: async () => ({
+      choices: [
+        { message: { role: "assistant", content: JSON.stringify(payload) } },
+      ],
+    }),
+  } as unknown as Response;
+}
+
 describe("directed generation with self-repair", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    localStorage.setItem("motionly_gemini_api_key", "test-key");
+    vi.stubEnv("VITE_AI_PROVIDER", "gemini");
+    vi.stubEnv("VITE_GEMINI_API_KEY", "test-key");
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
     localStorage.removeItem("motionly_gemini_api_key");
+    localStorage.removeItem("motionly_ai_provider");
+    localStorage.removeItem("motionly_openai_api_key");
+    localStorage.removeItem("motionly_openai_model");
+    localStorage.removeItem("motionly_openai_base_url");
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it("switches direct generation to a CodeCraft OpenAI-compatible request", async () => {
+    vi.stubEnv("VITE_AI_PROVIDER", "openai-compatible");
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_API_KEY", "cc_test-key");
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_MODEL", "claude-opus-4.8");
+    vi.stubEnv(
+      "VITE_OPENAI_COMPATIBLE_BASE_URL",
+      "https://codecraftapi.com/v1",
+    );
+    fetchMock.mockResolvedValue(openAiResponse(soundComposition("Built.")));
+
+    await generateWithDirectAi("make a product tour", {});
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://codecraftapi.com/v1/chat/completions",
+    );
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer cc_test-key",
+    });
+    const payload = JSON.parse(String(init.body));
+    expect(payload.model).toBe("claude-opus-4.8");
+    expect(payload.messages[0]).toEqual({
+      role: "system",
+      content: MOTIONLY_SYSTEM_PROMPT,
+    });
+    expect(payload.messages[1].role).toBe("user");
+    expect(payload.messages[1].content).toContain("make a product tour");
+    expect(payload.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("sends attached images in the OpenAI-compatible vision format", async () => {
+    vi.stubEnv("VITE_AI_PROVIDER", "openai-compatible");
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_API_KEY", "cc_test-key");
+    fetchMock.mockResolvedValue(openAiResponse(soundComposition("Built.")));
+
+    await generateWithDirectAi("use this logo", {
+      assets: [
+        {
+          id: "asset-1",
+          name: "logo.png",
+          mimeType: "image/png",
+          dataBase64: "aGVsbG8=",
+          token: "__ASSET_1__",
+        },
+      ],
+    });
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body));
+    expect(payload.messages[1].content).toEqual(
+      expect.arrayContaining([
+        {
+          type: "image_url",
+          image_url: { url: "data:image/png;base64,aGVsbG8=" },
+        },
+      ]),
+    );
+  });
+
+  it("uses the selected OpenAI-compatible provider in the Vercel route", async () => {
+    vi.stubEnv("AI_PROVIDER", "openai-compatible");
+    vi.stubEnv("OPENAI_COMPATIBLE_API_KEY", "cc_server-key");
+    vi.stubEnv("OPENAI_COMPATIBLE_MODEL", "claude-opus-4.8");
+    fetchMock.mockResolvedValue(
+      openAiResponse(soundComposition("Server result.")),
+    );
+
+    const response = await generateHandler(
+      new Request("http://localhost/api/ai/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          provider: "gemini",
+          model: "user-chosen-model",
+          userPrompt: "A launch film",
+          currentFiles: {},
+        }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://codecraftapi.com/v1/chat/completions",
+    );
+    expect((await response.json()).skills).toEqual(["write-motionly"]);
+  });
+
+  it("leaves provider selection to the backend when no deployment browser key exists", async () => {
+    vi.stubEnv("VITE_GEMINI_API_KEY", "");
+    localStorage.setItem("motionly_ai_provider", "openai-compatible");
+    localStorage.setItem("motionly_openai_model", "custom-codecraft-model");
+    fetchMock.mockResolvedValue(
+      Response.json(soundComposition("Server result.")),
+    );
+
+    await generateWithDirectAi("make a product tour", {});
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/ai/generate");
+    const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body));
+    expect(payload.provider).toBeUndefined();
+    expect(payload.model).toBeUndefined();
   });
 
   it("ships a sound first pass without spending a repair round trip", async () => {

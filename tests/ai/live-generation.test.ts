@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { repairGeneratedMarkup } from "../../src/ai/auto-repair";
 import {
   DEFAULT_GEMINI_MODEL,
+  isImprovement,
   parseAiResponseText,
 } from "../../src/ai/direct-ai";
 import {
@@ -189,11 +190,9 @@ async function generateLikeProduction(
     ).result;
     const candidateReport = analyzeMotionQuality(candidate, context);
     summarize(`${label} — pass ${pass + 1} (repair)`, candidateReport);
-    const improved =
-      candidateReport.blockingIssues.length !== report.blockingIssues.length
-        ? candidateReport.blockingIssues.length < report.blockingIssues.length
-        : candidateReport.score > report.score;
-    if (!improved) break;
+    // The shipping rule, not a copy of it: a harness that accepts passes
+    // production would reject measures a pipeline nobody runs.
+    if (!isImprovement(candidateReport, report)) break;
     best = candidate;
     report = candidateReport;
   }

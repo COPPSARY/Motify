@@ -264,8 +264,13 @@ export function analyzeSeamPlan(input: SeamPlanInput): SeamPlanReport {
   }
 
   if (sound === input.seams.length && input.seams.length >= boundaries) {
+    // Deliberately a claim about the plan. Nothing here mounts the film or
+    // reads the timeline's moves, and a plan that declares a morph at every
+    // boundary while the timeline switches scene layers on and off used to
+    // collect this as though the transition itself were sound. Whether the
+    // declared mechanism is executed is checked in analyzeMotionQuality.
     strengths.push(
-      "every scene boundary has a budgeted seam bound to a real carrier",
+      "the seam plan budgets every scene boundary against a real carrier",
     );
   }
   const carriers = new Set(input.seams.map((seam) => seam.carrier));

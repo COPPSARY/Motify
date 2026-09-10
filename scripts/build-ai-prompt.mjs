@@ -1,14 +1,22 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { buildHouseStyle } from "./house-style.mjs";
+import { buildPresetApi } from "./preset-api.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const PROMPT_SOURCES = [
   "src/ai/system-runtime.md",
   ".agents/skills/write-motionly/SKILL.md",
+  "src/composition/presets.ts",
+  "src/ai/house-style.md",
 ];
 export const PROMPT_OUTPUT = "src/ai/generated/prompt.ts";
+/** Authored films measured into the house-style reference. */
+export const FILM_DIR = "src/compositions/presets";
+export const HOUSE_STYLE_OUTPUT = "src/ai/house-style.md";
 
 // Git may check out CRLF on Windows. Neither line endings nor a BOM should
 // change the deployed prompt version. No timestamps or machine paths are used.
@@ -21,6 +29,22 @@ export function normalizeSource(source) {
   );
 }
 
+/**
+ * The text a source contributes to the prompt.
+ *
+ * `presets.ts` is compiled to an API reference rather than shipped verbatim: the
+ * model needs the callable surface and its defaults, not ~1900 lines of tween
+ * bodies. The hash still covers the raw file, so any edit to a preset bumps the
+ * deployed prompt version.
+ */
+function sourceBody(path, content) {
+  if (path.endsWith("SKILL.md")) {
+    return content.replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+  }
+  if (path.endsWith("presets.ts")) return buildPresetApi(content).trim();
+  return content.trim();
+}
+
 export function compilePrompt(sources) {
   const normalized = sources.map(({ path, content }) => ({
     path,
@@ -31,9 +55,7 @@ export function compilePrompt(sources) {
     .digest("hex");
   const prompt = normalized
     .map(({ path, content }) => {
-      const body = path.endsWith("SKILL.md")
-        ? content.replace(/^---\n[\s\S]*?\n---\n/, "").trim()
-        : content.trim();
+      const body = sourceBody(path, content);
       return `SOURCE: ${path}\n${body}`;
     })
     .join("\n\n");
@@ -47,7 +69,62 @@ export function compilePrompt(sources) {
   ].join("\n");
 }
 
+/**
+ * Regenerates the measured house-style reference from the authored films.
+ *
+ * Written to disk rather than inlined so it hashes like any other prompt source
+ * and stays reviewable in a diff — editing a film and rebuilding shows exactly
+ * what the model's picture of "good" changed to.
+ */
+export async function buildHouseStyleArtifact({
+  root = projectRoot,
+  check = false,
+} = {}) {
+  const dir = resolve(root, FILM_DIR);
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return { changed: false, output: resolve(root, HOUSE_STYLE_OUTPUT) };
+  }
+  const films = [];
+  for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
+    try {
+      films.push({
+        name: entry.name,
+        timeline: await readFile(
+          resolve(dir, entry.name, "timeline.js"),
+          "utf8",
+        ),
+      });
+    } catch (error) {
+      // A preset directory without a timeline is not a film; skip it.
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  films.sort((first, second) => first.name.localeCompare(second.name));
+  const artifact = normalizeSource(buildHouseStyle(films));
+  const output = resolve(root, HOUSE_STYLE_OUTPUT);
+  let existing;
+  try {
+    existing = normalizeSource(await readFile(output, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (existing === artifact) return { changed: false, output };
+  if (check) {
+    throw new Error(
+      `${HOUSE_STYLE_OUTPUT} is missing or stale. Run npm run prompt:build and commit the generated artifact.`,
+    );
+  }
+  await mkdir(dirname(output), { recursive: true });
+  await writeFile(output, artifact, "utf8");
+  return { changed: true, output };
+}
+
 export async function buildPrompt({ root = projectRoot, check = false } = {}) {
+  await buildHouseStyleArtifact({ root, check });
   const sources = await Promise.all(
     PROMPT_SOURCES.map(async (path) => ({
       path,
