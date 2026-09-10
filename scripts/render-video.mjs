@@ -81,9 +81,18 @@ if (!Number.isFinite(scale) || scale <= 0)
 await mkdir(dirname(output), { recursive: true });
 const server = await createServer({
   logLevel: "error",
-  server: { host: "127.0.0.1", port: 0, strictPort: false },
+  // An export must keep its mounted scene for the entire frame sequence.
+  // Editor saves or registry builds must not trigger a mid-export navigation.
+  server: {
+    host: "127.0.0.1",
+    port: 0,
+    strictPort: false,
+    hmr: false,
+    watch: null,
+  },
 });
 let browser;
+let encoder;
 
 try {
   await server.listen();
@@ -117,7 +126,7 @@ try {
     deviceScaleFactor: scale,
   });
 
-  const encoder = spawn(
+  encoder = spawn(
     ffmpeg,
     [
       "-y",
@@ -161,6 +170,7 @@ try {
     `Rendered ${frameCount}/${frameCount} frames\n${output}\n`,
   );
 } finally {
+  if (encoder && encoder.exitCode === null) encoder.kill();
   await browser?.close();
   await server.close();
 }

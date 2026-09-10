@@ -1,6 +1,10 @@
 import { gsap } from "gsap";
 
-export function buildAppleNotesTimeline({ root, timeline: masterTimeline, register }) {
+export function buildAppleNotesTimeline({
+  root,
+  timeline: masterTimeline,
+  register,
+}) {
   const timeline = gsap.timeline({ paused: true });
   const playbackScale = 1.3;
   const get = (id) => root.querySelector(`[data-edit='${id}']`);
@@ -19,7 +23,9 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   const introTitle = get("notesIntroTitle");
   const brandMark = get("notesBrandMark");
   const introPrefix = introTitle?.querySelector(".notes-editorial-prefix");
-  const introHighlight = introTitle?.querySelector(".notes-editorial-highlight");
+  const introHighlight = introTitle?.querySelector(
+    ".notes-editorial-highlight",
+  );
   const scribble = get("notesBlueScribble");
   const scribblePath = root.querySelector(".notes-scribble-path");
 
@@ -48,15 +54,21 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // Scene 4: Ecosystem Sync
   const ecosystem = get("notesStageEcosystem");
   const ecosystemStatement = get("notesEcosystemStatement");
-  const ecosystemPrefix = ecosystemStatement?.querySelector(".notes-editorial-prefix");
-  const ecosystemHighlight = ecosystemStatement?.querySelector(".notes-editorial-highlight");
+  const ecosystemPrefix = ecosystemStatement?.querySelector(
+    ".notes-editorial-prefix",
+  );
+  const ecosystemHighlight = ecosystemStatement?.querySelector(
+    ".notes-editorial-highlight",
+  );
 
   // Scene 5: Grand Climax
   const climax = get("notesStageClimax");
   const climaxIcon = get("notesClimaxIcon");
   const climaxTitle = get("notesClimaxTitle");
   const climaxPrefix = climaxTitle?.querySelector(".notes-editorial-prefix");
-  const climaxHighlight = climaxTitle?.querySelector(".notes-editorial-highlight");
+  const climaxHighlight = climaxTitle?.querySelector(
+    ".notes-editorial-highlight",
+  );
   const climaxTagline = get("notesClimaxTagline");
 
   const required = [
@@ -86,7 +98,9 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
     climaxTagline,
   ];
   if (required.some((element) => !element)) {
-    throw new Error("Apple Notes preset composition is missing required elements.");
+    throw new Error(
+      "Apple Notes preset composition is missing required elements.",
+    );
   }
 
   // ============================================================
@@ -105,29 +119,49 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   timeline.set(intro, { display: "grid", autoAlpha: 1 }, 0);
 
   // Scene 1 elements
-  timeline.set(scribblePath, { strokeDasharray: 980, strokeDashoffset: 980 }, 0);
+  timeline.set(
+    scribblePath,
+    { strokeDasharray: 980, strokeDashoffset: 980 },
+    0,
+  );
   timeline.set(introTitle, { scale: 1.35, autoAlpha: 0 }, 0);
   timeline.set(brandMark, { scale: 0, rotate: -40, autoAlpha: 0 }, 0);
   timeline.set(introPrefix, { autoAlpha: 0, y: 20 }, 0);
   timeline.set(introHighlight, { autoAlpha: 0, y: 65 }, 0);
 
   // Scene 2 elements
-  timeline.set([safariCard, voiceCard, photoCard1], { autoAlpha: 0, scale: 0.85 }, 0);
+  timeline.set(
+    [safariCard, voiceCard, photoCard1],
+    { autoAlpha: 0, scale: 0.85 },
+    0,
+  );
   timeline.set(captureCard, { autoAlpha: 0, scale: 0.82 }, 0);
 
   // Scene 3 elements
   timeline.set(appShell, { autoAlpha: 0, scale: 0.95 }, 0);
   timeline.set([toolbar, editorHead, editorBody], { autoAlpha: 0, y: 20 }, 0);
-  timeline.set([...folders, ...listItems, ...checkRows], { autoAlpha: 0, y: 20 }, 0);
+  timeline.set(
+    [...folders, ...listItems, ...checkRows],
+    { autoAlpha: 0, y: 20 },
+    0,
+  );
   timeline.set(cursor, { autoAlpha: 0, x: 1200, y: 700 }, 0);
 
   // Scene 4 elements
   timeline.set(ecosystemStatement, { scale: 1.35, autoAlpha: 0 }, 0);
-  timeline.set([ecosystemPrefix, ecosystemHighlight], { autoAlpha: 0, y: 20 }, 0);
+  timeline.set(
+    [ecosystemPrefix, ecosystemHighlight],
+    { autoAlpha: 0, y: 20 },
+    0,
+  );
 
   // Scene 5 elements
   timeline.set(climaxIcon, { autoAlpha: 0, scale: 0.5, rotate: -30 }, 0);
-  timeline.set([climaxPrefix, climaxHighlight, climaxTagline], { autoAlpha: 0, y: 30 }, 0);
+  timeline.set(
+    [climaxPrefix, climaxHighlight, climaxTagline],
+    { autoAlpha: 0, y: 30 },
+    0,
+  );
 
   // ============================================================
   // SCENE 1: HOOK — "Every useful idea starts as something easy to lose." (0.0s – 3.6s)
@@ -209,7 +243,11 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // ============================================================
   timeline.set(intro, { display: "none", autoAlpha: 0 }, 3.6);
   timeline.set(fragments, { display: "grid", autoAlpha: 1 }, 3.6);
-  timeline.set(camera, { x: 0, y: 0, scale: 1, rotateX: 0, rotateY: 0, rotateZ: 0 }, 3.6);
+  timeline.set(
+    camera,
+    { x: 0, y: 0, scale: 1, rotateX: 0, rotateY: 0, rotateZ: 0 },
+    3.6,
+  );
 
   // Central Quick Note Carrier card arrives in center with tactile spring bounce
   timeline.fromTo(
@@ -223,36 +261,80 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   timeline.fromTo(
     safariCard,
     { autoAlpha: 0, x: -160, y: -60, rotation: -8, scale: 0.82 },
-    { autoAlpha: 1, x: 0, y: 0, rotation: -3, scale: 1, duration: 0.7, ease: "back.out(1.3)" },
+    {
+      autoAlpha: 1,
+      x: 0,
+      y: 0,
+      rotation: -3,
+      scale: 1,
+      duration: 0.7,
+      ease: "back.out(1.3)",
+    },
     3.85,
   );
   timeline.fromTo(
     voiceCard,
     { autoAlpha: 0, x: 160, y: -60, rotation: 8, scale: 0.82 },
-    { autoAlpha: 1, x: 0, y: 0, rotation: 3, scale: 1, duration: 0.7, ease: "back.out(1.3)" },
+    {
+      autoAlpha: 1,
+      x: 0,
+      y: 0,
+      rotation: 3,
+      scale: 1,
+      duration: 0.7,
+      ease: "back.out(1.3)",
+    },
     4.05,
   );
   timeline.fromTo(
     photoCard1,
     { autoAlpha: 0, y: 90, rotation: -6, scale: 0.82 },
-    { autoAlpha: 1, y: 0, rotation: -2, scale: 1, duration: 0.7, ease: "back.out(1.3)" },
+    {
+      autoAlpha: 1,
+      y: 0,
+      rotation: -2,
+      scale: 1,
+      duration: 0.7,
+      ease: "back.out(1.3)",
+    },
     4.25,
   );
 
   // Dynamic Floating UI Motion: Subtle continuous 3D levitation on the cards
   timeline.to(
     safariCard,
-    { y: "-=12", rotation: -1.5, duration: 1.4, yoyo: true, repeat: 2, ease: "sine.inOut" },
+    {
+      y: "-=12",
+      rotation: -1.5,
+      duration: 1.4,
+      yoyo: true,
+      repeat: 2,
+      ease: "sine.inOut",
+    },
     4.1,
   );
   timeline.to(
     voiceCard,
-    { y: "+=10", rotation: 4.5, duration: 1.3, yoyo: true, repeat: 2, ease: "sine.inOut" },
+    {
+      y: "+=10",
+      rotation: 4.5,
+      duration: 1.3,
+      yoyo: true,
+      repeat: 2,
+      ease: "sine.inOut",
+    },
     4.3,
   );
   timeline.to(
     photoCard1,
-    { y: "-=8", rotation: -0.5, duration: 1.5, yoyo: true, repeat: 2, ease: "sine.inOut" },
+    {
+      y: "-=8",
+      rotation: -0.5,
+      duration: 1.5,
+      yoyo: true,
+      repeat: 2,
+      ease: "sine.inOut",
+    },
     4.5,
   );
 
@@ -275,45 +357,105 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // 1. Zoom into Safari Research card (centers Safari card)
   timeline.to(
     camera,
-    { scale: 1.42, x: 500, y: 120, rotateZ: -1.2, rotateX: 1.5, rotateY: -2.5, duration: 0.85, ease: "power3.inOut" },
+    {
+      scale: 1.42,
+      x: 500,
+      y: 120,
+      rotateZ: -1.2,
+      rotateX: 1.5,
+      rotateY: -2.5,
+      duration: 0.85,
+      ease: "power3.inOut",
+    },
     3.9,
   );
 
   // 2. Camera sweeps across in 3D to review the Voice Memo card (centers Voice memo)
   timeline.to(
     camera,
-    { scale: 1.46, x: -500, y: 110, rotateZ: 1.4, rotateX: 1, rotateY: 2.5, duration: 0.95, ease: "power3.inOut" },
+    {
+      scale: 1.46,
+      x: -500,
+      y: 110,
+      rotateZ: 1.4,
+      rotateX: 1,
+      rotateY: 2.5,
+      duration: 0.95,
+      ease: "power3.inOut",
+    },
     4.75,
   );
 
   // 3. Camera swoops down to review the Whiteboard Strategy diagram card (centers Whiteboard)
   timeline.to(
     camera,
-    { scale: 1.44, x: 460, y: -260, rotateZ: -1, rotateX: -1, rotateY: -1.8, duration: 0.85, ease: "power3.inOut" },
+    {
+      scale: 1.44,
+      x: 460,
+      y: -260,
+      rotateZ: -1,
+      rotateX: -1,
+      rotateY: -1.8,
+      duration: 0.85,
+      ease: "power3.inOut",
+    },
     5.65,
   );
 
   // 4. Camera pulls back smoothly as all 3 floating cards converge into Quick Note carrier
   timeline.to(
     camera,
-    { scale: 1.05, x: 0, y: 0, rotateX: 0, rotateY: 0, rotateZ: 0, duration: 0.85, ease: "power3.inOut" },
+    {
+      scale: 1.05,
+      x: 0,
+      y: 0,
+      rotateX: 0,
+      rotateY: 0,
+      rotateZ: 0,
+      duration: 0.85,
+      ease: "power3.inOut",
+    },
     6.4,
   );
 
   // Causal Convergence: cards smoothly slide directly INTO the Quick Note card
   timeline.to(
     safariCard,
-    { x: 380, y: 60, scale: 0.1, rotation: 0, autoAlpha: 0, duration: 0.55, ease: "power3.in" },
+    {
+      x: 380,
+      y: 60,
+      scale: 0.1,
+      rotation: 0,
+      autoAlpha: 0,
+      duration: 0.55,
+      ease: "power3.in",
+    },
     6.45,
   );
   timeline.to(
     voiceCard,
-    { x: -380, y: 60, scale: 0.1, rotation: 0, autoAlpha: 0, duration: 0.55, ease: "power3.in" },
+    {
+      x: -380,
+      y: 60,
+      scale: 0.1,
+      rotation: 0,
+      autoAlpha: 0,
+      duration: 0.55,
+      ease: "power3.in",
+    },
     6.5,
   );
   timeline.to(
     photoCard1,
-    { x: 280, y: -200, scale: 0.1, rotation: 0, autoAlpha: 0, duration: 0.55, ease: "power3.in" },
+    {
+      x: 280,
+      y: -200,
+      scale: 0.1,
+      rotation: 0,
+      autoAlpha: 0,
+      duration: 0.55,
+      ease: "power3.in",
+    },
     6.55,
   );
 
@@ -361,7 +503,15 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // 1. Camera dives into dynamic 2.5D perspective to watch sidebar & note list construct
   timeline.to(
     camera,
-    { scale: 1.25, x: 220, y: 60, rotateY: 3.5, rotateX: 2, duration: 1.1, ease: "power3.out" },
+    {
+      scale: 1.25,
+      x: 220,
+      y: 60,
+      rotateY: 3.5,
+      rotateX: 2,
+      duration: 1.1,
+      ease: "power3.out",
+    },
     7.55,
   );
 
@@ -397,7 +547,15 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // 2. Camera sweeps across from sidebar directly into DEEP MACRO ZOOM on the checklist
   timeline.to(
     camera,
-    { scale: 1.76, x: -300, y: -75, rotateY: -1.2, rotateX: 1, duration: 1.15, ease: "power3.inOut" },
+    {
+      scale: 1.76,
+      x: -300,
+      y: -75,
+      rotateY: -1.2,
+      rotateX: 1,
+      duration: 1.15,
+      ease: "power3.inOut",
+    },
     9.15,
   );
 
@@ -453,12 +611,28 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   // The camera pulls back into an alive floating re-framing with continuous drift
   timeline.to(
     camera,
-    { scale: 1.2, x: -90, y: -20, rotateY: 1.5, rotateX: -0.8, duration: 1.5, ease: "sine.inOut" },
+    {
+      scale: 1.2,
+      x: -90,
+      y: -20,
+      rotateY: 1.5,
+      rotateX: -0.8,
+      duration: 1.5,
+      ease: "sine.inOut",
+    },
     11.0,
   );
   timeline.to(
     camera,
-    { scale: 1.14, x: -20, y: 10, rotateY: -0.8, rotateX: 0.5, duration: 1.4, ease: "sine.inOut" },
+    {
+      scale: 1.14,
+      x: -20,
+      y: 10,
+      rotateY: -0.8,
+      rotateX: 0.5,
+      duration: 1.4,
+      ease: "sine.inOut",
+    },
     12.4,
   );
   timeline.to(
@@ -484,7 +658,11 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
     13.65,
   );
   timeline.set(pills, { display: "none", autoAlpha: 0 }, 14.25);
-  timeline.set(camera, { scale: 1.0, x: 0, y: 0, z: 0, rotateX: 0, rotateY: 0, rotateZ: 0 }, 14.2);
+  timeline.set(
+    camera,
+    { scale: 1.0, x: 0, y: 0, z: 0, rotateX: 0, rotateY: 0, rotateZ: 0 },
+    14.2,
+  );
 
   // ============================================================
   // SCENE 4: ECOSYSTEM STATEMENT (14.2s – 18.2s)
@@ -493,11 +671,7 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   timeline.set(ecosystem, { display: "grid", autoAlpha: 1 }, 14.2);
 
   // Luminous subtle continuous breathing camera drift
-  timeline.to(
-    camera,
-    { scale: 1.04, duration: 3.5, ease: "sine.inOut" },
-    14.3,
-  );
+  timeline.to(camera, { scale: 1.04, duration: 3.5, ease: "sine.inOut" }, 14.3);
 
   // Giant-to-Settle Kinetic Zoom: enters large (scale: 1.35) and settles cleanly into 1.0
   timeline.fromTo(
@@ -554,7 +728,13 @@ export function buildAppleNotesTimeline({ root, timeline: masterTimeline, regist
   timeline.fromTo(
     climaxIcon,
     { autoAlpha: 0, scale: 0.5, rotate: -30 },
-    { autoAlpha: 1, scale: 1.0, rotate: 0, duration: 0.65, ease: "back.out(1.6)" },
+    {
+      autoAlpha: 1,
+      scale: 1.0,
+      rotate: 0,
+      duration: 0.65,
+      ease: "back.out(1.6)",
+    },
     18.25,
   );
 

@@ -96,6 +96,17 @@ export class CompositionRuntime {
       }
     }, root);
     this.seek(0);
+    // `totalTime(t)` is a no-op when the playhead already sits at `t`, so
+    // nothing renders. A timeline is built at 0 and seeked to 0, which means
+    // every zero-duration `set()` authored at position 0 — the whole opening
+    // state of a composition: centring, hidden layers, start transforms — was
+    // never flushed, and the first frame showed unposed elements at their raw
+    // CSS defaults until the playhead moved. Force that one render.
+    //
+    // Only the origin needs it, and only once. Seeking back to 0 from any
+    // later time renders normally, and forcing on every seek would re-resolve
+    // relative ("+=") tweens and make repeated seeks drift.
+    this.timeline.render(0, false, true);
   }
 
   play(): void {

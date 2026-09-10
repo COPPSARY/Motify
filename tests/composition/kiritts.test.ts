@@ -1,131 +1,101 @@
 import { describe, expect, it } from "vitest";
-import { kiriTtsPreset } from "../../src/compositions/presets";
+import gsap from "gsap";
+import {
+  kiriTtsPreset,
+  kiriTtsScenes,
+  kiriTtsSeams,
+} from "../../src/compositions/presets/KiriTTS";
 import { CompositionRuntime } from "../../src/composition/runtime";
 
-describe("KiriTTS SaaS Product Film Preset", () => {
-  it("defines 5 authentic acts across 37.05 seconds", () => {
-    expect(kiriTtsPreset.duration).toBeCloseTo(37.05, 1);
-    expect(kiriTtsPreset.fps).toBe(60);
-    expect(kiriTtsPreset.scenes.length).toBe(5);
-    expect(kiriTtsPreset.scenes.map((s) => s.id)).toEqual([
-      "act-01-linguistic",
-      "act-02-tts",
-      "act-03-stt",
-      "act-04-clone-api",
-      "act-05-climax",
+describe("KiriTTS complete audio workflow", () => {
+  it("covers the 48-second story with continuous handoff windows", () => {
+    expect(kiriTtsPreset.duration).toBe(48);
+    expect(kiriTtsScenes.map((s) => s.id)).toEqual([
+      "hook",
+      "intro",
+      "tts",
+      "voices",
+      "stt",
+      "export",
+      "features",
+      "brand",
     ]);
+    let end = 0;
+    for (const scene of kiriTtsScenes) {
+      expect(scene.start).toBeCloseTo(end);
+      end = scene.start + scene.duration;
+    }
+    expect(end).toBe(48);
+    for (const seam of kiriTtsSeams) {
+      const boundary = kiriTtsScenes.find((s) => s.id === seam.to)!.start;
+      expect(seam.at).toBeLessThan(boundary);
+      expect(seam.at + seam.duration).toBeGreaterThan(boundary);
+    }
   });
-
-  it("mounts every authentic actor, camera rig, cursor, and interactive control", () => {
+  it("never instantly hides an outgoing actor and keeps shared objects outside scenes", () => {
     const root = document.createElement("div");
     document.body.append(root);
     const runtime = new CompositionRuntime(kiriTtsPreset, root);
-
-    const requiredActors = [
-      "kiriFilmRoot",
-      "kiriCameraWorld",
-      "kiriAmbientGlow",
-      "kiriCursor",
-      "kiriCursorRipple",
-      "kiriTopbar",
-      "kiriTopBreadcrumb",
-      "kiriBreadcrumbText",
-      "kiriTopRightActions",
-      "kiriTopCredits",
-      "kiriTopAvatar",
-      "kiriStageWorkspace",
-      "kiriAct1Linguistic",
-      "kiriAct1Headline",
-      "kiriMonolithicBox",
-      "kiriErrorBadge1",
-      "kiriUnspacedScript",
-      "kiriRobotWave",
-      "kiriErrorBadge2",
-      "kiriSegmentBeam",
-      "kiriSegmentedWords",
-      "kiriWordChip1",
-      "kiriWordChip2",
-      "kiriWordChip3",
-      "kiriWordChip4",
-      "kiriNativeSolvedBadge",
-      "kiriAct2TtsStudio",
-      "kiriLineEditor",
-      "kiriVoicePill",
-      "kiriExprToggles",
-      "kiriEditorRow1",
-      "kiriTypedKhmer",
-      "kiriTtsCaret",
-      "kiriEditorRow2",
-      "kiriRow2Notice",
-      "kiriBtnGenerate",
-      "kiriAudioPlayerCard",
-      "kiriEqWaveBars",
-      "kiriRightSettingsPanel",
-      "kiriStabilitySlider",
-      "kiriFillStability",
-      "kiriThumbStability",
-      "kiriSpeedSlider",
-      "kiriFillSpeed",
-      "kiriThumbSpeed",
-      "kiriAct3SttStudio",
-      "kiriSttDropCard",
-      "kiriDroppedAudioChip",
-      "kiriBtnExportSrt",
-      "kiriDiarizeStream",
-      "kiriDiarizeSpeaker1",
-      "kiriTimestampPills",
-      "kiriDiarizeSpeaker2",
-      "kiriSrtSuccessBadge",
-      "kiriAct4CloneApi",
-      "kiriCloneCard",
-      "kiri10sSampleBadge",
-      "kiriProgressRing",
-      "kiriProgCircle",
-      "kiriVerifiedProfile",
-      "kiriAmberDisclaimer",
-      "kiriApiCard",
-      "kiriApiHubLogo",
-      "kiriEndpointBox",
-      "kiriLiveCounter",
-      "kiriAct5Climax",
-      "kiriClimaxEmblem",
-      "kiriClimaxHeadline",
-      "kiriClimaxSubtitle",
-      "kiriClimaxCtas",
-      "kiriBtnGetStarted",
-      "kiriCtaShimmer",
-      "kiriEditorialStage",
-      "kiriBeatIntro",
-      "kiriBeatIntroText",
-      "kiriBeatObstacle",
-      "kiriBeatObstacleText",
-      "kiriBeatSolution",
-      "kiriBeatSolutionText",
-      "kiriBannerStt",
-      "kiriBannerClone",
-    ];
-
-    for (const id of requiredActors) {
+    expect(runtime.timeline.duration()).toBeCloseTo(48);
+    expect(root.innerHTML).not.toContain("__ASSET_");
+    for (const id of new Set(kiriTtsSeams.map((s) => s.carrier))) {
       expect(
-        runtime.elements.has(id),
-        `${id} should be registered in KiriTTS runtime`,
-      ).toBe(true);
+        root.querySelector(`[data-edit="${id}"]`)!.closest("[data-scene]"),
+      ).toBeNull();
     }
-
-    // Seek across every scene boundary and interactive timestamp
-    const seekPoints = [
-      0, 2.0, 5.0, 5.5, 7.0, 9.65, 11.5, 12.0, 14.5, 16.65, 18.5, 20.0, 22.0,
-      24.5, 26.5, 28.5,
-    ];
-    for (const time of seekPoints) {
-      expect(() => runtime.seek(time)).not.toThrow();
+    const abruptHides = runtime.timeline
+      .getChildren(true, true, false)
+      .filter(
+        (tween) =>
+          tween.startTime() > 0 &&
+          tween.duration() === 0 &&
+          (tween.vars.autoAlpha === 0 ||
+            tween.vars.opacity === 0 ||
+            tween.vars.visibility === "hidden"),
+      );
+    expect(abruptHides).toEqual([]);
+    runtime.seek(47.9);
+    runtime.seek(0);
+    const state = () =>
+      [...root.querySelectorAll("[data-edit],.motionly-split-item")].map((e) =>
+        ["x", "y", "scaleX", "scaleY", "rotation", "opacity"].map((property) =>
+          gsap.getProperty(e, property),
+        ),
+      );
+    for (const time of [
+      1.5, 4.8, 9.7, 15.9, 18.9, 25.8, 30.5, 36.2, 38.8, 40.3,
+    ]) {
+      runtime.seek(time);
+      const before = state();
+      runtime.seek(47.9);
+      runtime.seek(0);
+      runtime.seek(time);
+      expect(state()).toEqual(before);
     }
-    for (const time of [...seekPoints].reverse()) {
-      expect(() => runtime.seek(time)).not.toThrow();
+    const text = (id: string) =>
+      root
+        .querySelector(`[data-edit="${id}"]`)!
+        .textContent!.replace(/\s+/g, " ")
+        .trim();
+    expect(text("kiriMalySelect")).toContain("Maly");
+    expect(text("kiriVoiceMenu")).toMatch(/Nita.*Chanda.*Maly.*Borey/s);
+    expect(root.querySelectorAll(".kiri-voice-row")).toHaveLength(13);
+    expect(root.querySelectorAll(".kiri-gallery-card")).toHaveLength(3);
+    expect(root.querySelectorAll(".kiri-feature-card")).toHaveLength(2);
+    for (const time of [8.5, 39.8, 42.5, 47]) {
+      runtime.seek(time);
+      const mark = root.querySelector('[data-edit="kiriBrandMark"]')!;
+      expect(Number(gsap.getProperty(mark, "width"))).toBeCloseTo(300);
+      expect(Number(gsap.getProperty(mark, "height"))).toBeCloseTo(300);
     }
-
-    expect(runtime.timeline.duration()).toBeCloseTo(37.05, 1);
-
+    expect(text("kiriSpeakerOne")).toContain(
+      "Welcome to Kiri TTS. Let me walk you through the recording.",
+    );
+    expect(text("kiriSpeakerTwo")).toContain("04.400");
+    expect(text("kiriSpeakerThree")).toContain(
+      "Great, the transcript is ready to export.",
+    );
+    expect(text("kiriExportControls")).toMatch(/SRT.*VTT.*JSON.*TXT.*CSV/);
     runtime.destroy();
     root.remove();
   });

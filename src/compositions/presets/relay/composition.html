@@ -1,0 +1,86 @@
+<template id="relay-preset-template">
+  <style>
+    @font-face { font-family:"SF Pro Display";font-weight:500;font-style:normal;font-display:block;src:url("__ASSET_SF_FONT_BASE__SFPRODISPLAYMEDIUM.OTF") format("opentype"); }
+    @font-face { font-family:"SF Pro Display";font-weight:700;font-style:normal;font-display:block;src:url("__ASSET_SF_FONT_BASE__SFPRODISPLAYBOLD.OTF") format("opentype"); }
+    .relay-film,.relay-film * { box-sizing:border-box; }
+    .relay-film { position:relative;width:100%;height:100%;overflow:hidden;background:#f2eee5;color:#252b38;font-family:"SF Pro Display",sans-serif;font-weight:500; }
+    .relay-film h1,.relay-film h2,.relay-film p { margin:0; }
+    .relay-light { position:absolute;inset:0;background:radial-gradient(ellipse at 48% 35%,#fffdf8,transparent 68%),linear-gradient(150deg,transparent 60%,#dfd8ca); }
+    .relay-world { position:absolute;inset:0;perspective:2200px; }
+    .relay-title { position:absolute;left:50%;top:50%;width:1570px;text-align:center;font-size:100px;line-height:1.04;letter-spacing:-.055em;font-weight:700; }
+    .relay-title em { font-style:normal;color:#e46047; }
+    .relay-paper { position:absolute;left:50%;top:50%;width:940px;height:530px;border-radius:18px;background:#fffdf8;border:1px solid #252b381f;box-shadow:0 42px 85px #4a382b25,0 3px 0 #d6d0c4;overflow:hidden; }
+    .relay-face { position:absolute;inset:0;padding:42px; }
+    .relay-meta { display:flex;align-items:center;gap:16px;color:#6c6c70;font-size:23px;letter-spacing:.015em; }
+    .relay-meta .relay-version { margin-left:auto;padding:7px 16px;border:1px solid #252b3825;border-radius:8px; }
+    .relay-project { font-size:48px;letter-spacing:-.04em;margin-top:18px!important; }
+    .relay-preview { position:relative;height:260px;margin-top:28px;overflow:hidden;border-radius:10px;background:#24384e; }
+    .relay-preview svg { width:100%;height:100%; }
+    .relay-preview-copy { position:absolute;left:32px;top:28px;color:#fffdf8;font-size:52px;font-weight:700;line-height:.98;letter-spacing:-.04em; }
+    .relay-note { position:absolute;left:50%;top:50%;width:370px;padding:26px 30px;background:#fff8cf;border:1px solid #252b3819;border-radius:4px 18px 18px 18px;box-shadow:0 20px 38px #4a382b20;font-size:36px;line-height:1.1;letter-spacing:-.025em; }
+    .relay-note small { display:block;font-size:19px;letter-spacing:.08em;margin-bottom:16px;color:#7c704e;text-transform:uppercase; }
+    .relay-note:nth-of-type(2) { background:#e5ecf6; }
+    .relay-review-body { display:flex;gap:40px;margin-top:30px; }
+    .relay-review-art { position:relative;width:350px;height:330px;background:#24384e;border-radius:12px;overflow:hidden;flex:none; }
+    .relay-review-art svg { width:100%;height:100%; }
+    .relay-review-art span { position:absolute;left:26px;top:26px;color:#fffdf8;font-size:47px;line-height:1;letter-spacing:-.04em;font-weight:700; }
+    .relay-review-list { flex:1;padding-top:5px; }
+    .relay-row { display:flex;align-items:center;gap:18px;padding:24px 0;border-bottom:1px solid #252b3820;font-size:32px; }
+    .relay-check { width:34px;height:34px;flex:none;fill:none;stroke:#248374;stroke-width:3;stroke-linecap:round;stroke-linejoin:round; }
+    .relay-check rect { stroke:#252b382a;stroke-width:1.5; }
+    .relay-row small { margin-left:auto;font-size:21px;color:#248374; }
+    .relay-stamp { position:absolute;left:50%;top:50%;width:236px;height:100px;display:grid;place-items:center;border:5px double #d75139;border-radius:12px;color:#d75139;font-size:36px;font-weight:700;letter-spacing:.04em;background:#fffaf0e8;z-index:4; }
+    .relay-envelope { padding:0;background:#e46047; }
+    .relay-envelope svg { position:absolute;inset:0;width:100%;height:100%; }
+    .relay-seal { position:absolute;left:50%;top:50%;width:78px;height:78px;margin:-39px;background:#253749;color:#fff7e6;border-radius:50%;display:grid;place-items:center;font-size:48px;box-shadow:0 5px 16px #7d302040; }
+    .relay-route { position:absolute;left:50%;top:50%;width:1800px;height:600px;overflow:visible;fill:none;stroke:#bcb4a6;stroke-width:3;stroke-dasharray:10 16; }
+    .relay-tray { position:absolute;left:50%;top:50%;width:940px;height:170px;border-radius:22px 22px 60px 60px;background:linear-gradient(#dddbcF,#c7c2b6);border:1px solid #a19c9160;box-shadow:0 30px 70px #6d554422; }
+    .relay-tray::before { content:"";position:absolute;left:30px;right:30px;top:20px;height:34px;border-radius:50%;background:#37352f26; }
+    .relay-tray span { position:absolute;bottom:26px;width:100%;text-align:center;font-size:23px;letter-spacing:.17em;color:#6d685e; }
+    .relay-delivered { display:flex;align-items:center;gap:32px;padding:56px; }
+    .relay-delivered-icon { display:grid;place-items:center;width:120px;height:120px;background:#2483741c;border-radius:50%;font-size:72px;color:#248374;flex:none; }
+    .relay-delivered h2 { font-size:56px;letter-spacing:-.04em;margin:12px 0 22px; }
+    .relay-delivered p { font-size:27px;line-height:1.5;color:#68686b; }
+    .relay-brand-face { display:grid;place-items:center;padding:28px;background:#e46047; }
+    .relay-brand-face svg { width:100%;height:100%;fill:none;stroke:#fff9ed;stroke-width:10;stroke-linecap:round;stroke-linejoin:round; }
+    .relay-wordmark { position:absolute;left:50%;top:50%;font-size:118px;font-weight:700;letter-spacing:-.065em; }
+    .relay-close { position:absolute;left:50%;top:50%;width:1540px;text-align:center;font-size:76px;font-weight:500;letter-spacing:-.04em; }
+  </style>
+  <main class="relay-film" data-edit="relayFilmRoot">
+    <div class="relay-light"></div>
+    <div class="relay-world" data-edit="relayWorld" data-camera-world>
+      <section data-scene="problem"><h1 class="relay-title" data-edit="relayProblem">Good work.<br><em>Stuck in review.</em></h1></section>
+      <section data-scene="review"><h1 class="relay-title" data-edit="relayReviewTitle">Bring everyone to one decision.</h1></section>
+      <section data-scene="approve"><h1 class="relay-title" data-edit="relayApproveTitle">One version.<br>Everyone aligned.</h1></section>
+      <section data-scene="handoff"><h1 class="relay-title" data-edit="relayHandoffTitle">Ready for the next person.</h1></section>
+      <svg class="relay-route" data-edit="relayRoute" viewBox="0 0 1800 600"><path d="M0 430C460 -110 850 20 1180 390"/></svg>
+      <div class="relay-tray" data-edit="relayTray"><span>NEXT HANDOFF</span></div>
+      <article class="relay-paper" data-edit="relayPaper" data-transition-carrier>
+        <div class="relay-face" data-edit="relayDraftFace">
+          <div class="relay-meta"><span>LAUNCH CAMPAIGN</span><span class="relay-version">v04</span></div>
+          <h2 class="relay-project">The launch film.</h2>
+          <div class="relay-preview"><svg viewBox="0 0 900 260"><circle cx="650" cy="240" r="190" fill="#e46047"/><path d="M470 260V155a90 90 0 01180 0v105" fill="#eddfb9"/><path d="M720 260V100a75 75 0 01150 0v160" fill="#9aaec6"/></svg><span class="relay-preview-copy">Make room<br>for what's next.</span></div>
+        </div>
+        <div class="relay-face" data-edit="relayReviewFace">
+          <div class="relay-meta"><span>THE LAUNCH FILM</span><span class="relay-version">v04</span></div>
+          <div class="relay-review-body">
+            <div class="relay-review-art"><svg viewBox="0 0 350 330"><circle cx="280" cy="290" r="150" fill="#e46047"/><path d="M130 330V210a65 65 0 01130 0v120" fill="#eddfb9"/></svg><span>Make room<br>for what's<br>next.</span></div>
+            <div class="relay-review-list">
+              <div class="relay-row" data-edit="relayCopyRow"><svg class="relay-check" viewBox="0 0 36 36"><rect x="1" y="1" width="34" height="34" rx="8"/><path data-edit="relayCopyCheck" d="M9 18l6 6 13-14" pathLength="1"/></svg><span>Copy</span><small data-edit="relayCopyStatus">Approved</small></div>
+              <div class="relay-row" data-edit="relaySoundRow"><svg class="relay-check" viewBox="0 0 36 36"><rect x="1" y="1" width="34" height="34" rx="8"/><path data-edit="relaySoundCheck" d="M9 18l6 6 13-14" pathLength="1"/></svg><span>Sound</span><small data-edit="relaySoundStatus">Approved</small></div>
+              <div class="relay-row" data-edit="relayFinalRow"><svg class="relay-check" viewBox="0 0 36 36"><rect x="1" y="1" width="34" height="34" rx="8"/><path data-edit="relayFinalCheck" d="M9 18l6 6 13-14" pathLength="1"/></svg><span>Final sign-off</span><small data-edit="relayFinalStatus">Approved</small></div>
+            </div>
+          </div>
+        </div>
+        <div class="relay-stamp" data-edit="relayStamp">APPROVED</div>
+        <div class="relay-face relay-envelope" data-edit="relayEnvelopeFace"><svg viewBox="0 0 600 350" preserveAspectRatio="none"><path d="M0 0L300 245 600 0" fill="#f3967b"/><path d="M0 350L260 145Q300 115 340 145L600 350" fill="#eb7559"/><path d="M0 0L300 245 600 0" fill="none" stroke="#c34d36" stroke-width="2"/></svg><div class="relay-seal">&#8599;</div></div>
+        <div class="relay-face relay-delivered" data-edit="relayDeliveredFace"><div class="relay-delivered-icon">&#10003;</div><div><span class="relay-meta">READY TO HAND OVER</span><h2>The launch film.</h2><p>Version 04 &middot; Approved<br>Copy, sound and final sign-off.</p></div></div>
+        <div class="relay-face relay-brand-face" data-edit="relayBrandFace"><svg viewBox="0 0 100 100"><path d="M18 72L72 18M31 18H72V59M28 84H84V28"/></svg></div>
+      </article>
+      <aside class="relay-note" data-edit="relayNoteCopy"><small>COPY REVIEW</small>Which version?</aside>
+      <aside class="relay-note" data-edit="relayNoteSound"><small>SOUND REVIEW</small>One last change.</aside>
+      <aside class="relay-note" data-edit="relayNoteFinal"><small>FINAL REVIEW</small>Who signs off?</aside>
+      <section data-scene="brand"><div class="relay-wordmark" data-edit="relayWordmark">Relay</div><p class="relay-close" data-edit="relayClose">From feedback to finished.</p></section>
+    </div>
+  </main>
+</template>

@@ -123,7 +123,7 @@
       display: inline-block;
       font-size: 68px;
       line-height: 1.1;
-      font-weight: 750;
+      font-weight: 700;
       letter-spacing: -0.04em;
       color: #c25e00; /* Deep rich Apple Notes amber/cognac for high contrast on paper */
       text-shadow: 0 4px 24px rgba(194, 94, 0, 0.22);
@@ -279,7 +279,7 @@
     }
     .notes-sketch-pill {
       font-size: 11px;
-      font-weight: 750;
+      font-weight: 700;
       color: #c25e00;
       background: rgba(255, 159, 10, 0.16);
       padding: 2px 8px;
@@ -290,7 +290,7 @@
     .notes-sketch-time {
       font-size: 11px;
       color: var(--muted);
-      font-weight: 600;
+      font-weight: 500;
     }
     .notes-sketch-canvas {
       flex: 1;
@@ -368,7 +368,7 @@
     }
     .notes-carrier-note-title {
       font-size: 22px;
-      font-weight: 750;
+      font-weight: 700;
       margin-bottom: 8px;
       letter-spacing: -0.02em;
     }
@@ -383,7 +383,7 @@
       align-items: center;
       gap: 10px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 500;
       color: #333336;
     }
     .notes-carrier-check-dot {
@@ -395,7 +395,7 @@
       place-items: center;
       font-size: 11px;
       color: #5d4900;
-      font-weight: 800;
+      font-weight: 700;
     }
 
     /* Scene 3: Apple Notes App Shell */
@@ -434,9 +434,15 @@
       border-radius: 50%;
       display: block;
     }
-    .notes-traffic i:nth-child(1) { background: #ff5f57; }
-    .notes-traffic i:nth-child(2) { background: #febc2e; }
-    .notes-traffic i:nth-child(3) { background: #28c840; }
+    .notes-traffic i:nth-child(1) {
+      background: #ff5f57;
+    }
+    .notes-traffic i:nth-child(2) {
+      background: #febc2e;
+    }
+    .notes-traffic i:nth-child(3) {
+      background: #28c840;
+    }
 
     .notes-tool-button {
       width: 38px;
@@ -447,7 +453,7 @@
       color: #5b5b60;
       background: rgba(0, 0, 0, 0.045);
       font-size: 18px;
-      font-weight: 600;
+      font-weight: 500;
     }
     .notes-toolbar-title {
       flex: 1;
@@ -475,7 +481,7 @@
       margin: 8px 12px 10px;
       color: #929296;
       font-size: 12px;
-      font-weight: 750;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
     }
@@ -488,7 +494,7 @@
       border-radius: 11px;
       color: #535358;
       font-size: 16px;
-      font-weight: 600;
+      font-weight: 500;
     }
     .notes-folder.active {
       background: #dedbd2;
@@ -580,7 +586,7 @@
       place-items: center;
       color: white;
       font-size: 16px;
-      font-weight: 800;
+      font-weight: 700;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .notes-check-circle.complete {
@@ -647,7 +653,7 @@
       background: #171719;
       color: #ffffff;
       font-size: 22px;
-      font-weight: 650;
+      font-weight: 700;
       letter-spacing: -0.02em;
       box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
     }
@@ -656,16 +662,20 @@
   <main class="notes-film" data-edit="notesFilmRoot">
     <div class="notes-paper-field" data-edit="notesPaperField"></div>
     <div class="notes-camera-world" data-edit="notesCameraWorld">
-
       <!-- SCENE 1: HOOK (CLAUDE-GRADE CINEMATIC STATEMENT) -->
-      <section class="notes-stage notes-stage-intro" data-edit="notesStageIntro">
+      <section
+        class="notes-stage notes-stage-intro"
+        data-edit="notesStageIntro"
+      >
         <div class="notes-editorial-lockup" data-edit="notesIntroTitle">
           <div class="notes-brand-mark" data-edit="notesBrandMark">
             <img src="__ASSET_NOTES_LOGO__" alt="Apple Notes" />
           </div>
           <div class="notes-editorial-prefix">Every useful idea starts as</div>
           <div class="notes-editorial-highlight-box">
-            <span class="notes-editorial-highlight">something easy to lose.</span>
+            <span class="notes-editorial-highlight"
+              >something easy to lose.</span
+            >
           </div>
         </div>
         <svg
@@ -717,7 +727,10 @@
           </div>
 
           <!-- Whiteboard Strategy Sketch Card -->
-          <div class="notes-photo-card notes-sketch-card" data-edit="notesPhotoCard1">
+          <div
+            class="notes-photo-card notes-sketch-card"
+            data-edit="notesPhotoCard1"
+          >
             <div class="notes-sketch-inner">
               <div class="notes-sketch-header">
                 <span class="notes-sketch-pill">Brainstorm</span>
@@ -726,23 +739,94 @@
               <div class="notes-sketch-canvas">
                 <svg viewBox="0 0 260 130" fill="none" class="notes-sketch-svg">
                   <!-- Curved connecting flow paths -->
-                  <path d="M 58 48 C 96 48, 102 88, 142 88" stroke="#ff9f0a" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5 4" />
-                  <path d="M 58 48 C 96 48, 102 24, 142 24" stroke="#0071e3" stroke-width="2.5" stroke-linecap="round" />
+                  <path
+                    d="M 58 48 C 96 48, 102 88, 142 88"
+                    stroke="#ff9f0a"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-dasharray="5 4"
+                  />
+                  <path
+                    d="M 58 48 C 96 48, 102 24, 142 24"
+                    stroke="#0071e3"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                  />
 
                   <!-- Node 1: Origin Idea -->
-                  <rect x="8" y="32" width="76" height="32" rx="10" fill="#ffd60a" fill-opacity="0.22" stroke="#ff9f0a" stroke-width="1.8"/>
-                  <circle cx="22" cy="48" r="4" fill="#ff9f0a"/>
-                  <text x="50" y="52" font-size="11" font-weight="700" fill="#1c1c1e" text-anchor="middle" font-family="Inter, system-ui">Core Idea</text>
+                  <rect
+                    x="8"
+                    y="32"
+                    width="76"
+                    height="32"
+                    rx="10"
+                    fill="#ffd60a"
+                    fill-opacity="0.22"
+                    stroke="#ff9f0a"
+                    stroke-width="1.8"
+                  />
+                  <circle cx="22" cy="48" r="4" fill="#ff9f0a" />
+                  <text
+                    x="50"
+                    y="52"
+                    font-size="11"
+                    font-weight="700"
+                    fill="#1c1c1e"
+                    text-anchor="middle"
+                    font-family="Inter, system-ui"
+                  >
+                    Core Idea
+                  </text>
 
                   <!-- Node 2: Top Target -->
-                  <rect x="142" y="8" width="98" height="32" rx="10" fill="#0071e3" fill-opacity="0.12" stroke="#0071e3" stroke-width="1.8"/>
-                  <circle cx="156" cy="24" r="4" fill="#0071e3"/>
-                  <text x="195" y="28" font-size="11" font-weight="700" fill="#0071e3" text-anchor="middle" font-family="Inter, system-ui">User Story</text>
+                  <rect
+                    x="142"
+                    y="8"
+                    width="98"
+                    height="32"
+                    rx="10"
+                    fill="#0071e3"
+                    fill-opacity="0.12"
+                    stroke="#0071e3"
+                    stroke-width="1.8"
+                  />
+                  <circle cx="156" cy="24" r="4" fill="#0071e3" />
+                  <text
+                    x="195"
+                    y="28"
+                    font-size="11"
+                    font-weight="700"
+                    fill="#0071e3"
+                    text-anchor="middle"
+                    font-family="Inter, system-ui"
+                  >
+                    User Story
+                  </text>
 
                   <!-- Node 3: Bottom Target -->
-                  <rect x="142" y="72" width="98" height="32" rx="10" fill="#30d158" fill-opacity="0.12" stroke="#30d158" stroke-width="1.8"/>
-                  <circle cx="156" cy="88" r="4" fill="#30d158"/>
-                  <text x="195" y="92" font-size="11" font-weight="700" fill="#248a3d" text-anchor="middle" font-family="Inter, system-ui">Action Plan</text>
+                  <rect
+                    x="142"
+                    y="72"
+                    width="98"
+                    height="32"
+                    rx="10"
+                    fill="#30d158"
+                    fill-opacity="0.12"
+                    stroke="#30d158"
+                    stroke-width="1.8"
+                  />
+                  <circle cx="156" cy="88" r="4" fill="#30d158" />
+                  <text
+                    x="195"
+                    y="92"
+                    font-size="11"
+                    font-weight="700"
+                    fill="#248a3d"
+                    text-anchor="middle"
+                    font-family="Inter, system-ui"
+                  >
+                    Action Plan
+                  </text>
                 </svg>
               </div>
             </div>
@@ -760,7 +844,10 @@
             </div>
             <div class="notes-carrier-body">
               <div class="notes-carrier-note-title">Launch week</div>
-              <div class="notes-carrier-note-snippet">Keep the story focused on the moment a scattered thought becomes actionable.</div>
+              <div class="notes-carrier-note-snippet">
+                Keep the story focused on the moment a scattered thought becomes
+                actionable.
+              </div>
               <div class="notes-carrier-check-row">
                 <span class="notes-carrier-check-dot">✓</span>
                 <span>Lock the product story</span>
@@ -793,7 +880,9 @@
               <div class="notes-folder">
                 <span class="notes-folder-icon">▰</span>Shared
               </div>
-              <div class="notes-sidebar-label" style="margin-top: 32px">Tags</div>
+              <div class="notes-sidebar-label" style="margin-top: 32px">
+                Tags
+              </div>
               <div class="notes-folder"># launch</div>
               <div class="notes-folder"># ideas</div>
             </aside>
@@ -824,7 +913,9 @@
                 <span>Lock the product story</span>
               </div>
               <div class="notes-check-row" data-edit="notesCheckRow2">
-                <span class="notes-check-circle" data-edit="notesCheckmarkIcon">✓</span>
+                <span class="notes-check-circle" data-edit="notesCheckmarkIcon"
+                  >✓</span
+                >
                 <span data-edit="notesCheckText2">Record the walkthrough</span>
               </div>
               <div class="notes-check-row">
@@ -857,7 +948,9 @@
         >
           <div class="notes-editorial-prefix">Write once,</div>
           <div class="notes-editorial-highlight-box">
-            <span class="notes-editorial-highlight amber">available everywhere.</span>
+            <span class="notes-editorial-highlight amber"
+              >available everywhere.</span
+            >
           </div>
         </div>
       </section>
@@ -868,7 +961,10 @@
           <div class="notes-climax-icon-wrap" data-edit="notesClimaxIcon">
             <img src="__ASSET_NOTES_LOGO__" alt="Apple Notes" />
           </div>
-          <div class="notes-editorial-lockup notes-climax-title" data-edit="notesClimaxTitle">
+          <div
+            class="notes-editorial-lockup notes-climax-title"
+            data-edit="notesClimaxTitle"
+          >
             <div class="notes-editorial-prefix">Everything worth keeping,</div>
             <div class="notes-editorial-highlight-box">
               <span class="notes-editorial-highlight amber">in one place.</span>
@@ -879,7 +975,6 @@
           </div>
         </div>
       </section>
-
     </div>
   </main>
 </template>
