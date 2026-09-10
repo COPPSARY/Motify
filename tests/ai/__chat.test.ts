@@ -17,7 +17,17 @@ import { createGeneratedAdapterSource } from "../../src/composition/generated-ad
 
 const LIVE = process.env["MOTIONLY_REPRO"] === "1";
 function env(n: string): string {
-  const m = new RegExp(`^${n}=(.*)$`, "m").exec(readFileSync(".env", "utf8"));
+  // These specs are gated behind MOTIONLY_REPRO, but this runs at module scope
+  // to build the describe title, so it executes even when they will be skipped.
+  // A machine without a local .env - CI, or a fresh clone - must not fail the
+  // whole file on a value only the live run uses.
+  let file: string;
+  try {
+    file = readFileSync(".env", "utf8");
+  } catch {
+    return "";
+  }
+  const m = new RegExp(`^${n}=(.*)$`, "m").exec(file);
   return (m?.[1] ?? "").trim();
 }
 const MODEL = process.env["EVAL_MODEL"] || env("VITE_GEMINI_MODEL");
