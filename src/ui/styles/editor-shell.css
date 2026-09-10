@@ -198,11 +198,6 @@
   color: #676d75;
 }
 
-.code-editor-scope .ai-chat-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
-  gap: 8px;
-  padding: 10px;
 .code-editor-scope .ai-chat-attachments {
   display: flex;
   flex-wrap: wrap;
