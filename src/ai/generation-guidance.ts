@@ -785,6 +785,10 @@ function groupFadeOuts(source: string): number {
 function isCarrierVariable(name: string, carriers: readonly string[]): boolean {
   const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (normalized.includes("carrier")) return true;
+  // Both sides need real length. Matching a one-letter variable against an id
+  // it happens to be a substring of made `a` a carrier of "app-carrier", which
+  // silently exempted ordinary scene layers from the overlap check.
+  if (normalized.length < 4) return false;
   return carriers.some((carrier) => {
     const id = carrier.toLowerCase().replace(/[^a-z0-9]/g, "");
     return (
@@ -824,6 +828,44 @@ function authoredCarrierMoves(
   return count;
 }
 
+/**
+ * Spans where a handoff is covering the cut.
+ *
+ * A beat swapping underneath a carrier that is mid-morph is the match-cut
+ * working: the carrier fills that part of the frame, so the exchange behind it
+ * is invisible and intentional. The bundled foundation does exactly this — it
+ * morphs its carrier at 4s for 1.25s and swaps its faces at 4.12s — and reading
+ * that as a cross-dissolve flagged the reference film this pipeline ships.
+ */
+function handoffWindows(
+  source: string,
+  carriers: readonly string[],
+): { from: number; until: number }[] {
+  const windows: { from: number; until: number }[] = [];
+  for (const match of source.matchAll(
+    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|pullbackComplete|growAndComplete)\s*\(([\s\S]{0,400}?)\)\s*;/g,
+  )) {
+    const body = match[1] ?? "";
+    const at = /\bat\s*:\s*([\d.]+)/.exec(body);
+    const duration = /\bduration\s*:\s*([\d.]+)/.exec(body);
+    if (!at) continue;
+    const from = Number(at[1]);
+    windows.push({ from, until: from + Number(duration?.[1] ?? 0.8) });
+  }
+  for (const match of source.matchAll(
+    /\.(?:to|fromTo)\s*\(\s*([A-Za-z_$][\w$]*)\s*,([\s\S]{0,320}?)\)\s*(?=[;,\n]|$)/g,
+  )) {
+    if (!isCarrierVariable(match[1] ?? "", carriers)) continue;
+    const body = match[2] ?? "";
+    const at = /,\s*([\d.]+)\s*$/.exec(body);
+    const duration = /\bduration\s*:\s*([\d.]+)/.exec(body);
+    if (!at) continue;
+    const from = Number(at[1]);
+    windows.push({ from, until: from + Number(duration?.[1] ?? 0.8) });
+  }
+  return windows;
+}
+
 function stackedSceneSwaps(
   source: string,
   carriers: readonly string[],
@@ -844,6 +886,37 @@ function stackedSceneSwaps(
       reveals.push({ target, at: Number(match[3]) });
     }
   }
+  /**
+   * The other half of the same defect: the incoming beat fades up on opacity
+   * alone while the outgoing one fades down, so for the length of the crossover
+   * both layouts are painted and the old one shows through the new as a ghost.
+   * An exported film ghosted its whole card stack under the closing headline
+   * this way. It is the cross-dissolve AGENTS.md bans outright.
+   *
+   * Only opacity-only arrivals count. If the incoming element also travels,
+   * scales or rotates, it is entering on a real move and the opacity is just
+   * cleaning up its edge, which is legitimate and must not be flagged.
+   */
+  for (const match of source.matchAll(
+    /\.(?:to|fromTo)\s*\(\s*([A-Za-z_$][\w$]*)\s*,([\s\S]{0,320}?)\)\s*(?=[;,\n]|$)/g,
+  )) {
+    const target = match[1] ?? "";
+    const vars = match[2] ?? "";
+    if (isCarrierVariable(target, carriers)) continue;
+    if (!/(?:autoAlpha|opacity)\s*:\s*1\b/.test(vars)) continue;
+    if (
+      /\b(?:x|y|xPercent|yPercent|scale|scaleX|scaleY|rotation|rotate|z|width|height|clipPath|top|left)\s*:/.test(
+        vars,
+      )
+    ) {
+      continue;
+    }
+    const at = /,\s*([\d.]+)\s*$/.exec(vars);
+    if (at) reveals.push({ target, at: Number(at[1]) });
+  }
+  const covered = handoffWindows(source, carriers);
+  const isCovered = (time: number): boolean =>
+    covered.some((window) => time >= window.from - 0.2 && time <= window.until);
   const hits: string[] = [];
   for (const match of source.matchAll(
     /\.to\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*\{([^}]{0,200})\}\s*,\s*([\d.]+)\s*\)/g,
@@ -857,9 +930,10 @@ function stackedSceneSwaps(
     const ends = at + Number(seconds[1]);
     for (const reveal of reveals) {
       if (reveal.target === from) continue;
+      if (isCovered(reveal.at)) continue;
       if (reveal.at >= at && reveal.at < ends) {
         hits.push(
-          `${reveal.target} is switched on at ${reveal.at}s while ${from} is still fading until ${ends.toFixed(2)}s`,
+          `${reveal.target} is brought up at ${reveal.at}s while ${from} is still fading until ${ends.toFixed(2)}s, so the old beat ghosts through the new one`,
         );
       }
     }

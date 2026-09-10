@@ -110,6 +110,27 @@ describe("scene boundaries are judged on what the timeline does", () => {
     );
   });
 
+  /**
+   * The other half of the same defect, seen in an exported film: the incoming
+   * beat fades up on opacity alone while the outgoing one fades down, so the old
+   * card stack ghosts through the new headline for the length of the crossover.
+   * This is the cross-dissolve AGENTS.md bans.
+   */
+  it("blocks a plain cross-dissolve between two beats", () => {
+    const dissolve =
+      film(`export function buildTimeline({ root, timeline: t }) {
+      const a = root.querySelector('[data-edit="scene-01"]');
+      const b = root.querySelector('[data-edit="scene-02"]');
+      t.set(a, { autoAlpha: 1 }, 0);
+      t.to(a, { autoAlpha: 0, duration: 0.6 }, 4.6);
+      t.to(b, { autoAlpha: 1, duration: 0.6 }, 4.6);
+    }`);
+    const report = analyzeMotionQuality(dissolve, { prompt: "a saas ad" });
+    expect(report.blockingIssues.join(" ")).toContain(
+      "ghosts through the new one",
+    );
+  });
+
   it("leaves a boundary alone when both sides actually animate", () => {
     // A reveal that tweens in is a technique, not the static stack; only an
     // instant `set` to full opacity mid-fade is the defect.
