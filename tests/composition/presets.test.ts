@@ -17,6 +17,7 @@ describe("GSAP-first motion presets", () => {
       "charSpringBounce",
       "continuousTextGradient",
       "cutTheCurve",
+      "editorialTextReveal",
       "errorWobble",
       "giantKineticCrop",
       "gradientSweep",

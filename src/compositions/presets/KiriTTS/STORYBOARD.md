@@ -1,53 +1,24 @@
-# KiriTTS — 37.05-second native voice product film
+# KiriTTS: A TTS that speaks Khmer
 
-Playback uses a 1.3× timing expansion. The cue ranges below are authored timeline positions; multiply them by 1.3 for displayed/editor time.
+48 seconds, 1920 x 1080, 60 fps. Supplied SF Pro Display and bundled Kantumruy Pro for Khmer. Dark product identity with amber reserved for active product states. Silent: waveform and playback visuals illustrate the workflow; narration and synthesized audio are not bundled.
 
-Story spine: Khmer deserves speech that sounds native; Kiri understands the language first, then proves that understanding through speech, subtitles, voice cloning, and an API teams can ship.
+| Time      | Action                                                                                                                                                                       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0-7       | The English claim settles; the camera opens room for Khmer to complete it.                                                                                                   |
+| 7-10.5    | Both thoughts converge into the original mark. The tile docks into the flat editor header as the editor arrives; it never expands into an empty foreground panel.            |
+| 10.5-20.5 | The real Generate Speech interface types a script, opens the complete thirteen-voice picker, selects Maly and produces a waveform.                                           |
+| 20.5-26   | The editor exits left without rotating through the foreground. Its audio stays, rises, and anchors three large profiles: Maly, Nita and Chanda.                              |
+| 26-34     | An interview recording is dragged into the shared audio surface, which becomes a three-speaker transcript with timestamps.                                                   |
+| 34-38.5   | SRT, VTT, JSON, TXT and CSV exports fan out while the document exits.                                                                                                        |
+| 38.5-44   | The mark returns at its original 300px geometry. Two focused proofs show text plus voice producing audio for an app, then highlighted page text gaining a read-aloud player. |
+| 44-48     | The final proof exits, the mark settles, and the product's closing question and Get Started CTA arrive.                                                                      |
 
-## Direction
+## Continuity and product truth
 
-- Product truth: Kiri's dark workspace, cyan speech signal, emerald success, amber caution.
-- Typography: one complete centered editorial sentence at 68px/700, giant-to-settle, continuous gradient, word-by-word spring.
-- Camera: full-product establishes context; dedicated macro views inspect the active input, settings, Generate action, Export action, clone progress, and API response.
-- Pointer: visible only for a real interaction; hidden during editorial and final brand holds.
-- Motion: bounded typing, scan, waveform, timestamp, progress, and counter actions. No generic idle drift.
+A single caller-owned timeline animates the authored HTML/CSS. Shared audio and brand actors live outside scene containers. Every visible exit has a duration. Reused logo geometry has explicit destination values so a late fromTo cannot restore an earlier panel's dimensions. The flat editor and shared mark align in the same coordinate space before the mark hands off to the header logo.
 
-## Act map
+The actual picker retains all thirteen supplied voice names. The ad gallery shows the selected voice and two alternatives at a larger reading size. Feature proofs replace the nine-item catalogue; the API payload is illustrative and does not claim a specific endpoint or executable integration. The browser proof illustrates the supplied extension's read-aloud capability. Voice names, interview copy, timestamps and export formats use the supplied product information.
 
-### 1. Khmer should sound native — 0.0–5.5s
+Validate with `node qa/preset-film-qa.mjs`: browser frames, projected bounds and text restoration across forward/reverse seeks. Preview and export mount these same files.
 
-- Outcome: “Make every Khmer word sound like it was born here.”
-- Obstacle: “Generic speech models cannot hear where Khmer words begin.”
-- Proof: the cyan segmentation beam divides one monolithic Khmer string into native word-boundary chips.
-- Handoff: ZOOM-THROUGH/MORPH — the solved surface compresses into the solution statement and reveals the studio.
-
-### 2. Kiri understands before it speaks — 5.25–11.7s
-
-- Claim: “Kiri understands Khmer before it ever speaks.”
-- Proof: the Kiri composer constructs in reading order, types inline Khmer, follows the text, adjusts stability and speed with transform-only slider motion, then clicks Generate Speech.
-- Result: a real audio card and bounded waveform phrase remain close enough to inspect.
-- Camera path: establish at 1.12, local text focus around 1.32, settings focus around 1.34, Generate macro around 1.48, response settle around 1.20.
-- Handoff: ZOOM-THROUGH — the audio result expands into the subtitle statement.
-
-### 3. Exact subtitles — 11.45–17.7s
-
-- Claim: “Turn every spoken word into an exact subtitle.”
-- Proof: dropped audio, speaker diarization, millisecond word stamps, and one tactile `.SRT/.VTT` export.
-- Camera path: establish the full STT surface, track the active transcript, then move close to the Export control while keeping its success result visible.
-- Handoff: ZOOM-THROUGH — the exported subtitle result becomes the cloning/API statement.
-
-### 4. Clone and ship — 17.5–24.1s
-
-- Claim: “Clone a voice in ten seconds, then ship with one API.”
-- Proof: the left focus rig completes the clone ring and verified profile; the camera then moves laterally to the API endpoint and live request count.
-- Handoff: MATCH-CUT — the API hub emblem becomes the final Kiri emblem.
-
-### 5. Native voice platform resolve — 23.5–28.5s
-
-- The camera pulls to a full centered brand frame.
-- Emblem, full product statement, supporting sentence, and CTAs resolve in order.
-- The pointer has already left. A single transform-driven shimmer crosses `Get Started`; the final frame holds without fading.
-
-## Browser checkpoints
-
-Inspect 1.0, 3.0, 4.8, 7.5, 8.4, 9.9, 13.5, 16.8, 19.5, 22.0, 25.5, and 27.5 seconds. At close shots, the named active control and its immediate result must remain legible even when surrounding context is intentionally cropped.
+The generated player has its own row below Paragraph/Pause with measured gaps to controls and footer. The editor docks face-on, then tilts gently for the reading shot and settles before interaction. Voice profiles retain shallow perspective.

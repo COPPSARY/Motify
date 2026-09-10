@@ -77,6 +77,8 @@
     claudePreset,
     kiriTtsPreset,
     motionlyPromoPreset,
+    relayPreset,
+    tesseraPreset,
   } from "../compositions/presets";
   import appleNotesHtmlSource from "../compositions/presets/apple-notesapp/composition.html?raw";
   import appleNotesAdapterSource from "../compositions/presets/apple-notesapp/index.ts?raw";
@@ -90,6 +92,12 @@
   import motionlyPromoHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
   import motionlyPromoAdapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
   import motionlyPromoTimelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
+  import tesseraHtmlSource from "../compositions/presets/tessera/composition.html?raw";
+  import tesseraAdapterSource from "../compositions/presets/tessera/index.ts?raw";
+  import tesseraTimelineSource from "../compositions/presets/tessera/timeline.js?raw";
+  import relayHtmlSource from "../compositions/presets/relay/composition.html?raw";
+  import relayAdapterSource from "../compositions/presets/relay/index.ts?raw";
+  import relayTimelineSource from "../compositions/presets/relay/timeline.js?raw";
   import promoLogoUrl from "../compositions/presets/motionly-promo/logo.svg?url";
   import promoUiScreenshotUrl from "../compositions/presets/motionly-promo/ui-screenshot.png?url";
   import {
@@ -155,6 +163,16 @@
     appleNotesHtmlSource,
     appleNotesTimelineSource,
     appleNotesAdapterSource,
+  );
+  const tesseraProjectFiles = splitCompositionSource(
+    tesseraHtmlSource,
+    tesseraTimelineSource,
+    tesseraAdapterSource,
+  );
+  const relayProjectFiles = splitCompositionSource(
+    relayHtmlSource,
+    relayTimelineSource,
+    relayAdapterSource,
   );
   const previewApi = new ProjectsApi();
   const activeDraftKey = "active";
@@ -540,6 +558,28 @@
     mountComposition(appleNotesPreset);
     captureEvent("preset loaded", { preset_name: "apple_notes" });
     showNotice("Apple Notes 24s Product Film loaded.");
+  }
+
+  function loadTesseraPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...tesseraProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(tesseraPreset);
+    captureEvent("preset loaded", { preset_name: "tessera" });
+    showNotice("Tessera 20s film loaded.");
+  }
+
+  function loadRelayPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...relayProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(relayPreset);
+    captureEvent("preset loaded", { preset_name: "relay" });
+    showNotice("Relay 26s film loaded.");
   }
 
   async function mountSavedProject(project: ProjectSummary): Promise<void> {
@@ -2070,6 +2110,34 @@
                   <span class="me-preset-info"
                     ><strong class="me-preset-name">Apple Notes</strong>
                     <small>24s · 2.5D Expansive Camera</small></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadTesseraPreset}>
+                  <span class="me-preset-thumbnail tessera-thumbnail"
+                    ><span class="promo-thumbnail-art"
+                      ><small>DATA-CONTRACT FILM</small><strong
+                        >ONE<br /><em>SHAPE.</em></strong
+                      ><i>20 SECOND PRODUCT FILM</i></span
+                    ></span
+                  >
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Tessera</strong><small
+                      >20s &middot; Data-contract film</small
+                    ></span
+                  >
+                </button>
+                <button class="me-preset-card" on:click={loadRelayPreset}>
+                  <span class="me-preset-thumbnail relay-thumbnail"
+                    ><span class="promo-thumbnail-art"
+                      ><small>REVIEW AND HANDOFF</small><strong
+                        >PASS<br /><em>IT ON.</em></strong
+                      ><i>26 SECOND PRODUCT FILM</i></span
+                    ></span
+                  >
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Relay</strong><small
+                      >26s &middot; Review and handoff</small
+                    ></span
                   >
                 </button>
                 <button

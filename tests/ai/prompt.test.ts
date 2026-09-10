@@ -157,7 +157,10 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     });
     expect(message).toContain("Keep the bottle centered");
     expect(message).toContain("motionly-asset://asset-1");
-    expect(message).toContain("Every supplied image is required");
+    // An unclassified image is still placeable, and it is declared required.
+    expect(message).toContain("IMAGES TO PLACE");
+    expect(message).toContain("Each one is required");
+    expect(message).toContain("No reference images supplied.");
     expect(message).toContain("LOCAL EDITOR OVERRIDES");
     expect(message).toContain("sine.inOut");
   });
@@ -432,7 +435,7 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("A corridor of material at depth");
     // The measured facts, not adjectives: without these the model reverts to
     // small cards on flat white.
-    expect(MOTIONLY_SYSTEM_PROMPT).toContain("45–85% of frame width");
+    expect(MOTIONLY_SYSTEM_PROMPT).toContain("Size varies enormously, and the variation is the point");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("The ground is a lit space");
     expect(MOTIONLY_SYSTEM_PROMPT).toContain("The accent word");
   });

@@ -24,6 +24,10 @@ export const PRESET_ASSET_URLS: Readonly<Record<string, string>> = {
   __ASSET_RAMEN_DISH__: ramenDishUrl,
   __ASSET_BLUE_SKY__: blueSkyUrl,
   __ASSET_KIRI_LOGO__: kiriLogoUrl,
+  // A directory rather than a file: KiriTTS loads several SF Pro Display cuts
+  // from it, so the placeholder resolves to the folder the faces live in.
+  __ASSET_SF_FONT_BASE__: `${import.meta.env.BASE_URL}fonts/sf-pro-display/`,
+  __ASSET_KHMER_FONT_BASE__: `${import.meta.env.BASE_URL}fonts/kantumruy-pro/`,
   __ASSET_NOTES_LOGO__: appleNotesLogoUrl,
   __ASSET_NOTE_SKETCH__: noteSketchUrl,
   __ASSET_CHECKLIST__: checklistAssetUrl,

@@ -46,6 +46,12 @@ export interface GiantCropOptions extends MotionOptions {
   yPercent?: number;
 }
 
+export interface EditorialTextOptions extends MotionOptions {
+  stagger?: number;
+  distance?: number;
+  blur?: number;
+}
+
 export interface WaterfallTextOptions extends MotionOptions {
   startScale?: number;
   endScale?: number;
@@ -496,6 +502,32 @@ function ensureTextMotionLayer(element: HTMLElement): HTMLElement {
   return layer;
 }
 
+/** Words resolve onto their final baseline without zooming or bouncing the
+ * sentence. Layout and accent markup stay authored; all motion is seekable. */
+export function editorialTextReveal(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: EditorialTextOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const layer = ensureTextMotionLayer(element);
+  const words = splitText(layer, "words").filter((word) => Boolean(word.textContent?.trim()));
+  const duration = options.duration ?? 0.48;
+  const stagger = options.stagger ?? 0.085;
+  // A label resolves numeric and named GSAP positions identically for both
+  // tracks. Focus finishes before translation, avoiding a smeared reading hold.
+  const anchor = `editorial-reveal-${timeline.getChildren().length}`;
+  timeline.addLabel(anchor, options.at);
+  timeline.set(element, { autoAlpha: 1 }, anchor);
+  timeline.fromTo(words,
+    { y: options.distance ?? 18, autoAlpha: 0 },
+    { y: 0, autoAlpha: 1, duration, stagger, ease: options.ease ?? "power3.out" }, anchor);
+  timeline.fromTo(words,
+    { filter: `blur(${options.blur ?? 5}px)` },
+    { filter: "blur(0px)", duration: duration * 0.55, stagger, ease: "power3.out" }, anchor);
+  return words;
+}
+
 export function giantKineticCrop(
   timeline: gsap.core.Timeline,
   element: HTMLElement | null | undefined,
@@ -503,7 +535,7 @@ export function giantKineticCrop(
 ): HTMLElement[] {
   if (!element) return [];
   const motionLayer = ensureTextMotionLayer(element);
-  const pieces = splitText(motionLayer, options.unit ?? "chars").filter(
+  const pieces = splitText(motionLayer, options.unit ?? "words").filter(
     (piece) => Boolean(piece.textContent?.trim()),
   );
   const startScale = options.startScale ?? 2.8;
@@ -528,13 +560,11 @@ export function giantKineticCrop(
     {
       scale: startScale,
       x: options.panX ?? 0,
-      filter: "blur(14px)",
       autoAlpha: 0,
     },
     {
       scale: endScale,
       x: 0,
-      filter: "blur(0px)",
       autoAlpha: 1,
       duration,
       ease: options.ease ?? "power3.out",
@@ -542,12 +572,13 @@ export function giantKineticCrop(
     options.at,
   );
 
+  timeline.fromTo(motionLayer, { filter: "blur(8px)" },
+    { filter: "blur(0px)", duration: duration * 0.45, ease: "power3.out" }, options.at);
   pieces.forEach((piece, i) => {
-    const microOffset = i % 3 === 0 ? -12 : i % 3 === 1 ? 10 : -4;
     timeline.fromTo(
       piece,
       {
-        y: microOffset * 2,
+        y: 18,
         autoAlpha: 0,
         transformOrigin: "50% 65%",
       },

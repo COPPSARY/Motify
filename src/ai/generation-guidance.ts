@@ -60,6 +60,8 @@ export interface GenerationAsset {
   mimeType: string;
   dataBase64: string;
   token: string;
+  /** "reference" is read and matched; "asset" is placed on screen. */
+  intent?: "reference" | "asset";
 }
 
 export interface GenerationTechnique {
@@ -524,11 +526,20 @@ export async function buildMotionlyUserMessage(
     .slice(-40)
     .map((message) => `${message.role.toUpperCase()}: ${message.text}`)
     .join("\n");
-  const assets = (currentFiles.assets ?? [])
+  const suppliedAssets = currentFiles.assets ?? [];
+  // A reference is read; an asset is placed. Handing the model one
+  // undifferentiated list is what makes it paste a UI screenshot into the film
+  // as an image, or ignore a logo it was supposed to put on screen.
+  const placeableAssets = suppliedAssets
+    .filter((asset) => asset.intent !== "reference")
     .map(
       (asset) =>
         `- ${asset.name} (${asset.mimeType}); required HTML source: ${asset.token}`,
     )
+    .join("\n");
+  const referenceImages = suppliedAssets
+    .filter((asset) => asset.intent === "reference")
+    .map((asset) => `- ${asset.name} (${asset.mimeType})`)
     .join("\n");
   const plan = currentFiles.previousPlan;
   const planDirection = (plan?.direction ?? [])
@@ -567,7 +578,21 @@ export async function buildMotionlyUserMessage(
     followUp,
     `TASK\n${task}. ${preservation}${source}`,
     `PRODUCT VISUAL IDENTITY (request-specific suggestion; supplied product evidence takes precedence)\n${buildProductIdentityBrief(directionPrompt)}`,
-    `SUPPLIED IMAGES\n${assets || "No images attached to this request."}${assets ? "\nEvery supplied image is required unless the user explicitly asks to remove or replace it." : ""}`,
+    `IMAGES TO PLACE\n${
+      placeableAssets ||
+      "No images to place. Author every visual as HTML/SVG; never invent an asset URL."
+    }${
+      placeableAssets
+        ? "\nEach one is required unless the user explicitly asks to remove or replace it, and must be referenced by the exact token above."
+        : ""
+    }`,
+    `REFERENCE IMAGES (read these; never put them on screen)\n${
+      referenceImages || "No reference images supplied."
+    }${
+      referenceImages
+        ? "\nThe user supplied these as reference or storyboard, not as content. Read the layout, type, spacing, palette and product chrome they show and rebuild that faithfully in authored HTML/SVG. Never embed them and never reference them from the markup: they carry no token, and inventing one is a failed generation."
+        : ""
+    }`,
     `LOCAL EDITOR OVERRIDES\n${currentFiles.editorState ? JSON.stringify(currentFiles.editorState) : "No local editor overrides."}`,
     `GENERATION CONTEXT\nProfile: ${currentFiles.generationProfile ?? "unspecified"}\n${buildSkillRoutingBrief(directionPrompt)}`,
     // The shape brief stays whether or not a direction pass ran. It carries the
