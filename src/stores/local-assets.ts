@@ -1,11 +1,27 @@
 import type { GenerationAsset } from "../ai/generation-guidance";
 
+/**
+ * What a pasted or uploaded image is *for*. An image can inform how the film
+ * should look without ever being placed in it, and the two cases produce
+ * opposite instructions, so the intent is asked for once and then carried
+ * with the reference everywhere it goes.
+ *
+ * - `reference`: a screenshot, storyboard or style reference. The model must
+ *   read it and match what it shows; it must never appear in the composition.
+ * - `asset`: a logo, product shot or texture that belongs on screen. Its
+ *   token must appear in the authored HTML.
+ *
+ * `undefined` means the user has not answered yet, and the prompt is held.
+ */
+export type AssetIntent = "reference" | "asset";
+
 export interface LocalAssetReference {
   id: string;
   name: string;
   mimeType: string;
   token: string;
   uploadId?: string;
+  intent?: AssetIntent;
 }
 
 const DATABASE = "motionly-local-assets-v1";

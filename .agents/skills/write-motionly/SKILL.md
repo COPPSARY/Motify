@@ -13,15 +13,30 @@ The runtime law supplied before this skill governs execution and wins any confli
 
 ## SaaS advertising direction
 
+### Continuity and readable proof: lessons from preset review
+
+Treat examples as a library of mechanisms, not finished layouts to copy. KiriTTS demonstrates a selected voice producing audio that persists after its editor leaves; Tessera demonstrates source fields resolving into a shared contract. Reuse the causal action for the current product, not its card count, copy, palette, or camera schedule.
+
+Relay provides a third direction: a warm-paper editorial film with no browser shell and no giant-type opening. Questions around a brief converge into review rows, checks resolve on that same brief, an approval stamp lands, and the paper folds into a packet. The camera trails the packet's lateral arc to a receiving tray, where it opens into the approved brief. The brief finally becomes the mark. This is useful for review, approval and handoff products; it is not a universal envelope metaphor. Its distinguishing construction is one persistent artefact, a visible decision, then a journey caused by that decision. Keep shallow perspective during a reading shot (roughly 3-8 degrees), settle controls near face-on for interaction, and put travel on the artefact before the camera follows. Reserve separate layout space for outputs: an audio player must sit below editing controls with a real gap, not float across them.
+
+- Give every reused actor a complete destination state: position, size, radius, scale, rotation, surface and content. In a late GSAP `fromTo`, properties supplied only in `fromVars` can animate back to values captured from an earlier use. Repeat fixed geometry in `toVars`, use `immediateRender: false`, and verify first playback as well as end -> start -> middle seeks. A 300px logo must not return as the 1660px panel it previously became.
+- Reserve the incoming subject's reading area. Let outgoing text finish travelling or fading before new text enters that area. A persistent waveform can bridge two shots while the surrounding editor exits. Do not rotate a whole application through the foreground or cover the next shot with an empty morph plate.
+- Select representative proof. A thirteen-option library belongs in the actual picker; the advertising beat can show the selected voice and two readable alternatives. Do not cram a full feature catalogue into a short hold. Show one or two capabilities doing something: text and voice becoming audio, highlighted text gaining a read-aloud player.
+- Give processed records separate destinations. At a processing gate, admit one readable record, change its own fields, then move it into a reserved output slot before the next record arrives. Never park overlapping cards in the gate or crop the final comparison without a story reason.
+- Use camera travel to follow a specific action, then decelerate and allow reading. Avoid simultaneous world rotation, card rotation, scaling and lateral travel on a handoff. Vary the action and composition before adding another zoom.
+- Every visible exit needs elapsed time. A later `set(autoAlpha: 0)` is safe only after its actor is already invisible or outside the frame. Validate seams before, during and after the handoff, with real projected bounds and text contrast. Inspect forward playback, cold seeks and reverse seeks; source-level timeline tests alone cannot catch a giant blank tile or unreadable overlap.
+
+User-specified slide, fade and continuous-action handoffs are valid creative choices. Preserve a clear subject and spatial continuity; do not force an unnecessary shape morph into every boundary. Stable baseline word reveals with early focus are the default for readable copy; oversize pullbacks and overshoot are deliberate accents, not requirements on every sentence. Never claim a render or live generation was reviewed unless it was actually inspected.
+
 The target is an authored SaaS ad with varied shots. Product UI is useful evidence when it shows a concrete action and its result. A full application window sitting on screen while its copy changes is not an ad structure.
 
 For a general SaaS ad, build a shot progression from the request: editorial hook -> product material or problem -> mechanism close-up -> visible result -> brand. Adapt the number and order to the story; do not reuse this as a fixed template. Two adjacent beats must differ in framing and in what visibly happens. Alternate wide, medium, and detail views with a reason for each move.
 
 - The ground is a lit space, never flat `#ffffff`: warm off-white with a blurred brand-hue bloom behind the subject, warm neutral grey, near-black with one warm source, or a full-bleed brand colour. Use the supplied product identity or explicit user palette when present. Dark is a deliberate contrast beat, not a synonym for premium.
 - Make the subject large enough to read. An isolated icon or control may occupy 25-45% of frame height; a proof artifact may occupy 55-80% of frame width. Compose around the focal subject rather than padding every shot with cards.
-- One bold, full-size editorial sentence per thought, centred, 96-150px/700 at 1920x1080 (150-220px for a two- or three-word statement), tracking -0.03em to -0.055em, spanning 45-85% of frame width. Enter cropped at scale 2.0+ and settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
+- One editorial sentence per thought, centred, weight 700, tracking -0.03em to -0.055em. Size it for the beat, not to a rule: a quiet opener sits at 25-35% of frame width (about 76-90px at 1080), a dramatic beat at 60-75% (about 180-215px), and a close at 20-30%. Settle word-by-word with back.out(1.35). Colour exactly one word in the brand hue. Never add a smaller explanatory subtitle beneath it.
 - A useful UI close-up may span an input and its result. Show the active detail, then leave it. Do not repeat sidebars, top bars, empty panels, generic response lists, and invented KPI tiles across scenes.
-- Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Use supplied images when available; otherwise use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
+- Show actual proof: the edited word, organized tasks, built scene, completed document or generated image. Never invent 98% success, 12ms latency, or 10x ROI as decoration. Supplied images arrive in two blocks and they mean opposite things. IMAGES TO PLACE are content: use each one, by its exact token. REFERENCE IMAGES are a screenshot, storyboard or style reference: read the layout, type, spacing, palette and product chrome they show and rebuild that faithfully in authored HTML/SVG, and never put them on screen — they carry no token and inventing one is a failed generation. With neither, use honest authored HTML/SVG material rather than fake image placeholders or invented asset URLs.
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
 - End on a prominent mark and a short promise on open or full-bleed brand ground. Do not put the ending inside a small rounded pill.
 
@@ -113,7 +128,17 @@ The ground never changes to white, never goes transparent, and never empties. Wh
 
 **Weight and tracking.** Statements are 600–780 weight with tight negative tracking, `letter-spacing: -0.03em` to `-0.055em`. Never a light weight for a statement. Never letter-spaced-out uppercase except for a kicker.
 
-**Size.** This is where generated output fails hardest. Measured across all seven films, an editorial statement occupies **45–85% of frame width**, with a cap height of **6–9% of frame height**. At 1920×1080 that is a `font-size` of **96–150px** for a one-line statement, and **150–220px** for a two- or three-word statement that fills the frame. A statement under 70px at 1080 does not appear anywhere in the references.
+**Size varies enormously, and the variation is the point.** Measured frame by frame in one reference film: a quiet opening statement spans **25% of frame width** (~5% cap height, about 76px at 1080); a dramatic beat spans **69%** (~14% cap height, about 210px); the brand close spans **20%**. Three statements in one film, and the largest is three times the smallest.
+
+So there is no single correct size, and setting every statement large is a real failure mode — it crowds the frame, leaves nothing for the object beats, and flattens the film into one loud note. Choose per beat:
+
+| The beat | Share of frame width | About, at 1080 |
+| --- | --- | --- |
+| A quiet opener or a connective line | 25–35% | 76–90px |
+| The one beat that has to land | 60–75% | 180–215px |
+| The brand close | 20–30% | 60–90px |
+
+**The oversized moment comes from the camera, not the type.** In the reference the line that fills the frame edge to edge is a *normal* statement with a camera pushed into it — it starts at reading size, the camera pushes until the words are cropped by both edges, and then it settles back. Set the type modestly and let the push do the work.
 
 **One thought, one line, no subtitle.** Every statement is a single sentence or fragment, centred, with nothing under it. A second line of smaller grey explanatory text under a headline appears in none of the seven and is the clearest signal of generated output.
 
@@ -122,6 +147,8 @@ The ground never changes to white, never goes transparent, and never empties. Wh
 **Words arrive one at a time onto a fixed line.** A recurring construction: `Ideas.` holds, then `Notes.` appears beside it, then `Tasks.` — the line assembling in place with the earlier words never moving. Similarly `Translate.` → `Dub.` → `Distribute.` Build this by laying out all words in the final position and revealing each with a `y: 24 → 0` plus opacity on `back.out(1.4)`, 0.35–0.5s apart. Do not re-centre the line as words appear.
 
 **Punctuation as design.** Statements frequently end in a full stop that is itself an object — `Ideas.` `Books.` `Done.` — and a small four-point sparkle glyph `✦` sometimes closes a line.
+
+**Objects carry the film; type punctuates it.** The reference is mostly *things*: a solid app icon alone at 25-30% of frame height, a phone tilted in perspective with real app icons orbiting it, a blue dimensional ribbon curving through the frame, eight content cards at depth with the camera flying through them, coloured pills with a title, a subtitle and a small icon. Between those, a short statement holds for a second and a half and then gets out of the way. If your film is statements with material underneath them, you have it backwards: alternate an object beat and a type beat, and let the objects have the screen time.
 
 ### The shot catalogue
 
@@ -360,6 +387,47 @@ Concretely, over five beats: hold, track left 700px, push in 1.55, hold at the n
 
 **Keep the camera on the subject.** A viewport-sized world is valid. Enlarge it only for actual spatial travel; never require a 3200-5600px canvas to satisfy a score. Resolve the focal subject's position after parent and child transforms combine. The settled text and proof must remain inside the viewport with readable margins; intentional cropping belongs to the entrance or transition, not the reading hold.
 
+## The type treatment, and the two rules that stop it fighting itself
+
+Editorial lines reveal **word by word, with focus resolving before travel**. Each word rises `y: 18 → 0` while its opacity comes up, and a *second, shorter* track takes it from `blur(5px)` to `blur(0px)` in about half the time. The word is therefore sharp while it is still moving, which is what makes the line read as type landing on a page rather than a caption fading up. Use `editorialTextReveal(timeline, line, { at, duration: 0.42-0.5, stagger: 0.08-0.11 })`, which runs exactly this.
+
+Two failures follow from getting the timing around it wrong, and both look like the type is fighting itself.
+
+**Nothing else animates the line until its last word has settled.** Compute it — do not estimate:
+
+```
+lastWordSettled = at + (wordCount - 1) * stagger + duration
+```
+
+A five-word line revealed at `0.08` with `stagger 0.075` and `duration 0.46` settles at **0.77s**. Starting the line's own scale, drift or push before that has the whole block moving while individual words are still travelling inside it, and the two motions visibly beat against each other. Every breathe, push and exit begins at or after `lastWordSettled`.
+
+**Never animate `filter` on a line while its words still carry a filter.** The reveal animates blur on each word; blurring the parent on exit nests a second filter over the first, the browser composites the subtree twice, and the exit stutters. Clear the children first, at the exit's own start:
+
+```js
+const words = editorialTextReveal(t, line, { at: 6.3, duration: .42, stagger: .09 });
+t.set(words, { filter: "none" }, 8.55);
+t.to(line, { y: -320, filter: "blur(3px)", duration: .7, ease: "power3.in" }, 8.55);
+```
+
+The same holds for any property the reveal owns: the parent takes over only once the children have let go.
+
+## Grow to the edge, then retreat to somewhere new
+
+The strongest single move in this vocabulary, and the one to reach for when a beat needs to land:
+
+A line settles at reading size, then **keeps growing** — past comfortable, until it is cropped by the frame and only two or three words are legible. Hold it there for a beat. Then the camera pulls back, and the retreat does not simply undo the zoom: it lands somewhere the film has not been. The frame that opens up is already occupied by the next thing — the object the line was about, the interface it names, the mark it resolves into.
+
+```
+t+0.0   line settles at scale 1.0
+t+0.6   scale 1.0 → 1.9 over 1.1s, expo.out. The frame can no longer hold it.
+t+1.7   hold cropped, 0.5s, with a 2% drift so it is not frozen
+t+2.2   camera scale 1.0 → 0.62 over 1.3s, expo.out, and x/y toward the
+        new subject, which is already composed and waiting
+t+3.5   the line is now small in the corner of a wider world
+```
+
+The point is that the zoom and the retreat are one continuous gesture with a turn in the middle, and the destination is *new information*, not the shot you started in. Pulling back to exactly where you began is the wobble this vocabulary exists to avoid.
+
 ## Interface physics, not cinematic physics
 
 You are a motion designer moving real interface material, not a camera cutting between shots. Four rules, and they are checked against rendered frames.
@@ -432,6 +500,103 @@ Retrieved components arrive with real source, chosen to match the film shape. Th
 11. Does the ending pull back from a real thing that was actually shown?
 
 Self-assigned scores and helper counts are not evidence. Answer the eleven questions.
+## Mechanics that actually break, and the fix for each
+
+Every item below is a defect that shipped in a generated film, was caught in a rendered frame, and was traced to a specific cause. They are not style notes.
+
+### The compositing traps
+
+**Never share one 3D context between the ground and a tilted panel.** A `transform-style: preserve-3d` world sorts its children by 3D position rather than DOM order, so a flat ground plane and a `rotateY` panel *intersect*, and the browser draws that intersection as a hard diagonal seam straight across the frame. It looks like a lighting bug and it is not one. Declare `perspective` on the specific containers whose direct children rotate, and keep the lit ground out of that context entirely:
+
+```css
+.world { position: absolute; inset: 0; perspective: 2000px; } /* the mark  */
+.layer { position: absolute; inset: 0; perspective: 2000px; } /* the panel */
+```
+
+Two elements that must match silhouette across a handoff need the *same* perspective value and the same perspective origin, or their projections differ and the match reads as a jump.
+
+Use `preserve-3d` only where you genuinely need sibling planes sorted by depth — a corridor of record cards flying past the camera is exactly that case. Parallel planes all facing the camera never intersect, so a corridor is safe; a ground plane and a panel tilted on `rotateY` are not. If the two must coexist, the ground goes outside the 3D context, which is where it belongs anyway.
+
+**The lit ground belongs outside the camera world.** A bloom parented to the world is dragged, scaled and translated by every camera move, so the light source slides around the frame and the glow blooms in one beat and is gone in the next. Put the ground and its bloom in the stage, as siblings *before* the `data-camera-world`, and the light stays fixed to the frame while the world moves through it.
+
+**Stacking order is part of the composition, not an afterthought.** A carrier that morphs into the next beat's panel will paint *over* that panel and hide it completely, so the beat looks empty even though every tween is correct. Anything that overlaps needs an explicit `z-index`, written down once:
+
+```
+ground 0 < scenes < morphing mark 18 < panel scene 20
+         < shared carrier 24 < export artefacts 30
+         < a dragged object 32 < cursor 40
+```
+
+A dragged file that renders *behind* the target it is being dropped into is this bug, not a positioning error.
+
+### The empty plate, in the form it actually takes
+
+The rule says a painted carrier must never be on screen with nothing in it. How it really happens: a small mark morphs into a large panel over 1.15s, its logo fades out at the start, and the panel's content fades in at the end, leaving most of a second where a large blank rectangle sits in the middle of the frame. Two fixes, and use both:
+
+- **Let the content ride the morph.** Absolutely position the mark's logo in px and tween it to the exact header slot it will occupy as the box grows, so the box always contains something and the logo lands where the incoming panel's own header logo already is.
+- **Let the incoming face grow with the outline** rather than appear at full size on top of it: `fromTo(panel, { scale: 0.62, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, ease: "power2.inOut" })`, started *before* the morph finishes.
+
+**Do not dock a sibling onto a header inside a rotated panel.** It cannot stay registered: the panel's perspective projection moves its header, the sibling is not subject to that projection, and the mark ends up floating outside the panel's corner. Morph the carrier *into* the panel instead, and give the panel its own header logo. The icon becoming the app is a stronger move anyway.
+
+### GSAP timing traps
+
+**A stagger is folded into every repeat.** `totalDuration = (duration + staggerTotal) * (repeat + 1)`. A 158-target breathing tween at `{ duration: 0.62, repeat: 17, stagger: { each: 0.011 } }` is not 11 seconds, it is `(0.62 + 1.74) * 18 = 42.5` — which silently stretched a 45-second film to 60. Keep the per-cycle stagger tiny and check the arithmetic.
+
+**`expo.out` resolves almost immediately.** At 20% of its duration an `expo.out` is already about 93% complete. A "type arrives huge and pulls back" built as one `expo.out` scale tween therefore never shows the huge state: it is gone within two frames and the viewer sees a small line that was briefly blurry. Build the oversized moment explicitly instead:
+
+```
+t+0.05  autoAlpha 0 -> 1, and scale 3.15 -> 3.30 over 0.9s (a slow creep)
+t+0.18  blur 6px -> 0 over 0.44s      focus resolves while it is still huge
+t+0.95  scale -> 1.0 over 1.1s, expo.out          this is the pull-back
+t+2.05  reading hold, scale -> 1.035, x -> -14
+```
+
+The oversized state needs roughly a second of screen time to be read. And use the move once: opening huge and then growing to the edge again later is the same idea twice.
+
+**Blur on a transformed element is scaled by the transform.** `blur(6px)` on a line at `scale: 3.15` reads as about 19px. Pick the radius for the scaled result.
+
+### Determinism, concretely
+
+The editor scrubs backwards, so the timeline is seeked out of order constantly. Two rules make that safe.
+
+**Never let two tweens own the same property in overlapping windows.** A caret blink with `repeat: 5` that outlives the tween meant to hide it will keep overwriting the hide, and the element's final state then depends on which way the playhead arrived. Close the blink before the hide starts.
+
+**A bare `to()` records its start value lazily, at whatever moment it first renders.** Any tween whose start depends on an earlier tween's end is therefore non-deterministic under seeking. Use `fromTo` with explicit endpoints and `immediateRender: false` for every face swap, label swap and re-show:
+
+```js
+t.fromTo(el, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, immediateRender: false }, at);
+```
+
+Text that changes mid-film is driven from a proxy so it restores on rewind:
+
+```js
+const p = { v: 0 };
+t.to(p, { v: 1, duration: 0.4, ease: "none",
+  onUpdate() { el.textContent = p.v < 0.5 ? before : after; } }, at);
+```
+
+`onUpdate` is safe under scrubbing; `onComplete` mutations are not.
+
+### Framing a product UI you intend to push into
+
+Work out the reachable region *before* choosing a macro target. With a panel of width `W` centred in a frame of width `F`, a camera at scale `s` can only be centred on `|x| <= W/2 - F/(2s)` before the ground shows past the panel edge. A 1660px panel in a 1920 frame at `s = 1.0` can travel nowhere; to macro on a menu 494px left of centre it needs `s >= 2.46`. That is not a problem — that *is* the macro shot — but discovering it after authoring the move is.
+
+Author interface text at roughly 1.6x its real pixel size. A 1:1 app shell has 20px body text, which is illegible at 1080p in the wide shot and forces every beat to become a close-up.
+
+### Product truth, in the details
+
+**Show the interaction the product actually has.** A voice "chosen" by clicking a card that already displays the chosen voice shows nothing. Open the picker, let the list be read, highlight rows under the pointer, select one, and land the result in *both* places the real UI displays it. The same for a file: the pointer picks it up, carries it on one arc, the target lights while the file is over it, and the drop is the release. A file that teleports into a dropzone is not an upload.
+
+**Prove features with the artefact, not with a caption row.** Three columns of small text under a dropzone reading "Speaker Identification / Accurate Timestamps / Multi-language Support" is the tiny-cards failure wearing a different hat. Put the proof in the thing the beat produces: labelled and colour-coded speakers, per-segment timestamps, and a "Khmer + English" chip in the transcript header say all three, at readable size, as evidence.
+
+**Use real icon geometry.** Inline the actual Lucide path data as SVG. A bordered empty rectangle standing in for a file icon, or a hand-drawn approximation of a microphone, is visible immediately. A component library cannot be imported into `composition.html`; its paths can be pasted into it.
+
+**A waveform is speech, not noise.** Random per-bar `scaleY` jitter reads as a broken equaliser. Generate a mirrored envelope with syllable groups and two real breaths, draw it left to right *as it is produced*, and fill the played portion behind a travelling playhead. Two stacked copies of the same geometry, the upper one clipped by `inset()`, gives the played/unplayed split for free.
+
+### Non-Latin type
+
+A script with its own metrics needs its own face and its own settings. Khmer stacks diacritics above and below the baseline: bundle a real Khmer face (Kantumruy Pro, Noto Sans Khmer), set `letter-spacing: 0` — the negative tracking that suits a Latin display face breaks the script — and give it more line height than the Latin line beside it. Falling back to a system default is immediately visible to anyone who reads the language, and it is the detail that tells them the film was not made for them.
+
 ## Strict JSON output contract
 
 For embedded generation, return ONLY one JSON object satisfying this schema. No Markdown wrapper, comments, placeholders, or ellipses. Local file-authoring agents may write the same complete source files directly when the user requests repository edits.

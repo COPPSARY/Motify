@@ -1,0 +1,8 @@
+Kantumruy Pro
+Copyright the Kantumruy Pro Project Authors (https://github.com/danhhong/KantumruyPro)
+Licensed under the SIL Open Font License, Version 1.1.
+https://openfontlicense.org
+
+Bundled here as the Khmer unicode-range subset (U+1780-17FF, U+19E0-19FF,
+U+200C-200D, U+25CC) served by Google Fonts, so KiriTTS compositions render
+Khmer identically in preview and in export without a network round trip.

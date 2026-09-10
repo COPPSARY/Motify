@@ -4,287 +4,172 @@ import {
   type SceneDefinition,
 } from "../../../composition/types";
 import compositionHtml from "./composition.html?raw";
-import * as timelineModule from "./timeline.js";
+import { buildKiriTtsTimeline } from "./timeline.js";
 import kiriLogoUrl from "./Kiri-TTS Logo.svg?url";
 
-const PLAYBACK_SCALE = 1.3;
-export const KIRI_TTS_PRESET_DURATION = 28.5 * PLAYBACK_SCALE;
+const sfFontBaseUrl = `${import.meta.env.BASE_URL}fonts/sf-pro-display/`;
+const khmerFontBaseUrl = `${import.meta.env.BASE_URL}fonts/kantumruy-pro/`;
 
-const baseScenes: readonly SceneDefinition[] = [
+export const KIRI_TTS_PRESET_DURATION = 48;
+export const kiriTtsScenes: readonly SceneDefinition[] = [
   {
-    id: "act-01-linguistic",
-    label: "01 · Khmer Should Sound Native",
+    id: "hook",
+    label: "01 / A TTS that speaks Khmer",
     start: 0,
+    duration: 7,
+    accent: "#ededf0",
+  },
+  {
+    id: "intro",
+    label: "02 / The mark",
+    start: 7,
+    duration: 3.5,
+    accent: "#aaaab5",
+  },
+  {
+    id: "tts",
+    label: "03 / Script, voice, generate",
+    start: 10.5,
+    duration: 10,
+    accent: "#aaaab5",
+  },
+  {
+    id: "voices",
+    label: "04 / Thirteen voices",
+    start: 20.5,
     duration: 5.5,
-    accent: "#ef4444",
-    tracks: [
-      {
-        id: "kiriCameraWorld",
-        label: "Macro Camera Rig",
-        kind: "Element",
-        start: 0,
-        end: 28.5,
-      },
-      {
-        id: "kiriBeatIntroText",
-        label: "Outcome-first Khmer voice statement",
-        kind: "Text",
-        start: 0.05,
-        end: 1.85,
-      },
-      {
-        id: "kiriBeatObstacleText",
-        label: "Generic model obstacle statement",
-        kind: "Text",
-        start: 2.05,
-        end: 3.2,
-      },
-      {
-        id: "kiriBeatSolutionText",
-        label: "Kiri native understanding statement",
-        kind: "Text",
-        start: 5.25,
-        end: 6.4,
-      },
-      {
-        id: "kiriMonolithicBox",
-        label: "Monolithic Engine & Unspaced Script",
-        kind: "Element",
-        start: 0.35,
-        end: 5.2,
-      },
-      {
-        id: "kiriSegmentBeam",
-        label: "Track-Matte Cyan Scanning Beam",
-        kind: "Element",
-        start: 2.38,
-        end: 4.0,
-      },
-      {
-        id: "kiriSegmentedWords",
-        label: "Native Word Boundary Chips",
-        kind: "Element",
-        start: 2.9,
-        end: 5.2,
-      },
-      {
-        id: "kiriNativeSolvedBadge",
-        label: "Native Segmentation Solved Badge",
-        kind: "Element",
-        start: 4.0,
-        end: 5.2,
-      },
-    ],
+    accent: "#f0a44a",
   },
   {
-    id: "act-02-tts",
-    label: "02 · Expressive TTS & Line-by-Line Studio Composer",
-    start: 5.5,
-    duration: 6.5,
-    accent: "#00D2FF",
-    tracks: [
-      {
-        id: "kiriLineEditor",
-        label: "Line Composer & Traveling Neon Beam",
-        kind: "Element",
-        start: 5.0,
-        end: 11.6,
-      },
-      {
-        id: "kiriTypedKhmer",
-        label: "Native Khmer Script Real-time Typewriter",
-        kind: "Text",
-        start: 6.3,
-        end: 11.6,
-      },
-      {
-        id: "kiriEditorRow2",
-        label: "Line 2 Instant Regeneration Feature",
-        kind: "Element",
-        start: 7.4,
-        end: 11.6,
-      },
-      {
-        id: "kiriStabilitySlider",
-        label: "Stability & Speed Sliders Glide",
-        kind: "Element",
-        start: 8.0,
-        end: 11.6,
-      },
-      {
-        id: "kiriBtnGenerate",
-        label: "Generate Speech Tactile Click",
-        kind: "Element",
-        start: 9.0,
-        end: 11.6,
-      },
-      {
-        id: "kiriAudioPlayerCard",
-        label: "Blooming Audio Player & 12 EQ Bars",
-        kind: "Element",
-        start: 9.85,
-        end: 11.6,
-      },
-    ],
+    id: "stt",
+    label: "05 / Recording to transcript",
+    start: 26,
+    duration: 8,
+    accent: "#b0bdd6",
   },
   {
-    id: "act-03-stt",
-    label: "03 · Diarized STT & Forced Alignment Subtitles",
-    start: 12.0,
-    duration: 6.5,
-    accent: "#10B981",
-    tracks: [
-      {
-        id: "kiriSttDropCard",
-        label: "STT Studio Container",
-        kind: "Element",
-        start: 11.8,
-        end: 18.0,
-      },
-      {
-        id: "kiriDiarizeSpeaker1",
-        label: "Speaker 1 Khmer Timestamps",
-        kind: "Element",
-        start: 12.4,
-        end: 18.0,
-      },
-      {
-        id: "kiriDiarizeSpeaker2",
-        label: "Speaker 2 English Timestamps",
-        kind: "Element",
-        start: 14.5,
-        end: 18.0,
-      },
-      {
-        id: "kiriBtnExportSrt",
-        label: "Export .SRT / .VTT Button & Click",
-        kind: "Element",
-        start: 16.0,
-        end: 18.0,
-      },
-      {
-        id: "kiriSrtSuccessBadge",
-        label: "Emerald Subtitle Exported Banner",
-        kind: "Element",
-        start: 16.9,
-        end: 18.0,
-      },
-    ],
+    id: "export",
+    label: "06 / Subtitle export",
+    start: 34,
+    duration: 4.5,
+    accent: "#aaaab5",
   },
   {
-    id: "act-04-clone-api",
-    label: "04 · 10s Voice Cloning & OpenAI-Compatible REST API",
-    start: 18.5,
-    duration: 6.0,
-    accent: "#00D2FF",
-    tracks: [
-      {
-        id: "kiriCloneCard",
-        label: "10s Reference Audio & Progress Ring",
-        kind: "Element",
-        start: 18.2,
-        end: 24.0,
-      },
-      {
-        id: "kiriVerifiedProfile",
-        label: "Verified Profile: Bora Badge",
-        kind: "Element",
-        start: 20.35,
-        end: 24.0,
-      },
-      {
-        id: "kiriApiCard",
-        label: "OpenAI REST API Endpoint Box",
-        kind: "Element",
-        start: 18.2,
-        end: 24.0,
-      },
-      {
-        id: "kiriLiveCounter",
-        label: "Live Request Counter Surge",
-        kind: "Text",
-        start: 21.2,
-        end: 24.0,
-      },
-    ],
+    id: "features",
+    label: "07 / One platform",
+    start: 38.5,
+    duration: 5.5,
+    accent: "#aaaab5",
   },
   {
-    id: "act-05-climax",
-    label: "05 · Native Voice Platform Resolve",
-    start: 24.5,
-    duration: 4.0,
-    accent: "#FFFFFF",
-    tracks: [
-      {
-        id: "kiriClimaxEmblem",
-        label: "Geometric Emblem & Cyan Halo",
-        kind: "Element",
-        start: 24.3,
-        end: 28.5,
-      },
-      {
-        id: "kiriClimaxHeadline",
-        label: "'Transform Text into Speech' Headline",
-        kind: "Text",
-        start: 24.7,
-        end: 28.5,
-      },
-      {
-        id: "kiriClimaxSubtitle",
-        label: "Native Voice Platform Subtitle",
-        kind: "Text",
-        start: 25.1,
-        end: 28.5,
-      },
-      {
-        id: "kiriBtnGetStarted",
-        label: "Get Started Pill with Light Shimmer",
-        kind: "Element",
-        start: 25.5,
-        end: 28.5,
-      },
-    ],
+    id: "brand",
+    label: "08 / Ready to build",
+    start: 44,
+    duration: 4,
+    accent: "#ededf0",
   },
 ];
 
-const scenes: readonly SceneDefinition[] = baseScenes.map((scene) => ({
-  ...scene,
-  start: scene.start * PLAYBACK_SCALE,
-  duration: scene.duration * PLAYBACK_SCALE,
-  tracks: (scene.tracks ?? []).map((track) => ({
-    ...track,
-    start: track.start * PLAYBACK_SCALE,
-    end: track.end * PLAYBACK_SCALE,
-  })),
-}));
-
-function mountHtml(root: HTMLElement): void {
-  const container = document.createElement("div");
-  container.innerHTML = compositionHtml.replaceAll(
-    "__ASSET_KIRI_LOGO__",
-    kiriLogoUrl,
-  );
-  const template = container.querySelector(
-    "#kiritts-preset-template",
-  ) as HTMLTemplateElement | null;
-  if (!template) throw new Error("Missing #kiritts-preset-template");
-  root.replaceChildren(template.content.cloneNode(true));
-}
+/** Editorial handoffs, all in final playback seconds. Each straddles its cut,
+ * and the carrier is on screen on both sides of it. */
+export const kiriTtsSeams = [
+  {
+    from: "hook",
+    to: "intro",
+    at: 6.3,
+    duration: 1.4,
+    carrier: "kiriBrandMark",
+    mechanism: "PARTICLE-REASSEMBLE",
+    becomes:
+      "The English claim and the Khmer that completed it fracture together and collapse into the point the mark is already growing at.",
+  },
+  {
+    from: "intro",
+    to: "tts",
+    at: 9.8,
+    duration: 1.4,
+    carrier: "kiriBrandMark",
+    mechanism: "MORPH",
+    becomes:
+      "The original tile shrinks and docks into the flat editor header while the editor rises behind it.",
+  },
+  {
+    from: "tts",
+    to: "voices",
+    at: 19.8,
+    duration: 1.4,
+    carrier: "kiriVoiceCarrier",
+    mechanism: "MORPH",
+    becomes:
+      "The editor clears left; its waveform remains, then rises above the selected Maly profile and two readable alternatives.",
+  },
+  {
+    from: "voices",
+    to: "stt",
+    at: 25.3,
+    duration: 1.4,
+    carrier: "kiriVoiceCarrier",
+    mechanism: "MORPH",
+    becomes:
+      "The same surface contracts low into the frame, then opens into the Speech to Text upload target.",
+  },
+  {
+    from: "stt",
+    to: "export",
+    at: 33.4,
+    duration: 1.2,
+    carrier: "kiriVoiceCarrier",
+    mechanism: "MATCH-CUT",
+    becomes:
+      "The transcript holds its exact position and silhouette across the cut while its export controls rise inside it.",
+  },
+  {
+    from: "export",
+    to: "features",
+    at: 37.9,
+    duration: 1.2,
+    carrier: "kiriBrandMark",
+    mechanism: "PARTICLE-REASSEMBLE",
+    becomes:
+      "The five subtitle files converge on one point and the mark reassembles out of them, then rises as the camera retreats.",
+  },
+  {
+    from: "features",
+    to: "brand",
+    at: 43.4,
+    duration: 1.2,
+    carrier: "kiriBrandMark",
+    mechanism: "MATCH-CUT",
+    becomes:
+      "The browser read-aloud proof exits while the restored mark settles into the closing question.",
+  },
+] as const;
 
 export const kiriTtsPreset = defineComposition({
   id: "kiritts-saas-ad",
-  title: "KiriTTS · Native Khmer Voice Platform",
+  title: "KiriTTS / A TTS that speaks Khmer",
   description:
-    "A spacious 37-second product story that begins with the desired outcome—Khmer speech that sounds native—then proves Kiri's word-boundary understanding through expressive TTS, exact subtitles, ten-second voice cloning, and an OpenAI-compatible API. Screen-space cursor targeting, perspective focus shots, zoom-throughs, and match-cut carriers connect all five acts.",
+    "A 48-second product film: Khmer completes the opening claim, the mark docks into the speech editor, Maly is selected from thirteen voices, and text becomes audio. A recording becomes a three-speaker transcript and subtitle exports. Focused API and browser read-aloud proofs lead into the closing question.",
   duration: KIRI_TTS_PRESET_DURATION,
   fps: 60,
   width: 1920,
   height: 1080,
   aspectRatio: "16:9",
   sourcePreview: compositionHtml,
-  scenes,
+  scenes: kiriTtsScenes,
   build(context: CompositionContext) {
-    mountHtml(context.root);
-    timelineModule.buildKiriTtsTimeline(context);
+    const documentNode = new DOMParser().parseFromString(
+      compositionHtml
+        .replaceAll("__ASSET_KIRI_LOGO__", kiriLogoUrl)
+        .replaceAll("__ASSET_SF_FONT_BASE__", sfFontBaseUrl)
+        .replaceAll("__ASSET_KHMER_FONT_BASE__", khmerFontBaseUrl),
+      "text/html",
+    );
+    const template = documentNode.querySelector<HTMLTemplateElement>(
+      "#kiritts-preset-template",
+    );
+    if (!template) throw new Error("Missing KiriTTS composition template");
+    context.root.replaceChildren(template.content.cloneNode(true));
+    buildKiriTtsTimeline(context);
   },
 });

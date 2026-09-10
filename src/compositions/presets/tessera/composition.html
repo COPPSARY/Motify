@@ -1,0 +1,665 @@
+<template id="tessera-preset-template">
+  <style>
+    @font-face {
+      font-family: "SF Pro Display";
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url("__ASSET_SF_FONT_BASE__SFPRODISPLAYREGULAR.OTF")
+        format("opentype");
+    }
+    @font-face {
+      font-family: "SF Pro Display";
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url("__ASSET_SF_FONT_BASE__SFPRODISPLAYMEDIUM.OTF")
+        format("opentype");
+    }
+    @font-face {
+      font-family: "SF Pro Display";
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url("__ASSET_SF_FONT_BASE__SFPRODISPLAYBOLD.OTF") format("opentype");
+    }
+    .tess-film,
+    .tess-film * {
+      box-sizing: border-box;
+    }
+    .tess-film {
+      --paper: #eeece8;
+      --ink: #17171a;
+      --muted: #6f6f78;
+      --hair: rgba(20, 20, 25, 0.12);
+      --accent: #4f46e5;
+      --raw: #b8722a;
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family:
+        "SF Pro Display",
+        -apple-system,
+        Inter,
+        sans-serif;
+      font-weight: 400;
+      perspective: 1500px;
+      perspective-origin: 50% 50%;
+    }
+    .tess-film h1,
+    .tess-film p {
+      margin: 0;
+    }
+    /* The lit ground is fixed to the frame, never inside the camera world. */
+    .tess-bloom {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 2200px;
+      height: 1500px;
+      margin: -750px 0 0 -1100px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(255, 253, 250, 0.9),
+        rgba(255, 253, 250, 0.35) 38%,
+        transparent 66%
+      );
+      pointer-events: none;
+    }
+    .tess-vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        ellipse at center,
+        transparent 44%,
+        rgba(20, 20, 25, 0.22) 100%
+      );
+      pointer-events: none;
+      z-index: 40;
+    }
+    /* A corridor of parallel planes is the one place preserve-3d belongs:
+       planes that all face the camera can never intersect each other. */
+    .tess-world {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+    }
+    .tess-layer {
+      position: absolute;
+      inset: 0;
+    }
+    .tess-corridor {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+    }
+
+    .tess-title {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 1560px;
+      text-align: center;
+      font-size: 100px;
+      font-weight: 700;
+      line-height: 1.06;
+      letter-spacing: -0.042em;
+    }
+    .tess-title em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .tess-kicker {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      font-size: 23px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ---- The record planes --------------------------------------------- */
+    .tess-record {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 560px;
+      height: 292px;
+      padding: 22px 26px;
+      border-radius: 20px;
+      background: #fffefb;
+      border: 1px solid var(--hair);
+      box-shadow: 0 30px 70px rgba(20, 20, 25, 0.13);
+      overflow: hidden;
+    }
+    .tess-record-ghost {
+      opacity: 0.85;
+    }
+    .tess-record-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--hair);
+    }
+    .tess-source {
+      font-size: 21px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: -0.01em;
+    }
+    .tess-format {
+      margin-left: auto;
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--hair);
+      color: var(--muted);
+    }
+    .tess-record-body {
+      padding-top: 6px;
+    }
+    .tess-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      height: 48px;
+    }
+    /* Each field is a two-line roll: the source's own name and value on top,
+       the canonical shape underneath, revealed by sliding the roll up. */
+    .tess-roll {
+      display: block;
+      height: 30px;
+      overflow: hidden;
+      line-height: 30px;
+      font-size: 22px;
+    }
+    .tess-roll span {
+      display: block;
+      height: 30px;
+      white-space: nowrap;
+    }
+    .tess-key {
+      width: 34%;
+      font-weight: 500;
+    }
+    .tess-key .tess-raw {
+      color: var(--raw);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 20px;
+    }
+    .tess-key .tess-clean {
+      color: var(--ink);
+    }
+    .tess-val {
+      flex: 1;
+      text-align: right;
+      color: var(--muted);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 20px;
+    }
+    .tess-val .tess-clean {
+      color: var(--accent);
+    }
+    .tess-bar {
+      display: block;
+      height: 12px;
+      border-radius: 6px;
+      background: rgba(20, 20, 25, 0.13);
+    }
+    .tess-row .tess-bar + .tess-bar {
+      margin-left: auto;
+    }
+
+    /* ---- The gate ------------------------------------------------------- */
+    .tess-gate {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 940px;
+      height: 560px;
+      border-radius: 26px;
+      border: 2px solid var(--accent);
+      box-shadow:
+        0 0 90px rgba(79, 70, 229, 0.28),
+        inset 0 0 70px rgba(79, 70, 229, 0.12);
+    }
+    .tess-gate-beam {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 2px;
+      margin-top: -1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--accent),
+        transparent
+      );
+    }
+    .tess-gate-label {
+      position: absolute;
+      left: 50%;
+      top: -46px;
+      transform: translateX(-50%);
+      font-size: 19px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    /* ---- Brand ---------------------------------------------------------- */
+    .tess-mark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 190px;
+      height: 190px;
+    }
+    .tess-mark rect {
+      fill: var(--ink);
+    }
+    .tess-mark rect.tess-mark-accent {
+      fill: var(--accent);
+    }
+    .tess-wordmark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      font-size: 82px;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      white-space: nowrap;
+    }
+  </style>
+  <main class="tess-film" data-edit="tessFilmRoot">
+    <div class="tess-bloom" data-edit="tessBloom"></div>
+    <div class="tess-world" data-camera-world data-edit="tessCameraWorld">
+      <div class="tess-corridor" data-edit="tessCorridor">
+        <div class="tess-gate" data-edit="tessGate">
+          <span class="tess-gate-label">one contract</span>
+          <span class="tess-gate-beam" data-edit="tessGateBeam"></span>
+        </div>
+
+        <div class="tess-record tess-record-ghost" data-edit="tessFlybyAlpha">
+          <div class="tess-record-head">
+            <span class="tess-source">zuora · rest</span>
+            <span class="tess-format">JSON</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 38%"></span
+              ><span class="tess-bar" style="width: 26%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 30%"></span
+              ><span class="tess-bar" style="width: 34%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 44%"></span
+              ><span class="tess-bar" style="width: 20%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 25%"></span
+              ><span class="tess-bar" style="width: 30%"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record tess-record-ghost" data-edit="tessFlybyBeta">
+          <div class="tess-record-head">
+            <span class="tess-source">sap · idoc</span>
+            <span class="tess-format">EDI</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 38%"></span
+              ><span class="tess-bar" style="width: 26%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 30%"></span
+              ><span class="tess-bar" style="width: 34%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 44%"></span
+              ><span class="tess-bar" style="width: 20%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 25%"></span
+              ><span class="tess-bar" style="width: 30%"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record tess-record-ghost" data-edit="tessFlybyGamma">
+          <div class="tess-record-head">
+            <span class="tess-source">sheets · tab</span>
+            <span class="tess-format">TSV</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 38%"></span
+              ><span class="tess-bar" style="width: 26%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 30%"></span
+              ><span class="tess-bar" style="width: 34%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 44%"></span
+              ><span class="tess-bar" style="width: 20%"></span>
+            </div>
+            <div class="tess-row">
+              <span class="tess-bar" style="width: 25%"></span
+              ><span class="tess-bar" style="width: 30%"></span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="tess-record"
+          data-edit="tessRecordOne"
+          data-transition-carrier
+        >
+          <div class="tess-record-head">
+            <span class="tess-source">stripe · webhook</span>
+            <span class="tess-format">JSON</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">ts</span
+                ><span class="tess-clean">timestamp</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">1712534400</span
+                ><span class="tess-clean">2024-04-08T00:00Z</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">amt</span
+                ><span class="tess-clean">amount</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">"42.00"</span
+                ><span class="tess-clean">42.00</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">cur</span
+                ><span class="tess-clean">currency</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">usd</span
+                ><span class="tess-clean">USD</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">cust</span
+                ><span class="tess-clean">customer</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">cus_8Q2f</span
+                ><span class="tess-clean">cus_8Q2f</span></span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record" data-edit="tessRecordTwo">
+          <div class="tess-record-head">
+            <span class="tess-source">shopify · export.csv</span>
+            <span class="tess-format">CSV</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">created_at</span
+                ><span class="tess-clean">timestamp</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">08/04/2024</span
+                ><span class="tess-clean">2024-04-08T00:00Z</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">total_price</span
+                ><span class="tess-clean">amount</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">42.0</span
+                ><span class="tess-clean">42.00</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">currency</span
+                ><span class="tess-clean">currency</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">USD</span
+                ><span class="tess-clean">USD</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">email</span
+                ><span class="tess-clean">customer</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">ada@…</span
+                ><span class="tess-clean">cus_4K9d</span></span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record" data-edit="tessRecordThree">
+          <div class="tess-record-head">
+            <span class="tess-source">netsuite · soap</span>
+            <span class="tess-format">XML</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">TranDate</span
+                ><span class="tess-clean">timestamp</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">2024-04-08</span
+                ><span class="tess-clean">2024-04-08T00:00Z</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">Amount</span
+                ><span class="tess-clean">amount</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">42</span
+                ><span class="tess-clean">42.00</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">Currency</span
+                ><span class="tess-clean">currency</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">US Dollar</span
+                ><span class="tess-clean">USD</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">EntityId</span
+                ><span class="tess-clean">customer</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">4471</span
+                ><span class="tess-clean">cus_4471</span></span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record" data-edit="tessRecordFour">
+          <div class="tess-record-head">
+            <span class="tess-source">postgres · cdc</span>
+            <span class="tess-format">WAL</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">inserted_at</span
+                ><span class="tess-clean">timestamp</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">1712534400000</span
+                ><span class="tess-clean">2024-04-08T00:00Z</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">amount_cents</span
+                ><span class="tess-clean">amount</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">4200</span
+                ><span class="tess-clean">42.00</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">ccy</span
+                ><span class="tess-clean">currency</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">usd</span
+                ><span class="tess-clean">USD</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">customer_id</span
+                ><span class="tess-clean">customer</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">8812</span
+                ><span class="tess-clean">cus_8812</span></span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="tess-record" data-edit="tessRecordFive">
+          <div class="tess-record-head">
+            <span class="tess-source">segment · track</span>
+            <span class="tess-format">HTTP</span>
+          </div>
+          <div class="tess-record-body">
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">receivedAt</span
+                ><span class="tess-clean">timestamp</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">2024-04-08T00:00</span
+                ><span class="tess-clean">2024-04-08T00:00Z</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">properties.value</span
+                ><span class="tess-clean">amount</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">42.000</span
+                ><span class="tess-clean">42.00</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">properties.ccy</span
+                ><span class="tess-clean">currency</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">Usd</span
+                ><span class="tess-clean">USD</span></span
+              >
+            </div>
+            <div class="tess-row">
+              <span class="tess-roll tess-key"
+                ><span class="tess-raw">userId</span
+                ><span class="tess-clean">customer</span></span
+              >
+              <span class="tess-roll tess-val"
+                ><span class="tess-raw">u_31fa</span
+                ><span class="tess-clean">cus_31fa</span></span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+      <svg class="tess-mark" viewBox="0 0 48 48" data-edit="tessBrandMark">
+        <rect x="3" y="3" width="19" height="19" rx="4" />
+        <rect x="26" y="3" width="19" height="19" rx="4" />
+        <rect x="3" y="26" width="19" height="19" rx="4" />
+        <rect
+          class="tess-mark-accent"
+          x="26"
+          y="26"
+          width="19"
+          height="19"
+          rx="4"
+        />
+      </svg>
+      <section class="tess-layer" data-scene="claim" data-edit="tessClaimScene">
+        <h1 class="tess-title" data-edit="tessClaimLine">
+          Every source sends a <em>different</em> shape.
+        </h1>
+      </section>
+      <section
+        class="tess-layer"
+        data-scene="stream"
+        data-edit="tessStreamScene"
+      >
+        <div class="tess-kicker" data-edit="tessStreamKicker">
+          Eight systems &middot; eight schemas
+        </div>
+      </section>
+      <section class="tess-layer" data-scene="gate" data-edit="tessGateScene">
+        <div class="tess-kicker" data-edit="tessGateKicker">
+          Mapped &middot; coerced &middot; normalised
+        </div>
+      </section>
+      <section class="tess-layer" data-scene="shape" data-edit="tessShapeScene">
+        <div class="tess-kicker" data-edit="tessShapeKicker">
+          Five sources &middot; one shape
+        </div>
+      </section>
+      <section class="tess-layer" data-scene="brand" data-edit="tessBrandScene">
+        <div class="tess-wordmark" data-edit="tessWordmark">Tessera</div>
+        <h1 class="tess-title" data-edit="tessBrandLine">
+          Every source, <em>one shape</em>.
+        </h1>
+      </section>
+    </div>
+    <div class="tess-vignette"></div>
+  </main>
+</template>

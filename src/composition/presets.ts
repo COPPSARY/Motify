@@ -1,4 +1,52 @@
 import gsap from "gsap";
+import { CustomEase } from "gsap/CustomEase";
+
+gsap.registerPlugin(CustomEase);
+
+/**
+ * The film's ease vocabulary.
+ *
+ * GSAP's stock curves top out at a narrow dynamic range: `power2.inOut` moves
+ * at only 3x its mean velocity at the fastest point, and `sine.inOut` at 1.57.
+ * Stretched over the two-to-five second travels a film is actually built from,
+ * that reads as constant velocity — the middle of the move has no ramp in it.
+ *
+ * These are registered `CustomEase` curves with the range a time ramp needs.
+ * Each is annotated with its peak-to-mean velocity ratio (linear = 1.00) and,
+ * for the arrival curves, how much distance it covers in the first 20% of its
+ * duration — `expo.out` covers 93% there, which is why an oversized entrance
+ * built on it is gone before it can be read.
+ *
+ * Pick by what the motion *is*, not by how long it lasts:
+ *
+ * - `EASE.cameraRamp` — a camera or world travelling a long way. Holds, blasts
+ *   through the middle, settles. Use for lateral tracks and z-flies.
+ * - `EASE.travel` — an object crossing the frame under its own direction.
+ * - `EASE.material` — a carrier's own outline changing. Weighted, not snappy.
+ * - `EASE.arrive` — something landing in place. Fast off the mark, long tail,
+ *   but still legible at the start.
+ * - `EASE.depart` — something accelerating out of frame. Peaks at the exit.
+ * - `EASE.settle` — an oversized element pulling back to rest.
+ *
+ * Ambient drift and breathing loops stay on `sine.inOut`, and a constant-rate
+ * readout — an audio playhead, a progress bar — stays on `none`. Neither is a
+ * directed move, so neither wants a ramp.
+ */
+export const EASE = {
+  /** peak 5.90x, 3% covered by 20% — a true hold-blast-settle ramp. */
+  cameraRamp: CustomEase.create("motionlyCameraRamp", "M0,0 C0.8,0 0.14,1 1,1"),
+  /** peak 3.82x, front-loaded ramp for directed object travel. */
+  travel: CustomEase.create("motionlyTravel", "M0,0 C0.62,0 0.16,1 1,1"),
+  /** peak 3.75x, slightly heavier through the middle than `travel`. */
+  material: CustomEase.create("motionlyMaterial", "M0,0 C0.66,0 0.2,1 1,1"),
+  /** peak 5.25x at t=0, 72% covered by 20% — punchier than `power2.out`
+   *  (49%) without `expo.out`'s two-frame collapse. */
+  arrive: CustomEase.create("motionlyArrive", "M0,0 C0.16,0.84 0.22,1 1,1"),
+  /** peak 8.68x at t=1 — accelerates all the way out. */
+  depart: CustomEase.create("motionlyDepart", "M0,0 C0.55,0 0.92,0.3 1,1"),
+  /** peak 6.00x at t=0, 73% covered by 20% — for giant-to-settle pullbacks. */
+  settle: CustomEase.create("motionlySettle", "M0,0 C0.12,0.72 0.16,1 1,1"),
+} as const;
 
 export interface MotionOptions {
   at?: gsap.Position;
@@ -44,6 +92,12 @@ export interface GiantCropOptions extends MotionOptions {
   settleEase?: string;
   xPercent?: number;
   yPercent?: number;
+}
+
+export interface EditorialTextOptions extends MotionOptions {
+  stagger?: number;
+  distance?: number;
+  blur?: number;
 }
 
 export interface WaterfallTextOptions extends MotionOptions {
@@ -496,6 +550,32 @@ function ensureTextMotionLayer(element: HTMLElement): HTMLElement {
   return layer;
 }
 
+/** Words resolve onto their final baseline without zooming or bouncing the
+ * sentence. Layout and accent markup stay authored; all motion is seekable. */
+export function editorialTextReveal(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: EditorialTextOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const layer = ensureTextMotionLayer(element);
+  const words = splitText(layer, "words").filter((word) => Boolean(word.textContent?.trim()));
+  const duration = options.duration ?? 0.48;
+  const stagger = options.stagger ?? 0.085;
+  // A label resolves numeric and named GSAP positions identically for both
+  // tracks. Focus finishes before translation, avoiding a smeared reading hold.
+  const anchor = `editorial-reveal-${timeline.getChildren().length}`;
+  timeline.addLabel(anchor, options.at);
+  timeline.set(element, { autoAlpha: 1 }, anchor);
+  timeline.fromTo(words,
+    { y: options.distance ?? 18, autoAlpha: 0 },
+    { y: 0, autoAlpha: 1, duration, stagger, ease: options.ease ?? "power3.out" }, anchor);
+  timeline.fromTo(words,
+    { filter: `blur(${options.blur ?? 5}px)` },
+    { filter: "blur(0px)", duration: duration * 0.55, stagger, ease: "power3.out" }, anchor);
+  return words;
+}
+
 export function giantKineticCrop(
   timeline: gsap.core.Timeline,
   element: HTMLElement | null | undefined,
@@ -503,7 +583,7 @@ export function giantKineticCrop(
 ): HTMLElement[] {
   if (!element) return [];
   const motionLayer = ensureTextMotionLayer(element);
-  const pieces = splitText(motionLayer, options.unit ?? "chars").filter(
+  const pieces = splitText(motionLayer, options.unit ?? "words").filter(
     (piece) => Boolean(piece.textContent?.trim()),
   );
   const startScale = options.startScale ?? 2.8;
@@ -528,13 +608,11 @@ export function giantKineticCrop(
     {
       scale: startScale,
       x: options.panX ?? 0,
-      filter: "blur(14px)",
       autoAlpha: 0,
     },
     {
       scale: endScale,
       x: 0,
-      filter: "blur(0px)",
       autoAlpha: 1,
       duration,
       ease: options.ease ?? "power3.out",
@@ -542,12 +620,13 @@ export function giantKineticCrop(
     options.at,
   );
 
+  timeline.fromTo(motionLayer, { filter: "blur(8px)" },
+    { filter: "blur(0px)", duration: duration * 0.45, ease: "power3.out" }, options.at);
   pieces.forEach((piece, i) => {
-    const microOffset = i % 3 === 0 ? -12 : i % 3 === 1 ? 10 : -4;
     timeline.fromTo(
       piece,
       {
-        y: microOffset * 2,
+        y: 18,
         autoAlpha: 0,
         transformOrigin: "50% 65%",
       },

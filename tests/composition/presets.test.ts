@@ -5,6 +5,7 @@ import * as presets from "../../src/composition/presets";
 describe("GSAP-first motion presets", () => {
   it("ships a focused professional preset surface", () => {
     expect(Object.keys(presets).sort()).toEqual([
+      "EASE",
       "ambientBreathing",
       "ambientFloat",
       "ambientWaves",
@@ -17,6 +18,7 @@ describe("GSAP-first motion presets", () => {
       "charSpringBounce",
       "continuousTextGradient",
       "cutTheCurve",
+      "editorialTextReveal",
       "errorWobble",
       "giantKineticCrop",
       "gradientSweep",
