@@ -95,6 +95,47 @@ describe("scene kit", () => {
   });
 
   /**
+   * An exported film held a perfectly still ground for twenty-two seconds. The
+   * kit's light is a function of film progress, which the runtime writes on
+   * every seek — not a tween, so it cannot extend the film's measured end.
+   */
+  it("drives the living ground from film progress on every seek", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const runtime = new CompositionRuntime(
+      createDynamicComposition(
+        `<template><main class="mk-stage mk-theme-midnight" data-edit="stage"><h1 data-edit="headline">Ship it</h1></main></template>`,
+        "export function buildTimeline({ root, timeline }) { timeline.to(root.querySelector('h1'), { x: 10, duration: 10 }, 0); }",
+        { duration: 10 },
+      ),
+      root,
+    );
+    try {
+      runtime.seek(5);
+      expect(root.style.getPropertyValue("--mk-t")).toBe("0.5000");
+      runtime.seek(10);
+      expect(root.style.getPropertyValue("--mk-t")).toBe("1.0000");
+      // No tween was added: the film's measured length is the model's own.
+      expect(runtime.timeline.duration()).toBeCloseTo(10, 5);
+    } finally {
+      runtime.destroy();
+      root.remove();
+    }
+    expect(SCENE_KIT_CSS).toMatch(/\.mk-stage::before \{[^}]*var\(--mk-t/);
+  });
+
+  /**
+   * Resized to the frame, the horizon pulled the whole planet into view as a
+   * giant dark oval with a rim down both sides.
+   */
+  it("locks the horizon's geometry", () => {
+    const horizon = /\.mk-horizon \{[^}]*\}/.exec(SCENE_KIT_CSS)?.[0] ?? "";
+    for (const property of ["top", "left", "right", "height"]) {
+      expect(horizon).toMatch(new RegExp(`\\b${property}: [^;]*!important`));
+    }
+  });
+
+  /**
    * A live film put `mk-horizon` on the light sky theme, and the planet's fixed
    * dark fill laid a black dome over the bottom half of every frame.
    */

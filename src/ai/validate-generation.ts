@@ -611,7 +611,10 @@ function assertNoShapeOverContent(
     if (!isPainted(getComputedStyle(shape))) continue;
     const box = shape.getBoundingClientRect();
     const share = (box.width * box.height) / canvasArea;
-    if (share < 0.004 || share > 0.08) continue;
+    // From a ~50px box up. The parked dot measured 80px — 0.31% of the frame —
+    // and slipped under a 0.4% floor set for the 190px square. Anything smaller,
+    // like a caret, cannot hide a glyph and is ruled out by the coverage test.
+    if (share < 0.0012 || share > 0.08) continue;
     for (const text of texts) {
       if (shape.contains(text) || text.contains(shape)) continue;
       if (!paintsAbove(shape, text, root)) continue;
@@ -620,9 +623,16 @@ function assertNoShapeOverContent(
         Math.min(box.right, line.right) - Math.max(box.left, line.left);
       const down =
         Math.min(box.bottom, line.bottom) - Math.max(box.top, line.top);
-      // Hides a couple of glyphs across most of the line's height.
-      if (across < Math.min(line.height * 0.8, line.width * 0.5)) continue;
-      if (down < line.height * 0.5) continue;
+      /*
+       * Measured against the glyphs, not the element. A headline wrapping onto
+       * two lines is ~180px tall, so judging by its box let an 80px dot sitting
+       * squarely on a word pass as "not covering" it.
+       */
+      const glyph =
+        Number.parseFloat(getComputedStyle(text).fontSize) ||
+        Math.min(line.height, 48);
+      if (across < Math.min(glyph * 0.8, line.width * 0.5)) continue;
+      if (down < glyph * 0.5) continue;
       throw new Error(
         `A shape covers the beat's content during ${where}: an empty box sits over "${(
           text.textContent ?? ""
@@ -631,7 +641,7 @@ function assertNoShapeOverContent(
           .slice(
             0,
             40,
-          )}". Hand the beats off with zoomThrough, inverseZoomThrough or cutTheCurve instead of moving a separate shape across the cut.`,
+          )}". Remove the shape: a dot, pill or square laid over the words reads as a glitch, and a cut is carried by zoomThrough, inverseZoomThrough or cutTheCurve, never by a shape.`,
       );
     }
   }
@@ -699,6 +709,17 @@ function assertVisibleSceneFrame(
   assertNoEmptyPlates(visible, root, rootRect, scene, time);
   assertNoOverlappingText(visible, scene, time);
   assertTextFitsItsCarrier(visible, root, scene, time);
+  /*
+   * Not just mid-cut. The next export parked an 80px violet dot on "one
+   * wo●space" and held it there for eleven seconds of beats, where the seam
+   * sampling never looks.
+   */
+  assertNoShapeOverContent(
+    visible,
+    root,
+    rootRect,
+    `scene ${scene.id} around ${time.toFixed(2)}s`,
+  );
 }
 
 /** Inline styles GSAP writes, used to prove a beat actually develops. */

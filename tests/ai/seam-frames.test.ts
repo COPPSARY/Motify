@@ -154,6 +154,33 @@ describe("transition frames are inspected, not skipped", () => {
     );
   });
 
+  /**
+   * The next export parked an 80px dot on "one wo●space" and held it there
+   * through eleven seconds of beats — not during a cut, where the seam
+   * sampling would have looked.
+   */
+  it("rejects a dot parked over the words during a hold", () => {
+    const parked = {
+      ...film(`export function buildTimeline({ root, timeline }) {
+        const a = root.querySelector('[data-edit="scene-01"]');
+        const b = root.querySelector('[data-edit="scene-02"]');
+        timeline.set(b, { autoAlpha: 0 }, 0);
+        timeline.to(a, { x: 6, duration: 2.4 }, 0);
+        zoomThrough(timeline, { outgoing: a, incoming: b, at: 2.1, duration: 0.8 });
+        timeline.to(b, { x: 6, duration: 2 }, 3);
+      }`),
+      seams: [],
+      compositionHtml: `<template><main data-edit="stage">
+        <section data-edit="scene-01" data-scene="scene-01" data-rect="160,140,1600,800"><h1 data-edit="hook-copy" data-rect="300,440,1300,120">Flowdesk unifies all channels into one workspace</h1></section>
+        <section data-edit="scene-02" data-scene="scene-02" data-rect="160,140,1600,800"><h1 data-edit="proof-copy" data-rect="200,200,1200,180">Every comment sorted into four themes.</h1></section>
+        <div data-edit="dot" data-rect="900,460,80,80" style="background:#4f46e5;border-radius:50%"></div>
+      </main></template>`,
+    };
+    expect(() => validateGeneratedComposition(parked, options)).toThrow(
+      /A shape covers the beat's content during scene scene-01/,
+    );
+  });
+
   it("does not mistake a cursor over a button for a shape", () => {
     const pointing = {
       ...film(`export function buildTimeline({ root, timeline }) {

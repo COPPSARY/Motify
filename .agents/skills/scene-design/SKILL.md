@@ -53,7 +53,8 @@ no substitute shape is needed to cover the cut.
 - The seam's carrier is the outgoing beat itself, with `mechanism: "match-cut"`.
 - Never invent a separate square, pill or dot to carry a transition. On screen it
   sits on top of the words and reads as a glitch.
-- Keep the ground alive under holds: drift a bloom, breathe the horizon.
+- The ground drifts and breathes on its own. Never add circles, dots or blobs to
+  decorate it, and never lay any shape over the words.
 
 ## Framing
 
@@ -81,6 +82,6 @@ Redesign before animating if a beat has any of these:
 - the subject in a corner, or cropped by the frame edge
 - the beat's main claim in anything smaller than `mk-headline`
 - an interface with no icons, no badges, no avatars and no numbers
-- a standalone shape carrying a transition
+- a standalone shape carrying a transition, or a dot parked on the text
 - a window, board or list with one or two items in it and the rest empty
 - the accent colour on six things at once

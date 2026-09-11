@@ -54,9 +54,15 @@ function exportFontCss(): Promise<string> {
       return response.blob();
     })
     .then(blobAsDataUrl)
-    .then(
-      (url) =>
-        `@font-face{font-family:"Inter Variable";font-style:normal;font-display:block;font-weight:100 900;src:url(${url}) format("woff2");}`,
+    // Registered under both names: fontsource calls the face "Inter Variable",
+    // while generated films routinely ask for plain "Inter".
+    .then((url) =>
+      ["Inter Variable", "Inter"]
+        .map(
+          (family) =>
+            `@font-face{font-family:"${family}";font-style:normal;font-display:block;font-weight:100 900;src:url(${url}) format("woff2");}`,
+        )
+        .join(""),
     )
     // A missing face degrades to the system font, exactly as before.
     .catch(() => "");
@@ -84,7 +90,9 @@ export async function renderCompositionFrame(
   if (fontCss) {
     const fontStyle = document.createElement("style");
     fontStyle.textContent = fontCss;
-    clone.prepend(fontStyle);
+    // Last, so it outranks the scene kit's own url() face, which an SVG image
+    // is not allowed to fetch: of two equal @font-face rules the later wins.
+    clone.append(fontStyle);
   }
   clone.style.position = "relative";
   clone.style.inset = "auto";

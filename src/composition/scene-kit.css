@@ -199,6 +199,59 @@
 
 /* --------------------------------------------------------------- ambient */
 
+/*
+ * The ground moves on its own.
+ *
+ * `--mk-t` is film progress from 0 to 1, written by the runtime on every seek
+ * and playback frame. Everything below is a function of it rather than a tween,
+ * so the light scrubs, seeks and exports exactly like the timeline and needs
+ * nothing from the model. Generated films otherwise shipped a ground that sat
+ * perfectly still for twenty seconds.
+ *
+ * Kept to broad fields and slow travel. A visible circle parked in the frame
+ * reads as a stray blob, not as light.
+ */
+.mk-stage::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(34% 30% at 32% 34%, var(--mk-glow), transparent 72%),
+    radial-gradient(
+      30% 26% at 70% 64%,
+      color-mix(in srgb, var(--mk-accent-2) 34%, transparent),
+      transparent 72%
+    );
+  /* A wandering orbit rather than a straight slide, breathing three times over
+     the film, so the light reads as alive rather than as a panning still. */
+  transform: translate(
+      calc(sin(calc(var(--mk-t, 0) * 540deg)) * 180px),
+      calc(cos(calc(var(--mk-t, 0) * 360deg)) * 110px)
+    )
+    rotate(calc(var(--mk-t, 0) * 40deg))
+    scale(calc(1.04 + sin(calc(var(--mk-t, 0) * 720deg)) * 0.06));
+  opacity: calc(0.78 + sin(calc(var(--mk-t, 0) * 1080deg)) * 0.22);
+}
+
+/* A slow band of light crossing the frame once over the film. */
+.mk-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    112deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 60%
+  );
+  background-size: 260% 100%;
+  background-position: calc(130% - var(--mk-t, 0) * 160%) 0;
+}
+
 .mk-glow {
   position: absolute;
   width: 760px;
@@ -207,15 +260,31 @@
   background: radial-gradient(circle, var(--mk-glow), transparent 66%);
   filter: blur(40px);
   pointer-events: none;
+  translate: calc(sin(calc(var(--mk-t, 0) * 360deg)) * 160px)
+    calc(cos(calc(var(--mk-t, 0) * 540deg)) * 90px);
 }
 
-/* The glowing planet rim along the bottom of the frame. */
+.mk-glow:nth-of-type(even) {
+  translate: calc(cos(calc(var(--mk-t, 0) * 450deg)) * -170px)
+    calc(sin(calc(var(--mk-t, 0) * 360deg)) * 80px);
+}
+
+/*
+ * The glowing planet rim along the bottom of the frame, rising slowly over the
+ * film.
+ *
+ * Its geometry is locked. A live film resized it to the frame, which pulled the
+ * whole planet into view as a giant dark oval with a rim on both sides — a
+ * portal, not a horizon. `mk-horizon-top` hangs the arc from the top instead.
+ */
 .mk-horizon {
-  position: absolute;
-  left: -340px;
-  right: -340px;
-  top: 700px;
-  height: 1500px;
+  position: absolute !important;
+  left: -340px !important;
+  right: -340px !important;
+  top: 700px !important;
+  bottom: auto !important;
+  width: auto !important;
+  height: 1500px !important;
   border-radius: 50%;
   /* The planet takes the ground's own colour; only the rim is light. A fixed
      dark fill put a black dome over the bottom half of every light theme. */
@@ -230,6 +299,15 @@
     0 -30px 120px -10px var(--mk-glow),
     0 -2px 30px rgba(196, 184, 255, 0.35);
   pointer-events: none;
+  translate: 0 calc((1 - var(--mk-t, 0)) * 80px);
+}
+
+.mk-horizon.mk-horizon-top {
+  top: -1120px !important;
+  box-shadow:
+    0 30px 120px -10px var(--mk-glow),
+    0 2px 30px rgba(196, 184, 255, 0.35);
+  translate: 0 calc((var(--mk-t, 0) - 1) * 80px);
 }
 
 .mk-grid-lines {
@@ -239,6 +317,10 @@
     linear-gradient(var(--mk-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--mk-line) 1px, transparent 1px);
   background-size: 80px 80px;
+  /* Drifts forward through the film, like a floor passing underneath. */
+  background-position:
+    0 calc(var(--mk-t, 0) * 240px),
+    calc(var(--mk-t, 0) * 80px) 0;
   mask-image: radial-gradient(
     ellipse 70% 60% at 50% 45%,
     #000 20%,

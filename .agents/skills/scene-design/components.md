@@ -22,7 +22,6 @@ to black, and nothing needs a stand-in shape to cover the cut.
 <template>
   <main class="mk-stage mk-theme-midnight" data-edit="stage">
     <div class="mk-horizon" data-edit="horizon"></div>
-    <div class="mk-glow" data-edit="glow-a" style="left:1180px;top:-260px"></div>
 
     <section class="beat" data-scene="scene-01" data-edit="scene-01"> … </section>
     <section class="beat" data-scene="scene-02" data-edit="scene-02"> … </section>
@@ -50,8 +49,6 @@ export function buildTimeline({ root, timeline, register }) {
   zoomThrough(timeline, { outgoing: s1, incoming: s2, at: 4.6, duration: 0.8 });
   cutTheCurve(timeline, { outgoing: s2, incoming: s3, at: 9.6, duration: 0.7, direction: "left" });
 
-  // Keep the ground alive under every hold.
-  timeline.to(beat("glow-a"), { x: -140, y: 60, duration: 14, ease: "sine.inOut" }, 0);
 }
 ```
 
@@ -88,8 +85,14 @@ Pick one for the whole film from what the product is.
 Re-colour to the real product by setting `--mk-accent` and `--mk-accent-2` on the
 `mk-stage` element: `style="--mk-accent:#5e6ad2;--mk-accent-2:#8b93ff"`.
 
-Ambient layers: `mk-horizon` (the glowing planet rim; best on midnight),
-`mk-glow` (a soft bloom; place 1–3), `mk-grid-lines` (a faint technical grid).
+The ground is already alive: the runtime drifts and breathes its light, sweeps a
+band of light across it and raises the horizon over the film. Do not animate it,
+and never decorate it with circles, dots or blobs.
+
+Optional layers: `mk-horizon` for the glowing planet rim along the bottom (never
+resize or reposition it), `mk-horizon mk-horizon-top` for an arc hanging from the
+top, `mk-grid-lines` for a faint technical floor, and at most one `mk-glow`
+directly behind the subject.
 
 ## 3. Framing
 
