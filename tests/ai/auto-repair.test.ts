@@ -40,7 +40,10 @@ describe("deterministic markup repair", () => {
       if (!headline) throw new Error("Headline was not mounted");
       expect(getComputedStyle(headline).color).toBe("rgb(0, 0, 255)");
       expect(getComputedStyle(headline).fontSize).toBe("68px");
-      expect(root.querySelectorAll("style")).toHaveLength(3);
+      // The film's own three stylesheets; the runtime's scene kit mounts beside them.
+      expect(
+        root.querySelectorAll("style:not([data-motionly-kit])"),
+      ).toHaveLength(3);
       expect(repairGeneratedMarkup(result).applied).toEqual([]);
     } finally {
       runtime.destroy();

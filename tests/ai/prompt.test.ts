@@ -298,9 +298,9 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
         morph(timeline, carrier, { width: 600 }, { at: 4 });
         timeline.to(carrier, { rotation: 4, duration: 0.5 }, 5);
         timeline.to(carrier, { rotation: 0, duration: 0.5 }, 6);
-        timeline.to(world, { x: -900, scale: 1.1, duration: 1.2, ease: "expo.out" }, 3);
+        timeline.to(world, { x: -900, scale: 1.1, duration: 1.2, ease: EASE.cameraRamp }, 3);
         timeline.to(world, { x: -940, scale: 1.12, duration: 2.2, ease: "sine.inOut" }, 4.4);
-        timeline.to(world, { x: -1400, scale: 1.45, duration: 1.2, ease: "expo.out" }, 7.6);
+        timeline.to(world, { x: -1400, scale: 1.45, duration: 1.2, ease: EASE.cameraRamp }, 7.6);
         timeline.to(cursor, { scale: 0.86, duration: 0.09, yoyo: true, repeat: 1 }, 5.4);
         matchCut(timeline, copy, carrier, { at: 8 });
         timeline.to(shell, { y: -40, autoAlpha: 0, duration: 0.5 }, 7.4);

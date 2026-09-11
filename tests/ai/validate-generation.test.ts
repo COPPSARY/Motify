@@ -413,6 +413,64 @@ describe("generated composition validation", () => {
     expect(validated.scenes[1]?.start).toBeCloseTo(2);
   });
 
+  it("rejects storyboard scenes that have no authored scene layer", () => {
+    const declared = [
+      { id: "scene-01", label: "One", start: 0, duration: 2, accent: "#fff" },
+      { id: "scene-02", label: "Two", start: 2, duration: 2, accent: "#fff" },
+      { id: "scene-03", label: "Three", start: 4, duration: 2, accent: "#fff" },
+    ];
+    const film = {
+      duration: 6,
+      scenes: declared,
+      compositionHtml: `<template><main data-edit="stage"><section data-scene="scene-01" data-edit="hook">Ask</section><section data-scene="scene-02" data-edit="proof">Answer</section></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        timeline.to(root.querySelector('[data-edit="hook"]'), { x: 20, duration: 3 }, 0);
+        timeline.to(root.querySelector('[data-edit="proof"]'), { x: 20, duration: 3 }, 3);
+      }`,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(film, {
+        prompt: "Make a product film for Vault",
+        previousHtml: `<template><main data-edit="stage"></main></template>`,
+        previousDuration: 6,
+        previousScenes: [],
+        generationProfile: "claude-foundation-v1",
+        lenient: true,
+      }),
+    ).toThrow(/did not author data-scene layers for: scene-03/);
+  });
+
+  it("rejects a declared scene whose own content stays hidden", () => {
+    const restore = stubLayout();
+    try {
+      const film = {
+        duration: 4,
+        scenes: twoScenes,
+        compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="carrier" data-transition-carrier data-rect="200,200,1400,500">Persistent subject</div><section data-scene="scene-01" data-edit="one" data-rect="300,260,800,180">First beat</section><section data-scene="scene-02" data-edit="two" data-rect="300,260,800,180"><h2 data-edit="hidden-proof" data-rect="360,300,680,120" style="opacity:0">Missing beat</h2></section></main></template>`,
+        timelineJs: `export function buildTimeline({ root, timeline }) {
+          const carrier = root.querySelector('[data-edit="carrier"]');
+          const one = root.querySelector('[data-edit="one"]');
+          timeline.to(carrier, { x: 30, duration: 4 }, 0);
+          timeline.set(one, { autoAlpha: 0 }, 2.1);
+        }`,
+        reply: "Done",
+      };
+      expect(() =>
+        validateGeneratedComposition(film, {
+          prompt: "Make a product film for Vault",
+          previousHtml: `<template><main data-edit="stage"></main></template>`,
+          previousDuration: 4,
+          previousScenes: [],
+          generationProfile: "claude-foundation-v1",
+          lenient: true,
+        }),
+      ).toThrow(/scene-02 never renders visible scene content/i);
+    } finally {
+      restore();
+    }
+  });
+
   it("extends the composition to fit a longer authored timeline", () => {
     const longer = {
       duration: 2,
@@ -1298,5 +1356,51 @@ describe("a beat holding nothing but its ground", () => {
       reply: "Done",
     };
     expect(() => validateGeneratedComposition(hero, options)).not.toThrow();
+  });
+  /**
+   * Six five-second beats declared against a 20s duration threw before the
+   * frames were ever inspected, outside the lenient path, so the user got
+   * "Scene scene-06 falls outside the composition duration" and an empty
+   * canvas. Arithmetic is not a broken film.
+   */
+  it("extends the composition when the storyboard overruns its duration", () => {
+    const restore = stubLayout();
+    try {
+      const six = [0, 1, 2, 3, 4, 5].map((index) => ({
+        id: `scene-0${index + 1}`,
+        label: `Beat ${index + 1}`,
+        start: index * 5,
+        duration: 5,
+        accent: "#fff",
+      }));
+      const film = {
+        duration: 20,
+        scenes: six,
+        compositionHtml: `<template><main data-edit="stage" style="width:1920px">${six
+          .map(
+            (scene) =>
+              `<section data-edit="${scene.id}" data-scene="${scene.id}" data-rect="160,140,1600,800"><h1 data-edit="${scene.id}-copy" data-rect="200,200,1200,180">A complete sentence for this beat.</h1></section>`,
+          )
+          .join("")}</main></template>`,
+        timelineJs: `export function buildTimeline({ root, timeline }) {
+          const all = Array.from(root.querySelectorAll('[data-scene]'));
+          all.forEach((el, i) => timeline.to(el, { x: 12, duration: 1.2 }, i * 5));
+        }`,
+        reply: "Done",
+      };
+      const validated = validateGeneratedComposition(film, {
+        prompt: "Make a six beat SaaS ad",
+        previousHtml: `<template><main data-edit="stage"></main></template>`,
+        previousDuration: 20,
+        previousScenes: six,
+        lenient: true,
+      });
+      expect(validated.duration).toBeGreaterThanOrEqual(30);
+      expect(validated.warnings.join(" ")).toContain(
+        "extended to fit its beats",
+      );
+    } finally {
+      restore();
+    }
   });
 });

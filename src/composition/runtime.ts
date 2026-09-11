@@ -33,6 +33,9 @@ export class CompositionRuntime {
     }
   >();
   private playing = false;
+  /** Whether the mounted film sits on the scene kit's living ground. */
+  private hasKitGround: boolean | undefined;
+  private groundProgress = "";
   private lastPlaybackNotification = 0;
 
   constructor(
@@ -328,6 +331,32 @@ export class CompositionRuntime {
   }
 
   private applyOverrides(): void {
+    /**
+     * Film progress, 0 to 1, for layers that are a function of time rather than
+     * tweens — the scene kit's ground drifts, rises and sweeps on it. Written
+     * here because this runs on every seek and every playback frame, so the
+     * light scrubs and exports exactly like the timeline. It is deliberately not
+     * a tween: a tween on the root would count as authored motion, extending the
+     * film's measured end and masking a timeline that genuinely stops early.
+     */
+    // Only for films on the kit ground, and only when the value moves: a style
+    // write on the root invalidates the whole subtree's computed styles, and
+    // this runs several times per seek.
+    if (this.hasKitGround === undefined && this.root.firstElementChild) {
+      this.hasKitGround = this.root.querySelector(".mk-stage") !== null;
+    }
+    if (this.hasKitGround) {
+      const duration = this.definition.duration;
+      const progress = (
+        duration > 0
+          ? Math.min(1, Math.max(0, this.timeline.time() / duration))
+          : 0
+      ).toFixed(4);
+      if (progress !== this.groundProgress) {
+        this.groundProgress = progress;
+        this.root.style.setProperty("--mk-t", progress);
+      }
+    }
     for (const [id, override] of this.overrides) {
       const element = this.elements.get(id);
       if (!element) continue;

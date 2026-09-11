@@ -1,252 +1,179 @@
 export const maxDuration = 60;
-import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
-import { buildMotionlyUserMessage } from "../../src/ai/generation-guidance";
-import { DIRECTION_SYSTEM_PROMPT } from "../../src/ai/direction-pass";
 
-function normalizeGeminiModel(rawModel: string): string {
-  let model = rawModel.trim().replace(/^models\//, "");
-  model = model.replace(/\s+/g, "-");
-  if (!model.startsWith("gemini-") && !model.startsWith("gemma-")) {
-    model = `gemini-${model}`;
+import { DIRECTION_SYSTEM_PROMPT } from "../../src/ai/direction-pass";
+import { buildMotionlyUserMessage } from "../../src/ai/generation-guidance";
+import {
+  callAiProvider,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+  DEFAULT_OPENAI_COMPATIBLE_MODEL,
+  normalizeAiProvider,
+  type AiProvider,
+} from "../../src/ai/provider";
+import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
+
+interface GenerateBody {
+  userPrompt?: string;
+  repairAttempt?: boolean;
+  mode?: "direction";
+  directionMessage?: string;
+  currentFiles?: {
+    compositionHtml?: string;
+    timelineJs?: string;
+    stylesCss?: string;
+    indexTs?: string;
+    conversation?: readonly { role: "user" | "assistant"; text: string }[];
+    editorState?: Record<string, unknown>;
+    assets?: readonly {
+      id: string;
+      name: string;
+      mimeType: string;
+      dataBase64: string;
+      token: string;
+    }[];
+  };
+}
+
+function providerConfig(): {
+  provider: AiProvider;
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+} {
+  const provider = normalizeAiProvider(process.env["AI_PROVIDER"]);
+  if (provider === "openai-compatible") {
+    return {
+      provider,
+      apiKey: (
+        process.env["OPENAI_COMPATIBLE_API_KEY"] ??
+        process.env["CODECRAFT_API_KEY"] ??
+        ""
+      ).trim(),
+      model:
+        process.env["OPENAI_COMPATIBLE_MODEL"]?.trim() ||
+        DEFAULT_OPENAI_COMPATIBLE_MODEL,
+      baseUrl:
+        process.env["OPENAI_COMPATIBLE_BASE_URL"]?.trim() ||
+        DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+    };
   }
-  model = model.replace(/gemini-(\d+)-(\d+)/g, "gemini-$1.$2");
-  if (!model || model === "gemini-") {
-    return "gemini-3.5-flash";
+  return {
+    provider,
+    apiKey: (process.env["GEMINI_API_KEY"] ?? "").trim(),
+    model: process.env["GEMINI_MODEL"]?.trim() || DEFAULT_GEMINI_MODEL,
+  };
+}
+
+function parseComposition(rawText: string): unknown {
+  let cleaned = rawText.trim();
+  const jsonBlockMatch = /```(?:json)?\s*([\s\S]*?)\s*```/.exec(cleaned);
+  if (jsonBlockMatch?.[1]) {
+    cleaned = jsonBlockMatch[1].trim();
+  } else {
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1).trim();
+    }
   }
-  return model;
+
+  try {
+    return JSON.parse(cleaned) as unknown;
+  } catch {
+    try {
+      return JSON.parse(cleaned.replace(/,\s*([}\]])/g, "$1")) as unknown;
+    } catch {
+      const titleMatch = /"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
+        cleaned,
+      );
+      const durationMatch = /"duration"\s*:\s*([\d.]+)/.exec(cleaned);
+      const htmlMatch =
+        /"compositionHtml"\s*:\s*"([\s\S]*?)(?:",\s*"timelineJs"|",\s*"reply"|"$|\}\s*$)/.exec(
+          cleaned,
+        );
+      const jsMatch =
+        /"timelineJs"\s*:\s*"([\s\S]*?)(?:",\s*"reply"|"$|\}\s*$)/.exec(
+          cleaned,
+        );
+      const replyMatch = /"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
+        cleaned,
+      );
+      const unescapeJsonString = (value: string): string =>
+        value
+          .replace(/\\n/g, "\n")
+          .replace(/\\t/g, "\t")
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, "\\");
+
+      if (!htmlMatch?.[1] || !jsMatch?.[1]) {
+        throw new Error("Failed to parse AI response JSON.");
+      }
+      return {
+        title: titleMatch?.[1] ?? "AI Generated Video",
+        duration: durationMatch?.[1] ? parseFloat(durationMatch[1]) : 20,
+        compositionHtml: unescapeJsonString(htmlMatch[1]),
+        timelineJs: unescapeJsonString(jsMatch[1]),
+        reply:
+          replyMatch?.[1] ??
+          "Updated composition with full-span temporal choreography.",
+      };
+    }
+  }
 }
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json({ error: "Method Not Allowed" }, { status: 405 });
   }
 
   try {
-    const body = (await req.json()) as {
-      userPrompt?: string;
-      model?: string;
-      repairAttempt?: boolean;
-      /** "direction" runs the planning turn and returns its raw text. */
-      mode?: "direction";
-      directionMessage?: string;
-      currentFiles?: {
-        compositionHtml?: string;
-        timelineJs?: string;
-        stylesCss?: string;
-        indexTs?: string;
-        conversation?: readonly { role: "user" | "assistant"; text: string }[];
-        editorState?: Record<string, unknown>;
-        assets?: readonly {
-          id: string;
-          name: string;
-          mimeType: string;
-          dataBase64: string;
-          token: string;
-        }[];
-      };
-    };
-
-    const userPrompt = body.userPrompt ?? "";
+    const body = (await req.json()) as GenerateBody;
     const currentFiles = body.currentFiles ?? {};
-
-    const apiKey = (process.env["GEMINI_API_KEY"] ?? "").trim();
-    const rawModel = (
-      body.model ||
-      process.env["GEMINI_MODEL"] ||
-      "gemini-3.5-flash"
-    ).trim();
-    const model = normalizeGeminiModel(rawModel);
-
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Missing GEMINI_API_KEY in Vercel environment variables. Please add GEMINI_API_KEY in your Vercel Project Settings.",
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // The direction turn plans the film and writes no code, so it answers with
-    // its raw text and skips the composition system prompt entirely.
     const isDirection = body.mode === "direction";
-    const systemPrompt = isDirection
-      ? DIRECTION_SYSTEM_PROMPT
-      : MOTIONLY_SYSTEM_PROMPT;
     const userMessage = isDirection
       ? (body.directionMessage ?? "")
-      : await buildMotionlyUserMessage(userPrompt, currentFiles);
+      : await buildMotionlyUserMessage(body.userPrompt ?? "", currentFiles);
     if (isDirection && !userMessage) {
-      return new Response(
-        JSON.stringify({ error: "Missing directionMessage." }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
+      return Response.json(
+        { error: "Missing directionMessage." },
+        { status: 400 },
       );
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const config = providerConfig();
+    if (!config.apiKey) {
+      const variable =
+        config.provider === "gemini"
+          ? "GEMINI_API_KEY"
+          : "OPENAI_COMPATIBLE_API_KEY";
+      return Response.json(
+        { error: `Missing ${variable} in Vercel environment variables.` },
+        { status: 400 },
+      );
+    }
 
-    const generationConfig: Record<string, unknown> = {
-      response_mime_type: "application/json",
+    const rawText = await callAiProvider({
+      ...config,
+      systemPrompt: isDirection
+        ? DIRECTION_SYSTEM_PROMPT
+        : MOTIONLY_SYSTEM_PROMPT,
+      userMessage,
       temperature: isDirection ? 0.85 : body.repairAttempt ? 0.35 : 0.65,
-      maxOutputTokens: 65536,
-    };
-
-    if (model.includes("3.7")) {
-      generationConfig["thinking_config"] = { thinking_budget: 0 };
-    }
-
-    const imageParts = (currentFiles.assets ?? []).map((asset) => ({
-      inline_data: {
-        mime_type: asset.mimeType,
-        data: asset.dataBase64,
-      },
-    }));
-    const geminiResponse = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userMessage }, ...imageParts],
-          },
-        ],
-        generationConfig,
-      }),
+      assets: currentFiles.assets,
     });
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      return new Response(
-        JSON.stringify({ error: `Gemini API error: ${errText}` }),
-        {
-          status: geminiResponse.status,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const data = (await geminiResponse.json()) as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string }>;
-        };
-      }>;
-    };
-
-    const part = data.candidates?.[0]?.content?.parts?.find(
-      (p) => typeof p.text === "string",
+    return Response.json(
+      isDirection ? { text: rawText } : parseComposition(rawText),
     );
-    const rawText = part?.text ?? "";
-
-    if (!rawText) {
-      return new Response(
-        JSON.stringify({ error: "Empty response received from Gemini model." }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // The direction turn's caller does its own parsing and tolerates a plan
-    // that comes back short, so the raw text goes straight back.
-    if (isDirection) {
-      return new Response(JSON.stringify({ text: rawText }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    let cleaned = rawText.trim();
-    const jsonBlockMatch = /```(?:json)?\s*([\s\S]*?)\s*```/.exec(cleaned);
-    if (jsonBlockMatch?.[1]) {
-      cleaned = jsonBlockMatch[1].trim();
-    } else {
-      const firstBrace = cleaned.indexOf("{");
-      const lastBrace = cleaned.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleaned = cleaned.slice(firstBrace, lastBrace + 1).trim();
-      }
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      try {
-        const stripped = cleaned.replace(/,\s*([}\]])/g, "$1");
-        parsed = JSON.parse(stripped);
-      } catch {
-        const titleMatch = /"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
-          cleaned,
-        );
-        const durationMatch = /"duration"\s*:\s*([\d.]+)/.exec(cleaned);
-        const htmlMatch =
-          /"compositionHtml"\s*:\s*"([\s\S]*?)(?:",\s*"timelineJs"|",\s*"reply"|"$|\}\s*$)/.exec(
-            cleaned,
-          );
-        const jsMatch =
-          /"timelineJs"\s*:\s*"([\s\S]*?)(?:",\s*"reply"|"$|\}\s*$)/.exec(
-            cleaned,
-          );
-        const replyMatch = /"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/.exec(
-          cleaned,
-        );
-
-        function unescapeJsonStr(str: string): string {
-          return str
-            .replace(/\\n/g, "\n")
-            .replace(/\\t/g, "\t")
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, "\\");
-        }
-
-        if (htmlMatch?.[1] && jsMatch?.[1]) {
-          parsed = {
-            title: titleMatch?.[1] ?? "AI Generated Video",
-            duration: durationMatch?.[1] ? parseFloat(durationMatch[1]) : 20.0,
-            compositionHtml: unescapeJsonStr(htmlMatch[1]),
-            timelineJs: unescapeJsonStr(jsMatch[1]),
-            reply:
-              replyMatch?.[1] ??
-              "Updated composition with full-span temporal choreography.",
-          };
-        } else {
-          return new Response(
-            JSON.stringify({ error: "Failed to parse AI response JSON." }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
-        }
-      }
-    }
-
-    return new Response(JSON.stringify(parsed), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (err: unknown) {
-    return new Response(
-      JSON.stringify({
-        error:
-          err instanceof Error ? err.message : "Internal AI generation error",
-      }),
+  } catch (error: unknown) {
+    return Response.json(
       {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
+        error:
+          error instanceof Error
+            ? error.message
+            : "Internal AI generation error",
       },
+      { status: 500 },
     );
   }
 }

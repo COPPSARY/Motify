@@ -1,7 +1,9 @@
+import interLatinUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import type { CompositionRuntime } from "./runtime";
 
 const embeddedImageCache = new Map<string, Promise<string>>();
+let embeddedFontCss: Promise<string> | undefined;
 
 async function blobAsDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,6 +37,38 @@ async function inlineImages(source: Element, clone: Element): Promise<void> {
   );
 }
 
+/**
+ * The editor's typeface, embedded for export.
+ *
+ * A frame is rasterized as an SVG image, and an SVG image cannot reach the
+ * page's loaded fonts or fetch any of its own. The editor shows Inter because
+ * `main.ts` loads it; every exported frame silently fell back to a system face
+ * with different widths, so a headline that wrapped in preview sat on one line
+ * in the video and the whole layout shifted. Inlining the Latin variable face
+ * (48KB) as a data URL is the one form the image is allowed to use.
+ */
+function exportFontCss(): Promise<string> {
+  embeddedFontCss ??= fetch(interLatinUrl)
+    .then((response) => {
+      if (!response.ok) throw new Error("Inter could not be embedded.");
+      return response.blob();
+    })
+    .then(blobAsDataUrl)
+    // Registered under both names: fontsource calls the face "Inter Variable",
+    // while generated films routinely ask for plain "Inter".
+    .then((url) =>
+      ["Inter Variable", "Inter"]
+        .map(
+          (family) =>
+            `@font-face{font-family:"${family}";font-style:normal;font-display:block;font-weight:100 900;src:url(${url}) format("woff2");}`,
+        )
+        .join(""),
+    )
+    // A missing face degrades to the system font, exactly as before.
+    .catch(() => "");
+  return embeddedFontCss;
+}
+
 async function imageFromSvg(svg: string): Promise<HTMLImageElement> {
   const image = new Image();
   image.decoding = "sync";
@@ -52,6 +86,14 @@ export async function renderCompositionFrame(
   const { width, height } = runtime.definition;
   const clone = runtime.root.cloneNode(true) as HTMLElement;
   await inlineImages(runtime.root, clone);
+  const fontCss = await exportFontCss();
+  if (fontCss) {
+    const fontStyle = document.createElement("style");
+    fontStyle.textContent = fontCss;
+    // Last, so it outranks the scene kit's own url() face, which an SVG image
+    // is not allowed to fetch: of two equal @font-face rules the later wins.
+    clone.append(fontStyle);
+  }
   clone.style.position = "relative";
   clone.style.inset = "auto";
   clone.style.width = `${width}px`;

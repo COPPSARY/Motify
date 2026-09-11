@@ -404,21 +404,21 @@ export const foundationTimeline = `export function buildTimeline(context) {
   // --- scene-01 (0.0 - 4.0): one editorial thought --------------------------
   continuousTextGradient(hookCopy, "linear-gradient(90deg, #fff 0%, #d97757 55%, #a78bfa 100%)");
   giantKineticCrop(timeline, hookCopy, { at: 0.15, startScale: 2.2, endScale: 1, duration: 1.3, unit: "words", stagger: .07, settleEase: "back.out(1.35)" });
-  timeline.to(signal, { scaleX: 1, duration: 3.2, ease: "power2.inOut" }, .35);
+  timeline.to(signal, { scaleX: 1, duration: 3.2, ease: EASE.travel }, .35);
   timeline.to(carrier, { y: 380, duration: 2.1, ease: "sine.inOut" }, 1.5);
 
   // --- scene-02 (4.0 - 10.0): MORPH handoff, then progressive construction --
   timeline.set(productFace, { display: "grid", autoAlpha: 0 }, 3.88);
-  morph(timeline, carrier, { x: 2130, y: 130, width: 1500, height: 820, borderRadius: 32, background: "rgba(20,18,26,.98)", borderColor: "rgba(255,255,255,.12)", boxShadow: "0 38px 110px rgba(0,0,0,.55)" }, { at: 4, duration: 1.25, ease: "expo.inOut" });
-  timeline.to(world, { x: -1920, y: 0, scale: 1, duration: 1.25, ease: "expo.inOut" }, 4);
+  morph(timeline, carrier, { x: 2130, y: 130, width: 1500, height: 820, borderRadius: 32, background: "rgba(20,18,26,.98)", borderColor: "rgba(255,255,255,.12)", boxShadow: "0 38px 110px rgba(0,0,0,.55)" }, { at: 4, duration: 1.25, ease: EASE.material });
+  timeline.to(world, { x: -1920, y: 0, scale: 1, duration: 1.25, ease: EASE.cameraRamp }, 4);
   timeline.to(hookFace, { autoAlpha: 0, duration: .36, ease: "power2.in" }, 4.02);
   timeline.to(productFace, { autoAlpha: 1, duration: .48, ease: "power2.out" }, 4.12);
   timeline.set(hookFace, { display: "none" }, 4.42);
 
   // Chrome, then navigation, then workspace, then headline, then the control.
-  timeline.fromTo(sidebar, { x: -90, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: .9, ease: "power4.out" }, 4.2);
+  timeline.fromTo(sidebar, { x: -90, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: .9, ease: EASE.arrive }, 4.2);
   timeline.fromTo(navItems, { x: -26, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: .6, stagger: .09, ease: "power3.out" }, 4.38);
-  timeline.fromTo(workspace, { y: 54, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1, ease: "power4.out" }, 4.52);
+  timeline.fromTo(workspace, { y: 54, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1, ease: EASE.arrive }, 4.52);
   wordSlideRotate(timeline, productTitle, { at: 4.78, distance: 38, stagger: .07, rotation: 2, duration: .75, ease: "back.out(1.25)" });
   timeline.fromTo(promptShell, { y: 72, autoAlpha: 0, scale: .96 }, { y: 0, autoAlpha: 1, scale: 1, duration: 1.05, ease: "back.out(1.25)" }, 5.2);
 
@@ -429,7 +429,7 @@ export const foundationTimeline = `export function buildTimeline(context) {
   timeline.to(world, { x: -2050, y: -28, duration: 2.05, ease: "sine.inOut" }, 6.2);
 
   // Macro interaction shot: the camera frames the control and its result.
-  timeline.to(world, { x: -3367, y: -595, scale: 1.42, duration: 1.05, ease: "expo.inOut" }, 8.35);
+  timeline.to(world, { x: -3367, y: -595, scale: 1.42, duration: 1.05, ease: EASE.cameraRamp }, 8.35);
   timeline.fromTo(cursor, { x: 1340, y: 1040, autoAlpha: 0 }, { x: 1104, y: 700, autoAlpha: 1, duration: .85, ease: "power3.inOut" }, 8.5);
   timeline.to(cursor, { scale: .84, duration: .09, yoyo: true, repeat: 1, ease: "power2.inOut" }, 9.34);
   timeline.to(action, { scale: .89, duration: .1, yoyo: true, repeat: 1, ease: "back.out(1.45)" }, 9.36);
@@ -440,8 +440,8 @@ export const foundationTimeline = `export function buildTimeline(context) {
   timeline.set(proofFace, { display: "grid", autoAlpha: 0 }, 9.74);
   timeline.to([promptShell, productTitle], { y: -46, autoAlpha: 0, duration: .55, ease: "power3.in" }, 9.78);
   timeline.to(cursor, { y: 900, autoAlpha: 0, duration: .5, ease: "power2.in" }, 9.8);
-  morph(timeline, carrier, { x: 4050, y: 130, width: 1500, height: 820, borderRadius: 32 }, { at: 10, duration: 1.2, ease: "expo.inOut" });
-  timeline.to(world, { x: -3840, y: 0, scale: 1, duration: 1.2, ease: "expo.inOut" }, 10);
+  morph(timeline, carrier, { x: 4050, y: 130, width: 1500, height: 820, borderRadius: 32 }, { at: 10, duration: 1.2, ease: EASE.material });
+  timeline.to(world, { x: -3840, y: 0, scale: 1, duration: 1.2, ease: EASE.cameraRamp }, 10);
   timeline.to(productFace, { autoAlpha: 0, duration: .36, ease: "power2.in" }, 9.94);
   timeline.to(proofFace, { autoAlpha: 1, duration: .46, ease: "power2.out" }, 10.04);
   timeline.set(productFace, { display: "none" }, 10.34);
@@ -456,13 +456,13 @@ export const foundationTimeline = `export function buildTimeline(context) {
   timeline.set(finalFace, { display: "flex", autoAlpha: 0 }, 15.24);
   timeline.to(responseLines, { y: -30, autoAlpha: 0, duration: .45, stagger: -.06, ease: "power3.in" }, 15.28);
   timeline.to([response, proofCard], { y: -36, autoAlpha: 0, duration: .5, ease: "power3.in" }, 15.34);
-  morph(timeline, carrier, { x: 4450, y: 418, width: 700, height: 244, borderRadius: 122 }, { at: 15.5, duration: 1.25, ease: "expo.inOut" });
-  timeline.to(world, { x: -3840, y: 0, scale: 1, duration: 1.25, ease: "expo.inOut" }, 15.5);
+  morph(timeline, carrier, { x: 4450, y: 418, width: 700, height: 244, borderRadius: 122 }, { at: 15.5, duration: 1.25, ease: EASE.material });
+  timeline.to(world, { x: -3840, y: 0, scale: 1, duration: 1.25, ease: EASE.cameraRamp }, 15.5);
   timeline.to(proofFace, { autoAlpha: 0, duration: .34, ease: "power2.in" }, 15.44);
   timeline.to(finalFace, { autoAlpha: 1, duration: .46, ease: "power2.out" }, 15.48);
   timeline.set(proofFace, { display: "none" }, 15.76);
   charSpringBounce(timeline, finalCopy, { at: 15.64, distance: 42, stagger: .035, duration: .65, ease: "back.out(1.4)" });
-  timeline.to(signal, { scaleX: .16, autoAlpha: .8, duration: 1.1, ease: "power3.inOut" }, 16.2);
+  timeline.to(signal, { scaleX: .16, autoAlpha: .8, duration: 1.1, ease: EASE.settle }, 16.2);
   timeline.to(carrier, { scale: 1.02, duration: 2.6, ease: "sine.inOut" }, 17.1);
   timeline.to({}, { duration: .2 }, 19.8);
 }`;

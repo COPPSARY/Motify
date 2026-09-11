@@ -757,6 +757,240 @@ function groupFadeOuts(source: string): number {
   return count;
 }
 
+/**
+ * Boundaries where the next scene is switched on while the last one is still
+ * on screen, so both are painted at once.
+ *
+ * The shape this catches, taken verbatim from a live draw:
+ *
+ *   t.to(scene01, { autoAlpha: 0, duration: 0.4 }, 4.6);
+ *   t.set(scene02, { autoAlpha: 1 }, 4.6);
+ *
+ * For those 0.4s the outgoing scene is dissolving underneath a new one that did
+ * not animate in at all — it popped to full opacity on the same frame. The
+ * viewer sees two stacked layouts sitting on top of each other, motionless,
+ * which is the "static transition" complaint. It is not a cross-fade either:
+ * only one side is moving.
+ *
+ * The instant `set` is what makes this unambiguous. A boundary where both sides
+ * genuinely animate is a different technique and is left alone here.
+ */
+/**
+ * Whether a timeline variable refers to a declared transition carrier.
+ *
+ * Models bind the carrier to a variable named after its id — `app-carrier`
+ * becomes `carrier` or `appCarrier` — so the ids are compared with separators
+ * stripped, and a bare `carrier` always counts.
+ */
+function isCarrierVariable(name: string, carriers: readonly string[]): boolean {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalized.includes("carrier")) return true;
+  // Both sides need real length. Matching a one-letter variable against an id
+  // it happens to be a substring of made `a` a carrier of "app-carrier", which
+  // silently exempted ordinary scene layers from the overlap check.
+  if (normalized.length < 4) return false;
+  return carriers.some((carrier) => {
+    const id = carrier.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return (
+      id.length >= 4 && (normalized.includes(id) || id.includes(normalized))
+    );
+  });
+}
+
+/**
+ * Carrier moves the model authored by hand rather than through a helper.
+ *
+ * `physicalHandoffCount` counts `morph(`, `matchCut(` and friends, which is not
+ * how the house films are built: recoup makes two preset calls in 435 lines and
+ * writes the rest of its continuity as direct tweens. Counting only the helpers
+ * told a film that had carried its carrier across every boundary by hand that it
+ * had executed no handoffs at all, and no repair pass could clear the complaint
+ * because nothing was wrong. A tween that moves or reshapes the declared carrier
+ * is a handoff whatever it was written with.
+ */
+function authoredCarrierMoves(
+  source: string,
+  carriers: readonly string[],
+): number {
+  let count = 0;
+  for (const match of source.matchAll(
+    /\.(?:to|from|fromTo)\s*\(\s*([A-Za-z_$][\w$]*)\s*,([\s\S]{0,300}?)\)\s*(?=[;,\n]|$)/g,
+  )) {
+    if (!isCarrierVariable(match[1] ?? "", carriers)) continue;
+    if (
+      /\b(?:width|height|borderRadius|x|y|xPercent|yPercent|scale|scaleX|scaleY|rotation|top|left|clipPath)\s*:/.test(
+        match[2] ?? "",
+      )
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * Spans where a handoff is covering the cut.
+ *
+ * A beat swapping underneath a carrier that is mid-morph is the match-cut
+ * working: the carrier fills that part of the frame, so the exchange behind it
+ * is invisible and intentional. The bundled foundation does exactly this — it
+ * morphs its carrier at 4s for 1.25s and swaps its faces at 4.12s — and reading
+ * that as a cross-dissolve flagged the reference film this pipeline ships.
+ */
+function handoffWindows(
+  source: string,
+  carriers: readonly string[],
+): { from: number; until: number }[] {
+  const windows: { from: number; until: number }[] = [];
+  for (const match of source.matchAll(
+    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|pullbackComplete|growAndComplete)\s*\(([\s\S]{0,400}?)\)\s*;/g,
+  )) {
+    const body = match[1] ?? "";
+    const at = /\bat\s*:\s*([\d.]+)/.exec(body);
+    const duration = /\bduration\s*:\s*([\d.]+)/.exec(body);
+    if (!at) continue;
+    const from = Number(at[1]);
+    windows.push({ from, until: from + Number(duration?.[1] ?? 0.8) });
+  }
+  for (const match of source.matchAll(
+    /\.(?:to|fromTo)\s*\(\s*([A-Za-z_$][\w$]*)\s*,([\s\S]{0,320}?)\)\s*(?=[;,\n]|$)/g,
+  )) {
+    if (!isCarrierVariable(match[1] ?? "", carriers)) continue;
+    const body = match[2] ?? "";
+    const at = /,\s*([\d.]+)\s*$/.exec(body);
+    const duration = /\bduration\s*:\s*([\d.]+)/.exec(body);
+    if (!at) continue;
+    const from = Number(at[1]);
+    windows.push({ from, until: from + Number(duration?.[1] ?? 0.8) });
+  }
+  return windows;
+}
+
+function stackedSceneSwaps(
+  source: string,
+  carriers: readonly string[],
+): string[] {
+  const reveals: { target: string; at: number }[] = [];
+  for (const match of source.matchAll(
+    /\.set\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*\{([^}]{0,200})\}\s*,\s*([\d.]+)\s*\)/g,
+  )) {
+    const target = match[1] ?? "";
+    /**
+     * A carrier switching on while the outgoing beat leaves is the handoff
+     * working, not two scenes stacked: it is there precisely to cover the cut.
+     * Flagging it told the model its correct transitions were defects, which is
+     * the opposite of what this check was written for.
+     */
+    if (isCarrierVariable(target, carriers)) continue;
+    if (/(?:autoAlpha|opacity)\s*:\s*1\b/.test(match[2] ?? "")) {
+      reveals.push({ target, at: Number(match[3]) });
+    }
+  }
+  /**
+   * The other half of the same defect: the incoming beat fades up on opacity
+   * alone while the outgoing one fades down, so for the length of the crossover
+   * both layouts are painted and the old one shows through the new as a ghost.
+   * An exported film ghosted its whole card stack under the closing headline
+   * this way. It is the cross-dissolve AGENTS.md bans outright.
+   *
+   * Only opacity-only arrivals count. If the incoming element also travels,
+   * scales or rotates, it is entering on a real move and the opacity is just
+   * cleaning up its edge, which is legitimate and must not be flagged.
+   */
+  for (const match of source.matchAll(
+    /\.(?:to|fromTo)\s*\(\s*([A-Za-z_$][\w$]*)\s*,([\s\S]{0,320}?)\)\s*(?=[;,\n]|$)/g,
+  )) {
+    const target = match[1] ?? "";
+    const vars = match[2] ?? "";
+    if (isCarrierVariable(target, carriers)) continue;
+    if (!/(?:autoAlpha|opacity)\s*:\s*1\b/.test(vars)) continue;
+    if (
+      /\b(?:x|y|xPercent|yPercent|scale|scaleX|scaleY|rotation|rotate|z|width|height|clipPath|top|left)\s*:/.test(
+        vars,
+      )
+    ) {
+      continue;
+    }
+    const at = /,\s*([\d.]+)\s*$/.exec(vars);
+    if (at) reveals.push({ target, at: Number(at[1]) });
+  }
+  const covered = handoffWindows(source, carriers);
+  const isCovered = (time: number): boolean =>
+    covered.some((window) => time >= window.from - 0.2 && time <= window.until);
+  const hits: string[] = [];
+  for (const match of source.matchAll(
+    /\.to\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*\{([^}]{0,200})\}\s*,\s*([\d.]+)\s*\)/g,
+  )) {
+    const vars = match[2] ?? "";
+    if (!/(?:autoAlpha|opacity)\s*:\s*0(?!\.[1-9])/.test(vars)) continue;
+    const seconds = /duration\s*:\s*([\d.]+)/.exec(vars);
+    if (!seconds) continue;
+    const from = match[1] ?? "";
+    const at = Number(match[3]);
+    const ends = at + Number(seconds[1]);
+    for (const reveal of reveals) {
+      if (reveal.target === from) continue;
+      if (isCovered(reveal.at)) continue;
+      if (reveal.at >= at && reveal.at < ends) {
+        hits.push(
+          `${reveal.target} is brought up at ${reveal.at}s while ${from} is still fading until ${ends.toFixed(2)}s, so the old beat ghosts through the new one`,
+        );
+      }
+    }
+  }
+  return hits;
+}
+
+/**
+ * Long directed moves left on a stock GSAP curve.
+ *
+ * `presets.ts` registers the `EASE` curves precisely because the stock set has
+ * no dynamic range to spare: `power2.inOut` peaks at 3x its mean velocity and
+ * `sine.inOut` at 1.57, so stretched across the multi-second travels a film is
+ * built from, the middle of the move reads as constant velocity. The authored
+ * house films bear that out — recoup, relay, tessera and KiriTTS carry 88
+ * `EASE` references between them and reach for a preset call barely a dozen
+ * times — yet this scorer credited only preset calls, so the repair pass had no
+ * way to see the one thing those films actually do.
+ *
+ * Reads whole tween-vars objects rather than matching a call, because `ease`
+ * and `duration` appear in either order. Short moves are left alone: a 0.2s
+ * tactile response has no room for a ramp and stock curves are right there.
+ */
+function stockCurveTravels(source: string): number {
+  let count = 0;
+  for (const block of source.matchAll(/\{[^{}]{0,400}\}/g)) {
+    const vars = block[0];
+    const duration = /duration\s*:\s*(\d*\.?\d+)/.exec(vars);
+    if (!duration) continue;
+    if (Number(duration[1]) < 0.9) continue;
+    const ease = /ease\s*:\s*["'`]([a-z]+)[^"'`]*["'`]/i.exec(vars);
+    if (!ease) continue;
+    /**
+     * Only the flat family is a defect here.
+     *
+     * `sine` is the doctrine's curve for ambient drift and breathing — the 1-3%
+     * settle under a hold that keeps a frame from freezing — `none` is a
+     * constant-rate readout such as a playhead, and `steps` drives the
+     * deterministic typewriter. None is a directed move, so none wants a ramp;
+     * counting them told a correctly directed film to fix its drift, the same
+     * way `cameraMoveCount` once counted drifts as camera moves. `back` and
+     * `elastic` are deliberate overshoot, and the typography law in AGENTS.md
+     * requires `back.out(1.35)` for word-by-word spring bounce — flagging them
+     * would be telling the film to break a rule it was told to follow.
+     */
+    if (
+      !/^(?:power\d?|expo|circ|quad|cubic|quart|quint|linear)$/i.test(
+        ease[1] ?? "",
+      )
+    ) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
+}
+
 function unstableEditIds(html: string): string[] {
   return Array.from(html.matchAll(/data-edit=["']([^"']+)["']/g))
     .map((match) => (match[1] ?? "").trim())
@@ -814,10 +1048,21 @@ export function analyzeMotionQuality(
       executableTimeline,
       /\b(?:cameraPush|cameraPull|cameraZoomPan|punchIn|zoomThrough|inverseZoomThrough|parallax\w*)\s*\(/g,
     );
-  const physicalHandoffCount = countMatches(
-    executableTimeline,
-    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
-  );
+  // Standalone carriers only. A beat that is its own seam's carrier is handed
+  // off by a helper call, which the handoff count already reads; treating its
+  // variable as a carrier would exempt ordinary scene layers from the overlap
+  // check below.
+  const carrierIds = seams
+    .filter((seam) => seam.carrier !== seam.from && seam.carrier !== seam.to)
+    .map((seam) => seam.carrier)
+    .filter(Boolean);
+  const physicalHandoffCount =
+    countMatches(
+      executableTimeline,
+      /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
+    ) + authoredCarrierMoves(executableTimeline, carrierIds);
+  const easeVocabularyCount = countMatches(executableTimeline, /\bEASE\.\w+/g);
+  const stockTravelCount = stockCurveTravels(executableTimeline);
   const componentCount = countMatches(html, /data-hyperframe-component\s*=/gi);
   const constructionCount = countMatches(
     executableTimeline,
@@ -1005,9 +1250,28 @@ export function analyzeMotionQuality(
    */
   const widestGap = longestHold(positions);
   if (positions.length >= 4 && widestGap > 3.5) {
-    // Several seconds of frozen frame is the "there is no animation" report.
-    fail(
-      `the timeline goes ${widestGap.toFixed(1)}s with nothing scheduled; fill that stretch with the beat's own story action or cut it, because a hold past ~1.6s reads as a frozen slide`,
+    /**
+     * Advisory, because this measure cannot tell a frozen frame from a long
+     * one. `timelinePositions` reads the position argument of each call and
+     * nothing else, so a 2s camera drift starting at 6.2s counts as "nothing
+     * scheduled" until the next tween *starts* — and the extractor also picks
+     * up numbers that are not positions at all, which is why it reports 136s of
+     * dead air in relay and 110s in KiriTTS, two films that never freeze.
+     *
+     * As a blocking issue it was the most frequent complaint in every live run
+     * and the model could only answer it by adding more tween *starts*, which
+     * means chopping long continuous moves into short ones. That buys a denser
+     * timeline and a choppier, more static-looking film — the opposite of the
+     * thing being asked for.
+     *
+     * `deadAirWarnings` in validate-generation.ts is the honest measure: it
+     * seeks the mounted composition and compares what each frame actually
+     * renders, so durations, child timelines and presets are all accounted for.
+     * This stays as a hint for the repair prompt; it no longer withholds a film
+     * or spends a pass on its own arithmetic.
+     */
+    warn(
+      `the timeline may go about ${widestGap.toFixed(1)}s between scheduled moves; if that stretch is genuinely still, fill it with the beat's own story action or cut it, because a hold past ~1.6s reads as a frozen slide`,
     );
   } else if (positions.length >= 4) {
     strengths.push("no beat is left frozen waiting for the next one");
@@ -1041,15 +1305,57 @@ export function analyzeMotionQuality(
     } else if (sceneCount > 1) {
       strengths.push("each major boundary has executable carrier continuity");
     }
-    if (
-      sceneCount > 1 &&
-      physicalHandoffCount < sceneCount - 1 &&
-      opacityBoundaryCount >= sceneCount - 1
-    ) {
-      warn(
-        "scenes are joined by opacity toggles rather than carriers; this is slideshow output, not a directed film",
-      );
-    }
+  } else if (sceneCount > 1 && physicalHandoffCount === 0) {
+    /**
+     * A declared plan is a promise about the timeline, not a substitute for it.
+     *
+     * These checks used to run only when no seams were declared, so a film that
+     * wrote `"mechanism": "morph"` for every boundary and then cross-dissolved
+     * them collected the seam plan's own strength and was asked to fix nothing. `analyzeSeamPlan` verifies the
+     * carrier is named and the budget is sane; nothing verified the handoff was
+     * ever executed.
+     */
+    fail(
+      `the seam plan declares ${seams.length} carrier handoff${
+        seams.length === 1 ? "" : "s"
+      } but the timeline executes none; implement each declared mechanism as a real move on its carrier instead of switching scene layers on and off`,
+    );
+  } else if (
+    seamReport.planned &&
+    seams.length > 0 &&
+    physicalHandoffCount < seams.length
+  ) {
+    // Executing one of four declared handoffs cleared the blocking check above,
+    // which asks only that the count is not zero. The boundaries left over are
+    // still cut rather than carried.
+    warn(
+      `the seam plan declares ${seams.length} carrier handoffs but the timeline executes only ${physicalHandoffCount}; the remaining boundaries are cuts, not handoffs`,
+    );
+  }
+  if (
+    sceneCount > 1 &&
+    physicalHandoffCount < sceneCount - 1 &&
+    opacityBoundaryCount >= sceneCount - 1
+  ) {
+    warn(
+      "scenes are joined by opacity toggles rather than carriers; this is slideshow output, not a directed film",
+    );
+  }
+  /**
+   * Two scenes painted on top of each other reads as a broken render, not as a
+   * directorial miss, so it blocks and buys a repair pass.
+   */
+  const stacked = stackedSceneSwaps(executableTimeline, carrierIds);
+  if (stacked.length > 0) {
+    fail(
+      `scene layers overlap at ${stacked.length} boundar${
+        stacked.length === 1 ? "y" : "ies"
+      }: ${stacked
+        .slice(0, 2)
+        .join(
+          "; ",
+        )}. Move the outgoing scene off its own vector and bring the incoming one in on a real transition instead of switching it to full opacity mid-fade`,
+    );
   }
   if (sceneCount >= 3 && !/data-camera-world(?:\s|=|>)/i.test(html)) {
     warn(
@@ -1363,6 +1669,18 @@ export function analyzeMotionQuality(
     );
   } else {
     strengths.push("composition uses reusable Motionly motion primitives");
+  }
+  if (easeVocabularyCount === 0) {
+    warn(
+      "no EASE curve is used: every directed move rides a stock GSAP curve, which reads as constant velocity across a multi-second travel",
+    );
+  } else if (easeVocabularyCount >= 3) {
+    strengths.push("directed motion is carried by the tuned EASE vocabulary");
+  }
+  if (stockTravelCount > easeVocabularyCount && stockTravelCount >= 3) {
+    warn(
+      `${stockTravelCount} moves of 0.9s or longer stay on stock GSAP curves; use EASE.cameraRamp, EASE.travel, EASE.arrive, EASE.depart, EASE.settle or EASE.material so the ramp is legible`,
+    );
   }
 
   const advisoryCount = issues.length - blocking.length;
