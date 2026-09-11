@@ -337,6 +337,22 @@
 
 /* ----------------------------------------------------------------- layout */
 
+/*
+ * A beat is a full-frame layer over the ground, whatever the model called it.
+ *
+ * The cookbook used to rely on the model also writing
+ * `.beat { position: absolute; inset: 0 }`. A film that kept the class and
+ * dropped the style left every beat a zero-height block; once a transition put a
+ * transform or filter on it, that block became the box `mk-center` centred in,
+ * so each beat's subject sat with its middle on the top edge of the frame and
+ * half of it out of shot. At zero specificity, so a deliberate position the model
+ * does declare still wins.
+ */
+:where(.mk-stage > [data-scene]) {
+  position: absolute;
+  inset: 0;
+}
+
 .mk-abs {
   position: absolute;
 }

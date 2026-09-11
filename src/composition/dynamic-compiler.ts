@@ -136,7 +136,10 @@ export function createDynamicComposition(
       // The scene kit rides inside the root so export sees it too. Mounted
       // after the markup and before registration: it carries no data-edit ids,
       // so the editor and the validator treat the film exactly as authored.
-      mountSceneKit(context.root);
+      // Only for films that use it — every kit class and icon is `mk-` — so an
+      // authored preset mounts exactly as it did before the kit existed, without
+      // a stylesheet it never references weighing on every style recalculation.
+      if (compositionHtml.includes("mk-")) mountSceneKit(context.root);
 
       // 2. Register all data-edit elements automatically
       context.root

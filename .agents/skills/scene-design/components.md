@@ -23,13 +23,10 @@ to black, and nothing needs a stand-in shape to cover the cut.
   <main class="mk-stage mk-theme-midnight" data-edit="stage">
     <div class="mk-horizon" data-edit="horizon"></div>
 
-    <section class="beat" data-scene="scene-01" data-edit="scene-01"> … </section>
-    <section class="beat" data-scene="scene-02" data-edit="scene-02"> … </section>
-    <section class="beat" data-scene="scene-03" data-edit="scene-03"> … </section>
+    <section data-scene="scene-01" data-edit="scene-01"> … </section>
+    <section data-scene="scene-02" data-edit="scene-02"> … </section>
+    <section data-scene="scene-03" data-edit="scene-03"> … </section>
   </main>
-  <style>
-    .beat { position: absolute; inset: 0; }
-  </style>
 </template>
 ```
 
@@ -61,6 +58,8 @@ export function buildTimeline({ root, timeline, register }) {
 
 Rules that keep this working:
 
+- Put every beat directly inside `mk-stage`. The kit makes each one a full-frame
+  layer on its own; do not give beats a position, size or display of your own.
 - Give each beat `data-edit` equal to its `data-scene` id, and name that id as
   the seam carrier.
 - `zoomThrough` for a push forward, `inverseZoomThrough` for a pull back,
@@ -130,7 +129,7 @@ this film's content.
 ### Statement
 
 ```html
-<section class="beat" data-scene="scene-01" data-edit="scene-01">
+<section data-scene="scene-01" data-edit="scene-01">
   <div class="mk-center mk-vstack mk-middle" style="--gap:32px">
     <span class="mk-kicker" data-edit="kicker"><svg class="mk-icon"><use href="#mk-i-sparkle"/></svg> Introducing Relay AI</span>
     <h1 class="mk-display" data-edit="headline" style="width:1500px">Ship work at <span class="mk-gradient-text">machine speed</span></h1>

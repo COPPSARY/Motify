@@ -125,6 +125,21 @@ describe("scene kit", () => {
   });
 
   /**
+   * A live film kept `class="beat"` but dropped the `.beat` style the cookbook
+   * relied on, leaving every beat a zero-height block. Once a transition put a
+   * transform on it, `mk-center` centred inside that block and each subject sat
+   * with its middle on the top edge of the frame.
+   */
+  it("makes every beat on the stage a full-frame layer by itself", () => {
+    const rule = /:where\(\.mk-stage > \[data-scene\]\)\s*\{[^}]*\}/.exec(
+      SCENE_KIT_CSS,
+    )?.[0];
+    expect(rule).toContain("position: absolute");
+    expect(rule).toContain("inset: 0");
+    expect(cookbook).not.toMatch(/\.beat\s*\{/);
+  });
+
+  /**
    * Resized to the frame, the horizon pulled the whole planet into view as a
    * giant dark oval with a rim down both sides.
    */
