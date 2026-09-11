@@ -578,8 +578,94 @@ function assertSeamFramesHoldTheFilm(
           `The composition renders a near-blank frame during ${where}; carry the outgoing surface into the incoming one so the handoff covers the cut, instead of hiding both beats and leaving the carrier alone on the canvas.`,
         );
       }
+      assertNoShapeOverContent(visible, root, rootRect, where);
     }
   }
+}
+
+/**
+ * A plain painted shape parked on top of readable content mid-cut.
+ *
+ * The exported film that prompted this dragged a 190px violet square across
+ * every boundary; each time it landed dead centre over the headline or the table
+ * rows, so "Collect everything into one workspace" read as "Collect ev■g into
+ * one w■e". It passed every other check — the frame was not blank and the seam
+ * executed a real move. What gives it away is geometry: a small, painted, empty
+ * box covering most of a line of text that is not inside it.
+ *
+ * Limited to the seam window and to empty painted boxes, so a cursor, an icon,
+ * a badge or a card that holds its own words is never mistaken for one.
+ */
+function assertNoShapeOverContent(
+  visible: readonly HTMLElement[],
+  root: HTMLElement,
+  rootRect: DOMRect,
+  where: string,
+): void {
+  const canvasArea = Math.max(1, rootRect.width * rootRect.height);
+  const texts = textLeaves(visible);
+  for (const shape of visible) {
+    if ((shape.textContent ?? "").trim()) continue;
+    if (shape.querySelector("img, svg, video, canvas")) continue;
+    if (isAtmosphere(shape)) continue;
+    if (!isPainted(getComputedStyle(shape))) continue;
+    const box = shape.getBoundingClientRect();
+    const share = (box.width * box.height) / canvasArea;
+    if (share < 0.004 || share > 0.08) continue;
+    for (const text of texts) {
+      if (shape.contains(text) || text.contains(shape)) continue;
+      if (!paintsAbove(shape, text, root)) continue;
+      const line = text.getBoundingClientRect();
+      const across =
+        Math.min(box.right, line.right) - Math.max(box.left, line.left);
+      const down =
+        Math.min(box.bottom, line.bottom) - Math.max(box.top, line.top);
+      // Hides a couple of glyphs across most of the line's height.
+      if (across < Math.min(line.height * 0.8, line.width * 0.5)) continue;
+      if (down < line.height * 0.5) continue;
+      throw new Error(
+        `A shape covers the beat's content during ${where}: an empty box sits over "${(
+          text.textContent ?? ""
+        )
+          .trim()
+          .slice(
+            0,
+            40,
+          )}". Hand the beats off with zoomThrough, inverseZoomThrough or cutTheCurve instead of moving a separate shape across the cut.`,
+      );
+    }
+  }
+}
+
+/** The nearest numeric z-index on the way up to the root; 0 when none is set. */
+function stackLevel(element: HTMLElement, root: HTMLElement): number {
+  for (
+    let current: HTMLElement | null = element;
+    current && current !== root;
+    current = current.parentElement
+  ) {
+    const z = Number.parseInt(getComputedStyle(current).zIndex, 10);
+    if (Number.isFinite(z)) return z;
+  }
+  return 0;
+}
+
+/**
+ * Whether `shape` is painted over `text`. The validation root is parked far
+ * off screen, so `elementFromPoint` cannot answer; z-index decides first, and
+ * at equal levels the later element in document order paints on top.
+ */
+function paintsAbove(
+  shape: HTMLElement,
+  text: HTMLElement,
+  root: HTMLElement,
+): boolean {
+  const shapeLevel = stackLevel(shape, root);
+  const textLevel = stackLevel(text, root);
+  if (shapeLevel !== textLevel) return shapeLevel > textLevel;
+  return Boolean(
+    text.compareDocumentPosition(shape) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
 }
 
 function assertVisibleSceneFrame(
@@ -805,6 +891,36 @@ function seamRenderWarnings(
     }
     const visibleEntering = isVisiblyRendered(entering, root);
     const enteringRect = entering.getBoundingClientRect();
+
+    /**
+     * A beat handing itself off. When the carrier is the outgoing beat's own
+     * container, it is supposed to be gone after the cut — the incoming beat is
+     * what must be on screen. Judging it as a persistent carrier reported every
+     * clean zoom-through as a hard cut and told the model to "move the carrier
+     * out of every data-scene subtree", which is an instruction to invent a
+     * standalone shape and drag it across the cut: the stray square that sat
+     * on top of the words in exported films.
+     */
+    if (entering.dataset["scene"]?.trim() === seam.from) {
+      runtime.seek(after);
+      const incoming = Array.from(
+        root.querySelectorAll<HTMLElement>("[data-scene]"),
+      ).find(
+        (element) =>
+          element.dataset["scene"]?.trim() === seam.to &&
+          !element.parentElement?.closest("[data-scene]"),
+      );
+      if (!visibleEntering || !incoming || !isVisiblyRendered(incoming, root)) {
+        warnings.push(
+          `The handoff at ${seam.at.toFixed(1)}s does not carry "${seam.from}" into "${seam.to}": ${
+            visibleEntering
+              ? `"${seam.to}" is not on screen once it finishes`
+              : `"${seam.from}" is already gone before it starts`
+          }.`,
+        );
+      }
+      continue;
+    }
 
     runtime.seek(after);
     const visibleLeaving = isVisiblyRendered(entering, root);
@@ -1490,6 +1606,36 @@ export function validateGeneratedComposition(
   ) {
     throw new Error("AI returned an invalid composition duration.");
   }
+  /**
+   * A storyboard that runs a little past the declared duration is arithmetic,
+   * not a broken film.
+   *
+   * Models routinely write six beats of five seconds and then declare a 20s
+   * duration, and this threw before the frames were ever inspected — outside
+   * the lenient path — so the user got "Scene scene-06 falls outside the
+   * composition duration" and an empty canvas instead of a film that plays. The
+   * timeline overrun a few lines below is already handled by extending the
+   * composition to fit and saying so; the storyboard gets the same treatment.
+   * Genuinely malformed beats still fail below, and the ceiling still holds.
+   */
+  const declaredEnd = Math.max(
+    0,
+    ...(result.scenes ?? []).map(
+      (scene) => Number(scene.start) + Number(scene.duration),
+    ),
+  );
+  const sceneOverrunWarnings: string[] = [];
+  if (
+    allowStructuralChange &&
+    Number.isFinite(declaredEnd) &&
+    declaredEnd > duration + 1 / 30 &&
+    declaredEnd <= MAX_COMPOSITION_SECONDS
+  ) {
+    sceneOverrunWarnings.push(
+      `The storyboard runs ${declaredEnd.toFixed(1)}s against a declared ${duration.toFixed(1)}s, so the composition was extended to fit its beats.`,
+    );
+    duration = declaredEnd;
+  }
   const { scenes, validated } = normalizedScenes(
     result,
     options.previousScenes,
@@ -1516,12 +1662,15 @@ export function validateGeneratedComposition(
     }
   }
   const seams = seamsFromResult(result.seams);
-  const warnings = carrierContinuityWarnings(
-    result.timelineJs,
-    result.compositionHtml,
-    scenes,
-    seams,
-  );
+  const warnings = [
+    ...sceneOverrunWarnings,
+    ...carrierContinuityWarnings(
+      result.timelineJs,
+      result.compositionHtml,
+      scenes,
+      seams,
+    ),
+  ];
   const recomposed = droppedLayers.filter(
     (id) => !droppedUserWork.includes(id),
   );

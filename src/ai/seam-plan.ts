@@ -274,7 +274,18 @@ export function analyzeSeamPlan(input: SeamPlanInput): SeamPlanReport {
     );
   }
   const carriers = new Set(input.seams.map((seam) => seam.carrier));
-  if (input.seams.length >= 3 && carriers.size === input.seams.length) {
+  /**
+   * Beats handing themselves off are expected to name a different carrier at
+   * every boundary — each seam's carrier is its own outgoing beat. Asking those
+   * films to "carry one object across several boundaries" is what produced a
+   * single invented shape dragged over every cut, landing on top of the words.
+   */
+  const beatHandoffs = input.seams.every((seam) => seam.carrier === seam.from);
+  if (
+    !beatHandoffs &&
+    input.seams.length >= 3 &&
+    carriers.size === input.seams.length
+  ) {
     warn(
       "every seam uses a different carrier, so no material persists through the film; carry one object across several boundaries before handing off to the next",
     );

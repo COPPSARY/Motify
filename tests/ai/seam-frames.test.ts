@@ -121,4 +121,92 @@ describe("transition frames are inspected, not skipped", () => {
       /handoff/,
     );
   });
+
+  /**
+   * The exported film behind this dragged a violet square across every cut and
+   * parked it on the headline, so a line read "Collect ev■g into one w■e". The
+   * frame was not blank and the seam executed a real move, so nothing caught it.
+   */
+  it("rejects an empty shape parked over the content mid-cut", () => {
+    const covered = {
+      ...film(`export function buildTimeline({ root, timeline }) {
+        const a = root.querySelector('[data-edit="scene-01"]');
+        const b = root.querySelector('[data-edit="scene-02"]');
+        const block = root.querySelector('[data-edit="block"]');
+        timeline.set(a, { autoAlpha: 1 }, 0);
+        timeline.set(b, { autoAlpha: 0 }, 0);
+        timeline.set(block, { autoAlpha: 0 }, 0);
+        timeline.to(a, { x: 4, duration: 2 }, 0);
+        timeline.set(block, { autoAlpha: 1 }, 2.1);
+        timeline.set(block, { autoAlpha: 0 }, 2.9);
+        timeline.set(b, { autoAlpha: 1 }, 2.9);
+        timeline.set(a, { autoAlpha: 0 }, 2.9);
+        timeline.to(b, { x: 4, duration: 2 }, 2.9);
+      }`),
+      compositionHtml: `<template><main data-edit="stage">
+        <section data-edit="scene-01" data-scene="scene-01" data-rect="160,140,1600,800"><h1 data-edit="hook-copy" data-rect="200,400,1200,120">Collect everything into one workspace</h1></section>
+        <section data-edit="scene-02" data-scene="scene-02" data-rect="160,140,1600,800"><h1 data-edit="proof-copy" data-rect="200,200,1200,180">Every comment sorted into four themes.</h1></section>
+        <div data-edit="block" data-rect="700,380,190,190" style="background:#6366f1"></div>
+      </main></template>`,
+    };
+    expect(() => validateGeneratedComposition(covered, options)).toThrow(
+      /A shape covers the beat's content/,
+    );
+  });
+
+  it("does not mistake a cursor over a button for a shape", () => {
+    const pointing = {
+      ...film(`export function buildTimeline({ root, timeline }) {
+        const a = root.querySelector('[data-edit="scene-01"]');
+        const b = root.querySelector('[data-edit="scene-02"]');
+        timeline.set(b, { autoAlpha: 0 }, 0);
+        timeline.to(a, { x: 4, duration: 2 }, 0);
+        timeline.set(b, { autoAlpha: 1 }, 2.1);
+        timeline.to(b, { x: 6, duration: 2 }, 2.1);
+        timeline.set(a, { autoAlpha: 0 }, 2.9);
+      }`),
+      compositionHtml: `<template><main data-edit="stage">
+        <section data-edit="scene-01" data-scene="scene-01" data-rect="160,140,1600,800"><span data-edit="cta" data-rect="700,440,300,80" style="background:#6366f1">Start free trial</span></section>
+        <section data-edit="scene-02" data-scene="scene-02" data-rect="160,140,1600,800"><h1 data-edit="proof-copy" data-rect="200,200,1200,180">Every comment sorted into four themes.</h1></section>
+        <svg data-edit="cursor" data-rect="820,460,64,64"><use href="#mk-cursor"/></svg>
+      </main></template>`,
+    };
+    expect(() => validateGeneratedComposition(pointing, options)).not.toThrow(
+      /A shape covers/,
+    );
+  });
+
+  /**
+   * A beat that is its own seam's carrier is meant to be gone after the cut.
+   * Judged as a persistent carrier, every clean zoom-through was reported as a
+   * hard cut and the model was told to move the carrier out of the scene — an
+   * instruction to invent the stray shape above.
+   */
+  it("judges a beat handing itself off by the beat that arrives", () => {
+    const handoff = {
+      ...film(`export function buildTimeline({ root, timeline }) {
+        const a = root.querySelector('[data-edit="scene-01"]');
+        const b = root.querySelector('[data-edit="scene-02"]');
+        timeline.set(b, { autoAlpha: 0 }, 0);
+        timeline.to(a, { x: 4, duration: 2 }, 0);
+        zoomThrough(timeline, { outgoing: a, incoming: b, at: 2.1, duration: 0.8 });
+        timeline.to(b, { x: 6, duration: 1.5 }, 3);
+      }`),
+      seams: [
+        { ...seams[0]!, carrier: "scene-01", mechanism: "match-cut" as const },
+      ],
+      compositionHtml: `<template><main data-edit="stage">
+        <section data-edit="scene-01" data-scene="scene-01" data-rect="160,140,1600,800"><h1 data-edit="hook-copy" data-rect="200,200,1200,180">Feedback piles up faster than anyone reads it.</h1></section>
+        <section data-edit="scene-02" data-scene="scene-02" data-rect="160,140,1600,800"><h1 data-edit="proof-copy" data-rect="200,200,1200,180">Every comment sorted into four themes.</h1></section>
+      </main></template>`,
+    };
+    const validated = validateGeneratedComposition(handoff, {
+      ...options,
+      lenient: true,
+    });
+    const notes = validated.warnings.join(" ");
+    expect(notes).not.toContain("Move the carrier out");
+    expect(notes).not.toContain("is a hard cut");
+    expect(notes).not.toContain("does not carry");
+  });
 });

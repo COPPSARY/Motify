@@ -1,5 +1,6 @@
 import gsap from "gsap";
 import * as presets from "./presets";
+import { mountSceneKit } from "./scene-kit";
 import type {
   CompositionContext,
   CompositionDefinition,
@@ -131,6 +132,11 @@ export function createDynamicComposition(
           context.root.innerHTML = compositionHtml;
         }
       }
+
+      // The scene kit rides inside the root so export sees it too. Mounted
+      // after the markup and before registration: it carries no data-edit ids,
+      // so the editor and the validator treat the film exactly as authored.
+      mountSceneKit(context.root);
 
       // 2. Register all data-edit elements automatically
       context.root

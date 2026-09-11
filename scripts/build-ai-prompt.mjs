@@ -11,6 +11,7 @@ export const PROMPT_SOURCES = [
   "src/ai/system-runtime.md",
   ".agents/skills/write-motionly/SKILL.md",
   ".agents/skills/scene-design/SKILL.md",
+  ".agents/skills/scene-design/components.md",
   "src/composition/presets.ts",
   "src/ai/house-style.md",
 ];

@@ -1048,7 +1048,14 @@ export function analyzeMotionQuality(
       executableTimeline,
       /\b(?:cameraPush|cameraPull|cameraZoomPan|punchIn|zoomThrough|inverseZoomThrough|parallax\w*)\s*\(/g,
     );
-  const carrierIds = seams.map((seam) => seam.carrier).filter(Boolean);
+  // Standalone carriers only. A beat that is its own seam's carrier is handed
+  // off by a helper call, which the handoff count already reads; treating its
+  // variable as a carrier would exempt ordinary scene layers from the overlap
+  // check below.
+  const carrierIds = seams
+    .filter((seam) => seam.carrier !== seam.from && seam.carrier !== seam.to)
+    .map((seam) => seam.carrier)
+    .filter(Boolean);
   const physicalHandoffCount =
     countMatches(
       executableTimeline,

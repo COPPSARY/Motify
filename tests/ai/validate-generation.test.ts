@@ -1357,4 +1357,50 @@ describe("a beat holding nothing but its ground", () => {
     };
     expect(() => validateGeneratedComposition(hero, options)).not.toThrow();
   });
+  /**
+   * Six five-second beats declared against a 20s duration threw before the
+   * frames were ever inspected, outside the lenient path, so the user got
+   * "Scene scene-06 falls outside the composition duration" and an empty
+   * canvas. Arithmetic is not a broken film.
+   */
+  it("extends the composition when the storyboard overruns its duration", () => {
+    const restore = stubLayout();
+    try {
+      const six = [0, 1, 2, 3, 4, 5].map((index) => ({
+        id: `scene-0${index + 1}`,
+        label: `Beat ${index + 1}`,
+        start: index * 5,
+        duration: 5,
+        accent: "#fff",
+      }));
+      const film = {
+        duration: 20,
+        scenes: six,
+        compositionHtml: `<template><main data-edit="stage" style="width:1920px">${six
+          .map(
+            (scene) =>
+              `<section data-edit="${scene.id}" data-scene="${scene.id}" data-rect="160,140,1600,800"><h1 data-edit="${scene.id}-copy" data-rect="200,200,1200,180">A complete sentence for this beat.</h1></section>`,
+          )
+          .join("")}</main></template>`,
+        timelineJs: `export function buildTimeline({ root, timeline }) {
+          const all = Array.from(root.querySelectorAll('[data-scene]'));
+          all.forEach((el, i) => timeline.to(el, { x: 12, duration: 1.2 }, i * 5));
+        }`,
+        reply: "Done",
+      };
+      const validated = validateGeneratedComposition(film, {
+        prompt: "Make a six beat SaaS ad",
+        previousHtml: `<template><main data-edit="stage"></main></template>`,
+        previousDuration: 20,
+        previousScenes: six,
+        lenient: true,
+      });
+      expect(validated.duration).toBeGreaterThanOrEqual(30);
+      expect(validated.warnings.join(" ")).toContain(
+        "extended to fit its beats",
+      );
+    } finally {
+      restore();
+    }
+  });
 });

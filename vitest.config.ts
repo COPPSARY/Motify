@@ -9,6 +9,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // CSS is stubbed out in tests by default, even through ?raw. The scene kit
+    // is a stylesheet the runtime mounts as text, so its tests need the real one.
+    css: { include: [/scene-kit\.css/] },
     testTimeout: 60000,
     hookTimeout: 60000,
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
