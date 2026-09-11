@@ -110,7 +110,7 @@
     type SceneTrack,
   } from "./timeline-data";
   import AnimationControls from "./AnimationControls.svelte";
-  import { generationStore, startNewGeneration } from "../stores/generation";
+  import { generationStore } from "../stores/generation";
   import { uploadAsset } from "../api/assets";
   import {
     isFatalRenderFailure,
@@ -366,7 +366,7 @@
       }
     });
     mountComposition(activeComposition);
-    void restoreLocalDraft();
+    void restoreLocalDraft().finally(() => void runLandingPrompt());
     let playbackFrame = 0;
     const syncPlaybackUi = () => {
       if (runtime) {
@@ -1825,37 +1825,23 @@
     }
   }
 
-  async function handleGenerationComplete(generation: {
-    projectId: string;
-  }): Promise<void> {
-    try {
-      await cloudProjects.openProjectById(generation.projectId);
-    } catch (error: unknown) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "The generation completed, but its project could not be reloaded.",
-      );
-    }
-  }
-
-  async function handleCloudReady(
-    event: CustomEvent<{ workspaceId: string }>,
-  ): Promise<void> {
-    workspaceId = event.detail.workspaceId;
-    if (!workspaceId || !pendingLandingPrompt || landingPromptStarted) return;
+  /**
+   * A prompt handed over from motionly.site runs through the same generation
+   * as the chat composer. Waiting for a cloud workspace left guests with the
+   * prompt parked and nothing happening.
+   */
+  async function runLandingPrompt(): Promise<void> {
+    if (!pendingLandingPrompt || landingPromptStarted) return;
     landingPromptStarted = true;
-    const prompt = pendingLandingPrompt;
+    assistantDraft = pendingLandingPrompt;
     pendingLandingPrompt = "";
     sessionStorage.removeItem("motionly_pending_prompt");
-    assistantMessages = [...assistantMessages, { role: "user", text: prompt }];
-    await startNewGeneration(
-      workspaceId,
-      prompt,
-      stagedAssets.flatMap((asset) => (asset.uploadId ? [asset.uploadId] : [])),
-      handleGenerationComplete,
-    );
+    await submitAssistant(new SubmitEvent("submit"));
     scheduleDraftSave();
+  }
+
+  function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
+    workspaceId = event.detail.workspaceId;
   }
 
   async function saveSource(): Promise<void> {
