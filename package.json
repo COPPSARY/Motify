@@ -4,15 +4,25 @@
   "description": "A code-first motion graphics tool for creating, previewing, and exporting professional animations.",
   "license": "Apache-2.0",
   "type": "module",
+  "bin": {
+    "motionly": "bin/motionly.js"
+  },
   "files": [
     "dist",
+    "bin",
     "public",
-    ".agents",
+    ".agents/skills/write-motionly",
+    ".agents/skills/scene-design",
     "docs",
     "examples",
+    "registry",
     "templates",
+    "AGENTS.md",
+    "CHANGELOG.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_LICENSES.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=20.19.0"
@@ -35,7 +45,10 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,svelte,css}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"templates/**/*.ts\" \"qa/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,svelte,css}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"templates/**/*.ts\" \"qa/**/*.mjs\"",
     "prepare": "husky",
-    "registry:build-source": "node scripts/build-registry-source.mjs"
+    "registry:build-source": "node scripts/build-registry-source.mjs",
+    "package:check": "node scripts/check-package.mjs",
+    "release:check": "npm run type-check && npm run test:run && npm run build && npm run package:check",
+    "prepublishOnly": "npm run release:check"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

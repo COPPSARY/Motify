@@ -70,11 +70,21 @@ HTML compositions are the project source. Motionly does not convert projects int
 Requires Node.js `20.19.0` or newer.
 
 ```bash
-git clone https://github.com/COPPSARY/Motionly.git
-cd Motionly
-npm install
-npm run dev
+npx @coppsary/motionly@latest init my-video
+cd my-video
+npx @coppsary/motionly@latest dev
 ```
+
+The initializer creates a code-first Motionly v2 project and installs the bundled `write-motionly` and `scene-design` skills for your coding agent. Use `--provider codex`, `--provider claude`, or `--all`; use `--skip-skills` when you do not want agent setup.
+
+To add or refresh the skills in an existing project:
+
+```bash
+npx @coppsary/motionly@latest skills add --provider codex
+npx @coppsary/motionly@latest skills update --provider codex
+```
+
+Local projects keep visuals in `composition.html`, optional CSS in `styles.css`, motion in `timeline.js`, metadata/mounting in `index.ts`, and media in `assets/`. The local editor reads and saves those files directly. Copy `.env.example` to `.env` to use AI generation without exposing the key to the browser.
 
 See the [introduction](docs/introduction.md), [architecture guide](docs/architecture.md), [editor guide](docs/editor.md), and [animation presets](docs/animation-presets.md) for the current workflow.
 

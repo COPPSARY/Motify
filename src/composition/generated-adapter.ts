@@ -27,15 +27,21 @@ function mount(context: CompositionContext) {
   context.root.replaceChildren(template.content.cloneNode(true));
 }
 
+// The local CLI reads this JSON literal without executing project code.
+// prettier-ignore
+export const motionlyMetadata = ${JSON.stringify({
+    id: safeId || "ai-generated",
+    title: options.title,
+    description: "AI-edited Motionly composition",
+    width: options.width ?? 1920,
+    height: options.height ?? 1080,
+    fps: options.fps ?? 60,
+    duration: options.duration,
+    scenes: options.scenes,
+  })} as const;
+
 export default defineComposition({
-  id: ${JSON.stringify(safeId || "ai-generated")},
-  title: ${JSON.stringify(options.title)},
-  description: 'AI-edited Motionly composition',
-  width: ${options.width ?? 1920},
-  height: ${options.height ?? 1080},
-  fps: ${options.fps ?? 60},
-  duration: ${options.duration},
-  scenes: ${JSON.stringify(options.scenes)},
+  ...motionlyMetadata,
   sourcePreview: compositionSource,
   build(context) { mount(context); buildTimeline(context); },
 });`;
