@@ -22,8 +22,7 @@ jobs:
           package-manager-cache: false
 
       - run: npm ci --legacy-peer-deps
-      - run: npm run build
-      - run: npm run test:run
+      - run: npm run release:check
 
       - name: Verify release tag
         run: |
@@ -37,5 +36,5 @@ jobs:
           if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
             echo "$PACKAGE@$VERSION is already published; skipping."
           else
-            npm publish --access public
+            npm publish --access public --ignore-scripts
           fi

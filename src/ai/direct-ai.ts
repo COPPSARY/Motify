@@ -228,10 +228,21 @@ async function requestBackend(
   currentFiles: GenerationFiles,
   repairAttempt: boolean,
 ): Promise<DirectAiResult> {
+  const userMessage = await buildMotionlyUserMessage(userPrompt, currentFiles);
   const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userPrompt, currentFiles, repairAttempt }),
+    body: JSON.stringify({
+      userPrompt,
+      currentFiles,
+      repairAttempt,
+      localProviderRequest: {
+        systemPrompt: MOTIONLY_SYSTEM_PROMPT,
+        userMessage,
+        temperature: repairAttempt ? 0.35 : 0.65,
+        assets: currentFiles.assets,
+      },
+    }),
   });
   if (!response.ok) {
     let message = `Server error (${response.status})`;
@@ -243,7 +254,8 @@ async function requestBackend(
     }
     throw new Error(message);
   }
-  return parseAiResponseText(JSON.stringify(await response.json()));
+  const body = (await response.json()) as { rawText?: string };
+  return parseAiResponseText(body.rawText ?? JSON.stringify(body));
 }
 
 /**
@@ -279,7 +291,15 @@ async function requestBackendDirection(userMessage: string): Promise<string> {
   const response = await fetch("/api/ai/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "direction", directionMessage: userMessage }),
+    body: JSON.stringify({
+      mode: "direction",
+      directionMessage: userMessage,
+      localProviderRequest: {
+        systemPrompt: DIRECTION_SYSTEM_PROMPT,
+        userMessage,
+        temperature: 0.85,
+      },
+    }),
   });
   if (!response.ok) throw new Error(`Server error (${response.status})`);
   const body = (await response.json()) as { text?: string };

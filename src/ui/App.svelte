@@ -131,6 +131,7 @@
     loadProjectDraft,
     saveProjectDraft,
   } from "../stores/project-drafts";
+  import { loadLocalProject, saveLocalProject } from "./local-project";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
   import "./styles/content-panel.css";
@@ -330,6 +331,7 @@
   let sourceOpen = false;
   let cloudFiles: ProjectSourceFiles = { ...blankProjectFiles };
   let cloudProject: ProjectSummary | null = null;
+  let localProjectName = "";
 
   interface SelectionRect {
     visible: boolean;
@@ -366,7 +368,7 @@
       }
     });
     mountComposition(activeComposition);
-    void restoreLocalDraft().finally(() => void runLandingPrompt());
+    void restoreStartupProject().finally(() => void runLandingPrompt());
     let playbackFrame = 0;
     const syncPlaybackUi = () => {
       if (runtime) {
@@ -464,7 +466,43 @@
         },
         baseRevision: cloudProject?.revision,
       });
+      if (localProjectName) {
+        void saveLocalProject(cloudFiles).catch((error: unknown) => {
+          showNotice(
+            error instanceof Error
+              ? error.message
+              : "Could not save the local Motionly project.",
+            10000,
+          );
+        });
+      }
     }, 180);
+  }
+
+  async function restoreStartupProject(): Promise<void> {
+    try {
+      const local = await loadLocalProject();
+      if (local) {
+        localProjectName = local.name;
+        cloudFiles = { ...local.files };
+        const composition = createDynamicComposition(
+          combineCompositionSource(local.files),
+          local.files["timeline.js"],
+          local.metadata,
+        );
+        mountComposition(composition);
+        showNotice(`Opened local project ${local.name}.`);
+        return;
+      }
+    } catch (error) {
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not open the local Motionly project.",
+        10000,
+      );
+    }
+    await restoreLocalDraft();
   }
 
   async function restoreLocalDraft(): Promise<void> {
@@ -508,6 +546,7 @@
     assetObjectUrls = [];
     resetAssistantSession();
     cloudProject = null;
+    localProjectName = "";
     cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     timelineMode = "project";
@@ -1990,7 +2029,8 @@
     </div>
     <div class="file-info">
       <FileText size={16} /><span
-        >{cloudProject?.name ?? "Unsaved Motionly project"}</span
+        >{(cloudProject?.name ?? localProjectName) ||
+          "Unsaved Motionly project"}</span
       >
     </div>
     <div class="actions">
@@ -2108,7 +2148,8 @@
               <h3 class="me-category-title">Composition source</h3>
               <div class="source-heading">
                 <Braces size={15} />
-                {cloudProject?.name ?? "Unsaved project"} / composition.html
+                {(cloudProject?.name ?? localProjectName) || "Unsaved project"} /
+                composition.html
               </div>
               <pre class="source-code">{cloudFiles["composition.html"]}</pre>
             </div>
