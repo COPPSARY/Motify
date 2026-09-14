@@ -47,7 +47,7 @@
     "prepare": "husky",
     "registry:build-source": "node scripts/build-registry-source.mjs",
     "package:check": "node scripts/check-package.mjs",
-    "release:check": "npm run type-check && npm run test:run && npm run build && npm run package:check",
+    "release:check": "npm run type-check && npm run build && npm run test:run && npm run package:check",
     "prepublishOnly": "npm run release:check"
   },
   "dependencies": {
