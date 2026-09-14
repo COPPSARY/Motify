@@ -46,6 +46,19 @@
       <img src=".github/assets/notes-app.gif" alt="Apple Notes" width="100%">
     </td>
   </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src=".github/assets/Recoup.gif" alt="Recoup" width="100%">
+    </td>
+    <td width="50%" align="center">
+      <img src=".github/assets/Relay.gif" alt="Relay" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src=".github/assets/Tessera.gif" alt="Tessera" width="50%">
+    </td>
+  </tr>
 </table>
 
 ---
@@ -75,6 +88,20 @@ cd Motionly
 npm install
 npm run dev
 ```
+
+Motionly supports Google Gemini and OpenAI-compatible providers. The active
+provider is deployment-controlled and is not exposed as an end-user setting.
+Copy `.env.example` to `.env` and set either the Gemini variables or these
+OpenAI-compatible variables:
+
+```bash
+AI_PROVIDER=openai-compatible
+OPENAI_COMPATIBLE_API_KEY=cc_your_key_here
+OPENAI_COMPATIBLE_BASE_URL=https://codecraftapi.com/v1
+OPENAI_COMPATIBLE_MODEL=claude-opus-4.8
+```
+
+CodeCraft is preconfigured with `https://codecraftapi.com/v1`.
 
 See the [introduction](docs/introduction.md), [architecture guide](docs/architecture.md), [editor guide](docs/editor.md), and [animation presets](docs/animation-presets.md) for the current workflow.
 
