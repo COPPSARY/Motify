@@ -5,6 +5,7 @@ import kiriLogoUrl from "./presets/KiriTTS/Kiri-TTS Logo.svg?url";
 import appleNotesLogoUrl from "./presets/apple-notesapp/apple-notes.svg?url";
 import noteSketchUrl from "./presets/apple-notesapp/9c01cb4e40808bf2daaf2cf718464742.png?url";
 import checklistAssetUrl from "./presets/apple-notesapp/Checklist-in-iPhone-notes.jpg?url";
+import motifyCursorUrl from "./presets/motify/Cursor.png?url";
 
 /**
  * Media that belongs to a preset composition, addressed by the `__ASSET_*__`
@@ -31,6 +32,7 @@ export const PRESET_ASSET_URLS: Readonly<Record<string, string>> = {
   __ASSET_NOTES_LOGO__: appleNotesLogoUrl,
   __ASSET_NOTE_SKETCH__: noteSketchUrl,
   __ASSET_CHECKLIST__: checklistAssetUrl,
+  __ASSET_MOTIFY_CURSOR__: motifyCursorUrl,
 };
 
 export function hydratePresetAssets(source: string): string {

@@ -63,7 +63,7 @@
   let conflictRevision: number | null = null;
   let searchQuery = "";
   let createMode = false;
-  let newProjectName = "Untitled Motionly Project";
+  let newProjectName = "Untitled Motify Project";
   let detailsProject: ProjectSummary | null = null;
   let detailsName = "";
   let detailsLoading = false;
@@ -198,7 +198,7 @@
     files = copyFiles(initialFiles);
     createMode = true;
     closeDetails();
-    newProjectName = "Untitled Motionly Project";
+    newProjectName = "Untitled Motify Project";
     errorMessage = "";
     void tick().then(() =>
       document
@@ -439,7 +439,7 @@
   function errorText(error: unknown): string {
     return error instanceof Error
       ? error.message
-      : "Motionly could not complete the cloud request.";
+      : "Motify could not complete the cloud request.";
   }
 
   function closeDetails(): void {
@@ -483,7 +483,7 @@
           <h2 id="cloud-projects-title">My projects</h2>
           <p>
             {#if user}Pick up where you left off, {user.displayName ||
-                user.email}.{:else}Your saved Motionly projects.{/if}
+                user.email}.{:else}Your saved Motify projects.{/if}
           </p>
         </div>
         <div class="cloud-header-actions">
@@ -579,7 +579,7 @@
         <div class="cloud-projects-state">
           <Film size={24} />
           <strong>No workspace is available</strong>
-          <p>A workspace is required before you can save a Motionly project.</p>
+          <p>A workspace is required before you can save a Motify project.</p>
         </div>
       {:else}
         <div class="cloud-gallery-toolbar">
@@ -618,7 +618,7 @@
           >
             <div>
               <strong>Name your new project</strong>
-              <span>The project starts as a blank Motionly composition.</span>
+              <span>The project starts as a blank Motify composition.</span>
             </div>
             <input
               id="cloud-new-project-name"

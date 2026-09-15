@@ -1,6 +1,6 @@
-# Motionly Engineering Issues & Backlog
+# Motify Engineering Issues & Backlog
 
-This backlog tracks prioritized architectural tasks, bug fixes, UX enhancements, and feature requests for Motionly.
+This backlog tracks prioritized architectural tasks, bug fixes, UX enhancements, and feature requests for Motify.
 
 ---
 
@@ -89,7 +89,7 @@ This backlog tracks prioritized architectural tasks, bug fixes, UX enhancements,
 - **Type**: Feature
 - **Priority**: P1
 - **Problem**:
-  Motionly videos are silent. Premium motion graphics require transition whooshes, kinetic text pops, UI clicks, and background music beds.
+  Motify videos are silent. Premium motion graphics require transition whooshes, kinetic text pops, UI clicks, and background music beds.
 - **Specification**:
   1. **Built-in SFX Catalog**:
      - Transition whooshes, soft swooshes, UI pops, typewriter clicks, bass impacts.
@@ -142,7 +142,7 @@ This backlog tracks prioritized architectural tasks, bug fixes, UX enhancements,
   2. **Context Injection**:
      - Send the selected element ID, current scene ID, and targeted diff request to the AI prompt.
 - **Acceptance Criteria**:
-  - Prompting "change title to 'Welcome to Motionly'" only updates the target text node; all existing animations and other scenes remain identical.
+  - Prompting "change title to 'Welcome to Motify'" only updates the target text node; all existing animations and other scenes remain identical.
 
 ---
 

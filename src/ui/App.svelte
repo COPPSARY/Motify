@@ -76,6 +76,7 @@
     appleNotesPreset,
     claudePreset,
     kiriTtsPreset,
+    motifyPreset,
     motionlyPromoPreset,
     recoupPreset,
     relayPreset,
@@ -93,6 +94,9 @@
   import motionlyPromoHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
   import motionlyPromoAdapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
   import motionlyPromoTimelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
+  import motifyHtmlSource from "../compositions/presets/motify/composition.html?raw";
+  import motifyAdapterSource from "../compositions/presets/motify/index.ts?raw";
+  import motifyTimelineSource from "../compositions/presets/motify/timeline.js?raw";
   import tesseraHtmlSource from "../compositions/presets/tessera/composition.html?raw";
   import tesseraAdapterSource from "../compositions/presets/tessera/index.ts?raw";
   import tesseraTimelineSource from "../compositions/presets/tessera/timeline.js?raw";
@@ -164,6 +168,11 @@
     motionlyPromoHtmlSource,
     motionlyPromoTimelineSource,
     motionlyPromoAdapterSource,
+  );
+  const motifyProjectFiles = splitCompositionSource(
+    motifyHtmlSource,
+    motifyTimelineSource,
+    motifyAdapterSource,
   );
   const appleNotesProjectFiles = splitCompositionSource(
     appleNotesHtmlSource,
@@ -471,7 +480,7 @@
           showNotice(
             error instanceof Error
               ? error.message
-              : "Could not save the local Motionly project.",
+              : "Could not save the local Motify project.",
             10000,
           );
         });
@@ -498,7 +507,7 @@
       showNotice(
         error instanceof Error
           ? error.message
-          : "Could not open the local Motionly project.",
+          : "Could not open the local Motify project.",
         10000,
       );
     }
@@ -531,7 +540,7 @@
       },
     );
     mountComposition(composition, draft.editorState);
-    showNotice("Recovered your local Motionly draft.");
+    showNotice("Recovered your local Motify draft.");
   }
 
   async function startNewProject(): Promise<void> {
@@ -561,7 +570,7 @@
     mountComposition(createBlankComposition());
     runtime?.seek(0);
     captureEvent("project started", { source: "new_button" });
-    showNotice("Started a new blank project and cleared local Motionly data.");
+    showNotice("Started a new blank project and cleared local Motify data.");
   }
 
   function loadClaudePreset(): void {
@@ -595,6 +604,17 @@
     mountComposition(motionlyPromoPreset);
     captureEvent("preset loaded", { preset_name: "motionly_promo" });
     showNotice("Motionly Promo preset loaded.");
+  }
+
+  function loadMotifyPreset(): void {
+    previewLoadSequence += 1;
+    resetAssistantSession();
+    cloudProject = null;
+    cloudFiles = { ...motifyProjectFiles };
+    cloudProjects?.startUnsaved(cloudFiles);
+    mountComposition(motifyPreset);
+    captureEvent("preset loaded", { preset_name: "motify" });
+    showNotice("Motify Launch Film preset loaded.");
   }
 
   function loadAppleNotesPreset(): void {
@@ -665,7 +685,7 @@
           !Array.isArray(composition.scenes)
         ) {
           throw new Error(
-            "The saved project did not export a valid Motionly composition.",
+            "The saved project did not export a valid Motify composition.",
           );
         }
         projectStyles?.remove();
@@ -1747,7 +1767,7 @@
       status: "GENERATING",
       stage: "GENERATING",
       progress: 20,
-      message: "Motionly AI is analyzing your prompt...",
+      message: "Motify AI is analyzing your prompt...",
     });
 
     try {
@@ -1763,7 +1783,7 @@
         duration_ms: Math.round(performance.now() - generationStartedAt),
         reference_asset_count: stagedAssets.length,
       });
-      showNotice("Composition updated by Motionly AI!");
+      showNotice("Composition updated by Motify AI!");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -1828,7 +1848,7 @@
       status: "GENERATING",
       stage: "GENERATING",
       progress: 20,
-      message: "Motionly AI is fixing the composition...",
+      message: "Motify AI is fixing the composition...",
     });
 
     try {
@@ -1840,7 +1860,7 @@
         progress: 100,
         message: reply,
       });
-      showNotice("Composition repaired and updated by Motionly AI!");
+      showNotice("Composition repaired and updated by Motify AI!");
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
       generationStore.set({
@@ -1973,7 +1993,7 @@
         },
         activeComposition.fps,
       );
-      downloadBlob(blob, `motionly-${activeComposition.fps}fps.mp4`);
+      downloadBlob(blob, `motify-${activeComposition.fps}fps.mp4`);
       captureEvent("video exported", {
         fps: activeComposition.fps,
         duration_seconds: activeComposition.duration,
@@ -1998,7 +2018,7 @@
       const blob = await exportPng(runtime, 1);
       downloadBlob(
         blob,
-        `motionly-${Math.round(snapshot.time * activeComposition.fps)}.png`,
+        `motify-${Math.round(snapshot.time * activeComposition.fps)}.png`,
       );
       captureEvent("frame exported", {
         frame: Math.round(snapshot.time * activeComposition.fps),
@@ -2023,14 +2043,14 @@
   <header class="top-bar">
     <div class="brand">
       <span class="logo-shell"
-        ><img src="/logo.svg" alt="Motionly" class="logo" /></span
+        ><img src="/logo.svg" alt="Motify" class="logo" /></span
       >
-      <h1>Motionly</h1>
+      <h1>Motify</h1>
     </div>
     <div class="file-info">
       <FileText size={16} /><span
         >{(cloudProject?.name ?? localProjectName) ||
-          "Unsaved Motionly project"}</span
+          "Unsaved Motify project"}</span
       >
     </div>
     <div class="actions">
@@ -2172,6 +2192,19 @@
                     <small>24.5s · Build, Macro Zoom & Climax</small></span
                   >
                 </button>
+                <button class="me-preset-card" on:click={loadMotifyPreset}>
+                  <span class="me-preset-thumbnail promo-thumbnail">
+                    <span class="promo-thumbnail-art"
+                      ><small>CODE-FIRST MOTION</small><strong
+                        >MOTIFY<br /><em>LAUNCH.</em></strong
+                      ><i>PROMPT · EDIT · EXPORT</i></span
+                    >
+                  </span>
+                  <span class="me-preset-info"
+                    ><strong class="me-preset-name">Motify Launch Film</strong>
+                    <small>52s · Product story and showcase</small></span
+                  >
+                </button>
                 <button class="me-preset-card" on:click={loadKiriTtsPreset}>
                   <span class="me-preset-thumbnail kiritts-thumbnail">
                     <span class="promo-thumbnail-art"
@@ -2264,13 +2297,12 @@
           {:else}
             <section
               class="ai-chat-panel"
-              aria-label="Motionly Assistant"
+              aria-label="Motify Assistant"
               data-ph-no-autocapture
             >
               <header class="ai-chat-header">
                 <span
-                  ><Sparkles size={15} /><strong>Motionly Assistant</strong
-                  ></span
+                  ><Sparkles size={15} /><strong>Motify Assistant</strong></span
                 >
               </header>
               <div class="ai-chat-messages" aria-live="polite">

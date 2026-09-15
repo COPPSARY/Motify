@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a Motionly bug
+about: Report a Motify bug
 title: "[Bug]: "
 labels: bug
 assignees: ""
@@ -22,7 +22,7 @@ assignees: ""
 
 - OS:
 - Browser:
-- Motionly version or commit:
+- Motify version or commit:
 
 ## Evidence
 

@@ -1,16 +1,16 @@
 {
-  "name": "@coppsary/motionly",
+  "name": "@coppsary/motify",
   "version": "2.0.0",
   "description": "A code-first motion graphics tool for creating, previewing, and exporting professional animations.",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
+    "motify": "bin/motionly.js",
     "motionly": "bin/motionly.js"
   },
   "files": [
     "dist",
     "bin",
-    "public",
     ".agents/skills/write-motionly",
     ".agents/skills/scene-design",
     "docs",
@@ -91,9 +91,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/COPPSARY/Motionly.git"
+    "url": "git+https://github.com/COPPSARY/Motify.git"
   },
-  "homepage": "https://github.com/COPPSARY/Motionly#readme",
+  "homepage": "https://github.com/COPPSARY/Motify#readme",
   "publishConfig": {
     "access": "public"
   }

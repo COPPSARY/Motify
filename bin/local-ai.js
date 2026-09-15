@@ -230,7 +230,7 @@ export async function handleLocalAiRequest(request, response, projectRoot) {
       typeof prepared.userMessage !== "string"
     ) {
       sendJson(response, 400, {
-        error: "This Motionly client is too old for the local AI server.",
+        error: "This Motify client is too old for the local AI server.",
       });
       return true;
     }

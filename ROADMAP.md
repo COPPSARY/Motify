@@ -1,6 +1,6 @@
-# Motionly Product & Engineering Roadmap
+# Motify Product & Engineering Roadmap
 
-This roadmap outlines the core milestones for Motionly. For individual issue breakdowns, technical root causes, and acceptance criteria, see **[ISSUES_BACKLOG.md](docs/issues-backlog.md)**.
+This roadmap outlines the core milestones for Motify. For individual issue breakdowns, technical root causes, and acceptance criteria, see **[ISSUES_BACKLOG.md](docs/issues-backlog.md)**.
 
 ---
 

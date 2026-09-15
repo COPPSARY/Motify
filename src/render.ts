@@ -20,7 +20,7 @@ declare global {
 }
 
 const root = document.querySelector<HTMLElement>("#render-root");
-if (!root) throw new Error("Motionly render root was not found.");
+if (!root) throw new Error("Motify render root was not found.");
 
 Object.assign(document.documentElement.style, {
   width: `${demoComposition.width}px`,

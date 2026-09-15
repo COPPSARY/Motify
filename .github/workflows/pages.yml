@@ -27,7 +27,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run build
         env:
-          BASE_PATH: /Motionly/
+          BASE_PATH: /Motify/
       - name: Add static route fallbacks
         run: |
           mkdir -p dist/editor

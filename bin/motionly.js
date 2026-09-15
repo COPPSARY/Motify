@@ -177,7 +177,7 @@ async function chooseProvider() {
     output: process.stdout,
   });
   try {
-    console.log("\nWhich coding agent should receive the Motionly skills?");
+    console.log("\nWhich coding agent should receive the Motify skills?");
     const entries = [...Object.keys(PROVIDERS), "all"];
     entries.forEach((provider, index) =>
       console.log(`  ${index + 1}. ${provider}`),
@@ -209,7 +209,7 @@ async function installSkills(base, providers, overwrite = false) {
 
 async function initProject(name, argv) {
   if (!name || name.startsWith("-"))
-    throw new Error("Usage: motionly init <project-folder>");
+    throw new Error("Usage: motify init <project-folder>");
   const target = resolve(name);
   if (await exists(target)) {
     if ((await readdir(target)).length)
@@ -237,7 +237,7 @@ async function initProject(name, argv) {
       providers,
     );
   }
-  console.log(`\nNext: cd ${name} && npx @coppsary/motionly dev`);
+  console.log(`\nNext: cd ${name} && npx @coppsary/motify dev`);
   if (
     process.stdin.isTTY &&
     process.stdout.isTTY &&
@@ -271,7 +271,7 @@ function readMetadata(indexSource, projectName) {
   return {
     id: text("id") ?? projectName.toLowerCase().replace(/[^a-z0-9-_]/g, "-"),
     title: text("title") ?? projectName,
-    description: text("description") ?? "Local Motionly composition",
+    description: text("description") ?? "Local Motify composition",
     width: number("width", 1920),
     height: number("height", 1080),
     fps: number("fps", 60),
@@ -369,7 +369,7 @@ function openBrowser(url) {
 async function serveEditor(argv, folder) {
   if (!(await exists(join(distRoot, "index.html")))) {
     throw new Error(
-      'Motionly is not built. Run "npm run build", or use the published package.',
+      'Motify is not built. Run "npm run build", or use the published package.',
     );
   }
   const projectRoot = folder ? resolve(folder) : null;
@@ -379,7 +379,7 @@ async function serveEditor(argv, folder) {
       if (!(await exists(join(projectRoot, filename)))) missing.push(filename);
     if (missing.length)
       throw new Error(
-        `Not a Motionly v2 project; missing: ${missing.join(", ")}`,
+        `Not a Motify v2 project; missing: ${missing.join(", ")}`,
       );
     await mkdir(join(projectRoot, "assets"), { recursive: true });
   }
@@ -462,7 +462,7 @@ async function serveEditor(argv, folder) {
   });
   const url = `http://127.0.0.1:${port}`;
   console.log(
-    `\nMotionly is running at ${url}${projectRoot ? `\nProject: ${projectRoot}` : ""}\nPress Ctrl+C to stop.\n`,
+    `\nMotify is running at ${url}${projectRoot ? `\nProject: ${projectRoot}` : ""}\nPress Ctrl+C to stop.\n`,
   );
   if (!argv.includes("--no-open")) openBrowser(url);
 }
@@ -510,7 +510,7 @@ async function catalog(argv) {
 
 async function addRegistryItem(name, argv) {
   if (!name || name.startsWith("-"))
-    throw new Error("Usage: motionly add <registry-name>");
+    throw new Error("Usage: motify add <registry-name>");
   const found = await findRegistryItem(name);
   if (!found) throw new Error(`Unknown registry item "${name}".`);
   const base = resolve(optionValue(argv, "--dir") ?? ".");
@@ -526,15 +526,15 @@ async function addRegistryItem(name, argv) {
 }
 
 function printHelp() {
-  console.log(`Motionly
+  console.log(`Motify
 
-  motionly init <folder> [--provider codex | --all]   Create a v2 local project
-  motionly dev [folder] [--port 4173] [--no-open]     Open a local project
-  motionly skills add [--provider codex | --all]      Install bundled skills
-  motionly skills update [--provider codex | --all]   Refresh bundled skills
-  motionly catalog [--type component] [--tag <tag>]   Browse the registry
-  motionly catalog --show <name>                       Print registry source
-  motionly add <name> [--dir <folder>]                 Install registry source
+  motify init <folder> [--provider codex | --all]   Create a v2 local project
+  motify dev [folder] [--port 4173] [--no-open]     Open a local project
+  motify skills add [--provider codex | --all]      Install bundled skills
+  motify skills update [--provider codex | --all]   Refresh bundled skills
+  motify catalog [--type component] [--tag <tag>]   Browse the registry
+  motify catalog --show <name>                      Print registry source
+  motify add <name> [--dir <folder>]                Install registry source
 
 Providers: ${Object.keys(PROVIDERS).join(", ")}
 Scopes: project (default), global`);
@@ -559,7 +559,7 @@ async function main() {
     );
   if (command === "skills") {
     if (subcommand !== "add" && subcommand !== "update")
-      throw new Error("Usage: motionly skills <add|update>");
+      throw new Error("Usage: motify skills <add|update>");
     const options = parseSkillOptions(argv.slice(2));
     const providers = options.providers.length
       ? options.providers
@@ -573,7 +573,7 @@ async function main() {
   if (command === "catalog") return await catalog(argv.slice(1));
   if (command === "add") return await addRegistryItem(argv[1], argv.slice(2));
   if (!command) return await serveEditor(argv, null);
-  throw new Error(`Unknown command "${command}". Run motionly --help.`);
+  throw new Error(`Unknown command "${command}". Run motify --help.`);
 }
 
 main().catch((error) => {

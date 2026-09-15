@@ -1,0 +1,772 @@
+/* The task list and its background occupy the same tall, camera-driven world. */
+.ml .horizon {
+  display: none;
+}
+.ml .problem-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 18%, #000 78%, transparent);
+  -webkit-mask-image: linear-gradient(
+    transparent,
+    #000 18%,
+    #000 78%,
+    transparent
+  );
+}
+.ml .problem-world {
+  position: absolute;
+  inset: 0;
+}
+.ml .problem-space {
+  position: absolute;
+  left: -400px;
+  top: -400px;
+  width: 2720px;
+  height: 3800px;
+  background-image:
+    radial-gradient(ellipse at 12% 20%, #7cf7c509, transparent 38%),
+    radial-gradient(ellipse at 85% 62%, #8ab4ff15, transparent 28%),
+    linear-gradient(#ffffff05 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff05 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    120px 120px,
+    120px 120px;
+}
+.ml .task-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.ml .tasks {
+  top: 540px;
+}
+.ml .task {
+  font-size: 84px;
+  gap: 30px;
+}
+.ml .task .n {
+  color: #7cf7c5;
+  font-size: 24px;
+}
+.ml .problem-world .trk .clip {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Brief -> direction -> motion: one connected production space. */
+.ml .pipeline {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent);
+  -webkit-mask-image: linear-gradient(
+    transparent,
+    #000 16%,
+    #000 84%,
+    transparent
+  );
+}
+.ml .pipe-spine {
+  position: absolute;
+  left: 959px;
+  top: 740px;
+  width: 2px;
+  height: 2380px;
+  transform-origin: 50% 0;
+  background: linear-gradient(#7cf7c5aa, #8ab4ff88);
+  box-shadow: 0 0 14px #7cf7c555;
+}
+.ml .pipeline-heading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 540px;
+  text-align: center;
+  z-index: 2;
+}
+.ml .pipeline-heading > span {
+  display: inline-block;
+  color: var(--mint);
+  font:
+    20px ui-monospace,
+    monospace;
+  letter-spacing: 0.16em;
+}
+.ml .pipeline-heading h2 {
+  margin-top: 30px;
+  font-size: 112px;
+  letter-spacing: -0.05em;
+  line-height: 1.04;
+}
+.ml .pipeline em {
+  font-style: normal;
+  color: var(--mint);
+}
+.ml .pipeline-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+.ml .production-routes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3300px;
+  height: 1080px;
+}
+.ml .pipeline article {
+  position: absolute;
+  border: 1px solid #ffffff22;
+  border-radius: 20px;
+  box-shadow: 0 45px 100px #0009;
+}
+.ml .production-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font:
+    17px ui-monospace,
+    monospace;
+  letter-spacing: 0.06em;
+  color: #8ba79e;
+}
+.ml .production-brief {
+  left: 620px;
+  top: 1140px;
+  width: 680px;
+  height: 520px;
+  padding: 40px;
+  background: linear-gradient(140deg, #202a29, #101616 70%);
+}
+.ml .production-brief h3 {
+  font-size: 62px;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 36px 0 24px;
+}
+.ml .production-brief p {
+  max-width: 535px;
+  font-size: 27px;
+  color: #a5b0ad;
+  line-height: 1.35;
+}
+.ml .brief-tags {
+  display: flex;
+  gap: 12px;
+  margin-top: 27px;
+}
+.ml .brief-tags span {
+  padding: 9px 14px;
+  border: 1px solid #7cf7c526;
+  border-radius: 6px;
+  font-size: 18px;
+  color: #c2dbd1;
+}
+.ml .brief-rule {
+  height: 1px;
+  background: #ffffff14;
+  margin: 26px 0 18px;
+}
+.ml .production-brief > small {
+  color: #70877e;
+  font:
+    13px ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+}
+.ml .production-board {
+  left: 565px;
+  top: 1930px;
+  width: 790px;
+  height: 660px;
+  padding: 30px;
+  background: linear-gradient(145deg, #24212a, #111218 75%);
+}
+.ml .board-frame {
+  position: absolute;
+  width: 625px;
+  height: 260px;
+  border: 1px solid #ffffff16;
+  border-radius: 10px;
+  padding: 25px;
+  overflow: hidden;
+}
+.ml .board-frame small {
+  font:
+    14px ui-monospace,
+    monospace;
+  color: #afb0ba;
+}
+.ml .board-frame strong {
+  display: block;
+  margin-top: 35px;
+  font-weight: 400;
+  font-size: 61px;
+  letter-spacing: -0.04em;
+}
+.ml .board-one {
+  top: 85px;
+  left: 45px;
+  background: radial-gradient(ellipse at 15% 90%, #5b352b, #151417 75%);
+  transform: rotate(-4deg);
+}
+.ml .board-two {
+  top: 300px;
+  left: 108px;
+  background: radial-gradient(ellipse at 90% 100%, #244536, #0d1512 75%);
+  transform: rotate(3deg);
+}
+.ml .board-two svg {
+  position: absolute;
+  width: 520px;
+  height: 80px;
+  left: 65px;
+  bottom: 20px;
+  opacity: 0.6;
+}
+.ml .board-notes {
+  position: absolute;
+  left: 38px;
+  right: 38px;
+  bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 20px;
+  color: #8b939a;
+}
+.ml .production-motion {
+  left: 410px;
+  top: 2783px;
+  width: 1100px;
+  height: 675px;
+  padding: 27px;
+  background: linear-gradient(145deg, #1b2223, #0b1014 70%);
+}
+.ml .production-screen {
+  position: relative;
+  height: 490px;
+  margin-top: 24px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0c1312;
+  border: 1px solid #ffffff10;
+}
+.ml .production-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 80%, #305c48, transparent 65%);
+}
+.ml .production-brand {
+  position: absolute;
+  left: 50px;
+  top: 45px;
+  font:
+    18px ui-monospace,
+    monospace;
+  letter-spacing: 0.12em;
+  color: #9dc5b4;
+}
+.ml .production-screen h3 {
+  position: absolute;
+  left: 48px;
+  top: 128px;
+  margin: 0;
+  font-size: 106px;
+  line-height: 1;
+  letter-spacing: -0.055em;
+  font-weight: 400;
+  z-index: 1;
+}
+
+.ml .production-timeline {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 21px;
+  position: relative;
+  font:
+    13px ui-monospace,
+    monospace;
+  color: #7e9990;
+}
+.ml .production-timeline i {
+  height: 14px;
+  background: #7cf7c535;
+  border: 1px solid #7cf7c550;
+  border-radius: 4px;
+  transform-origin: left;
+}
+.ml .production-timeline i:nth-of-type(2) {
+  margin-left: 15%;
+  background: #8ab4ff40;
+}
+.ml .production-timeline i:nth-of-type(3) {
+  margin-left: 30%;
+  width: 60%;
+}
+.ml .production-timeline b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 120px;
+  width: 2px;
+  background: var(--mint);
+}
+.ml [data-edit="production-ready"] {
+  color: var(--mint);
+  font-size: 15px;
+}
+
+/* Identical composer geometry and controls for both prompt moments. */
+.ml .scroll-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 16%, #000 80%, transparent);
+  -webkit-mask-image: linear-gradient(
+    transparent,
+    #000 16%,
+    #000 80%,
+    transparent
+  );
+}
+.ml .scroll-space {
+  position: absolute;
+  left: -320px;
+  top: -400px;
+  width: 2560px;
+  height: 3800px;
+  background-image:
+    radial-gradient(ellipse at 15% 40%, #8ab4ff12, transparent 25%),
+    radial-gradient(ellipse at 90% 70%, #7cf7c51a, transparent 30%),
+    radial-gradient(#ffffff17 1px, transparent 1.5px);
+  background-size:
+    auto,
+    auto,
+    48px 48px;
+}
+.ml [data-edit="cap-ask"] {
+  font-size: 110px;
+}
+.ml .ask-composer {
+  width: 1100px;
+  height: 210px;
+}
+.ml .tweak-caption {
+  top: 115px;
+  font-size: 84px;
+}
+.ml .edit-detail {
+  position: absolute;
+  left: 1340px;
+  top: 360px;
+  width: 405px;
+  padding: 30px;
+  border: 1px solid #ffffff26;
+  border-radius: 18px;
+  background: #151b20;
+  box-shadow: 0 30px 80px #0009;
+  z-index: 5;
+}
+.ml .detail-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  font-size: 27px;
+  margin-bottom: 35px;
+}
+.ml .detail-head small {
+  margin-left: auto;
+  color: #78988c;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.ml .edit-detail label {
+  display: block;
+  font-size: 20px;
+  color: #9da8a5;
+  margin-bottom: 14px;
+}
+.ml .detail-text {
+  position: relative;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  margin-bottom: 24px;
+  border: 1px solid #7cf7c54a;
+  border-radius: 9px;
+  background: #0d1216;
+  overflow: hidden;
+  font-size: 21px;
+  color: #e7f1ed;
+}
+.ml .detail-text span {
+  position: relative;
+  z-index: 2;
+  white-space: nowrap;
+}
+.ml .detail-text i {
+  position: absolute;
+  left: 13px;
+  top: 14px;
+  height: 36px;
+  width: 245px;
+  border-radius: 4px;
+  background: #7cf7c538;
+  transform-origin: left;
+}
+.ml .detail-text b {
+  position: absolute;
+  left: 18px;
+  top: 15px;
+  width: 2px;
+  height: 34px;
+  background: var(--mint);
+  box-shadow: 0 0 10px #7cf7c5;
+}
+.ml .detail-foot {
+  display: flex;
+  justify-content: space-between;
+  font:
+    15px ui-monospace,
+    monospace;
+  color: #78988c;
+}
+.ml .p-top {
+  height: 60px;
+  font-size: 21px;
+}
+.ml .p-doc {
+  font-size: 18px;
+}
+.ml .p-btn {
+  height: 35px;
+  font-size: 17px;
+}
+.ml [data-edit="selection-box"] .tag {
+  top: -18px;
+  height: 16px;
+  font-size: 10px;
+}
+
+/* Gallery, part 1: a tilted wall of real films, driven frame by frame from the timeline. */
+.ml .gallery {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.ml .gallery-cam {
+  position: absolute;
+  inset: 0;
+  perspective: 2400px;
+  transform-origin: 50% 50%;
+}
+.ml .gallery-wall {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotateX(16deg) rotateZ(-8deg);
+}
+.ml .gcol {
+  position: absolute;
+  top: 0;
+  width: 480px;
+}
+.ml .gtile {
+  position: absolute;
+  left: 0;
+  width: 480px;
+  height: 270px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b0c11;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 30px 60px rgba(0, 0, 0, 0.45);
+}
+.ml .gtile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ml .gtile .gtag {
+  background: rgba(8, 9, 12, 0.74);
+  color: #f4f1ea;
+  box-shadow: none;
+}
+.ml .gallery-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 260px 90px #09090c;
+}
+/* Gallery, part 2: the films floating on a light desk around the claim. */
+.ml .gallery-light {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse 80% 75% at 50% 50%,
+    #fbfbfc 0%,
+    #eff0f3 60%,
+    #e4e6ea 100%
+  );
+}
+.ml .gallery-desk {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+.ml .gallery-field {
+  position: absolute;
+  inset: 0;
+}
+.ml .gcard {
+  position: absolute;
+}
+.ml .gfloat {
+  position: absolute;
+  inset: 0;
+  border-radius: 34px;
+  overflow: hidden;
+  background: #dfe2e6;
+  box-shadow:
+    0 34px 70px rgba(30, 36, 48, 0.2),
+    0 6px 16px rgba(30, 36, 48, 0.1);
+}
+.ml .gfloat img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ml .gtag {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #16181d;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.ml .gtag i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.ml .gallery-line {
+  font-size: 96px;
+  letter-spacing: -0.05em;
+  color: #0e1014;
+}
+.ml .gallery-line .grad {
+  color: #0ea975;
+}
+/* Brand close on the mint flood. */
+.ml .lockup {
+  gap: 30px;
+}
+.ml .lockup .logo {
+  width: 116px;
+  height: 116px;
+}
+.ml .lockup b {
+  font-size: 132px;
+  color: #06140f;
+}
+.ml [data-edit="final-tagline"] {
+  color: #0a2a1f;
+}
+
+.ml .pipe-shade {
+  position: absolute;
+  inset: -1px;
+  border-radius: 20px;
+  background: #0b0b0e;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* 02 and 03 float as objects, like the brief: no container panel around them. */
+.ml .pipeline article.production-board,
+.ml .pipeline article.production-motion {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.ml .board-frame {
+  box-shadow: 0 40px 90px #000a;
+}
+.ml .production-screen {
+  box-shadow: 0 45px 100px #000a;
+  border-color: #ffffff1c;
+}
+/* 03: the storyboard comes alive: the headline swaps, the chart draws, keyframes fire under a playhead. */
+.ml .ps-chart {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 300px;
+}
+.ml .ps-head {
+  position: absolute;
+  left: 48px;
+  top: 104px;
+  height: 140px;
+  right: 48px;
+  overflow: hidden;
+  font-size: 104px;
+  line-height: 1.1;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+  z-index: 1;
+}
+.ml .ps-line {
+  position: absolute;
+  left: 0;
+  top: 8px;
+}
+.ml .production-keys {
+  position: relative;
+  margin-top: 22px;
+}
+.ml .pk-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 20px;
+  height: 22px;
+  font:
+    13px ui-monospace,
+    monospace;
+  color: #7e9990;
+}
+.ml .pk-track {
+  position: relative;
+  height: 2px;
+  background: #ffffff1a;
+}
+.ml .pk-track b {
+  position: absolute;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: #2a3432;
+  border: 1.5px solid #7cf7c566;
+  transform: rotate(45deg);
+}
+.ml .pk-track b.on {
+  background: #7cf7c5;
+  border-color: #7cf7c5;
+  box-shadow: 0 0 14px #7cf7c5aa;
+}
+.ml .pk-head {
+  position: absolute;
+  left: 120px;
+  top: -6px;
+  bottom: -6px;
+  width: 2px;
+  background: #7cf7c5;
+  box-shadow: 0 0 10px #7cf7c5;
+}
+.ml .scroll-space {
+  -webkit-mask-image: linear-gradient(transparent, #000 30%);
+  mask-image: linear-gradient(transparent, #000 30%);
+}
+.ml .scrollgrid {
+  background-image: radial-gradient(
+    rgba(244, 241, 234, 0.2) 1.5px,
+    transparent 2px
+  );
+  background-size: 44px 44px;
+}
+
+/* Direct canvas edit + colour in the properties panel. */
+.ml .a-title .acc {
+  color: var(--hl, #ff7a59);
+}
+.ml .a-title {
+  padding: 0 6px;
+  border-radius: 4px;
+}
+.ml .swatches {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+.ml .swatches i {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px #ffffff26;
+}
+.ml .swatches b {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+}
+/* Performance: no full-frame masks on moving layers. */
+.ml .pipeline,
+.ml .scroll-viewport {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.ml .pipeline article,
+.ml .board-frame,
+.ml .production-screen {
+  box-shadow: 0 24px 50px #0008;
+}
+.ml .final-credit {
+  font-size: 84px;
+  letter-spacing: -0.045em;
+  color: #06140f;
+}
+.ml .final-credit .credit-name {
+  color: #0b4a34;
+}
+.ml .gcard.far .gfloat {
+  filter: blur(1.2px) saturate(0.9);
+  box-shadow: 0 18px 36px rgba(30, 36, 48, 0.14);
+}
+.ml .gcard.near .gfloat {
+  box-shadow:
+    0 48px 90px rgba(30, 36, 48, 0.26),
+    0 8px 20px rgba(30, 36, 48, 0.12);
+}
+.ml .grad-text {
+  background: linear-gradient(90deg, #7cf7c5 0%, #8ab4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  padding-right: 0.04em;
+}
