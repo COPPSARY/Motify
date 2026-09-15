@@ -1,6 +1,6 @@
 # Editor
 
-The editor preserves Motionly's visual workflow around the mounted HTML and GSAP timeline:
+The editor preserves Motify's visual workflow around the mounted HTML and GSAP timeline:
 
 - centered aspect-ratio preview
 - Play, Pause, Restart, and deterministic scrubbing

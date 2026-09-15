@@ -81,7 +81,7 @@
       <div class="notice-card-body">
         <p>
           If the animation quality isn’t quite where you expected, we’re sorry.
-          Motionly is still in early development, and generation quality depends
+          Motify is still in early development, and generation quality depends
           heavily on the AI models powering it.
         </p>
         <p>
@@ -89,7 +89,7 @@
           working toward better AI models and better results.
         </p>
         <p class="notice-thanks">
-          <strong>Thank you for your patience while we build Motionly.</strong>
+          <strong>Thank you for your patience while we build Motify.</strong>
         </p>
       </div>
 

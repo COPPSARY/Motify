@@ -26,7 +26,7 @@ export const blankProjectFiles: ProjectSourceFiles = {
   "styles.css": "",
   "timeline.js": `export function buildTimeline({ root, timeline, register }) {
   const stage = root.querySelector("[data-edit='stage']");
-  if (!stage) throw new Error("Motionly stage was not found.");
+  if (!stage) throw new Error("Motify stage was not found.");
   register("stage", stage);
 }`,
   "index.ts": `import { defineComposition, type CompositionContext } from '@motionly/runtime';
@@ -36,12 +36,12 @@ import { buildTimeline } from './timeline.js';
 function mount(context: CompositionContext) {
   const documentNode = new DOMParser().parseFromString(compositionHtml, 'text/html');
   const template = documentNode.querySelector<HTMLTemplateElement>('#motionly-template');
-  if (!template) throw new Error('Motionly template was not found.');
+  if (!template) throw new Error('Motify template was not found.');
   context.root.replaceChildren(template.content.cloneNode(true));
 }
 
 export default defineComposition({
-  id: 'blank-composition', title: 'Untitled Motionly Project', description: 'Blank Motionly composition',
+  id: 'blank-composition', title: 'Untitled Motify Project', description: 'Blank Motify composition',
   width: 1920, height: 1080, fps: 60, duration: 5,
   scenes: [{ id: 'main', label: 'Main', start: 0, duration: 5, accent: '#7657ff', tracks: [{ id: 'stage', label: 'Stage', kind: 'Background', start: 0, end: 5 }] }],
   sourcePreview: compositionHtml,
@@ -75,7 +75,7 @@ export function createBlankComposition(): CompositionDefinition {
     blankProjectFiles["timeline.js"],
     {
       id: BLANK_COMPOSITION_ID,
-      title: "Untitled Motionly Project",
+      title: "Untitled Motify Project",
       duration: 5,
       scenes: blankScenes,
     },

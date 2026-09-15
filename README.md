@@ -1,7 +1,7 @@
 <div align="center">
   <h1>
-    <img src="public/logo.svg" alt="Motionly Logo" width="48" height="48" valign="middle">
-    <span valign="middle">Motionly</span>
+    <img src="public/logo.svg" alt="Motify Logo" width="48" height="48" valign="middle">
+    <span valign="middle">Motify</span>
   </h1>
 
   <p>
@@ -35,15 +35,23 @@
       <img src=".github/assets/claude.gif" alt="Claude" width="100%">
     </td>
     <td width="50%" align="center">
-      <img src=".github/assets/KiriTTS.gif" alt="KiriTTS" width="100%">
+      <img src=".github/assets/Motify.gif" alt="Motify" width="100%">
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src=".github/assets/motionly.gif" alt="Motionly" width="100%">
+      <img src=".github/assets/KiriTTS.gif" alt="KiriTTS" width="100%">
     </td>
     <td width="50%" align="center">
-      <img src=".github/assets/notes-app.gif" alt="Apple Notes" width="100%">
+      <img src=".github/assets/relay.gif" alt="Relay" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src=".github/assets/recoup.gif" alt="Recoup" width="100%">
+    </td>
+    <td width="50%" align="center">
+      <img src=".github/assets/tessera.gif" alt="Tessera" width="100%">
     </td>
   </tr>
 </table>
@@ -52,7 +60,7 @@
 
 ## Features
 
-Motionly combines normal HTML/CSS/JavaScript authoring with a visual editor, direct DOM/SVG rendering, and professional GSAP timelines.
+Motify combines normal HTML/CSS/JavaScript authoring with a visual editor, direct DOM/SVG rendering, and professional GSAP timelines.
 
 - Build compositions from semantic HTML and inline SVG
 - Choreograph scenes with GSAP timelines, overlap, stagger, masks, text reveals, and camera movement
@@ -63,25 +71,25 @@ Motionly combines normal HTML/CSS/JavaScript authoring with a visual editor, dir
 - Render images and SVG assets directly in the composition DOM
 - Export PNG frames or a full H.264 MP4 from the exact composition shown in the preview
 
-HTML compositions are the project source. Motionly does not convert projects into a second format: preview and export mount the same HTML and seek the same GSAP timeline.
+HTML compositions are the project source. Motify does not convert projects into a second format: preview and export mount the same HTML and seek the same GSAP timeline.
 
 ## Quick Start
 
 Requires Node.js `20.19.0` or newer.
 
 ```bash
-npx @coppsary/motionly@latest init my-video
+npx @coppsary/motify@latest init my-video
 cd my-video
-npx @coppsary/motionly@latest dev
+npx @coppsary/motify@latest dev
 ```
 
-The initializer creates a code-first Motionly v2 project and installs the bundled `write-motionly` and `scene-design` skills for your coding agent. Use `--provider codex`, `--provider claude`, or `--all`; use `--skip-skills` when you do not want agent setup.
+The initializer creates a code-first Motify v2 project and installs the bundled `write-motionly` and `scene-design` skills for your coding agent. Those skill and runtime identifiers remain unchanged so existing compositions stay compatible. Use `--provider codex`, `--provider claude`, or `--all`; use `--skip-skills` when you do not want agent setup.
 
 To add or refresh the skills in an existing project:
 
 ```bash
-npx @coppsary/motionly@latest skills add --provider codex
-npx @coppsary/motionly@latest skills update --provider codex
+npx @coppsary/motify@latest skills add --provider codex
+npx @coppsary/motify@latest skills update --provider codex
 ```
 
 Local projects keep visuals in `composition.html`, optional CSS in `styles.css`, motion in `timeline.js`, metadata/mounting in `index.ts`, and media in `assets/`. The local editor reads and saves those files directly. Copy `.env.example` to `.env` to use AI generation without exposing the key to the browser.
@@ -91,8 +99,8 @@ See the [introduction](docs/introduction.md), [architecture guide](docs/architec
 ## Development
 
 ```bash
-git clone https://github.com/COPPSARY/Motionly.git
-cd Motionly
+git clone https://github.com/COPPSARY/Motify.git
+cd Motify
 npm install
 npm run dev
 ```
@@ -110,7 +118,7 @@ See [Contributing](CONTRIBUTING.md), the [Roadmap](ROADMAP.md), and the [documen
 
 ## Third-Party & Credits
 
-Motionly incorporates open-source motion components, blocks, and motion primitives from **[HyperFrames](https://hyperframes.heygen.com)** by HeyGen, Inc. and its community contributors under the Apache License 2.0. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for full attribution, licensing details, and component manifests.
+Motify incorporates open-source motion components, blocks, and motion primitives from **[HyperFrames](https://hyperframes.heygen.com)** by HeyGen, Inc. and its community contributors under the Apache License 2.0. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for full attribution, licensing details, and component manifests.
 
 ## License
 

@@ -219,7 +219,7 @@ export async function handleAiGenerateRequest(
       return;
     }
 
-    console.warn(`[Motionly AI] Request dispatched to ${provider} (${model})`);
+    console.warn(`[Motify AI] Request dispatched to ${provider} (${model})`);
     const rawText = await callAiProvider({
       provider,
       apiKey,
@@ -236,10 +236,10 @@ export async function handleAiGenerateRequest(
       isDirection ? { text: rawText } : parseComposition(rawText),
     );
     console.warn(
-      `[Motionly AI] Completed ${provider} generation in ${Date.now() - startedAt}ms`,
+      `[Motify AI] Completed ${provider} generation in ${Date.now() - startedAt}ms`,
     );
   } catch (error: unknown) {
-    console.error("[Motionly AI] Error:", error);
+    console.error("[Motify AI] Error:", error);
     sendJson(res, 500, {
       error:
         error instanceof Error ? error.message : "Internal AI generation error",

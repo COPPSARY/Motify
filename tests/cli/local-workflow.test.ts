@@ -41,10 +41,10 @@ async function waitForProject(port: number) {
     }
     await new Promise((done) => setTimeout(done, 50));
   }
-  throw lastError ?? new Error("Local Motionly server did not start.");
+  throw lastError ?? new Error("Local Motify server did not start.");
 }
 
-describe("Motionly local CLI", () => {
+describe("Motify local CLI", () => {
   let workspace = "";
 
   beforeEach(async () => {
@@ -179,7 +179,7 @@ describe("Motionly local CLI", () => {
 
       const editor = await fetch(`http://127.0.0.1:${port}/`);
       expect(editor.status).toBe(200);
-      expect(await editor.text()).toContain("Motionly");
+      expect(await editor.text()).toContain("Motify");
 
       const ai = await fetch(`http://127.0.0.1:${port}/api/ai/generate`, {
         method: "POST",

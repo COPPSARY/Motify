@@ -1,4 +1,4 @@
-# Motionly project
+# Motify project
 
 Read the installed `write-motionly` skill before editing this composition.
 

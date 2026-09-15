@@ -32,7 +32,9 @@ const required = [
 const missing = required.filter((path) => !paths.has(path));
 if (missing.length)
   throw new Error(`Release package is missing: ${missing.join(", ")}`);
-if (manifest.entryCount > 1500) {
+// The Motify launch preset includes 927 deterministic WebP frames so its
+// embedded showcase remains seekable in preview and export.
+if (manifest.entryCount > 2500) {
   throw new Error(
     `Release package unexpectedly contains ${manifest.entryCount} files.`,
   );

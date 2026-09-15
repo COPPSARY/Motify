@@ -48,7 +48,7 @@ export function saveProjectDraft(projectId: string, draft: ProjectDraft): void {
   try {
     localStorage.setItem(draftKey(projectId), JSON.stringify(draft));
   } catch (error) {
-    console.warn("Motionly could not persist the local project draft.", error);
+    console.warn("Motify could not persist the local project draft.", error);
   }
 }
 

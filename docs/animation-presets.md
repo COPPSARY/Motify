@@ -1,6 +1,6 @@
 # GSAP motion helpers
 
-Motionly ships a small JavaScript/TypeScript motion surface:
+Motify ships a small JavaScript/TypeScript motion surface:
 
 - `reveal`
 - `slide`

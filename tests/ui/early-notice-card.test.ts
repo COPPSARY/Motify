@@ -36,13 +36,13 @@ describe("EarlyNoticeCard", () => {
       "If the animation quality isn’t quite where you expected, we’re sorry.",
     );
     expect(bodyText).toContain(
-      "Motionly is still in early development, and generation quality depends heavily on the AI models powering it.",
+      "Motify is still in early development, and generation quality depends heavily on the AI models powering it.",
     );
     expect(bodyText).toContain(
       "We’re actively testing and improving our generation pipeline and working toward better AI models and better results.",
     );
     expect(bodyText).toContain(
-      "Thank you for your patience while we build Motionly.",
+      "Thank you for your patience while we build Motify.",
     );
 
     // Button should be disabled initially

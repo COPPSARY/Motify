@@ -23,7 +23,7 @@ const compositionSource = compositionHtml.replace(
 function mount(context: CompositionContext) {
   const documentNode = new DOMParser().parseFromString(compositionSource, 'text/html');
   const template = documentNode.querySelector<HTMLTemplateElement>('template');
-  if (!template) throw new Error('Motionly template was not found.');
+  if (!template) throw new Error('Motify template was not found.');
   context.root.replaceChildren(template.content.cloneNode(true));
 }
 
@@ -32,7 +32,7 @@ function mount(context: CompositionContext) {
 export const motionlyMetadata = ${JSON.stringify({
     id: safeId || "ai-generated",
     title: options.title,
-    description: "AI-edited Motionly composition",
+    description: "AI-edited Motify composition",
     width: options.width ?? 1920,
     height: options.height ?? 1080,
     fps: options.fps ?? 60,
