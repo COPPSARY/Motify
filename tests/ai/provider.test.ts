@@ -19,6 +19,12 @@ describe("AI provider transport", () => {
     ).toBe("https://codecraftapi.com/v1");
   });
 
+  it("requires an OpenAI-compatible base URL instead of selecting a provider host", () => {
+    expect(() => normalizeOpenAiCompatibleBaseUrl(" ")).toThrow(
+      "Missing OPENAI_COMPATIBLE_BASE_URL",
+    );
+  });
+
   it("retries without JSON mode when the selected model rejects it", async () => {
     const fetchMock = vi
       .fn()
@@ -71,6 +77,7 @@ describe("AI provider transport", () => {
         provider: "openai-compatible",
         apiKey: "bad-key",
         model: "claude-opus-4.8",
+        baseUrl: "https://codecraftapi.com/v1",
         systemPrompt: "Return JSON",
         userMessage: "Build it",
         temperature: 0.5,

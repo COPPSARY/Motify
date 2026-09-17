@@ -248,6 +248,10 @@ describe("directed generation with self-repair", () => {
   it("sends attached images in the OpenAI-compatible vision format", async () => {
     vi.stubEnv("VITE_AI_PROVIDER", "openai-compatible");
     vi.stubEnv("VITE_OPENAI_COMPATIBLE_API_KEY", "cc_test-key");
+    vi.stubEnv(
+      "VITE_OPENAI_COMPATIBLE_BASE_URL",
+      "https://codecraftapi.com/v1",
+    );
     fetchMock.mockResolvedValue(openAiResponse(soundComposition("Built.")));
 
     await generateWithDirectAi("use this logo", {
@@ -277,6 +281,7 @@ describe("directed generation with self-repair", () => {
     vi.stubEnv("AI_PROVIDER", "openai-compatible");
     vi.stubEnv("OPENAI_COMPATIBLE_API_KEY", "cc_server-key");
     vi.stubEnv("OPENAI_COMPATIBLE_MODEL", "claude-opus-4.8");
+    vi.stubEnv("OPENAI_COMPATIBLE_BASE_URL", "https://codecraftapi.com/v1");
     fetchMock.mockResolvedValue(
       openAiResponse(soundComposition("Server result.")),
     );

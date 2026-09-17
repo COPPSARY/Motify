@@ -3,7 +3,6 @@ import { join } from "node:path";
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 const DEFAULT_OPENAI_MODEL = "claude-opus-4.8";
-const DEFAULT_OPENAI_BASE_URL = "https://codecraftapi.com/v1";
 const MAX_REQUEST_BYTES = 30 * 1024 * 1024;
 
 async function requestJson(request) {
@@ -140,10 +139,15 @@ async function callOpenAiCompatible(prepared, env) {
     );
   }
   const model = (env.OPENAI_COMPATIBLE_MODEL || DEFAULT_OPENAI_MODEL).trim();
-  const baseUrl = (env.OPENAI_COMPATIBLE_BASE_URL || DEFAULT_OPENAI_BASE_URL)
+  const baseUrl = (env.OPENAI_COMPATIBLE_BASE_URL || "")
     .trim()
     .replace(/\/+$/, "")
     .replace(/\/chat\/completions$/i, "");
+  if (!baseUrl) {
+    throw new Error(
+      "Missing OPENAI_COMPATIBLE_BASE_URL in the local project's .env file.",
+    );
+  }
   const payload = {
     model,
     messages: [

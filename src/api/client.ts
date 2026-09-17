@@ -1,11 +1,7 @@
 import { currentCsrfToken } from "../auth";
+import { MOTIFY_API_URL } from "./config";
 
-export const API_URL =
-  import.meta.env["VITE_MOTIONLY_API_URL"] ||
-  (typeof window !== "undefined" &&
-  !["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "https://motionly-backend.onrender.com"
-    : "http://localhost:3000");
+export const API_URL = MOTIFY_API_URL;
 
 interface ApiErrorEnvelope {
   error?: { message?: string };

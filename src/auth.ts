@@ -1,3 +1,5 @@
+import { MOTIFY_API_URL } from "./api/config";
+
 export interface MotionlyUser {
   readonly id: string;
   readonly email: string;
@@ -10,12 +12,6 @@ interface AuthResponse {
   readonly data: { readonly user: MotionlyUser; readonly csrfToken: string };
 }
 
-const API_URL =
-  import.meta.env["VITE_MOTIONLY_API_URL"] ||
-  (typeof window !== "undefined" &&
-  !["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "https://motionly-backend.onrender.com"
-    : "http://localhost:3000");
 let csrfToken = "";
 
 export function currentCsrfToken(): string {
@@ -24,7 +20,7 @@ export function currentCsrfToken(): string {
 
 export async function currentMotionlyUser(): Promise<MotionlyUser | null> {
   try {
-    const response = await fetch(`${API_URL}/v1/auth/me`, {
+    const response = await fetch(`${MOTIFY_API_URL}/v1/auth/me`, {
       credentials: "include",
       headers: { Accept: "application/json" },
     });
@@ -38,5 +34,5 @@ export async function currentMotionlyUser(): Promise<MotionlyUser | null> {
 }
 
 export function motionlyLoginUrl(): string {
-  return `${API_URL}/v1/auth/google`;
+  return `${MOTIFY_API_URL}/v1/auth/google`;
 }

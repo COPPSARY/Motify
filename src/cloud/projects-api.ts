@@ -1,4 +1,5 @@
 import { combineCompositionSource } from "./project-source";
+import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
 
 export const PROJECT_SOURCE_PATHS = [
@@ -94,14 +95,7 @@ export class CloudApiError extends Error {
 export class ProjectsApi {
   private csrfToken = "";
 
-  constructor(
-    readonly baseUrl = (import.meta.env["VITE_MOTIONLY_API_URL"] as
-      string | undefined) ??
-      (typeof window !== "undefined" &&
-      !["localhost", "127.0.0.1"].includes(window.location.hostname)
-        ? "https://motionly-backend.onrender.com"
-        : "http://localhost:3000"),
-  ) {}
+  constructor(readonly baseUrl = MOTIFY_API_URL) {}
 
   async getSession(): Promise<{ user: CloudUser; csrfToken: string }> {
     const session = await this.request<{ user: CloudUser; csrfToken: string }>(

@@ -6,7 +6,6 @@ import { buildMotionlyUserMessage } from "./generation-guidance";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
   normalizeAiProvider,
 } from "./provider";
@@ -199,8 +198,7 @@ export async function handleAiGenerateRequest(
           DEFAULT_OPENAI_COMPATIBLE_MODEL;
     const baseUrl =
       provider === "openai-compatible"
-        ? env["OPENAI_COMPATIBLE_BASE_URL"]?.trim() ||
-          DEFAULT_OPENAI_COMPATIBLE_BASE_URL
+        ? env["OPENAI_COMPATIBLE_BASE_URL"]?.trim()
         : undefined;
 
     if (!apiKey) {

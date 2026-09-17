@@ -26,6 +26,16 @@ describe("PostHog analytics", () => {
     expect(posthogMock.init).not.toHaveBeenCalled();
   });
 
+  it("stays disabled when the API host is not configured", async () => {
+    vi.stubEnv("VITE_PUBLIC_POSTHOG_KEY", "phc_test");
+    vi.stubEnv("VITE_PUBLIC_POSTHOG_HOST", "");
+    vi.stubEnv("VITE_PUBLIC_POSTHOG_CAPTURE_DEV", "true");
+    const analytics = await import("../src/posthog");
+
+    expect(analytics.initPostHog()).toBe(false);
+    expect(posthogMock.init).not.toHaveBeenCalled();
+  });
+
   it("does not pollute PostHog with local development traffic by default", async () => {
     vi.stubEnv("VITE_PUBLIC_POSTHOG_KEY", "phc_test");
     vi.stubEnv("VITE_PUBLIC_POSTHOG_CAPTURE_DEV", "false");

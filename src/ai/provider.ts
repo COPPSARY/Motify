@@ -2,7 +2,6 @@ export type AiProvider = "gemini" | "openai-compatible";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 export const DEFAULT_OPENAI_COMPATIBLE_MODEL = "claude-opus-4.8";
-export const DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "https://codecraftapi.com/v1";
 
 export interface AiImageAsset {
   mimeType: string;
@@ -40,7 +39,12 @@ export function normalizeGeminiModel(rawModel: string): string {
 }
 
 export function normalizeOpenAiCompatibleBaseUrl(rawUrl: string): string {
-  let value = rawUrl.trim() || DEFAULT_OPENAI_COMPATIBLE_BASE_URL;
+  let value = rawUrl.trim();
+  if (!value) {
+    throw new Error(
+      "Missing OPENAI_COMPATIBLE_BASE_URL in .env or deployment environment variables.",
+    );
+  }
   value = value.replace(/\/+$/, "");
   value = value.replace(/\/chat\/completions$/i, "");
 
@@ -211,9 +215,7 @@ function shouldRetryWithoutJsonMode(status: number, message: string): boolean {
 async function callOpenAiCompatible(
   request: AiProviderRequest,
 ): Promise<string> {
-  const baseUrl = normalizeOpenAiCompatibleBaseUrl(
-    request.baseUrl ?? DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
-  );
+  const baseUrl = normalizeOpenAiCompatibleBaseUrl(request.baseUrl ?? "");
   const url = `${baseUrl}/chat/completions`;
   const basePayload = {
     model: request.model.trim() || DEFAULT_OPENAI_COMPATIBLE_MODEL,
