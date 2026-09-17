@@ -1,7 +1,5 @@
 import posthog from "posthog-js";
 
-const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
-
 export type MotionlyAnalyticsEvent =
   | "ai generation completed"
   | "ai generation failed"
@@ -33,11 +31,9 @@ export function initPostHog(): boolean {
   if (analyticsEnabled) return true;
 
   const key = import.meta.env["VITE_PUBLIC_POSTHOG_KEY"] as string | undefined;
-  if (!key || !shouldCaptureInThisEnvironment()) return false;
-
-  const host =
-    (import.meta.env["VITE_PUBLIC_POSTHOG_HOST"] as string | undefined) ??
-    DEFAULT_POSTHOG_HOST;
+  const host = import.meta.env["VITE_PUBLIC_POSTHOG_HOST"] as
+    string | undefined;
+  if (!key || !host || !shouldCaptureInThisEnvironment()) return false;
 
   posthog.init(key, {
     api_host: host,

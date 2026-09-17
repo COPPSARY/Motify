@@ -5,7 +5,6 @@ import { buildMotionlyUserMessage } from "../../src/ai/generation-guidance";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
   normalizeAiProvider,
   type AiProvider,
@@ -52,9 +51,7 @@ function providerConfig(): {
       model:
         process.env["OPENAI_COMPATIBLE_MODEL"]?.trim() ||
         DEFAULT_OPENAI_COMPATIBLE_MODEL,
-      baseUrl:
-        process.env["OPENAI_COMPATIBLE_BASE_URL"]?.trim() ||
-        DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+      baseUrl: process.env["OPENAI_COMPATIBLE_BASE_URL"]?.trim(),
     };
   }
   return {

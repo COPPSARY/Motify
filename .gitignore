@@ -20,6 +20,8 @@ output/
 .playwright-cli/
 artifacts/
 .env
+.env.*
+!.env.example
 scratch/
 
 # Live AI eval output: real generations, regenerated on demand.

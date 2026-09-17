@@ -22,7 +22,6 @@ import { ProjectsApi } from "../cloud/projects-api";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
   normalizeAiProvider,
   normalizeGeminiModel,
@@ -31,7 +30,6 @@ import {
 
 export {
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
   normalizeGeminiModel,
 };
@@ -84,9 +82,7 @@ export function getClientAiSettings(): ClientAiSettings {
       model:
         (env["VITE_OPENAI_COMPATIBLE_MODEL"] ?? "").trim() ||
         DEFAULT_OPENAI_COMPATIBLE_MODEL,
-      baseUrl:
-        (env["VITE_OPENAI_COMPATIBLE_BASE_URL"] ?? "").trim() ||
-        DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+      baseUrl: (env["VITE_OPENAI_COMPATIBLE_BASE_URL"] ?? "").trim(),
     };
   }
   return {
