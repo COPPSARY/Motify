@@ -172,7 +172,7 @@ export function parseAiResponseText(rawText: string): DirectAiResult {
         duration: durationMatch?.[1] ? parseFloat(durationMatch[1]) : 20,
         compositionHtml: unescapeJsonString(htmlMatch[1]),
         timelineJs: unescapeJsonString(jsMatch[1]),
-        reply: replyMatch?.[1] ?? "Updated composition with Motify AI.",
+        reply: replyMatch?.[1] ?? "Updated the composition.",
       };
     }
   }

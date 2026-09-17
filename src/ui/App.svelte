@@ -14,12 +14,13 @@
     Image as ImageIcon,
     Layers3,
     Maximize2,
+    Minus,
+    PanelBottomClose,
+    PanelBottomOpen,
     Pause,
     Play,
     Plus,
-    RefreshCcw,
     Save,
-    SlidersHorizontal,
     Sparkles,
     Upload,
     Wand2,
@@ -116,6 +117,7 @@
     type SceneTrack,
   } from "./timeline-data";
   import AnimationControls from "./AnimationControls.svelte";
+  import TiffyMark from "./TiffyMark.svelte";
   import { generationStore } from "../stores/generation";
   import { uploadAsset } from "../api/assets";
   import {
@@ -143,9 +145,9 @@
   import "./styles/content-panel.css";
   import "./styles/preview-stage.css";
   import "./styles/properties-inspector.css";
-  import "./styles/storyboard-strip.css";
   import "./styles/timeline-panel.css";
   import "./styles/editor-theme.css";
+  import "./styles/editor-sleek.css";
 
   type EditorTab = "chat" | "presets";
 
@@ -244,6 +246,11 @@
   let zoom = 1;
   let fitScale = 0.5;
   let activeTab: EditorTab = "chat";
+  let inspectorTab: "design" | "animate" = "design";
+  // The full layer timeline is opt-in; by default the canvas gets the room and
+  // only the scenes bar sits under it.
+  let timelineOpen = false;
+  let sceneBarScrubbing = false;
   let exporting = false;
   let notice = "";
   let assistantDraft = "";
@@ -742,8 +749,8 @@
 
   function fitPreview(): void {
     if (!previewStage) return;
-    const width = Math.max(1, previewStage.clientWidth - 72);
-    const height = Math.max(1, previewStage.clientHeight - 72);
+    const width = Math.max(1, previewStage.clientWidth - 40);
+    const height = Math.max(1, previewStage.clientHeight - 40);
     fitScale = Math.min(
       width / activeComposition.width,
       height / activeComposition.height,
@@ -791,40 +798,64 @@
     snapshot.playing ? runtime.pause() : runtime.play();
   }
 
+  // Picks the layer the user actually pointed at. The topmost painted element
+  // wins; its nearest registered ancestor is the answer. Wrappers that fill the
+  // frame (film roots, camera worlds, backgrounds) are skipped so a click lands
+  // on the object under the cursor instead of the whole scene. Those layers stay
+  // selectable from the timeline's layer list.
   function editableElementAtPoint(event: MouseEvent): string {
     if (!runtime || !previewRoot) return "";
-    const candidates = new Map<string, HTMLElement>();
-    const addCandidate = (element: Element | null): void => {
-      const editable = element?.closest<HTMLElement>("[data-motionly-id]");
-      const id = editable?.dataset["motionlyId"] ?? "";
-      if (
-        id &&
-        editable &&
-        previewRoot.contains(editable) &&
-        runtime?.elements.get(id) === editable
-      ) {
-        candidates.set(id, editable);
-      }
-    };
+    const activeRuntime = runtime;
+    const rootRect = previewRoot.getBoundingClientRect();
+    const rootArea = Math.max(1, rootRect.width * rootRect.height);
 
-    addCandidate(event.target instanceof Element ? event.target : null);
+    const registeredAncestor = (
+      element: Element | null,
+    ): HTMLElement | null => {
+      for (
+        let node = element?.closest<HTMLElement>("[data-motionly-id]") ?? null;
+        node && previewRoot.contains(node);
+        node =
+          node.parentElement?.closest<HTMLElement>("[data-motionly-id]") ?? null
+      ) {
+        const id = node.dataset["motionlyId"] ?? "";
+        if (id && activeRuntime.elements.get(id) === node) return node;
+      }
+      return null;
+    };
+    const isVisible = (element: HTMLElement): boolean => {
+      const style = getComputedStyle(element);
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        Number(style.opacity) > 0.01
+      );
+    };
+    const areaRatio = (element: HTMLElement): number => {
+      const rect = element.getBoundingClientRect();
+      return (rect.width * rect.height) / rootArea;
+    };
+    const isBackdrop = (element: HTMLElement): boolean =>
+      areaRatio(element) >= 0.85;
+
+    // 1. What is painted under the pointer, topmost first.
     for (const element of document.elementsFromPoint(
       event.clientX,
       event.clientY,
     )) {
-      addCandidate(element);
+      if (!previewRoot.contains(element)) continue;
+      const editable = registeredAncestor(element);
+      if (editable && isVisible(editable) && !isBackdrop(editable)) {
+        return editable.dataset["motionlyId"] ?? "";
+      }
     }
 
-    for (const [id, element] of runtime.elements) {
-      if (!previewRoot.contains(element)) continue;
-      const style = getComputedStyle(element);
-      if (
-        style.display === "none" ||
-        style.visibility === "hidden" ||
-        Number(style.opacity) <= 0.01
-      ) {
-        continue;
-      }
+    // 2. Layers that ignore pointer events: use their boxes, keep only the
+    //    innermost ones, and take the smallest.
+    const boxed: HTMLElement[] = [];
+    for (const element of activeRuntime.elements.values()) {
+      if (!previewRoot.contains(element) || !isVisible(element)) continue;
+      if (isBackdrop(element)) continue;
       const rect = element.getBoundingClientRect();
       if (
         rect.width > 0 &&
@@ -834,37 +865,15 @@
         event.clientY >= rect.top &&
         event.clientY <= rect.bottom
       ) {
-        candidates.set(id, element);
+        boxed.push(element);
       }
     }
-
-    const rootRect = previewRoot.getBoundingClientRect();
-    const rootArea = Math.max(1, rootRect.width * rootRect.height);
-    return (
-      [...candidates.entries()]
-        .map(([id, element]) => {
-          const group = readEditorGroup(id, element);
-          const rect = element.getBoundingClientRect();
-          let depth = 0;
-          for (
-            let parent = element.parentElement;
-            parent && parent !== previewRoot;
-            parent = parent.parentElement
-          ) {
-            depth += 1;
-          }
-          const zIndex = Number.parseInt(getComputedStyle(element).zIndex, 10);
-          const score =
-            (group.explicit ? 10_000 : 0) +
-            (group.fields.length > 0 ? 5_000 : 0) +
-            depth * 20 +
-            (Number.isFinite(zIndex) ? zIndex : 0) -
-            ((rect.width * rect.height) / rootArea) * 100;
-          return { id, score };
-        })
-        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))[0]?.id ??
-      ""
+    const innermost = boxed.filter(
+      (element) =>
+        !boxed.some((other) => other !== element && element.contains(other)),
     );
+    innermost.sort((a, b) => areaRatio(a) - areaRatio(b));
+    return innermost[0]?.dataset["motionlyId"] ?? "";
   }
 
   function selectFromPreview(event: MouseEvent): void {
@@ -1128,6 +1137,83 @@
 
   function sceneWidth(scene: CompositionDefinition["scenes"][number]): number {
     return (scene.duration / activeComposition.duration) * 100;
+  }
+
+  // Scenes overlap during handoffs, so each pill runs from its own start to the
+  // next scene's start. That keeps pills tiled and aligned with the playhead.
+  function sceneBarLeft(
+    scene: CompositionDefinition["scenes"][number],
+  ): number {
+    return (scene.start / activeComposition.duration) * 100;
+  }
+
+  function sceneBarWidth(index: number): number {
+    const scenes = activeComposition.scenes;
+    const scene = scenes[index];
+    if (!scene) return 0;
+    const end = scenes[index + 1]?.start ?? activeComposition.duration;
+    return Math.max(
+      0,
+      ((end - scene.start) / activeComposition.duration) * 100,
+    );
+  }
+
+  $: sceneBarProgress = Math.max(
+    0,
+    Math.min(100, (snapshot.time / activeComposition.duration) * 100),
+  );
+
+  function seekToScene(scene: CompositionDefinition["scenes"][number]): void {
+    selectedSceneId = scene.id;
+    runtime?.seek(scene.start);
+    updateSelectionRect();
+  }
+
+  function sceneBarTime(event: PointerEvent): number {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
+    return Math.max(0, Math.min(1, ratio)) * activeComposition.duration;
+  }
+
+  function startSceneBarScrub(event: PointerEvent): void {
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    sceneBarScrubbing = true;
+    runtime?.pause();
+    runtime?.seek(sceneBarTime(event));
+    updateSelectionRect();
+  }
+
+  function moveSceneBarScrub(event: PointerEvent): void {
+    if (!sceneBarScrubbing) return;
+    runtime?.seek(sceneBarTime(event));
+    updateSelectionRect();
+  }
+
+  function endSceneBarScrub(event: PointerEvent): void {
+    if (!sceneBarScrubbing) return;
+    sceneBarScrubbing = false;
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture?.(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function sceneBarKeydown(event: KeyboardEvent): void {
+    const frame = 1 / activeComposition.fps;
+    const step = event.shiftKey ? frame * 10 : frame;
+    const max = activeComposition.duration - frame;
+    const moves: Record<string, number> = {
+      ArrowLeft: snapshot.time - step,
+      ArrowRight: snapshot.time + step,
+      Home: 0,
+      End: max,
+    };
+    const next = moves[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    runtime?.pause();
+    runtime?.seek(Math.max(0, Math.min(max, next)));
+    updateSelectionRect();
   }
 
   function selectTrack(track: SceneTrack): void {
@@ -1843,7 +1929,7 @@
       status: "GENERATING",
       stage: "GENERATING",
       progress: 20,
-      message: "Motify AI is analyzing your prompt...",
+      message: "Tiffy is reading your prompt...",
     });
 
     try {
@@ -1859,7 +1945,7 @@
         duration_ms: Math.round(performance.now() - generationStartedAt),
         reference_asset_count: stagedAssets.length,
       });
-      showNotice("Composition updated by Motify AI!");
+      showNotice("Tiffy updated the composition.");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -1924,7 +2010,7 @@
       status: "GENERATING",
       stage: "GENERATING",
       progress: 20,
-      message: "Motify AI is fixing the composition...",
+      message: "Tiffy is fixing the composition...",
     });
 
     try {
@@ -1936,7 +2022,7 @@
         progress: 100,
         message: reply,
       });
-      showNotice("Composition repaired and updated by Motify AI!");
+      showNotice("Tiffy repaired the composition.");
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
       generationStore.set({
@@ -2124,89 +2210,43 @@
 </script>
 
 <div class="app">
-  <header class="top-bar">
-    <div class="brand">
-      <span class="logo-shell"
-        ><img src="/logo.svg" alt="Motify" class="logo" /></span
-      >
-      <h1>Motify</h1>
-    </div>
-    <div class="file-info">
-      <FileText size={16} /><span
-        >{(cloudProject?.name ?? localProjectName) ||
-          "Unsaved Motify project"}</span
-      >
-    </div>
-    <div class="actions">
-      {#if authChecked}
-        {#if currentUser}
-          <span class="account-status" title={currentUser.email}>
-            <span class="account-status__dot" aria-hidden="true"></span>
-            <span>{currentUser.displayName || currentUser.email}</span>
-          </span>
-        {:else}
-          <a
-            class="account-status account-status--signed-out"
-            href={motionlyLoginUrl()}
-          >
-            <span class="account-status__dot" aria-hidden="true"></span>
-            <span>Not signed in</span>
-          </a>
-        {/if}
-      {/if}
-      <input
-        bind:this={mediaInput}
-        type="file"
-        accept="image/*,video/*,image/svg+xml"
-        style="display: none"
-        on:change={handleMediaUpload}
-        disabled={uploadingMedia}
-      />
-      <input
-        bind:this={fileInput}
-        class="file-input"
-        type="file"
-        accept=".ts,.tsx,text/typescript"
-        on:change={handleOpenFile}
-      />
-      <button class="btn" on:click={() => cloudProjects.openManager()}
-        ><FolderOpen size={17} /><span>Open</span></button
-      >
-      <button
-        class="btn"
-        title="Start a new blank project"
-        on:click={startNewProject}
-        disabled={$generationStore.isActive || exporting}
-        ><Plus size={17} /><span>New</span></button
-      >
-      <button class="btn btn-primary" on:click={saveSource}
-        ><Save size={17} /><span>Save</span></button
-      >
-      <button
-        class="btn me-tooltip"
-        data-tooltip="Export Current Frame as PNG"
-        on:click={exportFrame}
-        disabled={exporting}
-      >
-        <ImageIcon size={16} /><span>PNG</span>
-      </button>
-      <button
-        class="btn export-action me-tooltip"
-        data-tooltip="Render and Download 1080p Full Video"
-        on:click={exportFullVideo}
-        disabled={exporting}
-      >
-        <Download size={17} /><span
-          >{exporting ? exportStatus || "Rendering…" : "Export Video"}</span
-        >
-      </button>
-    </div>
-  </header>
-
+  <input
+    bind:this={mediaInput}
+    type="file"
+    accept="image/*,video/*,image/svg+xml"
+    style="display: none"
+    on:change={handleMediaUpload}
+    disabled={uploadingMedia}
+  />
+  <input
+    bind:this={fileInput}
+    class="file-input"
+    type="file"
+    accept=".ts,.tsx,text/typescript"
+    on:change={handleOpenFile}
+  />
   <div class="code-editor-scope">
     <div class="me-motion-editor" style="--timeline-height: 218px;">
       <div class="me-workbench">
         <aside class="me-left-panel">
+          <div class="me-brand-row">
+            <div class="brand">
+              <span class="logo-shell"
+                ><img src="/logo.svg" alt="Motify" class="logo" /></span
+              >
+              <h1>Motify</h1>
+            </div>
+            <div class="me-brand-actions">
+              <button
+                class="me-ghost-icon-btn me-tooltip"
+                aria-label="Start a new blank project"
+                data-tooltip="New project"
+                on:click={startNewProject}
+                disabled={$generationStore.isActive || exporting}
+                ><Plus size={16} /></button
+              >
+            </div>
+          </div>
           <div class="me-panel-header">
             {#if sourceOpen}
               <div class="me-panel-title"><Braces size={15} /> Source</div>
@@ -2237,9 +2277,9 @@
                 >
               {:else}
                 <button
-                  class="me-header-icon-btn"
+                  class="me-header-icon-btn me-tooltip"
                   aria-label="Open composition HTML source"
-                  title="Open composition HTML source"
+                  data-tooltip="Composition source"
                   on:click={openTimelineSource}><Braces size={15} /></button
                 >
               {/if}
@@ -2380,18 +2420,24 @@
           {:else}
             <section
               class="ai-chat-panel"
-              aria-label="Motify Assistant"
+              aria-label="Tiffy"
               data-ph-no-autocapture
             >
               <header class="ai-chat-header">
+                <span class="ai-chat-identity">
+                  <TiffyMark size={24} />
+                  <strong>Tiffy</strong>
+                </span>
                 <span
-                  ><Sparkles size={15} /><strong>Motify Assistant</strong></span
+                  class="ai-chat-state"
+                  class:is-busy={$generationStore.isActive}
+                  >{$generationStore.isActive ? "Working" : "Ready"}</span
                 >
               </header>
               <div class="ai-chat-messages" aria-live="polite">
                 <div class="ai-chat-message assistant">
-                  Describe a scene, transition, camera move, or timing change.
-                  I’ll keep the composition code-first and GSAP-driven.
+                  Hi, I’m Tiffy. Describe a scene, transition, camera move, or
+                  timing change and I’ll build it with GSAP.
                 </div>
                 {#each assistantMessages as message}
                   <div
@@ -2513,7 +2559,7 @@
                   class="ai-composer-input"
                   aria-label="Assistant prompt"
                   rows="1"
-                  placeholder="Ask anything"
+                  placeholder="Ask Tiffy anything"
                   bind:this={composerInput}
                   bind:value={assistantDraft}
                   on:input={resizeComposer}
@@ -2523,7 +2569,7 @@
                 ></textarea>
                 <button
                   class="ai-composer-send"
-                  aria-label="Send assistant message"
+                  aria-label="Send message to Tiffy"
                   disabled={!assistantDraft.trim() ||
                     $generationStore.isActive ||
                     uploadingMedia ||
@@ -2535,609 +2581,770 @@
           {/if}
         </aside>
 
-        <main class="me-preview-container">
-          <div class="me-stage-meta">
-            <span>{activeComposition.width} x {activeComposition.height}</span>
-            <div class="me-stage-actions">
-              <button class="me-meta-btn" on:click={fitPreview}>Fit</button>
-              <span>{Math.round(fitScale * zoom * 100)}%</span>
-              <button
-                class="me-icon-btn"
-                on:click={() => (zoom = Math.min(1.7, zoom + 0.15))}
-                aria-label="Zoom in"><Maximize2 size={15} /></button
+        <div class="me-center-column">
+          <header class="me-center-toolbar">
+            <div class="file-info">
+              <FileText size={15} /><span class="file-info__name"
+                >{(cloudProject?.name ?? localProjectName) ||
+                  "Unsaved Motify project"}</span
               >
             </div>
-          </div>
-          <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
-          <div
-            class="me-stage"
-            data-ph-no-autocapture
-            bind:this={previewStage}
-            role="application"
-            aria-label="Composition preview"
-            tabindex="0"
-            on:click|capture={selectFromPreview}
-            on:keydown={handlePreviewKey}
-          >
             <div
-              class="me-canvas-shell"
-              style:width={`${activeComposition.width}px`}
-              style:height={`${activeComposition.height}px`}
-              style:transform={`scale(${fitScale * zoom})`}
+              class="me-view-controls"
+              role="toolbar"
+              aria-label="Canvas view"
+            >
+              <span class="me-view-readout"
+                >{activeComposition.width} × {activeComposition.height}</span
+              >
+              <span class="me-view-divider" aria-hidden="true"></span>
+              <button
+                class="me-view-btn me-tooltip"
+                aria-label="Zoom out"
+                data-tooltip="Zoom out"
+                on:click={() => (zoom = Math.max(0.3, zoom - 0.15))}
+                ><Minus size={14} /></button
+              >
+              <span class="me-view-readout me-view-zoom"
+                >{Math.round(fitScale * zoom * 100)}%</span
+              >
+              <button
+                class="me-view-btn me-tooltip"
+                aria-label="Zoom in"
+                data-tooltip="Zoom in"
+                on:click={() => (zoom = Math.min(1.7, zoom + 0.15))}
+                ><Plus size={14} /></button
+              >
+              <span class="me-view-divider" aria-hidden="true"></span>
+              <button
+                class="me-view-btn me-view-text-btn me-tooltip"
+                data-tooltip="Fit to screen"
+                on:click={fitPreview}><Maximize2 size={13} /> Fit</button
+              >
+            </div>
+            <div class="actions">
+              <button
+                class="btn"
+                title="Open a saved project"
+                on:click={() => cloudProjects.openManager()}
+                ><FolderOpen size={15} /><span>Open</span></button
+              >
+              <button class="btn" title="Save project" on:click={saveSource}
+                ><Save size={15} /><span>Save</span></button
+              >
+              <button
+                class="btn me-tooltip"
+                data-tooltip="Export current frame as PNG"
+                on:click={exportFrame}
+                disabled={exporting}
+              >
+                <ImageIcon size={15} /><span>PNG</span>
+              </button>
+              <button
+                class="btn btn-primary me-export-compact"
+                aria-label="Export video"
+                on:click={exportFullVideo}
+                disabled={exporting}><Download size={15} /></button
+              >
+            </div>
+          </header>
+          <main class="me-preview-container">
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
+            <div
+              class="me-stage"
+              data-ph-no-autocapture
+              bind:this={previewStage}
+              role="application"
+              aria-label="Composition preview"
+              tabindex="0"
+              on:click|capture={selectFromPreview}
+              on:keydown={handlePreviewKey}
             >
               <div
-                class="composition-canvas"
+                class="me-canvas-shell"
                 style:width={`${activeComposition.width}px`}
                 style:height={`${activeComposition.height}px`}
-                bind:this={previewRoot}
-              ></div>
-              {#if selectionRect.visible && selectedId}
+                style:transform={`scale(${fitScale * zoom})`}
+              >
                 <div
-                  class="me-selection-overlay"
-                  style:left={`${selectionRect.left}px`}
-                  style:top={`${selectionRect.top}px`}
-                  style:width={`${selectionRect.width}px`}
-                  style:height={`${selectionRect.height}px`}
-                  style:--me-selection-ui-scale={String(
-                    1 / Math.max(0.05, fitScale * zoom),
-                  )}
-                >
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  class="composition-canvas"
+                  style:width={`${activeComposition.width}px`}
+                  style:height={`${activeComposition.height}px`}
+                  bind:this={previewRoot}
+                ></div>
+                {#if selectionRect.visible && selectedId}
                   <div
-                    class="me-selection-outline"
-                    on:pointerdown={(event) =>
-                      beginSelectionDrag(event, "move")}
-                  ></div>
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="me-selection-handle handle-tl"
-                    on:pointerdown={(event) =>
-                      beginSelectionDrag(event, "scale")}
-                  ></div>
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="me-selection-handle handle-tr"
-                    on:pointerdown={(event) =>
-                      beginSelectionDrag(event, "scale")}
-                  ></div>
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="me-selection-handle handle-bl"
-                    on:pointerdown={(event) =>
-                      beginSelectionDrag(event, "scale")}
-                  ></div>
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="me-selection-handle handle-br"
-                    on:pointerdown={(event) =>
-                      beginSelectionDrag(event, "scale")}
-                  ></div>
-                  <div class="me-selection-badge">
-                    <span class="badge-label"
-                      >{selectedEditorGroup?.label ??
-                        selectedTrack()?.label ??
-                        selectedId}</span
-                    >
-                    <span class="badge-dims"
-                      >{Math.round(selectionRect.width)} × {Math.round(
-                        selectionRect.height,
-                      )}</span
-                    >
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </div>
-        </main>
-
-        <aside class="me-properties-panel">
-          <h2 class="me-panel-title">
-            <SlidersHorizontal size={15} /> Properties
-          </h2>
-          {#if selectedId}
-            <div class="me-selection-summary">
-              <span class="me-layer-icon"><Sparkles size={14} /></span>
-              <span
-                ><strong
-                  >{selectedEditorGroup?.label ??
-                    selectedTrack()?.label ??
-                    selectedId}</strong
-                ><small>{selectedId} · editable layer</small></span
-              >
-            </div>
-            <div class="me-primary-properties">
-              {#if selectedEditorGroup && selectedEditorGroup.fields.length > 0}
-                <div class="me-section-title">
-                  {selectedEditorGroup.label}
-                </div>
-                {#each selectedEditorGroup.fields as field}
-                  <label class="me-property-group">
-                    <span class="me-property-label">{field.label}</span>
-                    {#if field.type === "image"}
-                      <span class="me-image-field-preview">
-                        <img src={editorFieldValue(field)} alt={field.label} />
-                        <span class="me-image-upload">
-                          <Upload size={13} />
-                          <span
-                            >{uploadingMedia
-                              ? "Uploading..."
-                              : "Replace image"}</span
-                          >
-                          <input
-                            type="file"
-                            accept="image/*"
-                            aria-label={`Replace ${field.label}`}
-                            disabled={uploadingMedia}
-                            on:change={(event) =>
-                              replaceEditorImage(field, event)}
-                          />
-                        </span>
-                      </span>
-                    {:else if field.type === "color"}
-                      <span class="me-color-control">
-                        <input
-                          class="me-color-swatch"
-                          type="color"
-                          value={editorFieldInputValue(field)}
-                          on:input={(event) => changeEditorField(field, event)}
-                        />
-                        <output>{editorFieldInputValue(field)}</output>
-                      </span>
-                    {:else if field.type === "select"}
-                      <select
-                        class="me-text-input"
-                        value={editorFieldInputValue(field)}
-                        on:change={(event) => changeEditorField(field, event)}
-                      >
-                        {#each field.options ?? [] as option}
-                          <option value={option}>{option}</option>
-                        {/each}
-                      </select>
-                    {:else if field.type === "toggle"}
-                      <input
-                        type="checkbox"
-                        checked={editorFieldInputValue(field) === "true"}
-                        on:change={(event) => changeEditorField(field, event)}
-                      />
-                    {:else}
-                      <input
-                        class={field.type === "range"
-                          ? "me-custom-slider"
-                          : "me-text-input"}
-                        type={field.type === "number" ? "number" : field.type}
-                        min={field.min}
-                        max={field.max}
-                        step={field.step}
-                        value={editorFieldInputValue(field)}
-                        on:input={(event) => changeEditorField(field, event)}
-                      />
-                    {/if}
-                  </label>
-                {/each}
-              {/if}
-              {#if selectedEditorGroup?.allowTransform}
-                {#if isTextEditable() && (selectedEditorGroup?.fields.length ?? 0) === 0}
-                  <div class="me-property-group">
-                    <label class="me-property-label" for="property-text"
-                      >Text</label
-                    >
-                    <input
-                      id="property-text"
-                      class="me-text-input"
-                      type="text"
-                      value={editableTextValue()}
-                      on:input={setText}
-                    />
-                  </div>
-                  <div class="me-property-group">
-                    <label class="me-property-label" for="property-font-size"
-                      >Font size</label
-                    >
-                    <div class="me-number-input-wrapper">
-                      <input
-                        id="property-font-size"
-                        class="me-number-input"
-                        aria-label="Font size"
-                        type="number"
-                        min="1"
-                        value={numericStyleValue("fontSize", 16)}
-                        on:input={(event) => setNumber("fontSize", event)}
-                      />
-                      <span class="me-input-suffix">px</span>
-                    </div>
-                  </div>
-                {/if}
-                <div class="me-property-row">
-                  <label class="me-property-group"
-                    ><span class="me-property-label">X</span>
-                    <input
-                      class="me-number-input"
-                      aria-label="X position"
-                      title="Horizontal position"
-                      type="number"
-                      value={currentOverride(editorRevision).x ?? 0}
-                      on:input={(event) => setNumber("x", event)}
-                    /></label
+                    class="me-selection-overlay"
+                    style:left={`${selectionRect.left}px`}
+                    style:top={`${selectionRect.top}px`}
+                    style:width={`${selectionRect.width}px`}
+                    style:height={`${selectionRect.height}px`}
+                    style:--me-selection-ui-scale={String(
+                      1 / Math.max(0.05, fitScale * zoom),
+                    )}
                   >
-                  <label class="me-property-group"
-                    ><span class="me-property-label">Y</span>
-                    <input
-                      class="me-number-input"
-                      aria-label="Y position"
-                      title="Vertical position"
-                      type="number"
-                      value={currentOverride(editorRevision).y ?? 0}
-                      on:input={(event) => setNumber("y", event)}
-                    /></label
-                  >
-                </div>
-                <div class="me-property-row">
-                  <label class="me-property-group"
-                    ><span class="me-property-label">Scale</span>
-                    <input
-                      class="me-number-input"
-                      aria-label="Scale"
-                      title="Scale selected element"
-                      type="number"
-                      step="0.05"
-                      value={currentOverride(editorRevision).scale ?? 1}
-                      on:input={(event) => setNumber("scale", event)}
-                    /></label
-                  >
-                  <label class="me-property-group"
-                    ><span class="me-property-label">Rotation</span>
-                    <input
-                      class="me-number-input"
-                      aria-label="Rotation"
-                      title="Rotate selected element"
-                      type="number"
-                      value={currentOverride(editorRevision).rotation ?? 0}
-                      on:input={(event) => setNumber("rotation", event)}
-                    /></label
-                  >
-                </div>
-                <div class="me-property-group">
-                  <label class="me-property-label" for="property-opacity"
-                    >Opacity</label
-                  >
-                  <input
-                    id="property-opacity"
-                    class="me-custom-slider"
-                    title="Adjust opacity"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={currentOverride(editorRevision).opacity ?? 1}
-                    on:input={(event) => setNumber("opacity", event)}
-                  />
-                </div>
-              {/if}
-              <AnimationControls
-                speed={animationSpeed}
-                ease={animationEase}
-                tweenCount={animationSettings().tweenCount}
-                onSpeed={setAnimationSpeed}
-                onEase={setAnimationEase}
-              />
-              {#if selectedEditorGroup?.allowAppearance}
-                <div class="me-section-title me-appearance-title">
-                  Appearance
-                </div>
-                {#if isSvgSelected()}
-                  <label class="me-property-group">
-                    <span class="me-property-label">Stroke color</span>
-                    <span class="me-color-control">
-                      <input
-                        class="me-color-swatch"
-                        aria-label="Stroke color"
-                        type="color"
-                        value={colorValue("stroke", "#5eead4")}
-                        on:input={(event) => setColor("stroke", event)}
-                      />
-                      <output>{colorValue("stroke", "#5eead4")}</output>
-                    </span>
-                  </label>
-                {:else}
-                  <label class="me-property-group">
-                    <span class="me-property-label"
-                      >{isTextEditable()
-                        ? "Text color"
-                        : "Foreground color"}</span
-                    >
-                    <span class="me-color-control">
-                      <input
-                        class="me-color-swatch"
-                        aria-label={isTextEditable()
-                          ? "Text color"
-                          : "Foreground color"}
-                        type="color"
-                        value={colorValue("color", "#111318")}
-                        on:input={(event) => setColor("color", event)}
-                      />
-                      <output>{colorValue("color", "#111318")}</output>
-                    </span>
-                  </label>
-                  <div class="me-property-group">
-                    <div class="me-property-label-row">
-                      <span class="me-property-label">Background</span>
-                      {#if isBackgroundTransparent()}
-                        <span class="me-property-pill-transparent"
-                          >Transparent</span
-                        >
-                      {:else}
-                        <button
-                          class="me-property-action"
-                          type="button"
-                          on:click={clearBackground}>Clear</button
-                        >
-                      {/if}
-                    </div>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
-                      class="me-color-control"
-                      class:me-transparent-bg={isBackgroundTransparent()}
-                    >
-                      <input
-                        class="me-color-swatch"
-                        aria-label="Background color"
-                        type="color"
-                        value={effectiveBackgroundColorHex()}
-                        on:input={(event) => setColor("backgroundColor", event)}
-                      />
-                      <output
-                        >{isBackgroundTransparent()
-                          ? "transparent"
-                          : colorValue("backgroundColor", "#17191c")}</output
+                      class="me-selection-outline"
+                      on:pointerdown={(event) =>
+                        beginSelectionDrag(event, "move")}
+                    ></div>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="me-selection-handle handle-tl"
+                      on:pointerdown={(event) =>
+                        beginSelectionDrag(event, "scale")}
+                    ></div>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="me-selection-handle handle-tr"
+                      on:pointerdown={(event) =>
+                        beginSelectionDrag(event, "scale")}
+                    ></div>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="me-selection-handle handle-bl"
+                      on:pointerdown={(event) =>
+                        beginSelectionDrag(event, "scale")}
+                    ></div>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="me-selection-handle handle-br"
+                      on:pointerdown={(event) =>
+                        beginSelectionDrag(event, "scale")}
+                    ></div>
+                    <div class="me-selection-badge">
+                      <span class="badge-label"
+                        >{selectedEditorGroup?.label ??
+                          selectedTrack()?.label ??
+                          selectedId}</span
+                      >
+                      <span class="badge-dims"
+                        >{Math.round(selectionRect.width)} × {Math.round(
+                          selectionRect.height,
+                        )}</span
                       >
                     </div>
                   </div>
-                  <div class="me-property-group">
-                    <label class="me-property-label" for="property-radius"
-                      >Corner radius</label
-                    >
-                    <div class="me-number-input-wrapper">
-                      <input
-                        id="property-radius"
-                        class="me-number-input"
-                        aria-label="Corner radius"
-                        type="number"
-                        min="0"
-                        value={numericStyleValue("borderRadius", 0)}
-                        on:input={(event) => setNumber("borderRadius", event)}
-                      />
-                      <span class="me-input-suffix">px</span>
-                    </div>
-                  </div>
                 {/if}
-              {/if}
-              <button
-                class="me-layer-visibility"
-                class:me-restore={currentOverride(editorRevision).hidden}
-                type="button"
-                on:click={toggleSelectedLayer}
-              >
-                {#if currentOverride(editorRevision).hidden}<Eye size={14} /> Restore
-                  layer{:else}<EyeOff size={14} /> Remove layer{/if}
-              </button>
+              </div>
             </div>
-          {:else}
-            <div class="me-properties-empty">
-              <Sparkles size={30} /><strong>Select an element</strong><span
-                >Click an editable object in the preview to change its visual
-                properties.</span
+          </main>
+          <section class="me-scene-bar" aria-label="Scenes">
+            <div class="me-scene-bar__transport">
+              <button
+                class="me-scene-bar__play"
+                aria-label={snapshot.playing ? "Pause" : "Play"}
+                on:click={togglePlayback}
+                >{#if snapshot.playing}<Pause size={15} />{:else}<Play
+                    size={15}
+                  />{/if}</button
+              >
+              <span class="me-scene-bar__time"
+                >{timecode(snapshot.time)}<small>
+                  / {timecode(activeComposition.duration)}</small
+                ></span
               >
             </div>
-          {/if}
-        </aside>
-      </div>
-
-      <section class="storyboard-strip" aria-label="Storyboard">
-        <div class="storyboard-strip__head">
-          {#if timelineMode === "scene"}
-            <button
-              class="storyboard-strip__back"
-              on:click={showProjectTimeline}
-              ><ArrowLeft size={13} /> All scenes</button
-            >
-          {:else}
-            <span class="storyboard-strip__title">Storyboard</span>
-          {/if}
-          <span class="storyboard-strip__meta"
-            >{activeComposition.scenes.length} scenes · {formatTimelineSeconds(
-              activeComposition.duration,
-            )}</span
-          >
-        </div>
-        <ol class="storyboard-strip__scenes">
-          {#each activeComposition.scenes as scene}
-            <li>
-              <button
-                class="storyboard-scene"
-                aria-current={selectedSceneId === scene.id}
-                data-scene-id={scene.id}
-                style={`--storyboard-scene-color:${scene.accent}`}
-                on:click={() => enterScene(scene)}
-              >
-                <span class="storyboard-scene__swatch"></span><span
-                  class="storyboard-scene__label">{scene.label}</span
-                ><span class="storyboard-scene__facts"
-                  ><span>{formatTimelineSeconds(scene.duration)}</span><span
-                    class="storyboard-scene__members"
-                    ><Layers3 size={11} /> Film</span
-                  ></span
-                >
-              </button>
-            </li>
-          {/each}
-        </ol>
-        <span class="source-chip">TS</span>
-      </section>
-
-      <section bind:this={timelinePanel} class="me-timeline-panel">
-        <button class="me-timeline-resizer" aria-label="Resize timeline"
-          ><span></span></button
-        >
-        <div class="me-timeline-toolbar">
-          <div class="me-timeline-context">
-            {#if timelineMode === "scene"}
-              <button
-                class="me-timeline-back me-tooltip"
-                on:click={showProjectTimeline}
-                aria-label="Back to all scenes"
-                data-tooltip="Back to all scenes"
-                ><ArrowLeft size={14} /></button
-              >
-              <Layers3 size={14} /><span>{selectedScene()?.label}</span>
-            {:else}
-              <Layers3 size={14} /><span>All scenes</span><small
-                >Master timeline</small
-              >
-            {/if}
-          </div>
-          <div class="me-playback-controls">
-            <button
-              class="me-control-btn me-tooltip"
-              aria-label="Restart"
-              data-tooltip="Restart"
-              on:click={() => runtime?.restart()}
-              ><RefreshCcw size={15} /></button
-            >
-            <button
-              class="me-control-btn me-play-btn me-tooltip"
-              aria-label={snapshot.playing ? "Pause" : "Play"}
-              data-tooltip={snapshot.playing ? "Pause" : "Play"}
-              on:click={togglePlayback}
-              >{#if snapshot.playing}<Pause size={16} />{:else}<Play
-                  size={16}
-                />{/if}</button
-            >
-            <span class="me-timecode">{timecode(snapshot.time)}</span><span
-              class="me-framecode"
-              >F{Math.round(snapshot.time * activeComposition.fps)}</span
-            >
-          </div>
-          <div class="me-timeline-actions"></div>
-        </div>
-        <div
-          class="me-timeline-scroll"
-          style="--timeline-content-width: 1100px;"
-        >
-          <div class="me-ruler-row">
-            <div class="me-track-label me-ruler-label">
-              {timelineMode === "project" ? "MASTER" : selectedScene()?.label}
-            </div>
-            <div class="me-ruler">
-              {#each timelineTickValues as tick}<span
-                  class="me-ruler-tick"
-                  style:left={`${((tick - currentTimelineStart) / currentTimelineDuration) * 100}%`}
-                  >{formatTimelineSeconds(tick)}</span
-                >{/each}
-              <span bind:this={playheadMarker} class="me-playhead-marker"
-              ></span>
+            <div class="me-scene-bar__track">
+              <div class="me-scene-bar__scenes">
+                {#each activeComposition.scenes as scene, index (scene.id)}
+                  <button
+                    class="me-scene-pill"
+                    class:me-active={snapshot.sceneId === scene.id}
+                    style:left={`${sceneBarLeft(scene)}%`}
+                    style:width={`${sceneBarWidth(index)}%`}
+                    style:--scene-accent={scene.accent}
+                    title={`${scene.label} · ${formatTimelineSeconds(scene.duration)}`}
+                    on:click={() => seekToScene(scene)}
+                    ><span>{scene.label}</span></button
+                  >
+                {/each}
+              </div>
               <div
-                class="me-timeline-scrubber"
-                class:me-scrubbing={scrubbing}
+                class="me-scene-bar__scrub"
+                class:me-scrubbing={sceneBarScrubbing}
                 role="slider"
                 tabindex="0"
-                aria-label="Timeline scrubber"
-                aria-valuemin={currentTimelineStart}
-                aria-valuemax={currentTimelineStart + currentTimelineDuration}
+                aria-label="Scene scrubber"
+                aria-valuemin={0}
+                aria-valuemax={activeComposition.duration}
                 aria-valuenow={snapshot.time}
                 aria-valuetext={formatTimelineSeconds(snapshot.time)}
-                on:pointerdown={startScrub}
-                on:pointermove={moveScrub}
-                on:pointerup={endScrub}
-                on:pointercancel={endScrub}
-                on:keydown={scrubKeydown}
+                style:--scene-bar-progress={`${sceneBarProgress}%`}
+                on:pointerdown={startSceneBarScrub}
+                on:pointermove={moveSceneBarScrub}
+                on:pointerup={endSceneBarScrub}
+                on:pointercancel={endSceneBarScrub}
+                on:keydown={sceneBarKeydown}
               ></div>
+              <span
+                class="me-scene-bar__playhead"
+                style:left={`${sceneBarProgress}%`}
+                aria-hidden="true"
+              ></span>
             </div>
-          </div>
-          {#if timelineMode === "project"}
-            <div class="me-timeline-row project-timeline-row">
-              <button class="me-track-label" on:click={showProjectTimeline}
-                ><span class="me-track-thumb"><Layers3 size={12} /></span><span
-                  class="me-track-copy"
-                  ><strong>Scenes</strong><small>Entire composition</small
-                  ></span
-                ></button
+            <button
+              class="me-timeline-toggle"
+              class:me-active={timelineOpen}
+              aria-expanded={timelineOpen}
+              on:click={() => (timelineOpen = !timelineOpen)}
+              >{#if timelineOpen}<PanelBottomClose size={14} /> Hide timeline{:else}<PanelBottomOpen
+                  size={14}
+                /> View timeline{/if}</button
+            >
+          </section>
+          {#if timelineOpen}
+            <section bind:this={timelinePanel} class="me-timeline-panel">
+              <button class="me-timeline-resizer" aria-label="Resize timeline"
+                ><span></span></button
               >
-              <div class="me-track-lane project-scene-lane">
-                {#each activeComposition.scenes as scene}
-                  <button
-                    class="me-clip me-project-scene-clip"
-                    style:left={`${sceneLeft(scene)}%`}
-                    style:width={`${sceneWidth(scene)}%`}
-                    style:--scene-accent={scene.accent}
-                    on:click={() => enterScene(scene)}
-                  >
-                    <span class="clip-accent" style:background={scene.accent}
-                    ></span>
-                    <span class="me-clip-text">{scene.label}</span>
-                    <small>{formatTimelineSeconds(scene.duration)}</small>
-                  </button>
-                {/each}
-              </div>
-            </div>
-            <div class="me-timeline-row project-timeline-row">
-              <div class="me-track-label">
-                <span class="me-track-thumb"><Sparkles size={12} /></span><span
-                  class="me-track-copy"
-                  ><strong>Handoffs</strong><small>0.7s overlaps</small></span
-                >
-              </div>
-              <div class="me-track-lane project-scene-lane">
-                {#each activeComposition.scenes.slice(1) as scene}
-                  <button
-                    class="me-project-handoff"
-                    aria-label={`Preview handoff into ${scene.label}`}
-                    style:left={`${((scene.start - 0.7) / activeComposition.duration) * 100}%`}
-                    style:width={`${(0.7 / activeComposition.duration) * 100}%`}
-                    on:click={() => runtime?.seek(scene.start - 0.35)}
-                    ><span></span></button
-                  >
-                {/each}
-              </div>
-            </div>
-          {:else}
-            {#each sceneTracks as track (track.id)}
-              <div
-                class="me-timeline-row"
-                class:me-selected={selectedId === track.id}
-                data-track-id={track.id}
-              >
-                <button
-                  class="me-track-label"
-                  on:click={() => selectTrack(track)}
-                  ><span class="me-track-thumb"><Layers3 size={12} /></span
-                  ><span class="me-track-copy"
-                    ><strong>{track.label}</strong><small
-                      >{track.kind} · {formatTimelineSeconds(
-                        track.start,
-                      )}–{formatTimelineSeconds(track.end)}</small
-                    ></span
-                  ></button
-                >
-                <div class="me-track-lane">
-                  <button
-                    class="me-clip me-element-clip scene-timeline-clip"
-                    class:me-selected-clip={selectedId === track.id}
-                    style:left={`${trackLeft(track, currentTimelineStart, currentTimelineDuration)}%`}
-                    style:width={`${trackWidth(track, currentTimelineStart, currentTimelineDuration)}%`}
-                    on:click={() => selectTrack(track)}
-                    ><span
-                      class="clip-accent"
-                      style:background={selectedScene()?.accent}
-                    ></span><span class="me-clip-text">{track.label}</span
-                    ><small class="me-clip-duration"
-                      >{formatTimelineSeconds(track.end - track.start)}</small
-                    ></button
-                  >
+              <div class="me-timeline-toolbar">
+                <div class="me-timeline-context">
+                  {#if timelineMode === "scene"}
+                    <button
+                      class="me-timeline-back me-tooltip"
+                      on:click={showProjectTimeline}
+                      aria-label="Back to all scenes"
+                      data-tooltip="Back to all scenes"
+                      ><ArrowLeft size={14} /></button
+                    >
+                    <Layers3 size={14} /><span>{selectedScene()?.label}</span>
+                  {:else}
+                    <Layers3 size={14} /><span>All scenes</span><small
+                      >Master timeline</small
+                    >
+                  {/if}
                 </div>
+                <div class="me-timeline-actions"></div>
               </div>
-            {/each}
+              <div
+                class="me-timeline-scroll"
+                style="--timeline-content-width: 1100px;"
+              >
+                <div class="me-ruler-row">
+                  <div class="me-track-label me-ruler-label">
+                    {timelineMode === "project"
+                      ? "MASTER"
+                      : selectedScene()?.label}
+                  </div>
+                  <div class="me-ruler">
+                    {#each timelineTickValues as tick}<span
+                        class="me-ruler-tick"
+                        style:left={`${((tick - currentTimelineStart) / currentTimelineDuration) * 100}%`}
+                        >{formatTimelineSeconds(tick)}</span
+                      >{/each}
+                    <span bind:this={playheadMarker} class="me-playhead-marker"
+                    ></span>
+                    <div
+                      class="me-timeline-scrubber"
+                      class:me-scrubbing={scrubbing}
+                      role="slider"
+                      tabindex="0"
+                      aria-label="Timeline scrubber"
+                      aria-valuemin={currentTimelineStart}
+                      aria-valuemax={currentTimelineStart +
+                        currentTimelineDuration}
+                      aria-valuenow={snapshot.time}
+                      aria-valuetext={formatTimelineSeconds(snapshot.time)}
+                      on:pointerdown={startScrub}
+                      on:pointermove={moveScrub}
+                      on:pointerup={endScrub}
+                      on:pointercancel={endScrub}
+                      on:keydown={scrubKeydown}
+                    ></div>
+                  </div>
+                </div>
+                {#if timelineMode === "project"}
+                  <div class="me-timeline-row project-timeline-row">
+                    <button
+                      class="me-track-label"
+                      on:click={showProjectTimeline}
+                      ><span class="me-track-thumb"><Layers3 size={12} /></span
+                      ><span class="me-track-copy"
+                        ><strong>Scenes</strong><small>Entire composition</small
+                        ></span
+                      ></button
+                    >
+                    <div class="me-track-lane project-scene-lane">
+                      {#each activeComposition.scenes as scene}
+                        <button
+                          class="me-clip me-project-scene-clip"
+                          style:left={`${sceneLeft(scene)}%`}
+                          style:width={`${sceneWidth(scene)}%`}
+                          style:--scene-accent={scene.accent}
+                          on:click={() => enterScene(scene)}
+                        >
+                          <span
+                            class="clip-accent"
+                            style:background={scene.accent}
+                          ></span>
+                          <span class="me-clip-text">{scene.label}</span>
+                          <small>{formatTimelineSeconds(scene.duration)}</small>
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                  <div class="me-timeline-row project-timeline-row">
+                    <div class="me-track-label">
+                      <span class="me-track-thumb"><Sparkles size={12} /></span
+                      ><span class="me-track-copy"
+                        ><strong>Handoffs</strong><small>0.7s overlaps</small
+                        ></span
+                      >
+                    </div>
+                    <div class="me-track-lane project-scene-lane">
+                      {#each activeComposition.scenes.slice(1) as scene}
+                        <button
+                          class="me-project-handoff"
+                          aria-label={`Preview handoff into ${scene.label}`}
+                          style:left={`${((scene.start - 0.7) / activeComposition.duration) * 100}%`}
+                          style:width={`${(0.7 / activeComposition.duration) * 100}%`}
+                          on:click={() => runtime?.seek(scene.start - 0.35)}
+                          ><span></span></button
+                        >
+                      {/each}
+                    </div>
+                  </div>
+                {:else}
+                  {#each sceneTracks as track (track.id)}
+                    <div
+                      class="me-timeline-row"
+                      class:me-selected={selectedId === track.id}
+                      data-track-id={track.id}
+                    >
+                      <button
+                        class="me-track-label"
+                        on:click={() => selectTrack(track)}
+                        ><span class="me-track-thumb"
+                          ><Layers3 size={12} /></span
+                        ><span class="me-track-copy"
+                          ><strong>{track.label}</strong><small
+                            >{track.kind} · {formatTimelineSeconds(
+                              track.start,
+                            )}–{formatTimelineSeconds(track.end)}</small
+                          ></span
+                        ></button
+                      >
+                      <div class="me-track-lane">
+                        <button
+                          class="me-clip me-element-clip scene-timeline-clip"
+                          class:me-selected-clip={selectedId === track.id}
+                          style:left={`${trackLeft(track, currentTimelineStart, currentTimelineDuration)}%`}
+                          style:width={`${trackWidth(track, currentTimelineStart, currentTimelineDuration)}%`}
+                          on:click={() => selectTrack(track)}
+                          ><span
+                            class="clip-accent"
+                            style:background={selectedScene()?.accent}
+                          ></span><span class="me-clip-text">{track.label}</span
+                          ><small class="me-clip-duration"
+                            >{formatTimelineSeconds(
+                              track.end - track.start,
+                            )}</small
+                          ></button
+                        >
+                      </div>
+                    </div>
+                  {/each}
+                {/if}
+              </div>
+            </section>
           {/if}
         </div>
-      </section>
+
+        <aside class="me-properties-panel">
+          <div class="me-inspector-head">
+            {#if authChecked}
+              {#if currentUser}
+                <span class="account-status" title={currentUser.email}>
+                  <span class="account-avatar" aria-hidden="true"
+                    >{(currentUser.displayName || currentUser.email)
+                      .trim()
+                      .charAt(0)
+                      .toUpperCase()}</span
+                  >
+                  <span>{currentUser.displayName || currentUser.email}</span>
+                </span>
+              {:else}
+                <a
+                  class="account-status account-status--signed-out"
+                  href={motionlyLoginUrl()}
+                >
+                  <span class="account-status__dot" aria-hidden="true"></span>
+                  <span>Sign in</span>
+                </a>
+              {/if}
+            {:else}
+              <span></span>
+            {/if}
+            <button
+              class="btn btn-primary export-action me-tooltip"
+              data-tooltip="Render and download 1080p video"
+              on:click={exportFullVideo}
+              disabled={exporting}
+            >
+              <Download size={15} /><span
+                >{exporting ? exportStatus || "Rendering…" : "Export"}</span
+              >
+            </button>
+          </div>
+          <div class="me-inspector-tabs" role="tablist">
+            <button
+              class="me-inspector-tab"
+              role="tab"
+              aria-selected={inspectorTab === "design"}
+              class:me-active={inspectorTab === "design"}
+              on:click={() => (inspectorTab = "design")}>Design</button
+            >
+            <button
+              class="me-inspector-tab"
+              role="tab"
+              aria-selected={inspectorTab === "animate"}
+              class:me-active={inspectorTab === "animate"}
+              on:click={() => (inspectorTab = "animate")}>Animate</button
+            >
+          </div>
+          <div class="me-inspector-body">
+            {#if selectedId}
+              <div class="me-selection-summary">
+                <span class="me-layer-icon"><Sparkles size={14} /></span>
+                <span
+                  ><strong
+                    >{selectedEditorGroup?.label ??
+                      selectedTrack()?.label ??
+                      selectedId}</strong
+                  ><small>{selectedId} · editable layer</small></span
+                >
+              </div>
+              {#if inspectorTab === "animate"}
+                <div class="me-primary-properties me-animate-properties">
+                  <AnimationControls
+                    speed={animationSpeed}
+                    ease={animationEase}
+                    tweenCount={animationSettings().tweenCount}
+                    onSpeed={setAnimationSpeed}
+                    onEase={setAnimationEase}
+                  />
+                </div>
+              {:else}
+                <div class="me-primary-properties">
+                  {#if selectedEditorGroup && selectedEditorGroup.fields.length > 0}
+                    <section class="me-inspector-section">
+                      <div class="me-section-title">
+                        {selectedEditorGroup.label}
+                      </div>
+                      {#each selectedEditorGroup.fields as field}
+                        <label
+                          class="me-field-line"
+                          class:me-field-line--stacked={field.type === "image"}
+                        >
+                          <span class="me-property-label">{field.label}</span>
+                          {#if field.type === "image"}
+                            <span class="me-image-field-preview">
+                              <img
+                                src={editorFieldValue(field)}
+                                alt={field.label}
+                              />
+                              <span class="me-image-upload">
+                                <Upload size={13} />
+                                <span
+                                  >{uploadingMedia
+                                    ? "Uploading..."
+                                    : "Replace image"}</span
+                                >
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  aria-label={`Replace ${field.label}`}
+                                  disabled={uploadingMedia}
+                                  on:change={(event) =>
+                                    replaceEditorImage(field, event)}
+                                />
+                              </span>
+                            </span>
+                          {:else if field.type === "color"}
+                            <span class="me-color-control">
+                              <input
+                                class="me-color-swatch"
+                                type="color"
+                                value={editorFieldInputValue(field)}
+                                on:input={(event) =>
+                                  changeEditorField(field, event)}
+                              />
+                              <output>{editorFieldInputValue(field)}</output>
+                            </span>
+                          {:else if field.type === "select"}
+                            <select
+                              class="me-text-input"
+                              value={editorFieldInputValue(field)}
+                              on:change={(event) =>
+                                changeEditorField(field, event)}
+                            >
+                              {#each field.options ?? [] as option}
+                                <option value={option}>{option}</option>
+                              {/each}
+                            </select>
+                          {:else if field.type === "toggle"}
+                            <input
+                              class="me-toggle-input"
+                              type="checkbox"
+                              checked={editorFieldInputValue(field) === "true"}
+                              on:change={(event) =>
+                                changeEditorField(field, event)}
+                            />
+                          {:else}
+                            <input
+                              class={field.type === "range"
+                                ? "me-custom-slider"
+                                : "me-text-input"}
+                              type={field.type === "number"
+                                ? "number"
+                                : field.type}
+                              min={field.min}
+                              max={field.max}
+                              step={field.step}
+                              value={editorFieldInputValue(field)}
+                              on:input={(event) =>
+                                changeEditorField(field, event)}
+                            />
+                          {/if}
+                        </label>
+                      {/each}
+                    </section>
+                  {/if}
+                  {#if selectedEditorGroup?.allowTransform}
+                    {#if isTextEditable() && (selectedEditorGroup?.fields.length ?? 0) === 0}
+                      <section class="me-inspector-section">
+                        <div class="me-section-title">Text</div>
+                        <div class="me-field-line">
+                          <label class="me-property-label" for="property-text"
+                            >Content</label
+                          >
+                          <input
+                            id="property-text"
+                            class="me-text-input"
+                            type="text"
+                            value={editableTextValue()}
+                            on:input={setText}
+                          />
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-font-size">Size</label
+                          >
+                          <span class="me-field">
+                            <input
+                              id="property-font-size"
+                              class="me-number-input"
+                              aria-label="Font size"
+                              type="number"
+                              min="1"
+                              value={numericStyleValue("fontSize", 16)}
+                              on:input={(event) => setNumber("fontSize", event)}
+                            />
+                            <span class="me-field-suffix">px</span>
+                          </span>
+                        </div>
+                      </section>
+                    {/if}
+                    <section class="me-inspector-section">
+                      <div class="me-section-title">Transform</div>
+                      <div class="me-field-line">
+                        <span class="me-property-label">Position</span>
+                        <div class="me-field-pair">
+                          <label class="me-field"
+                            ><span class="me-field-prefix">X</span>
+                            <input
+                              class="me-number-input"
+                              aria-label="X position"
+                              title="Horizontal position"
+                              type="number"
+                              value={currentOverride(editorRevision).x ?? 0}
+                              on:input={(event) => setNumber("x", event)}
+                            /></label
+                          >
+                          <label class="me-field"
+                            ><span class="me-field-prefix">Y</span>
+                            <input
+                              class="me-number-input"
+                              aria-label="Y position"
+                              title="Vertical position"
+                              type="number"
+                              value={currentOverride(editorRevision).y ?? 0}
+                              on:input={(event) => setNumber("y", event)}
+                            /></label
+                          >
+                        </div>
+                      </div>
+                      <div class="me-field-line">
+                        <span class="me-property-label">Scale</span>
+                        <label class="me-field"
+                          ><span class="me-field-prefix">×</span>
+                          <input
+                            class="me-number-input"
+                            aria-label="Scale"
+                            title="Scale selected element"
+                            type="number"
+                            step="0.05"
+                            value={currentOverride(editorRevision).scale ?? 1}
+                            on:input={(event) => setNumber("scale", event)}
+                          /></label
+                        >
+                      </div>
+                      <div class="me-field-line">
+                        <span class="me-property-label">Rotate</span>
+                        <label class="me-field"
+                          ><span class="me-field-prefix">∠</span>
+                          <input
+                            class="me-number-input"
+                            aria-label="Rotation"
+                            title="Rotate selected element"
+                            type="number"
+                            value={currentOverride(editorRevision).rotation ??
+                              0}
+                            on:input={(event) => setNumber("rotation", event)}
+                          /><span class="me-field-suffix">°</span></label
+                        >
+                      </div>
+                      <div class="me-field-line">
+                        <label class="me-property-label" for="property-opacity"
+                          >Opacity</label
+                        >
+                        <span class="me-field me-field--slider">
+                          <input
+                            id="property-opacity"
+                            class="me-custom-slider"
+                            title="Adjust opacity"
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={currentOverride(editorRevision).opacity ?? 1}
+                            on:input={(event) => setNumber("opacity", event)}
+                          />
+                          <output
+                            >{Math.round(
+                              (currentOverride(editorRevision).opacity ?? 1) *
+                                100,
+                            )}%</output
+                          >
+                        </span>
+                      </div>
+                    </section>
+                  {/if}
+                  {#if selectedEditorGroup?.allowAppearance}
+                    <section class="me-inspector-section">
+                      <div class="me-section-title">Appearance</div>
+                      {#if isSvgSelected()}
+                        <label class="me-field-line">
+                          <span class="me-property-label">Stroke</span>
+                          <span class="me-color-control">
+                            <input
+                              class="me-color-swatch"
+                              aria-label="Stroke color"
+                              type="color"
+                              value={colorValue("stroke", "#5eead4")}
+                              on:input={(event) => setColor("stroke", event)}
+                            />
+                            <output>{colorValue("stroke", "#5eead4")}</output>
+                          </span>
+                        </label>
+                      {:else}
+                        <label class="me-field-line">
+                          <span class="me-property-label"
+                            >{isTextEditable() ? "Text" : "Fill"}</span
+                          >
+                          <span class="me-color-control">
+                            <input
+                              class="me-color-swatch"
+                              aria-label={isTextEditable()
+                                ? "Text color"
+                                : "Foreground color"}
+                              type="color"
+                              value={colorValue("color", "#111318")}
+                              on:input={(event) => setColor("color", event)}
+                            />
+                            <output>{colorValue("color", "#111318")}</output>
+                          </span>
+                        </label>
+                        <div class="me-field-line">
+                          <span class="me-property-label">Background</span>
+                          <div
+                            class="me-color-control"
+                            class:me-transparent-bg={isBackgroundTransparent()}
+                          >
+                            <input
+                              class="me-color-swatch"
+                              aria-label="Background color"
+                              type="color"
+                              value={effectiveBackgroundColorHex()}
+                              on:input={(event) =>
+                                setColor("backgroundColor", event)}
+                            />
+                            <output
+                              >{isBackgroundTransparent()
+                                ? "None"
+                                : colorValue(
+                                    "backgroundColor",
+                                    "#17191c",
+                                  )}</output
+                            >
+                            {#if !isBackgroundTransparent()}
+                              <button
+                                class="me-color-clear"
+                                type="button"
+                                aria-label="Clear background"
+                                on:click={clearBackground}
+                                ><X size={12} /></button
+                              >
+                            {/if}
+                          </div>
+                        </div>
+                        <div class="me-field-line">
+                          <label class="me-property-label" for="property-radius"
+                            >Radius</label
+                          >
+                          <span class="me-field">
+                            <input
+                              id="property-radius"
+                              class="me-number-input"
+                              aria-label="Corner radius"
+                              type="number"
+                              min="0"
+                              value={numericStyleValue("borderRadius", 0)}
+                              on:input={(event) =>
+                                setNumber("borderRadius", event)}
+                            />
+                            <span class="me-field-suffix">px</span>
+                          </span>
+                        </div>
+                      {/if}
+                    </section>
+                  {/if}
+                  <button
+                    class="me-layer-visibility"
+                    class:me-restore={currentOverride(editorRevision).hidden}
+                    type="button"
+                    on:click={toggleSelectedLayer}
+                  >
+                    {#if currentOverride(editorRevision).hidden}<Eye
+                        size={14}
+                      /> Restore layer{:else}<EyeOff size={14} /> Remove layer{/if}
+                  </button>
+                </div>
+              {/if}
+            {:else}
+              <div class="me-properties-empty">
+                <Sparkles size={30} /><strong>Select an element</strong><span
+                  >Click an editable object in the preview to change its visual
+                  properties.</span
+                >
+              </div>
+            {/if}
+          </div>
+        </aside>
+      </div>
     </div>
   </div>
 

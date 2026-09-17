@@ -572,7 +572,7 @@ try {
   })()`);
   await wait(50);
   await browser.evaluate(
-    "document.querySelector('button[aria-label=\"Send assistant message\"]')?.click()",
+    "document.querySelector('button[aria-label=\"Send message to Tiffy\"]')?.click()",
   );
   await wait(80);
   const assistantMessages = await browser.evaluate(
