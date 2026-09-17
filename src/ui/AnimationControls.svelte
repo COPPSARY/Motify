@@ -12,6 +12,10 @@
     { label: "Snappy", value: "back.out(1.35)" },
     { label: "Soft", value: "sine.inOut" },
     { label: "Linear", value: "none" },
+    { label: "Elastic", value: "elastic.out(1, 0.3)" },
+    { label: "Bounce", value: "bounce.out" },
+    { label: "Expo", value: "expo.out" },
+    { label: "Circ", value: "circ.out" },
   ] as const;
 
   function easePath(easeName: string): string {
