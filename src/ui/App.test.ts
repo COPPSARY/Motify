@@ -19,6 +19,59 @@ afterEach(() => {
 });
 
 describe("App project actions", () => {
+  it("shows the shared editor without cloud assistant UI in local mode", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    const fetchMock = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 404 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(App, { target, props: { mode: "local" } });
+
+    try {
+      await tick();
+      expect(document.querySelector(".me-preview-container")).not.toBeNull();
+      expect(document.querySelector(".me-scene-bar")).not.toBeNull();
+      expect(document.querySelector(".me-properties-panel")).not.toBeNull();
+      expect(document.querySelector(".me-left-panel")).toBeNull();
+      expect(document.querySelector(".ai-chat-panel")).toBeNull();
+      expect(document.querySelector(".cloud-projects-dialog")).toBeNull();
+      expect(
+        document.querySelector('[aria-label="Assistant prompt"]'),
+      ).toBeNull();
+      expect(document.body.textContent).not.toContain("Tiffy");
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("/v1/auth/me"),
+        expect.anything(),
+      );
+
+      const presets = Array.from(document.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "Presets",
+      );
+      presets?.click();
+      await tick();
+      expect(document.querySelector(".me-left-panel")).not.toBeNull();
+      expect(document.querySelector(".ai-chat-panel")).toBeNull();
+      const assets = Array.from(document.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "Assets",
+      );
+      assets?.click();
+      await tick();
+      expect(document.body.textContent).toContain("Project assets");
+    } finally {
+      await unmount(component);
+    }
+  });
+
   it("restores the project identified by a /p/:id URL on page load", async () => {
     const project = {
       id: "project-1",
@@ -96,6 +149,21 @@ describe("App project actions", () => {
     const component = mount(App, { target });
 
     try {
+      expect(document.querySelector(".ai-chat-panel")).not.toBeNull();
+      const prompt = document.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Assistant prompt"]',
+      );
+      expect(prompt).not.toBeNull();
+      if (prompt) {
+        prompt.value = "Make it move";
+        prompt.dispatchEvent(new Event("input", { bubbles: true }));
+        await tick();
+        expect(
+          document.querySelector<HTMLButtonElement>(
+            '[aria-label="Send message to Tiffy"]',
+          )?.disabled,
+        ).toBe(false);
+      }
       await vi.waitFor(() => {
         expect(document.body.textContent).toContain("Opened from URL");
       });

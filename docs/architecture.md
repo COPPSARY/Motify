@@ -20,6 +20,12 @@ The runtime quantizes explicit seeks to composition frames. Playback delegates t
 
 Export seeks and captures the same mounted composition used by preview. This keeps text, SVG, transforms, media, and GSAP state deterministic between the editor and rendered frames.
 
+## Local and Cloud
+
+`src/ui/App.svelte` owns the shared editor. The Cloud assistant UI lives in `src/ui/cloud/`; the existing `src/cloud/` modules handle cloud projects. The CLI and browser deployment mount the same editor with an explicit `local` or `cloud` mode. The CLI marks its served page as Local, while `index.html` marks the browser deployment as Cloud. `src/app/mode.ts` reads that marker at startup.
+
+Local mode gives the preview the space normally occupied by Cloud chat. Presets, project assets, and authored source are available from the Local editor toolbar. Cloud mode keeps Tiffy, AI generation, authentication, and cloud project management. Both modes use the same composition runtime, timeline, inspector, and export code.
+
 ## Deployed AI prompt
 
 `npm run dev` and `npm run build` first run `scripts/build-ai-prompt.mjs`. It bundles `src/ai/system-runtime.md` and `.agents/skills/write-motionly/SKILL.md` into the committed `src/ai/generated/prompt.ts`. The generated module exports the complete system prompt, source paths, and a SHA-256 content version. Line endings are normalized; builds contain no timestamps or machine-specific paths.
