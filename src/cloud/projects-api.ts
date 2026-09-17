@@ -1,3 +1,6 @@
+import { combineCompositionSource } from "./project-source";
+import type { SceneDefinition } from "../composition/types";
+
 export const PROJECT_SOURCE_PATHS = [
   "composition.html",
   "styles.css",
@@ -32,6 +35,7 @@ export interface ProjectSummary {
   height: number;
   fps: number;
   duration: number;
+  scenes: readonly SceneDefinition[];
   sourceHash: string;
   revision: number;
   createdBy: string;
@@ -41,10 +45,8 @@ export interface ProjectSummary {
 }
 
 export interface ProjectSource {
-  sourceHash: string;
-  savedAt: string;
-  revision: number;
-  files: ProjectSourceFiles;
+  "composition.html": string;
+  "timeline.js": string;
 }
 
 export interface ProjectMutationResult {
@@ -56,6 +58,13 @@ export interface ProjectPreview {
   sourceHash: string;
   bundle: string;
   styles: string;
+}
+
+export interface MotionMessageResult {
+  type: "chat" | "plan" | "generation";
+  response: string;
+  projectId?: string;
+  revision?: number;
 }
 
 interface ApiEnvelope<T> {
@@ -128,7 +137,7 @@ export class ProjectsApi {
     );
   }
 
-  createProject(
+  async createProject(
     workspaceId: string,
     input: {
       name: string;
@@ -139,9 +148,21 @@ export class ProjectsApi {
       files: ProjectSourceFiles;
     },
   ) {
+    await this.ensureCsrfToken();
     return this.request<ProjectSummary>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/projects`,
-      { method: "POST", body: input },
+      {
+        method: "POST",
+        body: {
+          name: input.name,
+          width: input.width,
+          height: input.height,
+          fps: input.fps,
+          duration: input.duration,
+          compositionHtml: combineCompositionSource(input.files),
+          timelineJs: input.files["timeline.js"],
+        },
+      },
     );
   }
 
@@ -160,6 +181,17 @@ export class ProjectsApi {
   getPreview(projectId: string) {
     return this.request<ProjectPreview>(
       `/v1/projects/${encodeURIComponent(projectId)}/preview`,
+    );
+  }
+
+  async sendMotionMessage(
+    projectId: string,
+    input: { message: string; revision?: number; runtimeError?: string },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<MotionMessageResult>(
+      `/v1/projects/${encodeURIComponent(projectId)}/messages`,
+      { method: "POST", body: input },
     );
   }
 
@@ -233,5 +265,9 @@ export class ProjectsApi {
     }
     if (response.status === 204) return undefined as T;
     return ((await response.json()) as ApiEnvelope<T>).data;
+  }
+
+  private async ensureCsrfToken(): Promise<void> {
+    if (!this.csrfToken) await this.getSession();
   }
 }

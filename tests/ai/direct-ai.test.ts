@@ -148,6 +148,103 @@ describe("directed generation with self-repair", () => {
     expect(payload.response_format).toEqual({ type: "json_object" });
   });
 
+  it("sends an existing cloud project to the backend and reads its saved source", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { user: { id: "user" }, csrfToken: "csrf-token" },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              type: "generation",
+              response: "Built the launch film.",
+              projectId: "project-1",
+              revision: 2,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              "composition.html": foundationHtml,
+              "timeline.js": foundationTimeline,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const result = await generateWithDirectAi("make a product tour", {
+      backendProjectId: "project-1",
+    });
+
+    expect(result.reply).toContain("Built the launch film.");
+    expect((fetchMock.mock.calls[1]?.[0] as URL).pathname).toBe(
+      "/v1/projects/project-1/messages",
+    );
+    expect((fetchMock.mock.calls[2]?.[0] as URL).pathname).toBe(
+      "/v1/projects/project-1/source",
+    );
+  });
+
+  it("does not send client-side repair messages for a backend project", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { user: { id: "user" }, csrfToken: "csrf-token" },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              type: "generation",
+              response: "Built the launch film.",
+              projectId: "project-1",
+              revision: 2,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              "composition.html": foundationHtml,
+              "timeline.js": foundationTimeline,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    await generateWithDirectAi(
+      "make a product tour",
+      { backendProjectId: "project-1" },
+      undefined,
+      () => ({
+        ok: false as const,
+        message: "A non-fatal visual note.",
+        fatal: false,
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("sends attached images in the OpenAI-compatible vision format", async () => {
     vi.stubEnv("VITE_AI_PROVIDER", "openai-compatible");
     vi.stubEnv("VITE_OPENAI_COMPATIBLE_API_KEY", "cc_test-key");

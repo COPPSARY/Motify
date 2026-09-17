@@ -10,6 +10,7 @@
     Eye,
     EyeOff,
     FileText,
+    FolderOpen,
     Image as ImageIcon,
     Layers3,
     Maximize2,
@@ -32,7 +33,12 @@
     readEditorGroup,
   } from "../composition/editor-schema";
   import { hydratePresetAssets } from "../compositions/preset-assets";
-  import { generateWithDirectAi, type DirectAiResult } from "../ai/direct-ai";
+  import {
+    BackendConversationResponse,
+    generateWithDirectAi,
+    type DirectAiResult,
+  } from "../ai/direct-ai";
+  import { ProjectsApi } from "../cloud/projects-api";
   import {
     userEditedIds,
     type GenerationPlanMemory,
@@ -50,10 +56,8 @@
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import {
     combineCompositionSource,
-    hydrateBuiltinPreviewAssets,
     splitCompositionSource,
   } from "../cloud/project-source";
-  import { ProjectsApi } from "../cloud/projects-api";
   import type {
     ProjectSourceFiles,
     ProjectSummary,
@@ -106,8 +110,6 @@
   import recoupHtmlSource from "../compositions/presets/recoup/composition.html?raw";
   import recoupAdapterSource from "../compositions/presets/recoup/index.ts?raw";
   import recoupTimelineSource from "../compositions/presets/recoup/timeline.js?raw";
-  import promoLogoUrl from "../compositions/presets/motionly-promo/logo.svg?url";
-  import promoUiScreenshotUrl from "../compositions/presets/motionly-promo/ui-screenshot.png?url";
   import {
     deriveSceneTracks,
     formatTimelineSeconds,
@@ -194,7 +196,6 @@
     recoupTimelineSource,
     recoupAdapterSource,
   );
-  const previewApi = new ProjectsApi();
   const activeDraftKey = "active";
 
   const textElementTags = new Set([
@@ -341,6 +342,7 @@
   let cloudFiles: ProjectSourceFiles = { ...blankProjectFiles };
   let cloudProject: ProjectSummary | null = null;
   let localProjectName = "";
+  let backendGenerationProjectId = "";
 
   interface SelectionRect {
     visible: boolean;
@@ -378,6 +380,8 @@
     });
     mountComposition(activeComposition);
     void restoreStartupProject().finally(() => void runLandingPrompt());
+    const restoreRouteProject = () => void restoreProjectFromRoute();
+    window.addEventListener("popstate", restoreRouteProject);
     let playbackFrame = 0;
     const syncPlaybackUi = () => {
       if (runtime) {
@@ -414,6 +418,7 @@
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
       window.removeEventListener("pointermove", updateSelectionDrag);
       window.removeEventListener("pointerup", endSelectionDrag);
+      window.removeEventListener("popstate", restoreRouteProject);
       observer.disconnect();
       runtime?.destroy();
       assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -489,6 +494,7 @@
   }
 
   async function restoreStartupProject(): Promise<void> {
+    if (projectIdFromRoute()) return;
     try {
       const local = await loadLocalProject();
       if (local) {
@@ -543,6 +549,37 @@
     showNotice("Recovered your local Motify draft.");
   }
 
+  function projectIdFromRoute(): string | null {
+    const match = /^\/p\/([^/]+)\/?$/.exec(window.location.pathname);
+    return match ? decodeURIComponent(match[1] ?? "") : null;
+  }
+
+  function setProjectRoute(projectId: string, replace = false): void {
+    const pathname = `/p/${encodeURIComponent(projectId)}`;
+    if (window.location.pathname === pathname) return;
+    window.history[replace ? "replaceState" : "pushState"]({}, "", pathname);
+  }
+
+  function clearProjectRoute(): void {
+    if (window.location.pathname === "/") return;
+    window.history.pushState({}, "", "/");
+  }
+
+  async function restoreProjectFromRoute(): Promise<void> {
+    const projectId = projectIdFromRoute();
+    if (!projectId) {
+      if (!cloudProject) return;
+      cloudProject = null;
+      backendGenerationProjectId = "";
+      cloudFiles = { ...blankProjectFiles };
+      cloudProjects?.startUnsaved(cloudFiles);
+      mountComposition(createBlankComposition());
+      return;
+    }
+    if (!cloudProjects || cloudProject?.id === projectId) return;
+    await cloudProjects.openProjectById(projectId);
+  }
+
   async function startNewProject(): Promise<void> {
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
     clearProjectDrafts();
@@ -556,6 +593,8 @@
     resetAssistantSession();
     cloudProject = null;
     localProjectName = "";
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     timelineMode = "project";
@@ -577,6 +616,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...claudeProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(claudePreset);
@@ -588,6 +629,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...kiriTtsProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(kiriTtsPreset);
@@ -599,6 +642,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...motionlyPromoProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(motionlyPromoPreset);
@@ -610,6 +655,7 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    clearProjectRoute();
     cloudFiles = { ...motifyProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(motifyPreset);
@@ -621,6 +667,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...appleNotesProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(appleNotesPreset);
@@ -632,6 +680,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...tesseraProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(tesseraPreset);
@@ -643,6 +693,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...relayProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(relayPreset);
@@ -654,6 +706,8 @@
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
+    backendGenerationProjectId = "";
+    clearProjectRoute();
     cloudFiles = { ...recoupProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     mountComposition(recoupPreset);
@@ -661,51 +715,29 @@
     showNotice("Recoup 26s liquid-glass SaaS ad loaded.");
   }
 
-  async function mountSavedProject(project: ProjectSummary): Promise<void> {
-    const sequence = ++previewLoadSequence;
+  function mountSavedProject(
+    project: ProjectSummary,
+    files: ProjectSourceFiles,
+  ): void {
+    previewLoadSequence += 1;
     resetAssistantSession();
-    try {
-      const preview = await previewApi.getPreview(project.id);
-      const hydratedBundle = hydrateBuiltinPreviewAssets(preview.bundle, {
-        logo: promoLogoUrl,
-        uiScreenshot: promoUiScreenshotUrl,
-      });
-      const url = URL.createObjectURL(
-        new Blob([hydratedBundle], { type: "text/javascript" }),
-      );
-      try {
-        const module = (await import(/* @vite-ignore */ url)) as {
-          default?: CompositionDefinition;
-        };
-        if (sequence !== previewLoadSequence) return;
-        const composition = module.default;
-        if (
-          !composition ||
-          typeof composition.build !== "function" ||
-          !Array.isArray(composition.scenes)
-        ) {
-          throw new Error(
-            "The saved project did not export a valid Motify composition.",
-          );
-        }
-        projectStyles?.remove();
-        projectStyles = document.createElement("style");
-        projectStyles.dataset["motionlyProjectStyles"] = project.id;
-        projectStyles.textContent = preview.styles;
-        document.head.append(projectStyles);
-        mountComposition(composition);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      if (sequence !== previewLoadSequence) return;
-      showNotice(
-        error instanceof Error
-          ? `Could not open saved preview: ${error.message}`
-          : "Could not open saved preview.",
-        10000,
-      );
-    }
+    projectStyles?.remove();
+    projectStyles = null;
+    mountComposition(
+      createDynamicComposition(
+        combineCompositionSource(files),
+        files["timeline.js"],
+        {
+          id: project.id,
+          title: project.name,
+          width: project.width,
+          height: project.height,
+          fps: project.fps,
+          duration: project.duration,
+          scenes: project.scenes,
+        },
+      ),
+    );
   }
 
   function fitPreview(): void {
@@ -1545,6 +1577,20 @@
 
   async function generateAndApplyAssistant(prompt: string): Promise<string> {
     const basis = assistantGenerationBasis();
+    if (!cloudProject && !backendGenerationProjectId && workspaceId) {
+      const created = await new ProjectsApi().createProject(workspaceId, {
+        name: "Untitled Motionly Project",
+        width: activeComposition.width,
+        height: activeComposition.height,
+        fps: activeComposition.fps,
+        duration: basis.duration,
+        files: basis.files,
+      });
+      cloudProject = created;
+      backendGenerationProjectId = created.id;
+      await cloudProjects?.registerActiveProject(created);
+      setProjectRoute(created.id, true);
+    }
     const currentHtml = combineCompositionSource(basis.files);
     const currentJs = basis.files["timeline.js"] || "";
     const generationAssets = await Promise.all(
@@ -1589,6 +1635,8 @@
     const result = await generateWithDirectAi(
       prompt,
       {
+        backendProjectId:
+          cloudProject?.id ?? (backendGenerationProjectId || undefined),
         compositionHtml: currentHtml,
         timelineJs: currentJs,
         stylesCss: basis.files["styles.css"],
@@ -1654,6 +1702,20 @@
       adapter,
     );
     cloudProjects?.setFiles(cloudFiles);
+    backendGenerationProjectId =
+      result.backendProjectId ?? backendGenerationProjectId;
+    if (backendGenerationProjectId) {
+      try {
+        const latestProject = await new ProjectsApi().getProject(
+          backendGenerationProjectId,
+        );
+        cloudProject = latestProject;
+        await cloudProjects?.registerActiveProject(latestProject);
+        setProjectRoute(latestProject.id, true);
+      } catch {
+        // The generated source is usable even if refreshing its gallery card fails.
+      }
+    }
 
     const previousObjectUrls = assetObjectUrls;
     const dynamicComp = createDynamicComposition(
@@ -1688,8 +1750,17 @@
    * asking the model again. Everything else is a composition the model can
    * repair from the failure text.
    */
-  function isSelfRepairable(message: string): boolean {
-    return !/api key|quota|rate limit|permission|unauthorized|forbidden|\b(?:401|403|429|503)\b|network|failed to fetch/i.test(
+  function isSelfRepairable(error: unknown, message: string): boolean {
+    if (
+      error &&
+      typeof error === "object" &&
+      "status" in error &&
+      typeof error.status === "number" &&
+      error.status >= 500
+    ) {
+      return false;
+    }
+    return !/api key|quota|rate limit|permission|unauthorized|forbidden|temporarily unavailable|took too long|cannot reach the model|\b(?:401|403|429|503)\b|network|failed to fetch/i.test(
       message,
     );
   }
@@ -1712,9 +1783,14 @@
     try {
       return await generateAndApplyAssistant(prompt);
     } catch (error: unknown) {
+      if (error instanceof BackendConversationResponse) {
+        backendGenerationProjectId =
+          error.projectId ?? backendGenerationProjectId;
+        return error.response;
+      }
       const message =
         error instanceof Error ? error.message : "AI generation failed.";
-      if (!isSelfRepairable(message)) throw error;
+      if (!isSelfRepairable(error, message)) throw error;
       generationStore.update((state) => ({
         ...state,
         message: "Repairing the composition and trying once more...",
@@ -1890,7 +1966,7 @@
    * prompt parked and nothing happening.
    */
   async function runLandingPrompt(): Promise<void> {
-    if (!pendingLandingPrompt || landingPromptStarted) return;
+    if (!pendingLandingPrompt || landingPromptStarted || !workspaceId) return;
     landingPromptStarted = true;
     assistantDraft = pendingLandingPrompt;
     pendingLandingPrompt = "";
@@ -1901,6 +1977,8 @@
 
   function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
     workspaceId = event.detail.workspaceId;
+    void restoreProjectFromRoute();
+    void runLandingPrompt();
   }
 
   async function saveSource(): Promise<void> {
@@ -1965,8 +2043,14 @@
     }>,
   ): void {
     cloudProject = event.detail.project;
+    backendGenerationProjectId = cloudProject?.id ?? "";
     cloudFiles = event.detail.files;
-    if (cloudProject) void mountSavedProject(cloudProject);
+    if (cloudProject) {
+      mountSavedProject(cloudProject, cloudFiles);
+      setProjectRoute(cloudProject.id);
+    } else {
+      clearProjectRoute();
+    }
   }
 
   function handleOpenFile(event: Event): void {
@@ -2085,10 +2169,9 @@
         accept=".ts,.tsx,text/typescript"
         on:change={handleOpenFile}
       />
-      <!-- Temporarily hidden during maintenance -->
-      <!-- <button class="btn" on:click={() => cloudProjects.openManager()}
+      <button class="btn" on:click={() => cloudProjects.openManager()}
         ><FolderOpen size={17} /><span>Open</span></button
-      > -->
+      >
       <button
         class="btn"
         title="Start a new blank project"

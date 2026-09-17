@@ -22,6 +22,7 @@
     type ProjectSummary,
     type WorkspaceSummary,
   } from "./projects-api";
+  import { splitCompositionSource } from "./project-source";
   import "./cloud-project-gallery.css";
 
   export let initialFiles: ProjectSourceFiles;
@@ -108,6 +109,22 @@
   export function startUnsaved(nextFiles: ProjectSourceFiles): void {
     currentProject = null;
     files = copyFiles(nextFiles);
+  }
+
+  /** Keeps a project created outside the gallery visible in its Open list. */
+  export async function registerActiveProject(
+    project: ProjectSummary,
+  ): Promise<void> {
+    currentProject = project;
+    if (state === "ready" && workspaceId) await refreshProjects();
+  }
+
+  export async function createProjectForPrompt(): Promise<ProjectSummary> {
+    if (currentProject) return currentProject;
+    if (state !== "ready" || !workspaceId || !canWrite()) {
+      throw new Error("Sign in to create a project.");
+    }
+    return createProjectWithName("Untitled Motionly Project");
   }
 
   export async function openProjectById(projectId: string): Promise<void> {
@@ -213,11 +230,25 @@
       errorMessage = "Give the project a name before creating it.";
       return;
     }
+    try {
+      await createProjectWithName(newProjectName.trim());
+      createMode = false;
+      dispatch(
+        "notice",
+        `${currentProject?.name ?? "Project"} saved to the cloud.`,
+      );
+      close();
+    } catch (error) {
+      errorMessage = errorText(error);
+    }
+  }
+
+  async function createProjectWithName(name: string): Promise<ProjectSummary> {
     busy = true;
     errorMessage = "";
     try {
       const created = await api.createProject(workspaceId, {
-        name: newProjectName.trim(),
+        name,
         width,
         height,
         fps,
@@ -225,16 +256,12 @@
         files,
       });
       currentProject = created;
-      createMode = false;
       await refreshProjects();
       dispatch("projectchange", {
         project: currentProject,
         files: copyFiles(files),
       });
-      dispatch("notice", `${currentProject.name} saved to the cloud.`);
-      close();
-    } catch (error) {
-      errorMessage = errorText(error);
+      return created;
     } finally {
       busy = false;
     }
@@ -251,7 +278,11 @@
         api.getSource(project.id),
       ]);
       currentProject = latestProject;
-      files = copyFiles(source.files);
+      files = splitCompositionSource(
+        source["composition.html"],
+        source["timeline.js"],
+        initialFiles["index.ts"],
+      );
       dispatch("projectchange", {
         project: latestProject,
         files: copyFiles(files),
