@@ -1545,7 +1545,7 @@ function normalizedScenes(
  * spent its passes, with an honest note attached.
  */
 export function isFatalRenderFailure(message: string): boolean {
-  return /renders no visible foreground|near-blank frame|holds a blank frame|passes through an empty frame|never renders visible scene content|did not author data-scene layers|duplicate scene IDs|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
+  return /renders no visible foreground|near-blank frame|passes through an empty frame|never renders visible scene content|did not author data-scene layers|duplicate scene IDs|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
     message,
   );
 }

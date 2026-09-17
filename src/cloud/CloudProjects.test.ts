@@ -86,9 +86,19 @@ describe("CloudProjectGallery", () => {
       if (url.pathname.endsWith("/projects") && method === "POST") {
         const payload = JSON.parse(String(init?.body)) as {
           name: string;
-          files: ProjectSourceFiles;
+          compositionHtml: string;
+          timelineJs: string;
         };
-        expect(payload).toMatchObject({ name: "Cloud Film", files });
+        expect(payload).toEqual({
+          name: "Cloud Film",
+          width: 1920,
+          height: 1080,
+          fps: 60,
+          duration: 12,
+          compositionHtml:
+            '<template id="test">\n<style>\nmain { color: white; }\n</style><main>Cloud test</main></template>',
+          timelineJs: "export function buildTimeline() {}",
+        });
         projectExists = true;
         return json(
           {

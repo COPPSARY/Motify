@@ -18,6 +18,7 @@ import {
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 import { buildQualityRepairPrompt } from "./repair-prompt";
 import { isFatalRenderFailure } from "./validate-generation";
+import { ProjectsApi } from "../cloud/projects-api";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -36,7 +37,20 @@ export {
 };
 export type { AiProvider };
 
-export type DirectAiResult = GeneratedComposition;
+export type DirectAiResult = GeneratedComposition & {
+  backendProjectId?: string;
+};
+
+export class BackendConversationResponse extends Error {
+  constructor(
+    readonly type: "chat" | "plan",
+    readonly response: string,
+    readonly projectId?: string,
+  ) {
+    super(response);
+    this.name = "BackendConversationResponse";
+  }
+}
 
 /**
  * The film this app produces is a ~9KB markup document plus a ~8KB timeline,
@@ -258,6 +272,29 @@ async function requestBackend(
   return parseAiResponseText(body.rawText ?? JSON.stringify(body));
 }
 
+async function requestBackendProject(
+  projectId: string,
+  userPrompt: string,
+): Promise<DirectAiResult> {
+  const api = new ProjectsApi();
+  const result = await api.sendMotionMessage(projectId, {
+    message: userPrompt,
+  });
+  if (result.type !== "generation") {
+    throw new BackendConversationResponse(
+      result.type,
+      result.response,
+      result.projectId ?? projectId,
+    );
+  }
+  const files = await api.getSource(result.projectId ?? projectId);
+  return {
+    compositionHtml: files["composition.html"],
+    timelineJs: files["timeline.js"],
+    reply: result.response,
+  };
+}
+
 /**
  * The direction turn, over whichever transport this deployment uses.
  *
@@ -403,10 +440,13 @@ export async function generateWithDirectAi(
   checkRender?: RenderCheck,
 ): Promise<DirectAiResult> {
   const settings = getClientAiSettings();
-  const request = settings.apiKey
-    ? (prompt: string, files: GenerationFiles, repair: boolean) =>
-        requestClientProvider(settings, prompt, files, repair)
-    : requestBackend;
+  const backendProjectId = currentFiles.backendProjectId;
+  const request = backendProjectId
+    ? (prompt: string) => requestBackendProject(backendProjectId, prompt)
+    : settings.apiKey
+      ? (prompt: string, files: GenerationFiles, repair: boolean) =>
+          requestClientProvider(settings, prompt, files, repair)
+      : requestBackend;
   const directionPrompt =
     currentFiles.directionPrompt ??
     [currentFiles.previousPlan?.subject, userPrompt].filter(Boolean).join("\n");
@@ -434,6 +474,7 @@ export async function generateWithDirectAi(
    */
   let buildFiles = currentFiles;
   if (
+    !currentFiles.backendProjectId &&
     currentFiles.generationProfile === "claude-foundation-v1" &&
     directionPassEnabled()
   ) {
@@ -485,7 +526,10 @@ export async function generateWithDirectAi(
     };
   };
 
-  let best = graded(await request(userPrompt, buildFiles, false));
+  const initial = await request(userPrompt, buildFiles, false);
+  if (currentFiles.backendProjectId) return initial;
+
+  let best = graded(initial);
   let assessment = await assess(best);
   let bestReport = assessment.report;
   let bestRender = assessment.render;

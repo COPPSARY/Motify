@@ -18,6 +18,11 @@ import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
 import type { RegistryItemSummary } from "../registry/types";
 
 export interface GenerationFiles {
+  /**
+   * When present, generation is sent to the backend project rather than a
+   * browser-held provider key. The backend persists the authoritative source.
+   */
+  backendProjectId?: string;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;

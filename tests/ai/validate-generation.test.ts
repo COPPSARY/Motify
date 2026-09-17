@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { validateGeneratedComposition } from "../../src/ai/validate-generation";
+import {
+  isFatalRenderFailure,
+  validateGeneratedComposition,
+} from "../../src/ai/validate-generation";
 import {
   foundationHtml,
   foundationScenes,
@@ -56,6 +59,14 @@ function stubLayout(): () => void {
 }
 
 describe("generated composition validation", () => {
+  it("treats a blank handoff as a warning rather than a load-blocking failure", () => {
+    expect(
+      isFatalRenderFailure(
+        "The film holds a blank frame from 13.8s: everything leaves the screen before the next beat arrives.",
+      ),
+    ).toBe(false);
+  });
+
   it("accepts a runnable guarded edit that preserves ids and required assets", () => {
     const previousHtml = `<template><div data-edit="card"></div></template>`;
     const next = result(
