@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0
+
+- Separate Local and Cloud product modes around one shared editor.
+- Remove Tiffy and the AI chat column from the CLI Local editor, giving the preview more room and exposing presets, assets, and source from the toolbar.
+- Keep Tiffy, AI generation, and cloud projects in Cloud mode.
+- Configure Motify API endpoints from the environment.
+
 ## 2.0.0
 
 - Move authored projects to HTML/CSS plus caller-owned GSAP timelines.
