@@ -1,6 +1,6 @@
 {
   "name": "@coppsary/motify",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A code-first motion graphics tool for creating, previewing, and exporting professional animations.",
   "license": "Apache-2.0",
   "type": "module",
