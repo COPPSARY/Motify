@@ -139,6 +139,7 @@ describe("Motify local CLI", () => {
     expect(
       run(["init", project, "--skip-skills", "--no-open"], workspace).status,
     ).toBe(0);
+    await writeFile(join(project, "assets", "logo.svg"), "<svg></svg>", "utf8");
     const port = await freePort();
     let child: ChildProcess | undefined;
     try {
@@ -161,6 +162,9 @@ describe("Motify local CLI", () => {
       expect(payload.metadata.title).toBe("project");
       expect(payload.metadata.duration).toBe(6);
       expect(payload.metadata.scenes).toHaveLength(2);
+      expect(
+        (payload as typeof payload & { assets: string[] }).assets,
+      ).toContain("logo.svg");
 
       payload.files["composition.html"] =
         payload.files["composition.html"]?.replace(
@@ -180,6 +184,10 @@ describe("Motify local CLI", () => {
       const editor = await fetch(`http://127.0.0.1:${port}/`);
       expect(editor.status).toBe(200);
       expect(await editor.text()).toContain("Motify");
+      const localEditor = await fetch(`http://127.0.0.1:${port}/index.html`);
+      expect(await localEditor.text()).toContain(
+        'name="motify-mode" content="local"',
+      );
 
       const ai = await fetch(`http://127.0.0.1:${port}/api/ai/generate`, {
         method: "POST",

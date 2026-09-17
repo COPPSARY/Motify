@@ -5,6 +5,7 @@ export interface LocalProject {
   name: string;
   files: ProjectSourceFiles;
   metadata: DynamicCompositionOptions;
+  assets: string[];
 }
 
 const endpoint = "/api/local-project";

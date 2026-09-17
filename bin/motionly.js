@@ -290,7 +290,21 @@ async function readProject(projectRoot) {
     name: basename(projectRoot),
     files,
     metadata: readMetadata(files["index.ts"], basename(projectRoot)),
+    assets: await listProjectAssets(join(projectRoot, "assets")),
   };
+}
+
+async function listProjectAssets(folder, prefix = "") {
+  const assets = [];
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      assets.push(...(await listProjectAssets(join(folder, entry.name), name)));
+    } else if (entry.isFile()) {
+      assets.push(name);
+    }
+  }
+  return assets.sort();
 }
 
 async function readJsonBody(request) {
@@ -347,6 +361,26 @@ async function serveFile(response, path, method = "GET") {
   response.end(method === "HEAD" ? undefined : await readFile(path));
 }
 
+async function serveLocalEditor(response, method = "GET") {
+  const bundledHtml = await readFile(join(distRoot, "index.html"), "utf8");
+  const markedHtml = bundledHtml.replace(
+    '<meta name="motify-mode" content="cloud"',
+    '<meta name="motify-mode" content="local"',
+  );
+  const html =
+    markedHtml === bundledHtml
+      ? bundledHtml.replace(
+          "</head>",
+          '  <meta name="motify-mode" content="local" />\n  </head>',
+        )
+      : markedHtml;
+  response.writeHead(200, {
+    "Content-Type": MIME[".html"],
+    "Content-Length": Buffer.byteLength(html),
+  });
+  response.end(method === "HEAD" ? undefined : html);
+}
+
 function openBrowser(url) {
   const command =
     process.platform === "darwin"
@@ -388,6 +422,9 @@ async function serveEditor(argv, folder) {
     try {
       const url = new URL(request.url ?? "/", "http://motionly.local");
       const pathname = decodeURIComponent(url.pathname);
+      if (pathname === "/" || pathname === "/index.html") {
+        return await serveLocalEditor(response, request.method);
+      }
       if (
         await handleLocalAiRequest(
           request,
@@ -439,7 +476,7 @@ async function serveEditor(argv, folder) {
       try {
         await serveFile(response, file, request.method);
       } catch {
-        await serveFile(response, join(distRoot, "index.html"), request.method);
+        await serveLocalEditor(response, request.method);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

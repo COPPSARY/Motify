@@ -92,7 +92,9 @@ npx @coppsary/motify@latest skills add --provider codex
 npx @coppsary/motify@latest skills update --provider codex
 ```
 
-Local projects keep visuals in `composition.html`, optional CSS in `styles.css`, motion in `timeline.js`, metadata/mounting in `index.ts`, and media in `assets/`. The local editor reads and saves those files directly. Copy `.env.example` to `.env` to use AI generation without exposing the key to the browser.
+Local projects keep visuals in `composition.html`, optional CSS in `styles.css`, motion in `timeline.js`, metadata/mounting in `index.ts`, and media in `assets/`. The CLI editor reads and saves those files directly. Use your coding agent to change the project source; the Local editor provides the preview, timeline, inspector, presets, assets, source view, and export without an in-editor AI chat.
+
+The browser deployment runs in Cloud mode. It uses the same editor with Tiffy chat, AI generation and editing, and cloud project management.
 
 See the [introduction](docs/introduction.md), [architecture guide](docs/architecture.md), [editor guide](docs/editor.md), and [animation presets](docs/animation-presets.md) for the current workflow.
 
