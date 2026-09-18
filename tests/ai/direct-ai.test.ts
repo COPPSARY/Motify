@@ -185,18 +185,46 @@ describe("directed generation with self-repair", () => {
           }),
           { status: 200 },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { duration: 12 } }), {
+          status: 200,
+        }),
       );
 
     const result = await generateWithDirectAi("make a product tour", {
       backendProjectId: "project-1",
+      assets: [
+        {
+          id: "local-logo",
+          uploadId: "11111111-1111-4111-8111-111111111111",
+          name: "logo.png",
+          mimeType: "image/png",
+          dataBase64: "aGVsbG8=",
+          token: "motionly-asset://local-logo",
+          intent: "asset",
+        },
+      ],
     });
 
     expect(result.reply).toContain("Built the launch film.");
+    expect(result.duration).toBe(12);
     expect((fetchMock.mock.calls[1]?.[0] as URL).pathname).toBe(
       "/v1/projects/project-1/messages",
     );
+    expect(
+      JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)),
+    ).toMatchObject({
+      message: "make a product tour",
+      assets: [
+        { assetId: "11111111-1111-4111-8111-111111111111", role: "asset" },
+      ],
+    });
     expect((fetchMock.mock.calls[2]?.[0] as URL).pathname).toBe(
       "/v1/projects/project-1/source",
+    );
+    expect((fetchMock.mock.calls[3]?.[0] as URL).pathname).toBe(
+      "/v1/projects/project-1",
     );
   });
 
@@ -233,6 +261,11 @@ describe("directed generation with self-repair", () => {
           }),
           { status: 200 },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { duration: 12 } }), {
+          status: 200,
+        }),
       );
 
     await generateWithDirectAi(
@@ -246,7 +279,7 @@ describe("directed generation with self-repair", () => {
       }),
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("sends attached images in the OpenAI-compatible vision format", async () => {

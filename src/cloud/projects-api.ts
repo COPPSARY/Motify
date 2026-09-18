@@ -68,6 +68,14 @@ export interface MotionMessageResult {
   revision?: number;
 }
 
+export interface ProjectAssetSummary {
+  id: string;
+  fileName: string;
+  contentType: string;
+  role: "reference" | "asset";
+  token: string | null;
+}
+
 interface ApiEnvelope<T> {
   data: T;
 }
@@ -164,12 +172,43 @@ export class ProjectsApi {
 
   async sendMotionMessage(
     projectId: string,
-    input: { message: string; revision?: number; runtimeError?: string },
+    input: {
+      message: string;
+      revision?: number;
+      runtimeError?: string;
+      assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
+    },
   ) {
     await this.ensureCsrfToken();
     return this.request<MotionMessageResult>(
       `/v1/projects/${encodeURIComponent(projectId)}/messages`,
       { method: "POST", body: input },
+    );
+  }
+
+  listProjectAssets(projectId: string) {
+    return this.request<ProjectAssetSummary[]>(
+      `/v1/projects/${encodeURIComponent(projectId)}/assets`,
+    );
+  }
+
+  async attachProjectAsset(
+    projectId: string,
+    assetId: string,
+    role: "reference" | "asset",
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/projects/${encodeURIComponent(projectId)}/assets`,
+      { method: "POST", body: { assetId, role } },
+    );
+  }
+
+  async detachProjectAsset(projectId: string, assetId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`,
+      { method: "DELETE" },
     );
   }
 

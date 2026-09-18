@@ -119,7 +119,7 @@
   import AnimationControls from "./AnimationControls.svelte";
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
   import { generationStore } from "../stores/generation";
-  import { uploadAsset } from "../api/assets";
+  import { hydrateCloudAssetTokens, uploadAsset } from "../api/assets";
   import {
     isFatalRenderFailure,
     validateGeneratedComposition,
@@ -231,6 +231,9 @@
   // is revoked wholesale on every regeneration.
   let stagedPreviews: Record<string, string> = {};
   let uploadingMedia = false;
+  let uploadProgress = 0;
+  let uploadPreview: string | null = null;
+  let uploadName = "";
   let runtime: CompositionRuntime | null = null;
   let runtimeUnsubscribe: (() => void) | null = null;
   // The editor opens on an empty stage. A preset only enters the session when
@@ -523,6 +526,10 @@
 
   async function restoreStartupProject(): Promise<void> {
     if (mode === "cloud" && projectIdFromRoute()) return;
+    if (mode !== "local") {
+      await restoreLocalDraft();
+      return;
+    }
     try {
       const local = await loadLocalProject();
       if (local) {
@@ -744,28 +751,38 @@
     showNotice("Recoup 26s liquid-glass SaaS ad loaded.");
   }
 
-  function mountSavedProject(
+  async function mountSavedProject(
     project: ProjectSummary,
     files: ProjectSourceFiles,
-  ): void {
+  ): Promise<void> {
     previewLoadSequence += 1;
     resetAssistantSession();
     projectStyles?.remove();
     projectStyles = null;
+    const hydrated = await hydrateCloudAssetTokens(
+      combineCompositionSource(files),
+    );
+    const attachments = await new ProjectsApi().listProjectAssets(project.id);
+    stagedAssets = attachments.map((asset) => ({
+      id: asset.id,
+      uploadId: asset.id,
+      name: asset.fileName,
+      mimeType: asset.contentType,
+      token: asset.token ?? `motify-asset://${asset.id}`,
+      intent: asset.role,
+    }));
+    assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    assetObjectUrls = hydrated.objectUrls;
     mountComposition(
-      createDynamicComposition(
-        combineCompositionSource(files),
-        files["timeline.js"],
-        {
-          id: project.id,
-          title: project.name,
-          width: project.width,
-          height: project.height,
-          fps: project.fps,
-          duration: project.duration,
-          scenes: project.scenes,
-        },
-      ),
+      createDynamicComposition(hydrated.source, files["timeline.js"], {
+        id: project.id,
+        title: project.name,
+        width: project.width,
+        height: project.height,
+        fps: project.fps,
+        duration: project.duration,
+        scenes: project.scenes,
+      }),
     );
   }
 
@@ -1521,14 +1538,17 @@
     const file = input.files?.[0];
     if (!file) return;
     uploadingMedia = true;
+    uploadProgress = 0;
+    beginUploadPreview(file, file.name);
     try {
       const reference = await storeLocalAsset(file, file.name);
       if (workspaceId) {
-        try {
-          reference.uploadId = await uploadAsset(workspaceId, file);
-        } catch {
-          // The browser-local image remains editable and recoverable.
-        }
+        reference.uploadId = await uploadAsset(
+          workspaceId,
+          file,
+          (percentage) => (uploadProgress = percentage),
+        );
+        reference.token = `motify-asset://${reference.uploadId}`;
       }
       stagedAssets = [...stagedAssets, reference];
       const objectUrl = URL.createObjectURL(file);
@@ -1540,6 +1560,8 @@
       showNotice(`${file.name} replaced and saved locally.`);
     } finally {
       uploadingMedia = false;
+      uploadProgress = 0;
+      clearUploadPreview();
       input.value = "";
       scheduleDraftSave();
     }
@@ -1597,6 +1619,15 @@
       if (stagedPreviews[asset.id]) continue;
       try {
         const blob = await readLocalAsset(asset.id);
+        if (!blob && asset.uploadId) {
+          const cloudPreview = await hydrateCloudAssetTokens(asset.token);
+          stagedPreviews = {
+            ...stagedPreviews,
+            [asset.id]: cloudPreview.source,
+          };
+          continue;
+        }
+
         if (!blob) continue;
         stagedPreviews = {
           ...stagedPreviews,
@@ -1608,6 +1639,18 @@
     }
   }
 
+  async function hydrateGenerationAssets(source: string): Promise<{
+    source: string;
+    objectUrls: string[];
+  }> {
+    const local = await hydrateAssetTokens(source, stagedAssets);
+    const cloud = await hydrateCloudAssetTokens(local.source);
+    return {
+      source: cloud.source,
+      objectUrls: [...local.objectUrls, ...cloud.objectUrls],
+    };
+  }
+
   /**
    * An image the user has not yet told us the purpose of. The prompt is held
    * until they do, because a screenshot used as a reference and a logo used as
@@ -1616,10 +1659,17 @@
   $: pendingAssets = stagedAssets.filter((asset) => !asset.intent);
   $: classifiedAssets = stagedAssets.filter((asset) => asset.intent);
 
-  function classifyStagedAsset(
+  async function classifyStagedAsset(
     asset: LocalAssetReference,
     intent: AssetIntent,
-  ): void {
+  ): Promise<void> {
+    if (cloudProject && asset.uploadId) {
+      await new ProjectsApi().attachProjectAsset(
+        cloudProject.id,
+        asset.uploadId,
+        intent,
+      );
+    }
     stagedAssets = stagedAssets.map((item) =>
       item.id === asset.id ? { ...item, intent } : item,
     );
@@ -1632,7 +1682,13 @@
     scheduleDraftSave();
   }
 
-  function removeStagedAsset(asset: LocalAssetReference): void {
+  async function removeStagedAsset(asset: LocalAssetReference): Promise<void> {
+    if (cloudProject && asset.uploadId) {
+      await new ProjectsApi().detachProjectAsset(
+        cloudProject.id,
+        asset.uploadId,
+      );
+    }
     stagedAssets = stagedAssets.filter((item) => item.id !== asset.id);
     const preview = stagedPreviews[asset.id];
     if (preview) {
@@ -1658,17 +1714,32 @@
     generationPlan = null;
   }
 
+  function beginUploadPreview(file: File, name: string): void {
+    clearUploadPreview();
+    uploadPreview = URL.createObjectURL(file);
+    uploadName = name;
+  }
+
+  function clearUploadPreview(): void {
+    if (uploadPreview) URL.revokeObjectURL(uploadPreview);
+    uploadPreview = null;
+    uploadName = "";
+  }
+
   async function stageAsset(file: File, name: string): Promise<void> {
     uploadingMedia = true;
+    uploadProgress = 0;
+    beginUploadPreview(file, name);
     showNotice(`Adding ${name}...`);
     try {
       const reference = await storeLocalAsset(file, name);
       if (workspaceId) {
-        try {
-          reference.uploadId = await uploadAsset(workspaceId, file);
-        } catch {
-          // Direct AI can still use the IndexedDB copy.
-        }
+        reference.uploadId = await uploadAsset(
+          workspaceId,
+          file,
+          (percentage) => (uploadProgress = percentage),
+        );
+        reference.token = `motify-asset://${reference.uploadId}`;
       }
       stagedAssets = [...stagedAssets, reference];
       captureEvent("media uploaded", {
@@ -1682,6 +1753,8 @@
       );
     } finally {
       uploadingMedia = false;
+      uploadProgress = 0;
+      clearUploadPreview();
     }
   }
 
@@ -1711,8 +1784,13 @@
     }
     const currentHtml = combineCompositionSource(basis.files);
     const currentJs = basis.files["timeline.js"] || "";
+    const cloudGeneration = Boolean(cloudProject || backendGenerationProjectId);
     const generationAssets = await Promise.all(
-      stagedAssets.map(generationAsset),
+      stagedAssets.map((asset) =>
+        cloudGeneration && asset.uploadId
+          ? Promise.resolve({ ...asset, dataBase64: "" })
+          : generationAsset(asset),
+      ),
     );
     /**
      * Mount, seek and judge one candidate. This runs inside the generation
@@ -1729,9 +1807,8 @@
       candidate: DirectAiResult,
       lenient = false,
     ): Promise<ValidatedGeneration> => {
-      const rendered = await hydrateAssetTokens(
+      const rendered = await hydrateGenerationAssets(
         hydratePresetAssets(candidate.compositionHtml),
-        stagedAssets,
       );
       try {
         return validateGeneratedComposition(candidate, {
@@ -1739,7 +1816,9 @@
           previousHtml: currentHtml,
           previousDuration: basis.duration,
           previousScenes: basis.scenes,
-          requiredAssetTokens: generationAssets.map((asset) => asset.token),
+          requiredAssetTokens: generationAssets
+            .filter((asset) => asset.intent === "asset")
+            .map((asset) => asset.token),
           renderedHtml: rendered.source,
           generationProfile: basis.generationProfile,
           userEditedIds: userEditedIds(basis.editorState),
@@ -1790,9 +1869,8 @@
       },
     );
 
-    const hydrated = await hydrateAssetTokens(
+    const hydrated = await hydrateGenerationAssets(
       hydratePresetAssets(result.compositionHtml),
-      stagedAssets,
     );
     /**
      * The winning pass, mounted once more only if the loop never got a clean
@@ -2222,17 +2300,17 @@
     scheduleDraftSave();
   }
 
-  function handleCloudProjectChange(
+  async function handleCloudProjectChange(
     event: CustomEvent<{
       project: ProjectSummary | null;
       files: ProjectSourceFiles;
     }>,
-  ): void {
+  ): Promise<void> {
     cloudProject = event.detail.project;
     backendGenerationProjectId = cloudProject?.id ?? "";
     cloudFiles = event.detail.files;
     if (cloudProject) {
-      mountSavedProject(cloudProject, cloudFiles);
+      await mountSavedProject(cloudProject, cloudFiles);
       setProjectRoute(cloudProject.id);
     } else {
       clearProjectRoute();
@@ -2574,6 +2652,9 @@
                 {classifiedAssets}
                 {stagedPreviews}
                 {uploadingMedia}
+                {uploadProgress}
+                {uploadPreview}
+                {uploadName}
                 {isErrorMessage}
                 {handleFixError}
                 {classifyStagedAsset}

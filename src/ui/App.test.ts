@@ -140,6 +140,8 @@ describe("App project actions", () => {
               "timeline.js": "export function buildTimeline() {}",
             },
           });
+        if (url.pathname === "/v1/projects/project-1/assets")
+          return json({ data: [] });
         throw new Error(`Unexpected request: ${url.pathname}`);
       }),
     );
@@ -245,6 +247,9 @@ describe("App project actions", () => {
               "timeline.js": "export function buildTimeline() {}",
             },
           });
+        }
+        if (url.pathname === "/v1/projects/project-1/assets") {
+          return json({ data: [] });
         }
         throw new Error(`Unexpected request: ${url.pathname}`);
       }),

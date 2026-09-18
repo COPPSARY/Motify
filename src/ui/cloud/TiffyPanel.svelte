@@ -20,6 +20,9 @@
   export let classifiedAssets: LocalAssetReference[];
   export let stagedPreviews: Record<string, string>;
   export let uploadingMedia: boolean;
+  export let uploadProgress: number;
+  export let uploadPreview: string | null;
+  export let uploadName: string;
   export let isErrorMessage: (text: string) => boolean;
   export let handleFixError: (message: string) => Promise<void>;
   export let classifyStagedAsset: (
@@ -150,6 +153,31 @@
           >
         </span>
       {/each}
+    </div>
+  {/if}
+  {#if uploadingMedia}
+    <div class="ai-upload-progress" role="status" aria-live="polite">
+      {#if uploadPreview}
+        <img class="ai-upload-thumb" src={uploadPreview} alt={uploadName} />
+      {:else}
+        <span class="ai-upload-thumb ai-attachment-fallback"
+          ><ImageIcon size={16} /></span
+        >
+      {/if}
+      <div class="ai-upload-progress-body">
+        <span>Uploading {uploadName || "image"} &mdash; {uploadProgress}%</span>
+        <progress
+          value={uploadProgress}
+          max="100"
+          aria-label={`Image upload ${uploadProgress}%`}
+        ></progress>
+      </div>
+      <span>Uploading image — {uploadProgress}%</span>
+      <progress
+        value={uploadProgress}
+        max="100"
+        aria-label={`Image upload ${uploadProgress}%`}
+      ></progress>
     </div>
   {/if}
   <form class="ai-chat-composer" on:submit={submitAssistant}>

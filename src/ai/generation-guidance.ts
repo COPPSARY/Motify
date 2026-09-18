@@ -61,6 +61,8 @@ export interface GenerationPlanMemory {
 
 export interface GenerationAsset {
   id: string;
+  /** Backend asset ID after a successful authenticated cloud upload. */
+  uploadId?: string;
   name: string;
   mimeType: string;
   dataBase64: string;

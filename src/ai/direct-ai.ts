@@ -271,10 +271,25 @@ async function requestBackend(
 async function requestBackendProject(
   projectId: string,
   userPrompt: string,
+  assets: GenerationFiles["assets"],
 ): Promise<DirectAiResult> {
   const api = new ProjectsApi();
+  const uploadedAssets = (assets ?? []).flatMap((asset) =>
+    asset.uploadId
+      ? [
+          {
+            assetId: asset.uploadId,
+            role:
+              asset.intent === "reference"
+                ? ("reference" as const)
+                : ("asset" as const),
+          },
+        ]
+      : [],
+  );
   const result = await api.sendMotionMessage(projectId, {
     message: userPrompt,
+    ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
   });
   if (result.type !== "generation") {
     throw new BackendConversationResponse(
@@ -284,10 +299,15 @@ async function requestBackendProject(
     );
   }
   const files = await api.getSource(result.projectId ?? projectId);
+  const project = await api.getProject(result.projectId ?? projectId);
   return {
+    title: project.name,
+    duration: project.duration,
+    scenes: project.scenes,
     compositionHtml: files["composition.html"],
     timelineJs: files["timeline.js"],
     reply: result.response,
+    backendProjectId: project.id,
   };
 }
 
@@ -438,7 +458,8 @@ export async function generateWithDirectAi(
   const settings = getClientAiSettings();
   const backendProjectId = currentFiles.backendProjectId;
   const request = backendProjectId
-    ? (prompt: string) => requestBackendProject(backendProjectId, prompt)
+    ? (prompt: string) =>
+        requestBackendProject(backendProjectId, prompt, currentFiles.assets)
     : settings.apiKey
       ? (prompt: string, files: GenerationFiles, repair: boolean) =>
           requestClientProvider(settings, prompt, files, repair)

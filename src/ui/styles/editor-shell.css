@@ -472,3 +472,43 @@
 }
 
 /* Premium editor surface */
+
+.code-editor-scope .ai-upload-progress {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  color: #c8ccd3;
+  font-size: 12px;
+}
+
+.code-editor-scope .ai-upload-progress progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--accent, #0a84ff);
+}
+
+.code-editor-scope .ai-upload-progress {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.code-editor-scope .ai-upload-progress > span:not(.ai-upload-thumb),
+.code-editor-scope .ai-upload-progress > progress {
+  display: none;
+}
+
+.code-editor-scope .ai-upload-thumb {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: #24272d;
+  object-fit: cover;
+}
+
+.code-editor-scope .ai-upload-progress-body {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
