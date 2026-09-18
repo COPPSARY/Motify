@@ -103,6 +103,10 @@ describe("directed generation with self-repair", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_AI_PROVIDER", "gemini");
     vi.stubEnv("VITE_GEMINI_API_KEY", "test-key");
+    // These cover provider routing, not the account gate: with no session
+    // service configured the route is ungated, as in a self-hosted editor.
+    vi.stubEnv("MOTIFY_API_URL", "");
+    vi.stubEnv("VITE_MOTIFY_API_URL", "");
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });

@@ -1,0 +1,224 @@
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 4, 7, 0.78);
+}
+
+.auth-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  padding: 30px 30px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  outline: none;
+  background: #101114;
+  color: #f4f5f7;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.68);
+}
+
+.auth-dialog__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: transparent;
+  color: #a0a5ae;
+  cursor: pointer;
+}
+
+.auth-dialog__close:hover {
+  color: #f4f5f7;
+}
+
+.auth-dialog__head h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 660;
+  line-height: 1.2;
+}
+
+.auth-dialog__head p {
+  margin: 9px 0 22px;
+  color: #a0a5ae;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-panel__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: #17191d;
+}
+
+.auth-panel__tab {
+  min-height: 32px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #a1a6af;
+  font-size: 11.5px;
+  font-weight: 630;
+  cursor: pointer;
+}
+
+.auth-panel__tab--active {
+  background: #292c33;
+  color: #f4f5f7;
+}
+
+.auth-panel__google {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: transparent;
+  color: #e2e5ea;
+  font-size: 12px;
+  font-weight: 630;
+  text-decoration: none;
+}
+
+.auth-panel__google:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.auth-panel__google-mark {
+  width: 16px;
+  height: 16px;
+}
+
+.auth-panel__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6f747d;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-panel__divider::before,
+.auth-panel__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.auth-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.auth-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #a1a6af;
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.auth-panel__field input {
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #17191d;
+  color: #f4f5f7;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.auth-panel__field input:focus {
+  outline: none;
+  border-color: #70ddb8;
+  box-shadow: 0 0 0 2px rgba(112, 221, 184, 0.14);
+}
+
+.auth-panel__submit {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #70ddb8;
+  border-radius: 9px;
+  background: #286b57;
+  color: #f3fffb;
+  font-size: 12px;
+  font-weight: 640;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auth-panel__submit:hover:not(:disabled) {
+  background: #327c66;
+}
+
+.auth-panel__submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.auth-panel__error {
+  margin: 0;
+  color: #ff9da5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.auth-panel__sent h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.auth-panel__sent p {
+  margin: 0 0 18px;
+  color: #a0a5ae;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.auth-panel__sent strong {
+  color: #e9ecf1;
+}
+
+.auth-panel__ghost {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: transparent;
+  color: #d1d4da;
+  font-size: 11.5px;
+  font-weight: 620;
+  font-family: inherit;
+  cursor: pointer;
+}

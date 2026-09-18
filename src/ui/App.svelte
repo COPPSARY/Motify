@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import type { AppMode } from "../app/mode";
-  import { currentMotionlyUser, motionlyLoginUrl } from "../auth";
+  import { currentMotionlyUser, signOut } from "../auth";
   import type { MotionlyUser } from "../auth";
+  import AuthDialog from "./auth/AuthDialog.svelte";
   import {
     ArrowLeft,
     Braces,
@@ -277,6 +278,9 @@
   let animationEase = "power3.inOut";
   let currentUser: MotionlyUser | null = null;
   let authChecked = false;
+  let authDialogOpen = false;
+  let authDialogMode: "signin" | "signup" = "signin";
+  let promptHeldForAuth = "";
   let workspaceId = "";
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
@@ -392,6 +396,9 @@
         currentUser = user;
         authChecked = true;
         if (user) identifyAnalyticsUser(user);
+        // A prompt carried over from motionly.site is what the visitor came
+        // for, so a guest is asked to make an account right away.
+        else if (pendingLandingPrompt) openAuthDialog("signup");
       });
     }
     mountComposition(activeComposition);
@@ -1937,10 +1944,66 @@
     void submitAssistant(new SubmitEvent("submit"));
   }
 
+  /**
+   * Generation runs against the signed-in user's workspace, so a prompt from a
+   * guest is held rather than dropped: the composer keeps its text, the sign-in
+   * dialog opens, and the same prompt is sent the moment the session exists.
+   */
+  function requireAccount(prompt: string): boolean {
+    if (mode !== "cloud" || currentUser) return true;
+    promptHeldForAuth = prompt;
+    // Signing in with Google leaves the page, so the held prompt is parked
+    // where a landing prompt already waits and is picked up on the way back.
+    sessionStorage.setItem("motionly_pending_prompt", prompt);
+    authDialogMode = "signin";
+    authDialogOpen = true;
+    return false;
+  }
+
+  function openAuthDialog(next: "signin" | "signup" = "signin"): void {
+    authDialogMode = next;
+    authDialogOpen = true;
+  }
+
+  async function handleAuthenticated(user: MotionlyUser): Promise<void> {
+    currentUser = user;
+    authChecked = true;
+    identifyAnalyticsUser(user);
+    await cloudProjects?.refreshSession();
+    const held = promptHeldForAuth;
+    promptHeldForAuth = "";
+    if (held) {
+      sessionStorage.removeItem("motionly_pending_prompt");
+      pendingLandingPrompt = "";
+      assistantDraft = held;
+      activeTab = "chat";
+      await tick();
+      await submitAssistant(new SubmitEvent("submit"));
+    }
+  }
+
+  function cancelAuthDialog(): void {
+    if (promptHeldForAuth) sessionStorage.removeItem("motionly_pending_prompt");
+    promptHeldForAuth = "";
+  }
+
+  async function signOutOfMotify(): Promise<void> {
+    try {
+      await signOut();
+    } catch {
+      // A revoked or expired session is already signed out as far as the
+      // editor is concerned.
+    }
+    currentUser = null;
+    await cloudProjects?.refreshSession();
+    showNotice("Signed out of Motify.");
+  }
+
   async function submitAssistant(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const prompt = assistantDraft.trim();
     if (!prompt || $generationStore.isActive) return;
+    if (!requireAccount(prompt)) return;
 
     assistantMessages = [...assistantMessages, { role: "user", text: prompt }];
     assistantDraft = "";
@@ -2077,7 +2140,14 @@
    * prompt parked and nothing happening.
    */
   async function runLandingPrompt(): Promise<void> {
-    if (!pendingLandingPrompt || landingPromptStarted || !workspaceId) return;
+    if (!pendingLandingPrompt || landingPromptStarted) return;
+    // A prompt handed over by a guest waits behind the sign-in dialog instead
+    // of being spent, and resumes from sessionStorage once the session exists.
+    if (mode === "cloud" && !currentUser) {
+      if (authChecked) openAuthDialog("signup");
+      return;
+    }
+    if (!workspaceId) return;
     landingPromptStarted = true;
     assistantDraft = pendingLandingPrompt;
     pendingLandingPrompt = "";
@@ -2913,7 +2983,11 @@
           <div class="me-inspector-head">
             {#if mode === "cloud" && authChecked}
               {#if currentUser}
-                <span class="account-status" title={currentUser.email}>
+                <button
+                  class="account-status account-status--button"
+                  title={`${currentUser.email} — sign out`}
+                  on:click={signOutOfMotify}
+                >
                   <span class="account-avatar" aria-hidden="true"
                     >{(currentUser.displayName || currentUser.email)
                       .trim()
@@ -2921,15 +2995,15 @@
                       .toUpperCase()}</span
                   >
                   <span>{currentUser.displayName || currentUser.email}</span>
-                </span>
+                </button>
               {:else}
-                <a
-                  class="account-status account-status--signed-out"
-                  href={motionlyLoginUrl()}
+                <button
+                  class="account-status account-status--button account-status--signed-out"
+                  on:click={() => openAuthDialog("signin")}
                 >
                   <span class="account-status__dot" aria-hidden="true"></span>
                   <span>Sign in</span>
-                </a>
+                </button>
               {/if}
             {:else}
               <span></span>
@@ -3308,6 +3382,18 @@
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
   {#if mode === "cloud"}
     <EarlyNoticeCard />
+    <AuthDialog
+      bind:open={authDialogOpen}
+      bind:mode={authDialogMode}
+      title={promptHeldForAuth || pendingLandingPrompt
+        ? "Create your account to run this prompt"
+        : "Sign in to Motify"}
+      subtitle={promptHeldForAuth || pendingLandingPrompt
+        ? "Tiffy builds your film inside your own workspace, so your prompt is waiting right here until you are signed in."
+        : "Sign in or create an account to save projects and generate with Tiffy."}
+      onauthenticated={handleAuthenticated}
+      onclose={cancelAuthDialog}
+    />
     <CloudProjectGallery
       bind:this={cloudProjects}
       initialFiles={blankProjectFiles}

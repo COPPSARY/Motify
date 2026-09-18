@@ -6,7 +6,6 @@
     Cloud,
     Film,
     FolderOpen,
-    LogIn,
     MoreHorizontal,
     Plus,
     RefreshCcw,
@@ -23,6 +22,7 @@
     type WorkspaceSummary,
   } from "./projects-api";
   import { splitCompositionSource } from "./project-source";
+  import AuthPanel from "../ui/auth/AuthPanel.svelte";
   import "./cloud-project-gallery.css";
 
   export let initialFiles: ProjectSourceFiles;
@@ -57,8 +57,6 @@
   let projects: ProjectSummary[] = [];
   let currentProject: ProjectSummary | null = null;
   let files = copyFiles(initialFiles);
-  let email = "";
-  let password = "";
   let busy = false;
   let errorMessage = "";
   let conflictRevision: number | null = null;
@@ -81,6 +79,11 @@
     );
 
   onMount(() => void bootstrap());
+
+  /** Re-reads the session after a sign-in or sign-out elsewhere in the editor. */
+  export async function refreshSession(): Promise<void> {
+    await bootstrap();
+  }
 
   export async function openManager(): Promise<void> {
     visible = true;
@@ -159,27 +162,6 @@
       }
       state = "error";
       errorMessage = errorText(error);
-    }
-  }
-
-  async function login(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    if (busy) return;
-    busy = true;
-    errorMessage = "";
-    try {
-      const session = await api.login(email.trim(), password);
-      user = session.user;
-      password = "";
-      workspaces = await api.listWorkspaces();
-      workspaceId = workspaces[0]?.id ?? "";
-      state = "ready";
-      await refreshProjects();
-      dispatch("cloudready", { workspaceId });
-    } catch (error) {
-      errorMessage = errorText(error);
-    } finally {
-      busy = false;
     }
   }
 
@@ -566,37 +548,9 @@
               across devices.
             </p>
           </div>
-          <form class="cloud-login-form" on:submit={login}>
-            <label>
-              Email
-              <input
-                bind:value={email}
-                type="email"
-                autocomplete="email"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                bind:value={password}
-                type="password"
-                autocomplete="current-password"
-                minlength="8"
-                required
-              />
-            </label>
-            {#if errorMessage}<p class="cloud-error" role="alert">
-                {errorMessage}
-              </p>{/if}
-            <button class="cloud-primary" disabled={busy}>
-              <LogIn size={16} />
-              {busy ? "Signing in…" : "Sign in"}
-            </button>
-            <a class="cloud-google" href={api.googleLoginUrl()}
-              >Continue with Google</a
-            >
-          </form>
+          <div class="cloud-login-form">
+            <AuthPanel onauthenticated={bootstrap} />
+          </div>
         </div>
       {:else if state === "error"}
         <div class="cloud-projects-state">

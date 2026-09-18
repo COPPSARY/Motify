@@ -10,6 +10,10 @@ import {
   type AiProvider,
 } from "../../src/ai/provider";
 import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
+import {
+  requireMotifySession,
+  UnauthenticatedGenerationError,
+} from "../../src/ai/require-session";
 
 interface GenerateBody {
   userPrompt?: string;
@@ -124,6 +128,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
+    await requireMotifySession(
+      req.headers.get("cookie") ?? undefined,
+      process.env as Record<string, string | undefined>,
+    );
+
     const body = (await req.json()) as GenerateBody;
     const currentFiles = body.currentFiles ?? {};
     const isDirection = body.mode === "direction";
@@ -163,6 +172,9 @@ export default async function handler(req: Request): Promise<Response> {
       isDirection ? { text: rawText } : parseComposition(rawText),
     );
   } catch (error: unknown) {
+    if (error instanceof UnauthenticatedGenerationError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     return Response.json(
       {
         error:
