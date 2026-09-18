@@ -10,6 +10,10 @@ import {
   normalizeAiProvider,
 } from "./provider";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
+import {
+  requireMotifySession,
+  UnauthenticatedGenerationError,
+} from "./require-session";
 
 export function loadSkillsPrompt(): string {
   return MOTIONLY_SYSTEM_PROMPT;
@@ -51,6 +55,7 @@ function getLiveEnv(
 
 interface RequestLike {
   body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
   on?: (event: string, callback: (chunk?: unknown) => void) => void;
   url?: string;
   method?: string;
@@ -182,9 +187,15 @@ export async function handleAiGenerateRequest(
 ): Promise<void> {
   const startedAt = Date.now();
   try {
+    const env = getLiveEnv(initialEnv);
+    const cookieHeader = req.headers?.["cookie"];
+    await requireMotifySession(
+      Array.isArray(cookieHeader) ? cookieHeader.join("; ") : cookieHeader,
+      env,
+    );
+
     const body = await readBody(req);
     const currentFiles = body.currentFiles ?? {};
-    const env = getLiveEnv(initialEnv);
     const provider = normalizeAiProvider(env["AI_PROVIDER"]);
     const apiKey =
       (provider === "gemini"
@@ -237,6 +248,10 @@ export async function handleAiGenerateRequest(
       `[Motify AI] Completed ${provider} generation in ${Date.now() - startedAt}ms`,
     );
   } catch (error: unknown) {
+    if (error instanceof UnauthenticatedGenerationError) {
+      sendJson(res, error.status, { error: error.message });
+      return;
+    }
     console.error("[Motify AI] Error:", error);
     sendJson(res, 500, {
       error:

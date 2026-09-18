@@ -281,4 +281,64 @@ describe("App project actions", () => {
       await unmount(component);
     }
   });
+
+  it("holds a guest's prompt behind the account dialog instead of generating", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = input instanceof URL ? input : new URL(String(input));
+      if (url.pathname === "/v1/auth/me")
+        return new Response(null, { status: 401 });
+      if (url.pathname === "/v1/workspaces")
+        return new Response(null, { status: 401 });
+      throw new Error(`Unexpected request: ${url.pathname}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(App, { target });
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          Array.from(document.querySelectorAll("button")).some(
+            (button) => button.textContent?.trim() === "Sign in",
+          ),
+        ).toBe(true);
+      });
+
+      const prompt = document.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Assistant prompt"]',
+      );
+      expect(prompt).not.toBeNull();
+      prompt!.value = "Make a launch film";
+      prompt!.dispatchEvent(new Event("input", { bubbles: true }));
+      await tick();
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Send message to Tiffy"]',
+        )
+        ?.click();
+
+      await vi.waitFor(() => {
+        expect(document.querySelector(".auth-dialog")).not.toBeNull();
+      });
+      expect(document.body.textContent).toContain("Create account");
+      // The prompt is held, not spent: nothing was sent to generation.
+      expect(
+        fetchMock.mock.calls.some(([request]) =>
+          String(request).includes("/api/ai/generate"),
+        ),
+      ).toBe(false);
+    } finally {
+      await unmount(component);
+    }
+  });
 });

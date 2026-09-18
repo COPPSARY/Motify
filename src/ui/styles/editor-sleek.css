@@ -1069,6 +1069,18 @@
   box-shadow: none;
 }
 
+.code-editor-scope .account-status--button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.code-editor-scope .account-status--button:hover {
+  color: var(--sl-text);
+}
+
 .code-editor-scope .account-status--signed-out:hover {
   color: var(--sl-text);
 }

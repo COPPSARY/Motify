@@ -105,22 +105,6 @@ export class ProjectsApi {
     return session;
   }
 
-  async login(email: string, password: string) {
-    const session = await this.request<{
-      user: CloudUser;
-      csrfToken: string;
-    }>("/v1/auth/login", {
-      method: "POST",
-      body: { email, password },
-    });
-    this.csrfToken = session.csrfToken;
-    return session;
-  }
-
-  googleLoginUrl() {
-    return new URL("/v1/auth/google", this.baseUrl).toString();
-  }
-
   listWorkspaces() {
     return this.request<WorkspaceSummary[]>("/v1/workspaces");
   }
