@@ -49,3 +49,61 @@ describe("TiffyPanel uploads", () => {
     }
   });
 });
+
+describe("TiffyPanel sent attachments", () => {
+  it("shows a sent image as a thumbnail without repeating its filename", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: {
+        assistantMessages: [
+          {
+            role: "user",
+            text: "Use this as a reference",
+            attachments: [
+              {
+                id: "a1",
+                name: "Pasted image",
+                previewUrl: "blob:pasted-preview",
+                intent: "reference",
+              },
+            ],
+          },
+        ],
+        assistantDraft: "",
+        composerInput: undefined as unknown as HTMLTextAreaElement,
+        activityVerb: "Working",
+        pendingAssets: [],
+        classifiedAssets: [],
+        stagedPreviews: {},
+        uploadingMedia: false,
+        uploadProgress: 0,
+        uploadPreview: "",
+        uploadName: "",
+        isErrorMessage: () => false,
+        handleFixError: async () => undefined,
+        classifyStagedAsset: async () => undefined,
+        removeStagedAsset: async () => undefined,
+        submitAssistant: async () => undefined,
+        resizeComposer: () => undefined,
+        composerKeydown: () => undefined,
+        handlePaste: async () => undefined,
+        onAttach: () => undefined,
+      } as never,
+    });
+
+    try {
+      const image = document.querySelector<HTMLImageElement>(
+        ".ai-message-attachment-image",
+      );
+      expect(image).not.toBeNull();
+      expect(image?.src).toBe("blob:pasted-preview");
+      expect(image?.alt).toBe("Pasted image");
+      // The picture is the label; the name only survives as a tooltip.
+      expect(document.querySelector(".ai-message-attachment-name")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+});

@@ -1713,3 +1713,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A pasted image shows itself rather than the words "Pasted image": the chip
+   collapses to the thumbnail and the filename moves to the tooltip. */
+.code-editor-scope .ai-message-attachment.is-image {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.code-editor-scope .ai-message-attachment-image {
+  display: block;
+  max-width: 180px;
+  max-height: 140px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
+}

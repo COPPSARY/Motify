@@ -71,10 +71,14 @@
         {#if message.attachments?.length}
           <div class="ai-message-attachments">
             {#each message.attachments as attachment (attachment.id)}
-              <span class="ai-message-attachment" title={attachment.name}>
+              <span
+                class="ai-message-attachment"
+                class:is-image={Boolean(attachment.previewUrl)}
+                title={attachment.name}
+              >
                 {#if attachment.previewUrl}
                   <img
-                    class="ai-message-attachment-thumb"
+                    class="ai-message-attachment-image"
                     src={attachment.previewUrl}
                     alt={attachment.name}
                   />
@@ -84,8 +88,11 @@
                     aria-hidden="true"><ImageIcon size={12} /></span
                   >
                 {/if}
-                <span class="ai-message-attachment-name">{attachment.name}</span
-                >
+                {#if !attachment.previewUrl}
+                  <span class="ai-message-attachment-name"
+                    >{attachment.name}</span
+                  >
+                {/if}
               </span>
             {/each}
           </div>
