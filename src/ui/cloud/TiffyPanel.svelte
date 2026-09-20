@@ -7,9 +7,17 @@
     LocalAssetReference,
   } from "../../stores/local-assets";
 
+  interface MessageAttachment {
+    id: string;
+    name: string;
+    previewUrl?: string;
+    intent?: AssetIntent;
+  }
+
   interface AssistantMessage {
     role: "assistant" | "user";
     text: string;
+    attachments?: MessageAttachment[];
   }
 
   export let assistantMessages: AssistantMessage[];
@@ -57,6 +65,28 @@
           isErrorMessage(message.text)}
         class="ai-chat-message"
       >
+        {#if message.attachments?.length}
+          <div class="ai-message-attachments">
+            {#each message.attachments as attachment (attachment.id)}
+              <span class="ai-message-attachment" title={attachment.name}>
+                {#if attachment.previewUrl}
+                  <img
+                    class="ai-message-attachment-thumb"
+                    src={attachment.previewUrl}
+                    alt={attachment.name}
+                  />
+                {:else}
+                  <span
+                    class="ai-message-attachment-thumb ai-attachment-fallback"
+                    aria-hidden="true"><ImageIcon size={12} /></span
+                  >
+                {/if}
+                <span class="ai-message-attachment-name">{attachment.name}</span
+                >
+              </span>
+            {/each}
+          </div>
+        {/if}
         <div>{message.text}</div>
         {#if message.role === "assistant" && isErrorMessage(message.text)}
           <button

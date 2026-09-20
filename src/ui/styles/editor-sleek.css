@@ -1675,3 +1675,41 @@
     display: flex;
   }
 }
+
+/* Attachments sent with a message ride inside its bubble, so the transcript
+   shows what Tiffy was given rather than leaving them in the composer tray. */
+.code-editor-scope .ai-message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.code-editor-scope .ai-message-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.code-editor-scope .ai-message-attachment-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #2a2d33;
+  flex: none;
+}
+
+.code-editor-scope .ai-message-attachment-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
