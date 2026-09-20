@@ -368,6 +368,14 @@ async function requestBackendDirection(userMessage: string): Promise<string> {
 const MAX_REPAIR_PASSES = 3;
 
 /**
+ * A cloud repair is a whole backend generation - another model call, another
+ * half minute - where a local one is a client round trip. The first pass is
+ * where nearly all of the improvement is, so cloud projects get that one and
+ * ship whatever it produces.
+ */
+const MAX_BACKEND_REPAIR_PASSES = 1;
+
+/**
  * What mounting and seeking the candidate revealed.
  *
  * The render checks are the strongest ones this pipeline has — they watch real
@@ -544,7 +552,9 @@ export async function generateWithDirectAi(
   };
 
   const initial = await request(userPrompt, buildFiles, false);
-  if (currentFiles.backendProjectId) return initial;
+  const maxPasses = backendProjectId
+    ? MAX_BACKEND_REPAIR_PASSES
+    : MAX_REPAIR_PASSES;
 
   let best = graded(initial);
   let assessment = await assess(best);
@@ -553,7 +563,7 @@ export async function generateWithDirectAi(
 
   for (
     let pass = 1;
-    pass <= MAX_REPAIR_PASSES && bestReport.requiresRepair;
+    pass <= maxPasses && bestReport.requiresRepair;
     pass += 1
   ) {
     onProgress?.(
