@@ -235,6 +235,12 @@
   let cloudProjects: CloudProjectGallery;
   let mediaInput: HTMLInputElement;
   let stagedAssets: LocalAssetReference[] = [];
+  /**
+   * Assets that left the composer with a message and are still being generated
+   * against. They are gone from the tray - the message carries them now - but
+   * the request in flight is still built from them.
+   */
+  let assetsInFlight: LocalAssetReference[] | null = null;
   // Thumbnails for the attachment chips. Kept apart from assetObjectUrls, which
   // is revoked wholesale on every regeneration.
   let stagedPreviews: Record<string, string> = {};
@@ -1794,7 +1800,7 @@
     const currentJs = basis.files["timeline.js"] || "";
     const cloudGeneration = Boolean(cloudProject || backendGenerationProjectId);
     const generationAssets = await Promise.all(
-      stagedAssets.map((asset) =>
+      (assetsInFlight ?? stagedAssets).map((asset) =>
         cloudGeneration && asset.uploadId
           ? Promise.resolve({ ...asset, dataBase64: "" })
           : generationAsset(asset),
@@ -2108,6 +2114,8 @@
       },
     ];
     assistantDraft = "";
+    assetsInFlight = stagedAssets.length ? [...stagedAssets] : null;
+    stagedAssets = [];
     await tick();
     resizeComposer();
 
@@ -2132,7 +2140,7 @@
       });
       captureEvent("ai generation completed", {
         duration_ms: Math.round(performance.now() - generationStartedAt),
-        reference_asset_count: stagedAssets.length,
+        reference_asset_count: sentAttachments.length,
       });
       showNotice("Tiffy updated the composition.");
     } catch (err: unknown) {
@@ -2160,6 +2168,8 @@
         ];
       }
       showNotice(errorMsg);
+    } finally {
+      assetsInFlight = null;
     }
   }
 
