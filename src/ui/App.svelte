@@ -155,9 +155,17 @@
 
   type TimelineMode = "project" | "scene";
 
+  interface MessageAttachment {
+    id: string;
+    name: string;
+    previewUrl?: string;
+    intent?: AssetIntent;
+  }
+
   interface AssistantMessage {
     role: "user" | "assistant";
     text: string;
+    attachments?: MessageAttachment[];
   }
 
   const claudeProjectFiles = splitCompositionSource(
@@ -2083,7 +2091,22 @@
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt)) return;
 
-    assistantMessages = [...assistantMessages, { role: "user", text: prompt }];
+    const sentAttachments: MessageAttachment[] = stagedAssets.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      ...(stagedPreviews[asset.id]
+        ? { previewUrl: stagedPreviews[asset.id] }
+        : {}),
+      ...(asset.intent ? { intent: asset.intent } : {}),
+    }));
+    assistantMessages = [
+      ...assistantMessages,
+      {
+        role: "user",
+        text: prompt,
+        ...(sentAttachments.length ? { attachments: sentAttachments } : {}),
+      },
+    ];
     assistantDraft = "";
     await tick();
     resizeComposer();
