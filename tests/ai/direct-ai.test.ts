@@ -19,6 +19,22 @@ function soundComposition(reply: string) {
   };
 }
 
+/**
+ * A sound film that also places the supplied logo. A film that leaves an
+ * attached image unused is repaired again, however good the rest of it is, so
+ * a test about repair passes has to satisfy that rule to settle.
+ */
+function soundCompositionWithAsset(reply: string) {
+  const composition = soundComposition(reply);
+  return {
+    ...composition,
+    compositionHtml: composition.compositionHtml.replace(
+      "</template>",
+      '<img data-edit="logo" src="__ASSET_1__" alt="logo" /></template>',
+    ),
+  };
+}
+
 /** Fails "nothing moves" and drops both markup markers. */
 function brokenComposition(reply: string) {
   return {
@@ -645,5 +661,203 @@ describe("directed generation with self-repair", () => {
 
     // One generation, one repair that changed nothing, then no more spending.
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("shows the repair pass frames of the film it is fixing", async () => {
+    fetchMock
+      .mockResolvedValueOnce(geminiResponse(brokenComposition("First try.")))
+      .mockResolvedValue(
+        geminiResponse(soundCompositionWithAsset("Repaired.")),
+      );
+    const captured: string[][] = [];
+
+    await generateWithDirectAi(
+      "use this logo",
+      {
+        assets: [
+          {
+            id: "asset-1",
+            name: "logo.png",
+            mimeType: "image/png",
+            dataBase64: "aGVsbG8=",
+            token: "__ASSET_1__",
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      async (_candidate, complaints) => {
+        captured.push([...complaints]);
+        return {
+          account: ["2.40s: card 38x44% centred 90,50%, 340px past the right."],
+          frames: [
+            { time: 2.4, mimeType: "image/jpeg", dataBase64: "ZnJhbWUtb25l" },
+            { time: 9.4, mimeType: "image/jpeg", dataBase64: "ZnJhbWUtdHdv" },
+          ],
+        };
+      },
+    );
+
+    // The film is photographed for the pass that is about to rewrite it, and
+    // against the very complaints that pass carries.
+    expect(captured[0]?.join(" ")).toContain("nothing moves");
+
+    const first = JSON.parse(String(fetchMock.mock.calls[0]?.[1].body));
+    const repair = JSON.parse(String(fetchMock.mock.calls[1]?.[1].body));
+    // Nothing is attached to the first pass: there is no film to look at yet.
+    expect(first.contents[0].parts).toHaveLength(2);
+    const parts = repair.contents[0].parts;
+    expect(parts).toHaveLength(4);
+    // The user's own image keeps its place; the frames follow it, in order.
+    expect(parts[1].inline_data.data).toBe("aGVsbG8=");
+    expect(parts[2].inline_data).toEqual({
+      mime_type: "image/jpeg",
+      data: "ZnJhbWUtb25l",
+    });
+    expect(parts[3].inline_data.data).toBe("ZnJhbWUtdHdv");
+    // And the prompt tells the model what those trailing images are.
+    expect(parts[0].text).toContain("WHAT YOUR FILM ACTUALLY SHOWS");
+    expect(parts[0].text).toContain("340px past the right");
+    expect(parts[0].text).toContain("2.40s, 9.40s");
+  });
+
+  it("carries rendered frames on a cloud project message", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { user: { id: "user" }, csrfToken: "csrf-token" },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              type: "generation",
+              response: "Built the launch film.",
+              projectId: "project-1",
+              revision: 2,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              "composition.html": foundationHtml,
+              "timeline.js": foundationTimeline,
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { duration: 12 } }), {
+          status: 200,
+        }),
+      );
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            type: "generation",
+            response: "Repaired the launch film.",
+            projectId: "project-1",
+            revision: 3,
+            "composition.html": foundationHtml,
+            "timeline.js": foundationTimeline,
+            duration: 12,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await generateWithDirectAi(
+      "make a product tour",
+      { backendProjectId: "project-1" },
+      undefined,
+      () => ({
+        ok: false as const,
+        message:
+          'Scene scene-01 leaves "card" 34% outside the frame around 2.40s.',
+        fatal: false,
+      }),
+      async () => ({
+        account: ["2.40s: card 38x44% centred 90,50%, 340px past the right."],
+        frames: [
+          { time: 2.4, mimeType: "image/jpeg", dataBase64: "ZnJhbWUtb25l" },
+        ],
+      }),
+    );
+
+    const messagePosts = fetchMock.mock.calls.filter(
+      (call) =>
+        String((call[0] as URL).pathname) === "/v1/projects/project-1/messages",
+    );
+    const first = JSON.parse(
+      String((messagePosts[0]?.[1] as RequestInit).body),
+    );
+    const repair = JSON.parse(
+      String((messagePosts[1]?.[1] as RequestInit).body),
+    );
+
+    // The first turn has no film to look at yet. The repair turn does, and the
+    // backend never executes the source it validates, so this message is the
+    // only route by which what the frames show reaches the model.
+    expect(first.frames).toBeUndefined();
+    expect(repair.frames).toEqual([
+      {
+        capturedAtSeconds: 2.4,
+        mediaType: "image/jpeg",
+        dataBase64: "ZnJhbWUtb25l",
+      },
+    ]);
+    // The measurements ride the message text beside them.
+    expect(repair.message).toContain("340px past the right");
+  });
+
+  it("repairs with its sentences when the film cannot be photographed", async () => {
+    fetchMock
+      .mockResolvedValueOnce(geminiResponse(brokenComposition("First try.")))
+      .mockResolvedValueOnce(geminiResponse(soundComposition("Repaired.")));
+
+    const result = await generateWithDirectAi(
+      "make a product tour",
+      {},
+      undefined,
+      undefined,
+      async () => {
+        throw new Error("canvas is unavailable");
+      },
+    );
+
+    // Evidence improves a repair prompt; it is never a precondition for one.
+    expect(result.reply).toContain("Repaired.");
+    const repair = JSON.parse(String(fetchMock.mock.calls[1]?.[1].body));
+    expect(repair.contents[0].parts).toHaveLength(1);
+    expect(repair.contents[0].parts[0].text).not.toContain(
+      "WHAT YOUR FILM ACTUALLY SHOWS",
+    );
+  });
+
+  it("photographs nothing when the first pass already holds up", async () => {
+    fetchMock.mockResolvedValue(
+      geminiResponse(soundComposition("Built it clean.")),
+    );
+    const observe = vi.fn(async () => ({ account: [], frames: [] }));
+
+    await generateWithDirectAi(
+      "make a product tour",
+      {},
+      undefined,
+      undefined,
+      observe,
+    );
+
+    expect(observe).not.toHaveBeenCalled();
   });
 });
