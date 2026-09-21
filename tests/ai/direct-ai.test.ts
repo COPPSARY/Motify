@@ -228,7 +228,7 @@ describe("directed generation with self-repair", () => {
     );
   });
 
-  it("does not send client-side repair messages for a backend project", async () => {
+  it("repairs a backend project once from what the frames show", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(
@@ -268,6 +268,24 @@ describe("directed generation with self-repair", () => {
         }),
       );
 
+    // Every later call resolves, so nothing but the pass limit stops the loop.
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            type: "generation",
+            response: "Repaired the launch film.",
+            projectId: "project-1",
+            revision: 3,
+            "composition.html": foundationHtml,
+            "timeline.js": foundationTimeline,
+            duration: 12,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
     await generateWithDirectAi(
       "make a product tour",
       { backendProjectId: "project-1" },
@@ -279,7 +297,20 @@ describe("directed generation with self-repair", () => {
       }),
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    /**
+     * The backend already repairs what it can read in the source. Only the
+     * browser can say what the frames show, so a visual note buys exactly one
+     * more backend generation - not none, and not the three a local project
+     * would spend.
+     */
+    const messagePosts = fetchMock.mock.calls.filter(
+      (call) =>
+        String((call[0] as URL).pathname) === "/v1/projects/project-1/messages",
+    );
+    expect(messagePosts).toHaveLength(2);
+    expect(
+      JSON.parse(String((messagePosts[1]?.[1] as RequestInit).body)).message,
+    ).toContain("A non-fatal visual note.");
   });
 
   it("sends attached images in the OpenAI-compatible vision format", async () => {
