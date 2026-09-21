@@ -76,8 +76,38 @@ export interface ProjectAssetSummary {
   token: string | null;
 }
 
+/** A song in the music library: the user's own upload or a built-in track. */
+export interface AudioTrack {
+  id: string;
+  scope: "workspace" | "system";
+  workspaceId: string | null;
+  title: string;
+  artist: string | null;
+  genre: string | null;
+  moodTags: string[];
+  bpm: number | null;
+  license: string | null;
+  durationMs: number;
+  contentType: string;
+  byteSize: number;
+  /** `motify-audio://<id>`, the source a composition's <audio> element carries. */
+  token: string;
+  createdAt: string;
+}
+
+export interface AudioTrackMetadata {
+  title?: string;
+  artist?: string | null;
+  genre?: string | null;
+  moodTags?: string[];
+  bpm?: number | null;
+}
+
+export type AudioLibraryScope = "all" | "workspace" | "system";
+
 interface ApiEnvelope<T> {
   data: T;
+  pagination?: { totalItems: number };
 }
 
 interface ApiErrorEnvelope {
@@ -177,6 +207,7 @@ export class ProjectsApi {
       revision?: number;
       runtimeError?: string;
       assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
+      audio?: Array<{ trackId: string }>;
       /**
        * Frames this editor rendered from the candidate the message is
        * repairing. They travel inline, for this request only: the backend
@@ -223,6 +254,71 @@ export class ProjectsApi {
     );
   }
 
+  async listAudioTracks(
+    workspaceId: string,
+    options: { scope?: AudioLibraryScope; query?: string } = {},
+  ): Promise<{ tracks: AudioTrack[]; totalItems: number }> {
+    const params = new URLSearchParams({
+      scope: options.scope ?? "all",
+      pageSize: "100",
+    });
+    if (options.query?.trim()) params.set("q", options.query.trim());
+    const body = await this.requestJson<ApiEnvelope<AudioTrack[]>>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/audio?${params}`,
+    );
+    const tracks = body?.data ?? [];
+    return {
+      tracks,
+      totalItems: body?.pagination?.totalItems ?? tracks.length,
+    };
+  }
+
+  async registerAudioTrack(
+    workspaceId: string,
+    input: AudioTrackMetadata & { assetId: string },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<AudioTrack>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/audio`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateAudioTrack(trackId: string, patch: AudioTrackMetadata) {
+    await this.ensureCsrfToken();
+    return this.request<AudioTrack>(
+      `/v1/audio/${encodeURIComponent(trackId)}`,
+      { method: "PATCH", body: patch },
+    );
+  }
+
+  async removeAudioTrack(trackId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(`/v1/audio/${encodeURIComponent(trackId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  getAudioAccess(trackId: string) {
+    return this.request<{ url: string; expiresIn: number }>(
+      `/v1/audio/${encodeURIComponent(trackId)}/access`,
+    );
+  }
+
+  listProjectAudio(projectId: string) {
+    return this.request<AudioTrack[]>(
+      `/v1/projects/${encodeURIComponent(projectId)}/audio`,
+    );
+  }
+
+  async detachProjectAudio(projectId: string, trackId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/projects/${encodeURIComponent(projectId)}/audio/${encodeURIComponent(trackId)}`,
+      { method: "DELETE" },
+    );
+  }
+
   saveSource(
     projectId: string,
     input: { revision: number; files: ProjectSourceFiles },
@@ -261,6 +357,15 @@ export class ProjectsApi {
     path: string,
     options: { method?: string; body?: unknown } = {},
   ): Promise<T> {
+    const body = await this.requestJson<ApiEnvelope<T>>(path, options);
+    return body === undefined ? (undefined as T) : body.data;
+  }
+
+  /** The whole response body, for callers that need more than `data`. */
+  private async requestJson<T>(
+    path: string,
+    options: { method?: string; body?: unknown } = {},
+  ): Promise<T | undefined> {
     const method = options.method ?? "GET";
     const response = await fetch(new URL(path, this.baseUrl), {
       method,
@@ -291,8 +396,8 @@ export class ProjectsApi {
         payload.error?.details,
       );
     }
-    if (response.status === 204) return undefined as T;
-    return ((await response.json()) as ApiEnvelope<T>).data;
+    if (response.status === 204) return undefined;
+    return (await response.json()) as T;
   }
 
   private async ensureCsrfToken(): Promise<void> {

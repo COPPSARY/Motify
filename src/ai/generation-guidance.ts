@@ -30,6 +30,12 @@ export interface GenerationFiles {
   indexTs?: string;
   conversation?: readonly { role: "user" | "assistant"; text: string }[];
   assets?: readonly GenerationAsset[];
+  /**
+   * Music-library tracks to score the film to. Only the backend receives them:
+   * it attaches them to the project and briefs the model on their length,
+   * tempo, and mood, so a browser-held provider key never sees the audio.
+   */
+  audioTrackIds?: readonly string[];
   editorState?: Partial<RuntimeEditorState>;
   generationProfile?: "claude-foundation-v1" | "existing";
   /** Directorial plan produced by the previous turn, replayed on follow-ups. */

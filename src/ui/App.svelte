@@ -39,7 +39,7 @@
     generateWithDirectAi,
     type DirectAiResult,
   } from "../ai/direct-ai";
-  import { ProjectsApi } from "../cloud/projects-api";
+  import { ProjectsApi, type AudioTrack } from "../cloud/projects-api";
   import {
     userEditedIds,
     type GenerationPlanMemory,
@@ -118,8 +118,20 @@
   } from "./timeline-data";
   import AnimationControls from "./AnimationControls.svelte";
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
+  import MusicPanel from "./cloud/MusicPanel.svelte";
   import { generationStore } from "../stores/generation";
   import { hydrateCloudAssetTokens, uploadAsset } from "../api/assets";
+  import { AUDIO_ACCEPT, addTrackToLibrary, isAudioFile } from "../api/audio";
+  import { AudioSync } from "../composition/audio-sync";
+  import { removeAudioTrackFromComposition } from "../composition/composition-audio";
+  import {
+    MAX_SELECTED_AUDIO,
+    deselectAudioTrack,
+    refreshMusicLibrary,
+    refreshProjectAudio,
+    selectAudioTrack,
+    selectedAudio,
+  } from "../stores/music-library";
   import {
     isFatalRenderFailure,
     validateGeneratedComposition,
@@ -149,10 +161,11 @@
   import "./styles/timeline-panel.css";
   import "./styles/editor-theme.css";
   import "./styles/editor-sleek.css";
+  import "./styles/music-panel.css";
 
   export let mode: AppMode = "cloud";
 
-  type EditorTab = "chat" | "presets";
+  type EditorTab = "chat" | "presets" | "music";
 
   type TimelineMode = "project" | "scene";
 
@@ -161,6 +174,8 @@
     name: string;
     previewUrl?: string;
     intent?: AssetIntent;
+    /** A song scoring the film rather than an image placed in it. */
+    kind?: "audio";
   }
 
   interface AssistantMessage {
@@ -251,6 +266,11 @@
   let uploadName = "";
   let runtime: CompositionRuntime | null = null;
   let runtimeUnsubscribe: (() => void) | null = null;
+  /** Plays the mounted film's music in step with the timeline playhead. */
+  let audioSync: AudioSync | null = null;
+  /** Songs sent with the message being generated, kept for its repair pass. */
+  let audioInFlight: AudioTrack[] | null = null;
+  const musicApi = new ProjectsApi();
   // The editor opens on an empty stage. A preset only enters the session when
   // the user opens one, so a first prompt is never read as an edit of it.
   let activeComposition: CompositionDefinition = createBlankComposition();
@@ -459,6 +479,7 @@
     }
     return () => {
       runtimeUnsubscribe?.();
+      audioSync?.dispose();
       cancelAnimationFrame(playbackFrame);
       if (activityTimer) clearInterval(activityTimer);
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
@@ -478,12 +499,14 @@
   ): void {
     const previousSelectedId = selectedId;
     runtimeUnsubscribe?.();
+    audioSync?.dispose();
     runtime?.destroy();
     activeComposition = composition;
     selectedId = "";
     selectedEditorGroup = null;
     selectedSceneId = composition.scenes[0]?.id ?? "";
     runtime = new CompositionRuntime(composition, previewRoot);
+    audioSync = new AudioSync(previewRoot);
     runtime.importEditorState(editorState);
     if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
       selectedId = previousSelectedId;
@@ -492,6 +515,8 @@
     }
     runtimeUnsubscribe = runtime.subscribe((value) => {
       snapshot = value;
+      // An export steps the playhead frame by frame; it must stay silent.
+      if (!exporting) audioSync?.sync(value);
       // In scene mode the user has opened one beat to edit it. Following the
       // playhead there would swap the track list out from under a click.
       if (timelineMode === "project") selectedSceneId = value.sceneId;
@@ -1623,8 +1648,111 @@
   async function handleMediaUpload(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
-    if (file) await stageAsset(file, file.name);
+    if (file) {
+      if (isAudioFile(file)) await addAudioFile(file);
+      else await stageAsset(file, file.name);
+    }
     input.value = "";
+  }
+
+  /**
+   * Adds a song to the workspace's music library and picks it for the next
+   * message, so "drop a song, describe the film" is one motion.
+   */
+  async function addAudioFile(file: File): Promise<void> {
+    if (!workspaceId) {
+      showNotice("Sign in to add music.");
+      return;
+    }
+    uploadingMedia = true;
+    uploadProgress = 0;
+    uploadName = file.name;
+    showNotice(`Adding ${file.name}...`);
+    try {
+      const track = await addTrackToLibrary(
+        musicApi,
+        workspaceId,
+        file,
+        (percentage) => (uploadProgress = percentage),
+      );
+      void refreshMusicLibrary(musicApi, workspaceId);
+      const selected = selectAudioTrack(track);
+      captureEvent("media uploaded", { file_type: "audio" });
+      showNotice(
+        selected
+          ? `${track.title} is ready to score your next prompt.`
+          : `${track.title} was added to your library. A message can use up to ${MAX_SELECTED_AUDIO} songs.`,
+      );
+    } catch (error: unknown) {
+      showNotice(
+        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      uploadingMedia = false;
+      uploadProgress = 0;
+      uploadName = "";
+    }
+  }
+
+  /** Songs and images dropped on the chat; anything else is turned away. */
+  async function handleChatDrop(files: File[]): Promise<void> {
+    for (const file of files) {
+      if (isAudioFile(file)) await addAudioFile(file);
+      else if (file.type.startsWith("image/"))
+        await stageAsset(file, file.name);
+      else showNotice(`${file.name} is not an image or an audio file.`);
+    }
+  }
+
+  /** Picking a song in the music panel sends you back to the prompt it is for. */
+  function useAudioTrack(track: AudioTrack): void {
+    if (!selectAudioTrack(track)) {
+      showNotice(`A message can use up to ${MAX_SELECTED_AUDIO} songs.`);
+      return;
+    }
+    selectTab("chat");
+    showNotice(`${track.title} will score your next prompt.`);
+    void tick().then(() => composerInput?.focus());
+  }
+
+  /**
+   * Takes a song out of the film: the project stops being scored to it, its
+   * player leaves the source, and the change is saved. Detaching comes first,
+   * so a failed save can only leave a stale tag for the next generation to
+   * drop, never a track the model is told it must use.
+   */
+  async function removeAudioFromProject(track: AudioTrack): Promise<void> {
+    const projectId = cloudProject?.id ?? backendGenerationProjectId;
+    if (!projectId) return;
+    await musicApi.detachProjectAudio(projectId, track.id);
+    void refreshProjectAudio(musicApi, projectId);
+    const html = cloudFiles["composition.html"];
+    const stripped = removeAudioTrackFromComposition(html, track.id);
+    if (stripped === html) {
+      showNotice(`${track.title} removed from this project.`);
+      return;
+    }
+    cloudFiles = { ...cloudFiles, "composition.html": stripped };
+    const hydrated = await hydrateGenerationAssets(
+      hydratePresetAssets(combineCompositionSource(cloudFiles)),
+    );
+    const previousObjectUrls = assetObjectUrls;
+    mountComposition(
+      createDynamicComposition(hydrated.source, cloudFiles["timeline.js"], {
+        id: activeComposition.id,
+        title: activeComposition.title,
+        width: activeComposition.width,
+        height: activeComposition.height,
+        fps: activeComposition.fps,
+        duration: activeComposition.duration,
+        scenes: activeComposition.scenes,
+      }),
+      runtime?.exportEditorState(),
+    );
+    assetObjectUrls = hydrated.objectUrls;
+    previousObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    await saveSource();
+    showNotice(`${track.title} removed from the film.`);
   }
 
   async function ensureStagedPreviews(
@@ -1671,6 +1799,11 @@
    * until they do, because a screenshot used as a reference and a logo used as
    * an asset produce opposite instructions to the model.
    */
+  $: openProjectId = cloudProject?.id ?? (backendGenerationProjectId || "");
+  $: if (mode === "cloud") {
+    void refreshProjectAudio(musicApi, openProjectId || null);
+  }
+
   $: pendingAssets = stagedAssets.filter((asset) => !asset.intent);
   $: classifiedAssets = stagedAssets.filter((asset) => asset.intent);
 
@@ -1724,6 +1857,7 @@
     Object.values(stagedPreviews).forEach((url) => URL.revokeObjectURL(url));
     stagedPreviews = {};
     stagedAssets = [];
+    selectedAudio.set([]);
     assistantMessages = [];
     assistantDraft = "";
     generationPlan = null;
@@ -1856,6 +1990,9 @@
         conversation: assistantMessages,
         editorState: basis.editorState,
         assets: generationAssets,
+        audioTrackIds: (audioInFlight ?? $selectedAudio).map(
+          (track) => track.id,
+        ),
         generationProfile: basis.generationProfile,
         previousPlan: generationPlan ?? undefined,
       },
@@ -2121,14 +2258,22 @@
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt)) return;
 
-    const sentAttachments: MessageAttachment[] = stagedAssets.map((asset) => ({
-      id: asset.id,
-      name: asset.name,
-      ...(stagedPreviews[asset.id]
-        ? { previewUrl: stagedPreviews[asset.id] }
-        : {}),
-      ...(asset.intent ? { intent: asset.intent } : {}),
-    }));
+    const sentAudio = $selectedAudio;
+    const sentAttachments: MessageAttachment[] = [
+      ...stagedAssets.map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        ...(stagedPreviews[asset.id]
+          ? { previewUrl: stagedPreviews[asset.id] }
+          : {}),
+        ...(asset.intent ? { intent: asset.intent } : {}),
+      })),
+      ...sentAudio.map((track) => ({
+        id: track.id,
+        name: track.title,
+        kind: "audio" as const,
+      })),
+    ];
     assistantMessages = [
       ...assistantMessages,
       {
@@ -2140,6 +2285,8 @@
     assistantDraft = "";
     assetsInFlight = stagedAssets.length ? [...stagedAssets] : null;
     stagedAssets = [];
+    audioInFlight = sentAudio.length ? [...sentAudio] : null;
+    selectedAudio.set([]);
     await tick();
     resizeComposer();
 
@@ -2194,6 +2341,13 @@
       showNotice(errorMsg);
     } finally {
       assetsInFlight = null;
+      audioInFlight = null;
+      // The backend attaches songs when a message arrives, whether it answered
+      // with a film or only a reply, so the project's list is reread either way.
+      void refreshProjectAudio(
+        musicApi,
+        cloudProject?.id ?? (backendGenerationProjectId || null),
+      );
     }
   }
 
@@ -2452,7 +2606,7 @@
   <input
     bind:this={mediaInput}
     type="file"
-    accept="image/*,video/*,image/svg+xml"
+    accept={`image/*,video/*,image/svg+xml,${AUDIO_ACCEPT}`}
     style="display: none"
     on:change={handleMediaUpload}
     disabled={uploadingMedia}
@@ -2521,6 +2675,13 @@
                     class:me-active={activeTab === "presets"}
                     on:click={() => selectTab("presets")}>Presets</button
                   >
+                  {#if mode === "cloud"}
+                    <button
+                      class="me-panel-tab"
+                      class:me-active={activeTab === "music"}
+                      on:click={() => selectTab("music")}>Music</button
+                    >
+                  {/if}
                 </div>
                 {#if activeTab === "presets" && mode === "cloud"}
                   <button
@@ -2699,6 +2860,15 @@
                   and one directed GSAP timeline. No generated media.
                 </p>
               </div>
+            {:else if activeTab === "music" && mode === "cloud"}
+              <MusicPanel
+                api={musicApi}
+                {workspaceId}
+                busy={$generationStore.isActive}
+                onUse={useAudioTrack}
+                onRemoveFromProject={removeAudioFromProject}
+                onNotice={(message) => showNotice(message)}
+              />
             {:else if mode === "cloud"}
               <TiffyPanel
                 {assistantMessages}
@@ -2721,6 +2891,9 @@
                 {composerKeydown}
                 {handlePaste}
                 onAttach={() => mediaInput.click()}
+                selectedAudio={$selectedAudio}
+                removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
+                onDropFiles={handleChatDrop}
               />
             {/if}
           </aside>

@@ -284,6 +284,7 @@ async function requestBackendProject(
   userPrompt: string,
   assets: GenerationFiles["assets"],
   frames: readonly FrameEvidence[] = [],
+  audioTrackIds: GenerationFiles["audioTrackIds"] = [],
 ): Promise<DirectAiResult> {
   const api = new ProjectsApi();
   const uploadedAssets = (assets ?? []).flatMap((asset) =>
@@ -310,6 +311,9 @@ async function requestBackendProject(
             dataBase64: frame.dataBase64,
           })),
         }
+      : {}),
+    ...(audioTrackIds.length > 0
+      ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
       : {}),
   });
   if (result.type !== "generation") {
@@ -512,6 +516,7 @@ export async function generateWithDirectAi(
           prompt,
           currentFiles.assets,
           files.evidenceFrames,
+          currentFiles.audioTrackIds,
         )
     : settings.apiKey
       ? (prompt: string, files: GenerationFiles, repair: boolean) =>
