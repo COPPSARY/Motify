@@ -177,6 +177,17 @@ export class ProjectsApi {
       revision?: number;
       runtimeError?: string;
       assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
+      /**
+       * Frames this editor rendered from the candidate the message is
+       * repairing. They travel inline, for this request only: the backend
+       * validates source without ever executing it, so what a composition
+       * puts on screen can reach the model no other way.
+       */
+      frames?: Array<{
+        capturedAtSeconds: number;
+        mediaType: "image/jpeg" | "image/png" | "image/webp";
+        dataBase64: string;
+      }>;
     },
   ) {
     await this.ensureCsrfToken();

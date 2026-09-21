@@ -1,3 +1,4 @@
+import type { FrameEvidence } from "./frame-evidence";
 import { registryManifest } from "../registry/catalog";
 import { getComponentSource } from "../registry/component-source";
 import {
@@ -42,6 +43,12 @@ export interface GenerationFiles {
   directionBrief?: string;
   /** Original creative brief during repairs; diagnostic wording is not intent. */
   directionPrompt?: string;
+  /**
+   * Frames rendered from the candidate this repair is fixing, attached to the
+   * request after the user's own images. Present only on a repair pass, and
+   * only on a transport that can carry them.
+   */
+  evidenceFrames?: readonly FrameEvidence[];
 }
 
 /**

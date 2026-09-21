@@ -140,6 +140,7 @@
     saveProjectDraft,
   } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
+  import { observeCandidateFilm } from "./frame-capture";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
   import "./styles/content-panel.css";
@@ -1879,6 +1880,29 @@
             message,
             fatal: isFatalRenderFailure(message),
           };
+        }
+      },
+      /**
+       * Look at the film a repair pass is about to rewrite. The loop calls
+       * this only when it is going to spend a pass, and hands over the very
+       * complaints that pass will carry, so what comes back answers the
+       * question the prompt is asking.
+       */
+      async (candidate, complaints) => {
+        const rendered = await hydrateGenerationAssets(
+          hydratePresetAssets(candidate.compositionHtml),
+        );
+        try {
+          return await observeCandidateFilm({
+            renderedHtml: rendered.source,
+            timelineJs: candidate.timelineJs,
+            title: candidate.title,
+            duration: Number(candidate.duration) || basis.duration,
+            scenes: candidate.scenes,
+            complaints,
+          });
+        } finally {
+          rendered.objectUrls.forEach((url) => URL.revokeObjectURL(url));
         }
       },
     );
