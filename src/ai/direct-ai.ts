@@ -272,6 +272,7 @@ async function requestBackendProject(
   projectId: string,
   userPrompt: string,
   assets: GenerationFiles["assets"],
+  audioTrackIds: GenerationFiles["audioTrackIds"] = [],
 ): Promise<DirectAiResult> {
   const api = new ProjectsApi();
   const uploadedAssets = (assets ?? []).flatMap((asset) =>
@@ -290,6 +291,9 @@ async function requestBackendProject(
   const result = await api.sendMotionMessage(projectId, {
     message: userPrompt,
     ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
+    ...(audioTrackIds.length > 0
+      ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
+      : {}),
   });
   if (result.type !== "generation") {
     throw new BackendConversationResponse(
@@ -467,7 +471,12 @@ export async function generateWithDirectAi(
   const backendProjectId = currentFiles.backendProjectId;
   const request = backendProjectId
     ? (prompt: string) =>
-        requestBackendProject(backendProjectId, prompt, currentFiles.assets)
+        requestBackendProject(
+          backendProjectId,
+          prompt,
+          currentFiles.assets,
+          currentFiles.audioTrackIds,
+        )
     : settings.apiKey
       ? (prompt: string, files: GenerationFiles, repair: boolean) =>
           requestClientProvider(settings, prompt, files, repair)

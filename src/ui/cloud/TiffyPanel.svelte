@@ -1,6 +1,14 @@
 <script lang="ts">
-  import { ArrowUp, Image as ImageIcon, Plus, Wand2, X } from "lucide-svelte";
+  import {
+    ArrowUp,
+    Image as ImageIcon,
+    Music,
+    Plus,
+    Wand2,
+    X,
+  } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
+  import type { AudioTrack } from "../../cloud/projects-api";
   import { generationStore } from "../../stores/generation";
   import type {
     AssetIntent,
@@ -12,6 +20,8 @@
     name: string;
     previewUrl?: string;
     intent?: AssetIntent;
+    /** A song scoring the film rather than an image placed in it. */
+    kind?: "audio";
   }
 
   interface AssistantMessage {
@@ -43,9 +53,60 @@
   export let composerKeydown: (event: KeyboardEvent) => void;
   export let handlePaste: (event: ClipboardEvent) => Promise<void>;
   export let onAttach: () => void;
+  /** Songs chosen for the next message; they are sent with it and cleared. */
+  export let selectedAudio: AudioTrack[] = [];
+  export let removeSelectedAudio: (track: AudioTrack) => void = () => undefined;
+  /** Files dropped on the panel: songs go to the library, images to the prompt. */
+  export let onDropFiles: (files: File[]) => void = () => undefined;
+
+  let dragDepth = 0;
+  $: accepting = !$generationStore.isActive && !uploadingMedia;
+  $: dragOver = accepting && dragDepth > 0;
+
+  function carriesFiles(event: DragEvent): boolean {
+    return Boolean(event.dataTransfer?.types.includes("Files"));
+  }
+
+  function onDragEnter(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dragDepth += 1;
+  }
+
+  function onDragOver(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    // Cancelling the default is what stops the browser opening the dropped file.
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = accepting ? "copy" : "none";
+    }
+  }
+
+  function onDragLeave(): void {
+    dragDepth = Math.max(0, dragDepth - 1);
+  }
+
+  function onDrop(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (accepting && files.length > 0) onDropFiles(files);
+  }
 </script>
 
-<section class="ai-chat-panel" aria-label="Tiffy" data-ph-no-autocapture>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<section
+  class="ai-chat-panel"
+  class:is-drag-over={dragOver}
+  data-drop-hint="Drop images or songs to add them"
+  aria-label="Tiffy"
+  data-ph-no-autocapture
+  on:dragenter={onDragEnter}
+  on:dragover={onDragOver}
+  on:dragleave={onDragLeave}
+  on:drop={onDrop}
+>
   <header class="ai-chat-header">
     <span class="ai-chat-identity">
       <TiffyMark size={24} />
@@ -85,7 +146,10 @@
                 {:else}
                   <span
                     class="ai-message-attachment-thumb ai-attachment-fallback"
-                    aria-hidden="true"><ImageIcon size={12} /></span
+                    aria-hidden="true"
+                    >{#if attachment.kind === "audio"}<Music
+                        size={12}
+                      />{:else}<ImageIcon size={12} />{/if}</span
                   >
                 {/if}
                 {#if !attachment.previewUrl}
@@ -192,6 +256,29 @@
       {/each}
     </div>
   {/if}
+  {#if selectedAudio.length > 0}
+    <div class="ai-chat-attachments" aria-label="Music for this message">
+      {#each selectedAudio as track (track.id)}
+        <span
+          class="ai-attachment is-music"
+          title={`${track.title} — soundtrack for this film`}
+        >
+          <span class="ai-attachment-thumb ai-attachment-fallback"
+            ><Music size={11} /></span
+          >
+          <span class="ai-attachment-name">{track.title}</span>
+          <span class="ai-attachment-intent-tag">music</span>
+          <button
+            class="ai-attachment-remove"
+            type="button"
+            aria-label={`Remove ${track.title}`}
+            disabled={$generationStore.isActive}
+            on:click={() => removeSelectedAudio(track)}><X size={11} /></button
+          >
+        </span>
+      {/each}
+    </div>
+  {/if}
   {#if uploadingMedia}
     <div class="ai-upload-progress" role="status" aria-live="polite">
       {#if uploadPreview}
@@ -221,8 +308,8 @@
     <button
       class="ai-composer-add"
       type="button"
-      aria-label="Attach an image"
-      title="Attach an image"
+      aria-label="Attach an image or song"
+      title="Attach an image or song, or drop one here"
       disabled={uploadingMedia || $generationStore.isActive}
       on:click={() => onAttach()}><Plus size={17} /></button
     >

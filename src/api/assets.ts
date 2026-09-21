@@ -1,3 +1,4 @@
+import { hydrateAudioTokens } from "./audio-tokens";
 import { fetchApi } from "./client";
 
 const MOTIFY_ASSET_TOKEN =
@@ -28,7 +29,11 @@ export async function hydrateCloudAssetTokens(
     hydrated = hydrated.replaceAll(`motify-asset://${assetId}`, objectUrl);
   }
 
-  return { source: hydrated, objectUrls };
+  const audio = await hydrateAudioTokens(hydrated);
+  return {
+    source: audio.source,
+    objectUrls: [...objectUrls, ...audio.objectUrls],
+  };
 }
 
 export async function uploadAsset(
