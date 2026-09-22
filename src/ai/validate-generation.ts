@@ -1235,6 +1235,167 @@ function assertTypeStaysInFrame(
 }
 
 /**
+ * Objects that settle half outside the canvas.
+ *
+ * `assertTypeStaysInFrame` has always measured this for type, and only for
+ * type, so a headline running off the edge was caught while the device mock,
+ * the card, the logo or the image beside it could settle anywhere. Nothing in
+ * the source reveals it: the markup centres the object and the timeline moves
+ * it, and only the composed result says where it actually landed.
+ *
+ * It matters most where there is no one watching. A local film is rendered and
+ * the frames go back to the model, which can see an object hanging off the
+ * edge whether or not a check has words for it. A cloud film has no such eyes,
+ * so on that path this measurement is the only thing between a clipped subject
+ * and a shipped film.
+ *
+ * Judged by how much of the object is lost rather than by pixels alone: a
+ * decorative shape bleeding a few pixels past the edge is a composition, while
+ * a card with a third of itself outside the frame is a mistake.
+ */
+function assertSubjectsStayInFrame(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  scenes: readonly SceneDefinition[],
+  limit: number,
+): void {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return;
+  const canvasArea = rootRect.width * rootRect.height;
+  /** Below this share of itself on screen, the object reads as cut off. */
+  const minimumVisible = 0.85;
+  /** Antialiasing and deliberate bleed, not a broken layout. */
+  const tolerance = 24;
+  const check = (time: number, scene: SceneDefinition): void => {
+    runtime.seek(Math.max(0, Math.min(limit, time)));
+    const visible = visibleElements(root, rootRect, true);
+    for (const subject of frameSubjects(visible, canvasArea)) {
+      // Type has its own check, with a tighter tolerance and a better message.
+      if (textLeaves([subject]).length > 0) continue;
+      const rect = subject.getBoundingClientRect();
+      const over = Math.max(
+        rootRect.left - rect.left,
+        rect.right - rootRect.right,
+        rootRect.top - rect.top,
+        rect.bottom - rootRect.bottom,
+      );
+      if (over <= tolerance) continue;
+      const shown =
+        (Math.max(
+          0,
+          Math.min(rect.right, rootRect.right) -
+            Math.max(rect.left, rootRect.left),
+        ) *
+          Math.max(
+            0,
+            Math.min(rect.bottom, rootRect.bottom) -
+              Math.max(rect.top, rootRect.top),
+          )) /
+        Math.max(1, rect.width * rect.height);
+      if (shown >= minimumVisible) continue;
+      const name = subject.dataset["edit"] ?? subject.tagName.toLowerCase();
+      throw new Error(
+        `Scene ${scene.id} leaves "${name}" ${Math.round(
+          (1 - shown) * 100,
+        )}% outside the frame around ${time.toFixed(
+          2,
+        )}s, ${Math.round(over)}px past the edge. An object that has settled must sit inside the canvas with margins; move it back into frame, or size it to fit, and let the camera travel instead of the object leaving.`,
+      );
+    }
+  };
+  for (const scene of scenes) {
+    // Late in the beat: an object is allowed to enter from off-screen, and is
+    // not allowed to still be hanging off the edge once the beat has settled.
+    check(scene.start + scene.duration * 0.65, scene);
+    check(scene.start + scene.duration * 0.92, scene);
+  }
+}
+
+/** Which edge an element runs past, and by how far. */
+function overflow(
+  rect: DOMRect,
+  rootRect: DOMRect,
+): { edge: string; px: number } {
+  const edges = [
+    { edge: "left", px: rootRect.left - rect.left },
+    { edge: "right", px: rect.right - rootRect.right },
+    { edge: "top", px: rootRect.top - rect.top },
+    { edge: "bottom", px: rect.bottom - rootRect.bottom },
+  ];
+  return edges.reduce((worst, candidate) =>
+    candidate.px > worst.px ? candidate : worst,
+  );
+}
+
+/** At most this many objects per moment; past it the line stops being read. */
+const ACCOUNT_SUBJECTS = 6;
+
+/**
+ * What the film actually puts on screen at given moments, measured.
+ *
+ * The repair loop's complaints name faults one at a time — this overlaps, that
+ * is too small — and a model reading them has to imagine the frame they came
+ * out of. This is that frame, written down: every object the viewer can see,
+ * its size and where it sits, as a share of the canvas.
+ *
+ * It exists for the cloud path. A local repair attaches real rendered frames
+ * and the model can simply look; a cloud generation happens inside the backend,
+ * where the only channel from this editor is the text of the message, so the
+ * picture has to arrive as numbers. Those numbers are unavailable from the
+ * source at any price: the markup says `left: 50%` and the timeline says
+ * `xPercent: -50`, and only the composed result says the card ended up three
+ * quarters off the right edge.
+ */
+export function describeRenderedFrames(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  moments: readonly number[],
+): string[] {
+  const rootRect = root.getBoundingClientRect();
+  if (rootRect.width <= 0 || rootRect.height <= 0) return [];
+  const canvasArea = rootRect.width * rootRect.height;
+  const share = (value: number, total: number): number =>
+    Math.round((value / total) * 100);
+  return moments.map((time) => {
+    runtime.seek(Math.max(0, time));
+    const visible = visibleElements(root, rootRect, true);
+    const subjects = frameSubjects(visible, canvasArea)
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .sort(
+        (first, second) =>
+          second.rect.width * second.rect.height -
+          first.rect.width * first.rect.height,
+      )
+      .slice(0, ACCOUNT_SUBJECTS);
+    if (subjects.length === 0) {
+      return `${time.toFixed(2)}s: nothing on screen.`;
+    }
+    const described = subjects.map(({ element, rect }) => {
+      const name = element.dataset["edit"] ?? element.tagName.toLowerCase();
+      const text = (element.textContent ?? "").trim();
+      const label = text ? ` "${text.slice(0, 32)}"` : "";
+      const centreX = share(
+        rect.left + rect.width / 2 - rootRect.left,
+        rootRect.width,
+      );
+      const centreY = share(
+        rect.top + rect.height / 2 - rootRect.top,
+        rootRect.height,
+      );
+      const size = `${share(rect.width, rootRect.width)}x${share(
+        rect.height,
+        rootRect.height,
+      )}%`;
+      const past = overflow(rect, rootRect);
+      const clipped =
+        past.px > 1 ? `, ${Math.round(past.px)}px past the ${past.edge}` : "";
+      return `${name}${label} ${size} centred ${centreX},${centreY}%${clipped}`;
+    });
+    return `${time.toFixed(2)}s: ${described.join("; ")}.`;
+  });
+}
+
+/**
  * Beats that are the same picture with different words.
  *
  * The skill already requires adjacent beats to differ in framing, and this is
@@ -1774,6 +1935,7 @@ export function validateGeneratedComposition(
       assertNoDeadFrames(mounted, root, limit);
       assertFilmMakesAStatement(mounted, root, validated, limit);
       assertTypeStaysInFrame(mounted, root, validated, limit);
+      assertSubjectsStayInFrame(mounted, root, validated, limit);
       assertBeatsAreFramedDifferently(mounted, root, validated, limit);
       assertStatementsStandAlone(mounted, root, validated, limit);
       const finalScene = validated.at(-1);

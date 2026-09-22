@@ -16,7 +16,13 @@ import {
   type FilmDirection,
 } from "./direction-pass";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
-import { buildQualityRepairPrompt } from "./repair-prompt";
+import { buildQualityRepairPrompt, targetedIssues } from "./repair-prompt";
+import {
+  MAX_EVIDENCE_FRAMES,
+  NO_OBSERVATION,
+  type FilmObservation,
+  type FrameEvidence,
+} from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
 import { ProjectsApi } from "../cloud/projects-api";
 import {
@@ -212,7 +218,12 @@ async function callClientProvider(
     systemPrompt,
     userMessage,
     temperature,
-    assets: currentFiles.assets,
+    // The user's own images first, then the frames of the candidate being
+    // repaired. The repair prompt introduces them by that position.
+    assets: [
+      ...(currentFiles.assets ?? []),
+      ...(currentFiles.evidenceFrames ?? []),
+    ],
   });
 }
 
@@ -272,6 +283,8 @@ async function requestBackendProject(
   projectId: string,
   userPrompt: string,
   assets: GenerationFiles["assets"],
+  frames: readonly FrameEvidence[] = [],
+  audioTrackIds: GenerationFiles["audioTrackIds"] = [],
 ): Promise<DirectAiResult> {
   const api = new ProjectsApi();
   const uploadedAssets = (assets ?? []).flatMap((asset) =>
@@ -290,6 +303,18 @@ async function requestBackendProject(
   const result = await api.sendMotionMessage(projectId, {
     message: userPrompt,
     ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
+    ...(frames.length > 0
+      ? {
+          frames: frames.map((frame) => ({
+            capturedAtSeconds: frame.time,
+            mediaType: frame.mimeType as "image/jpeg",
+            dataBase64: frame.dataBase64,
+          })),
+        }
+      : {}),
+    ...(audioTrackIds.length > 0
+      ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
+      : {}),
   });
   if (result.type !== "generation") {
     throw new BackendConversationResponse(
@@ -368,6 +393,14 @@ async function requestBackendDirection(userMessage: string): Promise<string> {
 const MAX_REPAIR_PASSES = 3;
 
 /**
+ * A cloud repair is a whole backend generation - another model call, another
+ * half minute - where a local one is a client round trip. The first pass is
+ * where nearly all of the improvement is, so cloud projects get that one and
+ * ship whatever it produces.
+ */
+const MAX_BACKEND_REPAIR_PASSES = 1;
+
+/**
  * What mounting and seeking the candidate revealed.
  *
  * The render checks are the strongest ones this pipeline has — they watch real
@@ -394,6 +427,24 @@ export type RenderVerdict =
 export type RenderCheck = (
   candidate: DirectAiResult,
 ) => Promise<RenderVerdict> | RenderVerdict;
+
+/**
+ * Mounts the candidate a repair is about and reports what it shows.
+ *
+ * Separate from `RenderCheck` because the two run on different schedules:
+ * every candidate is checked, but only a candidate that is about to be
+ * repaired is looked at, and only then is the complaint list it should be
+ * looked at against known. Mounting and measuring need a DOM, so the editor
+ * supplies this.
+ *
+ * It returns both halves: the measurements, which ride the prompt text, and
+ * the rendered frames, which ride as images. Every transport this editor
+ * speaks can carry both.
+ */
+export type FilmObserver = (
+  candidate: DirectAiResult,
+  complaints: readonly string[],
+) => Promise<FilmObservation>;
 
 /** Applies the deterministic markup repairs before anything is scored. */
 function graded(result: DirectAiResult): DirectAiResult {
@@ -454,12 +505,19 @@ export async function generateWithDirectAi(
   currentFiles: GenerationFiles,
   onProgress?: (status: string) => void,
   checkRender?: RenderCheck,
+  observeFilm?: FilmObserver,
 ): Promise<DirectAiResult> {
   const settings = getClientAiSettings();
   const backendProjectId = currentFiles.backendProjectId;
   const request = backendProjectId
-    ? (prompt: string) =>
-        requestBackendProject(backendProjectId, prompt, currentFiles.assets)
+    ? (prompt: string, files: GenerationFiles) =>
+        requestBackendProject(
+          backendProjectId,
+          prompt,
+          currentFiles.assets,
+          files.evidenceFrames,
+          currentFiles.audioTrackIds,
+        )
     : settings.apiKey
       ? (prompt: string, files: GenerationFiles, repair: boolean) =>
           requestClientProvider(settings, prompt, files, repair)
@@ -543,8 +601,36 @@ export async function generateWithDirectAi(
     };
   };
 
+  /**
+   * What mounting the candidate showed.
+   *
+   * Every transport carries both halves. The measurements ride the prompt, so
+   * they reach a model however the request is routed; the frames ride as
+   * images, which the client providers take directly and the cloud takes as
+   * inline frames on the project message. An observation that fails is not a
+   * failed generation: the repair goes out with its sentences, exactly as it
+   * did before there was anything to look at.
+   */
+  const observe = async (
+    candidate: DirectAiResult,
+    complaints: readonly string[],
+  ): Promise<FilmObservation> => {
+    if (!observeFilm) return NO_OBSERVATION;
+    try {
+      const observed = await observeFilm(candidate, complaints);
+      return {
+        account: observed.account,
+        frames: observed.frames.slice(0, MAX_EVIDENCE_FRAMES),
+      };
+    } catch {
+      return NO_OBSERVATION;
+    }
+  };
+
   const initial = await request(userPrompt, buildFiles, false);
-  if (currentFiles.backendProjectId) return initial;
+  const maxPasses = backendProjectId
+    ? MAX_BACKEND_REPAIR_PASSES
+    : MAX_REPAIR_PASSES;
 
   let best = graded(initial);
   let assessment = await assess(best);
@@ -553,7 +639,7 @@ export async function generateWithDirectAi(
 
   for (
     let pass = 1;
-    pass <= MAX_REPAIR_PASSES && bestReport.requiresRepair;
+    pass <= maxPasses && bestReport.requiresRepair;
     pass += 1
   ) {
     onProgress?.(
@@ -563,17 +649,20 @@ export async function generateWithDirectAi(
           : `Pass ${pass} on the checks that are still open...`
         : `Watching the film back and repairing what it shows (pass ${pass})...`,
     );
+    const complaints = targetedIssues(bestReport);
+    const observation = await observe(best, complaints);
     let candidate: DirectAiResult;
     try {
       candidate = graded(
         await request(
-          buildQualityRepairPrompt(userPrompt, best, bestReport),
+          buildQualityRepairPrompt(userPrompt, best, bestReport, observation),
           {
             ...buildFiles,
             directionPrompt,
             generationProfile: "existing",
             compositionHtml: best.compositionHtml,
             timelineJs: best.timelineJs,
+            evidenceFrames: observation.frames,
           },
           true,
         ),

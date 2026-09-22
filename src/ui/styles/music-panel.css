@@ -1,0 +1,450 @@
+/* Music panel: drop zone, library list, and per-track controls. */
+.code-editor-scope .music-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.code-editor-scope .music-dropzone {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border: 1.5px dashed var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  border-radius: 10px;
+  background: var(--sl-surface, #1a1a1a);
+  text-align: center;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.code-editor-scope .music-dropzone.is-drag-active {
+  border-color: var(--sl-accent, #1a8cff);
+  background: var(--sl-accent-soft, rgba(26, 140, 255, 0.14));
+}
+
+.code-editor-scope .music-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--sl-accent, #1a8cff);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .music-add-btn:hover {
+  background: var(--sl-accent-hover, #3a9dff);
+}
+
+.code-editor-scope .music-drop-hint {
+  margin: 0;
+  color: var(--sl-muted, #858585);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.code-editor-scope .music-section-title {
+  margin: 6px 0 0;
+}
+
+.code-editor-scope .music-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  background: var(--sl-surface, #1a1a1a);
+  color: var(--sl-text-soft, #b4b4b4);
+  font-size: 11px;
+}
+
+.code-editor-scope .music-upload.is-error {
+  border-color: rgba(240, 155, 155, 0.35);
+}
+
+.code-editor-scope .music-upload-name {
+  flex: 0 1 40%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .music-upload progress {
+  flex: 1;
+  height: 4px;
+  min-width: 0;
+}
+
+.code-editor-scope .music-upload-percent {
+  flex: none;
+  color: var(--sl-muted, #858585);
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .music-upload-error {
+  flex: 1;
+  min-width: 0;
+  color: #f09b9b;
+}
+
+.code-editor-scope .music-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-editor-scope .music-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.code-editor-scope .music-chip {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-muted, #858585);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .music-chip:hover {
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .music-chip.is-active {
+  border-color: var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  background: var(--sl-surface-active, #262626);
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .music-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  background: var(--sl-surface, #1a1a1a);
+  color: var(--sl-muted, #858585);
+}
+
+.code-editor-scope .music-search:focus-within {
+  border-color: var(--sl-accent, #1a8cff);
+}
+
+.code-editor-scope .music-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--sl-text, #ededed);
+  font-size: 12px;
+}
+
+.code-editor-scope .music-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.code-editor-scope .music-item {
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 10px;
+  background: var(--sl-surface, #1a1a1a);
+}
+
+.code-editor-scope .music-item:hover,
+.code-editor-scope .music-item.is-playing {
+  border-color: var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+}
+
+.code-editor-scope .music-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+}
+
+.code-editor-scope .music-row.is-compact {
+  padding: 7px 10px;
+}
+
+.code-editor-scope .music-play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sl-surface-active, #262626);
+  color: var(--sl-text, #ededed);
+  cursor: pointer;
+}
+
+.code-editor-scope .music-play:hover:not(:disabled) {
+  background: var(--sl-accent, #1a8cff);
+}
+
+.code-editor-scope .music-play:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.code-editor-scope .music-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.code-editor-scope .music-title {
+  overflow: hidden;
+  color: var(--sl-text, #ededed);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .music-meta {
+  overflow: hidden;
+  color: var(--sl-muted, #858585);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .music-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.code-editor-scope .music-tag,
+.code-editor-scope .music-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--sl-surface-active, #262626);
+  color: var(--sl-text-soft, #b4b4b4);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
+.code-editor-scope .music-badge {
+  background: var(--sl-accent-soft, rgba(26, 140, 255, 0.14));
+  color: var(--sl-accent-hover, #3a9dff);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 8.5px;
+}
+
+.code-editor-scope .music-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.code-editor-scope .music-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-text, #ededed);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.code-editor-scope .music-use:hover:not(:disabled) {
+  background: var(--sl-surface-hover, #222222);
+}
+
+.code-editor-scope .music-use.is-selected,
+.code-editor-scope .music-use.is-primary {
+  border-color: var(--sl-accent, #1a8cff);
+  background: var(--sl-accent-soft, rgba(26, 140, 255, 0.14));
+  color: var(--sl-accent-hover, #3a9dff);
+}
+
+.code-editor-scope .music-use:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.code-editor-scope .music-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-muted, #858585);
+  cursor: pointer;
+}
+
+.code-editor-scope .music-icon-btn:hover:not(:disabled) {
+  background: var(--sl-surface-hover, #222222);
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .music-icon-btn.is-danger {
+  color: #f09b9b;
+}
+
+.code-editor-scope .music-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.code-editor-scope .music-confirm {
+  color: var(--sl-text-soft, #b4b4b4);
+  font-size: 11px;
+}
+
+.code-editor-scope .music-edit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.code-editor-scope .music-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--sl-muted, #858585);
+  font-size: 10.5px;
+}
+
+.code-editor-scope .music-edit label.is-wide,
+.code-editor-scope .music-edit .music-row-error,
+.code-editor-scope .music-edit-actions {
+  grid-column: 1 / -1;
+}
+
+.code-editor-scope .music-edit input {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  border-radius: 6px;
+  background: var(--sl-bg, #0a0a0a);
+  color: var(--sl-text, #ededed);
+  font-size: 12px;
+}
+
+.code-editor-scope .music-edit input:focus {
+  border-color: var(--sl-accent, #1a8cff);
+  outline: 0;
+}
+
+.code-editor-scope .music-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.code-editor-scope .music-row-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 10px 8px;
+  color: #f09b9b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.code-editor-scope .music-panel > .music-row-error {
+  padding: 0;
+}
+
+.code-editor-scope .music-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sl-accent-hover, #3a9dff);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.code-editor-scope .music-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 12px;
+  color: var(--sl-muted, #858585);
+  text-align: center;
+}
+
+.code-editor-scope .music-empty strong {
+  color: var(--sl-text, #ededed);
+  font-size: 13px;
+}
+
+/* Songs picked for the next message, above the composer. */
+.code-editor-scope .ai-attachment.is-music .ai-attachment-thumb {
+  display: grid;
+  place-items: center;
+}
+
+/* The chat panel becomes a drop target for images and songs. */
+.code-editor-scope .ai-chat-panel {
+  position: relative;
+}
+
+.code-editor-scope .ai-chat-panel.is-drag-over::after {
+  content: attr(data-drop-hint);
+  position: absolute;
+  inset: 6px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  border: 1.5px dashed var(--sl-accent, #1a8cff);
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.86);
+  color: var(--sl-accent-hover, #3a9dff);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .music-panel * {
+    transition: none;
+  }
+}

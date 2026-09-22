@@ -1164,6 +1164,49 @@ describe("the frame as the viewer sees it", () => {
     ).toThrow(/run \d+px outside the frame/);
   });
 
+  /**
+   * The same defect, in the objects the type check never looked at. Until
+   * this existed only a clipped headline was caught, and the device mock,
+   * card or logo beside it could settle anywhere it liked.
+   */
+  it("rejects a settled object that hangs off the edge of the frame", () => {
+    const clipped = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="hook" data-rect="300,80,1300,160">Plans that file themselves</div><img data-edit="card" data-rect="1500,500,600,300" src="card.png" alt="card" /></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(clipped, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="hook"></div></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).toThrow(/leaves "card" \d+% outside the frame/);
+  });
+
+  it("accepts an object that only bleeds a little past the edge", () => {
+    // A shape kissing the edge is a composition, not a mistake; the check is
+    // about an object with a third of itself gone.
+    const bleeding = {
+      duration: 12,
+      scenes: one,
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="hook" data-rect="300,80,1300,160">Plans that file themselves</div><img data-edit="card" data-rect="1340,500,540,300" src="card.png" alt="card" /></main></template>`,
+      timelineJs: move,
+      reply: "Done",
+    };
+    expect(() =>
+      validateGeneratedComposition(bleeding, {
+        prompt: "make an ad",
+        previousHtml: `<template><main data-edit="stage"><div data-edit="hook"></div></main></template>`,
+        previousDuration: 12,
+        previousScenes: one,
+      }),
+    ).not.toThrow(/outside the frame/);
+  });
+
   it("accepts a wide world whose type is framed inside the viewport", () => {
     const framed = {
       duration: 12,

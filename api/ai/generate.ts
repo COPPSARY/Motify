@@ -34,6 +34,16 @@ interface GenerateBody {
       dataBase64: string;
       token: string;
     }[];
+    /**
+     * Frames of the candidate a repair pass is fixing, rendered by the editor.
+     * They follow the user's own images, which is the position the repair
+     * prompt introduces them by.
+     */
+    evidenceFrames?: readonly {
+      time: number;
+      mimeType: string;
+      dataBase64: string;
+    }[];
   };
 }
 
@@ -165,7 +175,10 @@ export default async function handler(req: Request): Promise<Response> {
         : MOTIONLY_SYSTEM_PROMPT,
       userMessage,
       temperature: isDirection ? 0.85 : body.repairAttempt ? 0.35 : 0.65,
-      assets: currentFiles.assets,
+      assets: [
+        ...(currentFiles.assets ?? []),
+        ...(currentFiles.evidenceFrames ?? []),
+      ],
     });
 
     return Response.json(

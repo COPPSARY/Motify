@@ -1,3 +1,8 @@
+import {
+  describeFilmObservation,
+  NO_OBSERVATION,
+  type FilmObservation,
+} from "./frame-evidence";
 import type {
   GeneratedComposition,
   MotionQualityReport,
@@ -185,18 +190,31 @@ function remediesFor(issues: readonly string[]): string[] {
   return remedies;
 }
 
+/**
+ * The failures a repair pass is asked to fix.
+ *
+ * Blocking failures first, then the strongest advisory notes. Anything past
+ * the first handful is noise the model trades against the failures that
+ * actually matter.
+ *
+ * Exported because the frames attached to a repair are chosen from this same
+ * list: the pictures and the sentences have to be about the same complaints,
+ * or the model is handed a frame of a beat nobody objected to.
+ */
+export function targetedIssues(report: MotionQualityReport): string[] {
+  return [
+    ...report.blockingIssues,
+    ...report.issues.filter((issue) => !report.blockingIssues.includes(issue)),
+  ].slice(0, 8);
+}
+
 export function buildQualityRepairPrompt(
   originalPrompt: string,
   result: GeneratedComposition,
   report: MotionQualityReport,
+  observation: FilmObservation = NO_OBSERVATION,
 ): string {
-  // Blocking failures first, then the strongest advisory notes. Anything past
-  // the first handful is noise the model trades against the failures that
-  // actually matter.
-  const targeted = [
-    ...report.blockingIssues,
-    ...report.issues.filter((issue) => !report.blockingIssues.includes(issue)),
-  ].slice(0, 8);
+  const targeted = targetedIssues(report);
   const remedies = remediesFor(targeted);
   const kept = report.strengths.length
     ? `\n\nSOURCE CHECKS ALREADY PASSING — PRESERVE\n${report.strengths
@@ -218,5 +236,5 @@ ${targeted.map((issue, index) => `${index + 1}. ${issue}`).join("\n")}${howToFix
 
 Return the complete replacement JSON with compositionHtml and timelineJs, not a patch.
 
-Previous reply summary: ${result.reply}`;
+Previous reply summary: ${result.reply}${describeFilmObservation(observation)}`;
 }

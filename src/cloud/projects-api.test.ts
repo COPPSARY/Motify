@@ -200,3 +200,143 @@ describe("ProjectsApi", () => {
     );
   });
 });
+
+describe("ProjectsApi music library", () => {
+  const track = {
+    id: "track-1",
+    scope: "workspace",
+    title: "Bright Future",
+    token: "motify-audio://track-1",
+  };
+
+  function session() {
+    return response(200, {
+      data: { user: { id: "user" }, csrfToken: "csrf-token" },
+    });
+  }
+
+  it("lists tracks with the filter and the total the server reports", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      response(200, {
+        data: [track],
+        pagination: { page: 1, pageSize: 100, totalItems: 140, totalPages: 2 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    await expect(
+      api.listAudioTracks("workspace", { scope: "system", query: " upbeat " }),
+    ).resolves.toEqual({ tracks: [track], totalItems: 140 });
+
+    const url = fetchMock.mock.calls[0]?.[0] as URL;
+    expect(url.pathname).toBe("/v1/workspaces/workspace/audio");
+    expect(url.searchParams.get("scope")).toBe("system");
+    expect(url.searchParams.get("q")).toBe("upbeat");
+    expect(url.searchParams.get("pageSize")).toBe("100");
+  });
+
+  it("registers, edits, and deletes tracks with the session CSRF token", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(response(201, { data: track }))
+      .mockResolvedValueOnce(response(200, { data: { ...track, bpm: 128 } }))
+      .mockResolvedValueOnce(response(204));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    await api.registerAudioTrack("workspace", { assetId: "asset-1" });
+    await expect(
+      api.updateAudioTrack("track-1", { bpm: 128, artist: null }),
+    ).resolves.toMatchObject({ bpm: 128 });
+    await expect(api.removeAudioTrack("track-1")).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      new URL("http://localhost:4000/v1/workspaces/workspace/audio"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({ assetId: "asset-1" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      new URL("http://localhost:4000/v1/audio/track-1"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ bpm: 128, artist: null }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/audio/track-1"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("reads and detaches a project's tracks", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(200, { data: [track] }))
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(response(204));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    await expect(api.listProjectAudio("project")).resolves.toEqual([track]);
+    await api.detachProjectAudio("project", "track-1");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/audio/track-1"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("sends chosen songs with a generation message", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(
+        response(200, { data: { type: "generation", response: "Done" } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    await api.sendMotionMessage("project", {
+      message: "Score it to this song.",
+      audio: [{ trackId: "track-1" }],
+    });
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/messages"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          message: "Score it to this song.",
+          audio: [{ trackId: "track-1" }],
+        }),
+      }),
+    );
+  });
+
+  it("surfaces the server's reason when a track is still in use", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(
+        response(409, {
+          error: {
+            code: "AUDIO_TRACK_IN_USE",
+            message: "Remove this track from every project before deleting it.",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    await expect(api.removeAudioTrack("track-1")).rejects.toMatchObject({
+      status: 409,
+      code: "AUDIO_TRACK_IN_USE",
+    });
+  });
+});
