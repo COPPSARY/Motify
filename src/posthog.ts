@@ -3,6 +3,7 @@ import posthog from "posthog-js";
 export type MotionlyAnalyticsEvent =
   | "ai generation completed"
   | "ai generation failed"
+  | "ai generation recovered"
   | "ai generation started"
   | "asset intent chosen"
   | "frame exported"

@@ -319,14 +319,28 @@ export class ProjectsApi {
     );
   }
 
-  saveSource(
+  /**
+   * Source is saved through the project itself: the API has no separate
+   * source write, so this PATCHes `compositionHtml` and `timelineJs` against
+   * the revision it was loaded at, the same way the project was created.
+   */
+  async saveSource(
     projectId: string,
     input: { revision: number; files: ProjectSourceFiles },
-  ) {
-    return this.request<ProjectMutationResult>(
-      `/v1/projects/${encodeURIComponent(projectId)}/source`,
-      { method: "PUT", body: input },
+  ): Promise<ProjectMutationResult> {
+    await this.ensureCsrfToken();
+    const project = await this.request<ProjectSummary>(
+      `/v1/projects/${encodeURIComponent(projectId)}`,
+      {
+        method: "PATCH",
+        body: {
+          revision: input.revision,
+          compositionHtml: combineCompositionSource(input.files),
+          timelineJs: input.files["timeline.js"],
+        },
+      },
     );
+    return { project, unchanged: project.revision === input.revision };
   }
 
   updateProject(

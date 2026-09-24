@@ -674,7 +674,8 @@
                   min="20"
                   max="300"
                   step="1"
-                  placeholder="Helps Tiffy cut to the beat"
+                  placeholder="e.g. 128"
+                  title="Helps Tiffy cut to the beat"
                   bind:value={draft.bpm}
                 />
               </label>
