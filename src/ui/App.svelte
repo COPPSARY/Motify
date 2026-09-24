@@ -54,6 +54,7 @@
     createBlankComposition,
   } from "./blank-project";
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
+  import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import {
     combineCompositionSource,
@@ -2098,7 +2099,14 @@
         scenes: validated.scenes,
       },
     );
-    mountComposition(dynamicComp, basis.editorState);
+    mountComposition(
+      dynamicComp,
+      carryEditorState(
+        basis.editorState,
+        { html: currentHtml, timelineJs: currentJs },
+        { html: result.compositionHtml, timelineJs: result.timelineJs },
+      ),
+    );
     assetObjectUrls = hydrated.objectUrls;
     previousObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     generationPlan = {
@@ -2252,6 +2260,62 @@
     showNotice("Signed out of Motify.");
   }
 
+  /**
+   * The backend saves an edit inside the message request, before the editor
+   * has fetched, judged and mounted it. Anything that fails after that save —
+   * a gateway dropping the long request, a stricter client-side check — used
+   * to leave the preview on the old film while the project already held the
+   * new one, until the user reloaded. When the saved revision moved past the
+   * one on screen, mount what was saved. The conversation is kept.
+   */
+  async function recoverSavedGeneration(): Promise<boolean> {
+    const projectId = cloudProject?.id ?? backendGenerationProjectId;
+    if (!projectId) return false;
+    const shownRevision = cloudProject?.revision ?? 0;
+    try {
+      const api = new ProjectsApi();
+      const [latestProject, source] = await Promise.all([
+        api.getProject(projectId),
+        api.getSource(projectId),
+      ]);
+      if (latestProject.revision <= shownRevision) return false;
+      const files = splitCompositionSource(
+        source["composition.html"],
+        source["timeline.js"],
+        cloudFiles["index.ts"],
+      );
+      const hydrated = await hydrateGenerationAssets(
+        hydratePresetAssets(combineCompositionSource(files)),
+      );
+      cloudFiles = files;
+      cloudProject = latestProject;
+      backendGenerationProjectId = latestProject.id;
+      cloudProjects?.setFiles(files);
+      await cloudProjects?.registerActiveProject(latestProject);
+      const previousObjectUrls = assetObjectUrls;
+      // No editor state: overrides from before the edit would mask it.
+      mountComposition(
+        createDynamicComposition(hydrated.source, files["timeline.js"], {
+          id: latestProject.id,
+          title: latestProject.name,
+          width: latestProject.width,
+          height: latestProject.height,
+          fps: latestProject.fps,
+          duration: latestProject.duration,
+          scenes: latestProject.scenes,
+        }),
+      );
+      assetObjectUrls = hydrated.objectUrls;
+      previousObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+      runtime?.seek(0);
+      scheduleDraftSave();
+      return true;
+    } catch {
+      // Nothing newer could be loaded; the original error stands.
+      return false;
+    }
+  }
+
   async function submitAssistant(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const prompt = assistantDraft.trim();
@@ -2317,6 +2381,23 @@
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
+      if (await recoverSavedGeneration()) {
+        const recoveredMessage =
+          "Your change was saved. I loaded the latest version into the preview.";
+        generationStore.set({
+          isActive: false,
+          status: "COMPLETED",
+          stage: "COMPLETED",
+          progress: 100,
+          message: recoveredMessage,
+        });
+        captureEvent("ai generation recovered", {
+          duration_ms: Math.round(performance.now() - generationStartedAt),
+          error_type: err instanceof Error ? err.name : "unknown",
+        });
+        showNotice("Tiffy updated the composition.");
+        return;
+      }
       captureEvent("ai generation failed", {
         duration_ms: Math.round(performance.now() - generationStartedAt),
         error_type: err instanceof Error ? err.name : "unknown",

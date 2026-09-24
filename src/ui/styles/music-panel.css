@@ -334,12 +334,15 @@
 
 .code-editor-scope .music-edit {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): a bare 1fr will not shrink below an input's intrinsic
+     width, which pushed the right column and Save out of the sidebar. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 0 10px 10px;
 }
 
 .code-editor-scope .music-edit label {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -354,6 +357,9 @@
 }
 
 .code-editor-scope .music-edit input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
