@@ -244,7 +244,7 @@ describe("directed generation with self-repair", () => {
     );
   });
 
-  it("repairs a backend project once from what the frames show", async () => {
+  it("ships a backend project's first pass without spending a repair generation", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(
@@ -314,19 +314,15 @@ describe("directed generation with self-repair", () => {
     );
 
     /**
-     * The backend already repairs what it can read in the source. Only the
-     * browser can say what the frames show, so a visual note buys exactly one
-     * more backend generation - not none, and not the three a local project
-     * would spend.
+     * A cloud repair is a whole extra backend generation, so a visual note on
+     * the first pass ships as-is rather than spending a second one chasing an
+     * improvement.
      */
     const messagePosts = fetchMock.mock.calls.filter(
       (call) =>
         String((call[0] as URL).pathname) === "/v1/projects/project-1/messages",
     );
-    expect(messagePosts).toHaveLength(2);
-    expect(
-      JSON.parse(String((messagePosts[1]?.[1] as RequestInit).body)).message,
-    ).toContain("A non-fatal visual note.");
+    expect(messagePosts).toHaveLength(1);
   });
 
   it("sends attached images in the OpenAI-compatible vision format", async () => {
@@ -718,106 +714,6 @@ describe("directed generation with self-repair", () => {
     expect(parts[0].text).toContain("WHAT YOUR FILM ACTUALLY SHOWS");
     expect(parts[0].text).toContain("340px past the right");
     expect(parts[0].text).toContain("2.40s, 9.40s");
-  });
-
-  it("carries rendered frames on a cloud project message", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            data: { user: { id: "user" }, csrfToken: "csrf-token" },
-          }),
-          { status: 200 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            data: {
-              type: "generation",
-              response: "Built the launch film.",
-              projectId: "project-1",
-              revision: 2,
-            },
-          }),
-          { status: 200 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            data: {
-              "composition.html": foundationHtml,
-              "timeline.js": foundationTimeline,
-            },
-          }),
-          { status: 200 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { duration: 12 } }), {
-          status: 200,
-        }),
-      );
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            type: "generation",
-            response: "Repaired the launch film.",
-            projectId: "project-1",
-            revision: 3,
-            "composition.html": foundationHtml,
-            "timeline.js": foundationTimeline,
-            duration: 12,
-          },
-        }),
-        { status: 200 },
-      ),
-    );
-
-    await generateWithDirectAi(
-      "make a product tour",
-      { backendProjectId: "project-1" },
-      undefined,
-      () => ({
-        ok: false as const,
-        message:
-          'Scene scene-01 leaves "card" 34% outside the frame around 2.40s.',
-        fatal: false,
-      }),
-      async () => ({
-        account: ["2.40s: card 38x44% centred 90,50%, 340px past the right."],
-        frames: [
-          { time: 2.4, mimeType: "image/jpeg", dataBase64: "ZnJhbWUtb25l" },
-        ],
-      }),
-    );
-
-    const messagePosts = fetchMock.mock.calls.filter(
-      (call) =>
-        String((call[0] as URL).pathname) === "/v1/projects/project-1/messages",
-    );
-    const first = JSON.parse(
-      String((messagePosts[0]?.[1] as RequestInit).body),
-    );
-    const repair = JSON.parse(
-      String((messagePosts[1]?.[1] as RequestInit).body),
-    );
-
-    // The first turn has no film to look at yet. The repair turn does, and the
-    // backend never executes the source it validates, so this message is the
-    // only route by which what the frames show reaches the model.
-    expect(first.frames).toBeUndefined();
-    expect(repair.frames).toEqual([
-      {
-        capturedAtSeconds: 2.4,
-        mediaType: "image/jpeg",
-        dataBase64: "ZnJhbWUtb25l",
-      },
-    ]);
-    // The measurements ride the message text beside them.
-    expect(repair.message).toContain("340px past the right");
   });
 
   it("repairs with its sentences when the film cannot be photographed", async () => {
