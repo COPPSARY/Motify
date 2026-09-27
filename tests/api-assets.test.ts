@@ -1,3 +1,4 @@
+import { Blob, File } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { fetchApi } = vi.hoisted(() => ({ fetchApi: vi.fn() }));
