@@ -33,21 +33,59 @@ describe("ProjectsApi", () => {
         }),
       )
       .mockResolvedValueOnce(
-        response(200, {
-          data: { project: { id: "project" }, unchanged: false },
-        }),
+        response(200, { data: { id: "project", revision: 2 } }),
       );
     vi.stubGlobal("fetch", fetchMock);
     const api = new ProjectsApi("http://localhost:4000");
 
     await api.getSession();
-    await api.saveSource("project", { revision: 1, files });
+    await expect(
+      api.saveSource("project", { revision: 1, files }),
+    ).resolves.toEqual({
+      project: { id: "project", revision: 2 },
+      unchanged: false,
+    });
 
     expect(fetchMock).toHaveBeenLastCalledWith(
-      new URL("http://localhost:4000/v1/projects/project/source"),
+      new URL("http://localhost:4000/v1/projects/project"),
       expect.objectContaining({
-        method: "PUT",
+        method: "PATCH",
         credentials: "include",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+      }),
+    );
+    const body = JSON.parse(
+      String(fetchMock.mock.lastCall?.[1]?.body),
+    ) as Record<string, unknown>;
+    expect(body).toEqual({
+      revision: 1,
+      compositionHtml: expect.stringContaining("<template>"),
+      timelineJs: files["timeline.js"],
+    });
+  });
+
+  it("loads a CSRF token before saving source", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { data: { id: "project", revision: 2 } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new ProjectsApi("http://localhost:4000").saveSource("project", {
+      revision: 1,
+      files,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project"),
+      expect.objectContaining({
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
       }),
     );

@@ -107,14 +107,9 @@ describe("CloudProjectGallery", () => {
           201,
         );
       }
-      if (url.pathname.endsWith("/source") && method === "PUT") {
+      if (/^\/v1\/projects\/[^/]+$/.test(url.pathname) && method === "PATCH") {
         revision = 2;
-        return json({
-          data: {
-            project: project(),
-            version: version(),
-          },
-        });
+        return json({ data: project() });
       }
       throw new Error(`Unexpected request: ${method} ${url.pathname}`);
     });
@@ -186,9 +181,9 @@ describe("CloudProjectGallery", () => {
       });
       expect(fetchMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          pathname: expect.stringContaining("/source"),
+          pathname: expect.stringMatching(/^\/v1\/projects\/[^/]+$/),
         }),
-        expect.objectContaining({ method: "PUT" }),
+        expect.objectContaining({ method: "PATCH" }),
       );
     } finally {
       await unmount(component);
