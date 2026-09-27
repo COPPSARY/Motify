@@ -149,7 +149,6 @@
   } from "../stores/local-assets";
   import {
     clearProjectDrafts,
-    loadProjectDraft,
     saveProjectDraft,
   } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
@@ -567,10 +566,7 @@
 
   async function restoreStartupProject(): Promise<void> {
     if (mode === "cloud" && projectIdFromRoute()) return;
-    if (mode !== "local") {
-      await restoreLocalDraft();
-      return;
-    }
+    if (mode !== "local") return;
     try {
       const local = await loadLocalProject();
       if (local) {
@@ -594,36 +590,6 @@
         10000,
       );
     }
-    await restoreLocalDraft();
-  }
-
-  async function restoreLocalDraft(): Promise<void> {
-    const draft = loadProjectDraft(activeDraftKey);
-    if (!draft) return;
-    // Preset artwork lives in the composition source as __ASSET_*__ placeholders,
-    // so it must resolve on every remount, independent of chat attachments.
-    const hydrated = await hydrateAssetTokens(
-      hydratePresetAssets(combineCompositionSource(draft.files)),
-      draft.assets,
-    );
-    cloudFiles = { ...draft.files };
-    assistantMessages = [...draft.messages];
-    stagedAssets = [...draft.assets];
-    generationPlan = draft.plan ?? null;
-    void ensureStagedPreviews(stagedAssets);
-    assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
-    assetObjectUrls = hydrated.objectUrls;
-    const composition = createDynamicComposition(
-      hydrated.source,
-      draft.files["timeline.js"],
-      {
-        title: draft.metadata.title,
-        duration: draft.metadata.duration,
-        scenes: draft.metadata.scenes,
-      },
-    );
-    mountComposition(composition, draft.editorState);
-    showNotice("Recovered your local Motify draft.");
   }
 
   function projectIdFromRoute(): string | null {
@@ -2124,26 +2090,6 @@
     return `${result.reply}\n\nDirection note: ${validated.warnings.join(" ")}`;
   }
 
-  /**
-   * Transport failures — no key, no quota, no network — do not get better by
-   * asking the model again. Everything else is a composition the model can
-   * repair from the failure text.
-   */
-  function isSelfRepairable(error: unknown, message: string): boolean {
-    if (
-      error &&
-      typeof error === "object" &&
-      "status" in error &&
-      typeof error.status === "number" &&
-      error.status >= 500
-    ) {
-      return false;
-    }
-    return !/api key|quota|rate limit|permission|unauthorized|forbidden|temporarily unavailable|took too long|cannot reach the model|\b(?:401|403|429|503)\b|network|failed to fetch/i.test(
-      message,
-    );
-  }
-
   function buildRepairInstruction(
     errorMessage: string,
     lastPrompt: string,
@@ -2154,11 +2100,11 @@
   }
 
   /**
-   * One silent repair attempt before the user ever sees an error. A failed
-   * check is something the model can act on, so acting on it here is what the
-   * user would do anyway by pressing Fix — done for them, once.
+   * A backend chat/plan turn answers with words instead of a film and reaches
+   * here as a thrown `BackendConversationResponse` rather than a return value
+   * — unwrap that into the reply text instead of treating it as a failure.
    */
-  async function generateWithSelfRepair(prompt: string): Promise<string> {
+  async function generateOrBackendReply(prompt: string): Promise<string> {
     try {
       return await generateAndApplyAssistant(prompt);
     } catch (error: unknown) {
@@ -2167,16 +2113,7 @@
           error.projectId ?? backendGenerationProjectId;
         return error.response;
       }
-      const message =
-        error instanceof Error ? error.message : "AI generation failed.";
-      if (!isSelfRepairable(error, message)) throw error;
-      generationStore.update((state) => ({
-        ...state,
-        message: "Repairing the composition and trying once more...",
-      }));
-      return await generateAndApplyAssistant(
-        buildRepairInstruction(message, prompt),
-      );
+      throw error;
     }
   }
 
@@ -2365,7 +2302,7 @@
     });
 
     try {
-      const reply = await generateWithSelfRepair(prompt);
+      const reply = await generateOrBackendReply(prompt);
       generationStore.set({
         isActive: false,
         status: "COMPLETED",
