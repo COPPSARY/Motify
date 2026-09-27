@@ -394,11 +394,10 @@ const MAX_REPAIR_PASSES = 3;
 
 /**
  * A cloud repair is a whole backend generation - another model call, another
- * half minute - where a local one is a client round trip. The first pass is
- * where nearly all of the improvement is, so cloud projects get that one and
- * ship whatever it produces.
+ * half minute - so cloud projects ship whatever the first pass produces
+ * rather than spend a second generation chasing an improvement.
  */
-const MAX_BACKEND_REPAIR_PASSES = 1;
+const MAX_BACKEND_REPAIR_PASSES = 0;
 
 /**
  * What mounting and seeking the candidate revealed.

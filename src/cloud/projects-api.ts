@@ -325,7 +325,14 @@ export class ProjectsApi {
   ) {
     return this.request<ProjectMutationResult>(
       `/v1/projects/${encodeURIComponent(projectId)}/source`,
-      { method: "PUT", body: input },
+      {
+        method: "PATCH",
+        body: {
+          revision: input.revision,
+          compositionHtml: combineCompositionSource(input.files),
+          timelineJs: input.files["timeline.js"],
+        },
+      },
     );
   }
 

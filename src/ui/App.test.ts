@@ -19,6 +19,73 @@ afterEach(() => {
 });
 
 describe("App project actions", () => {
+  it("does not restore assets from a previous draft on the cloud landing page", async () => {
+    localStorage.setItem(
+      "motionly-project-draft-v1:active",
+      JSON.stringify({
+        version: 1,
+        updatedAt: 1,
+        files: {
+          "composition.html":
+            '<template><main data-edit="stage">Previous draft</main></template>',
+          "styles.css": "",
+          "timeline.js": "export function buildTimeline() {}",
+          "index.ts": "",
+        },
+        messages: [],
+        assets: [
+          {
+            id: "old-logo",
+            name: "previous-project-logo.png",
+            mimeType: "image/png",
+            token: "motionly-local:old-logo",
+            intent: "asset",
+          },
+        ],
+        editorState: { overrides: {} },
+        metadata: { title: "Previous draft", duration: 5, scenes: [] },
+      }),
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input) => {
+        const url = input instanceof URL ? input : new URL(String(input));
+        if (url.pathname === "/v1/auth/me")
+          return new Response(null, { status: 401 });
+        if (url.pathname === "/v1/workspaces")
+          return new Response(null, { status: 401 });
+        throw new Error(`Unexpected request: ${url.pathname}`);
+      }),
+    );
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(App, { target });
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          Array.from(document.querySelectorAll("button")).some(
+            (button) => button.textContent?.trim() === "Sign in",
+          ),
+        ).toBe(true);
+      });
+      expect(document.body.textContent).not.toContain(
+        "previous-project-logo.png",
+      );
+      expect(document.body.textContent).not.toContain("Previous draft");
+    } finally {
+      await unmount(component);
+    }
+  });
   it("shows the shared editor without cloud assistant UI in local mode", async () => {
     vi.stubGlobal(
       "ResizeObserver",
