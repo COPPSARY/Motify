@@ -1,12 +1,13 @@
 import { readonly, writable } from "svelte/store";
 
-import { fetchCreditBalance } from "../api/credits";
+import { fetchCreditSnapshot, type CreditEstimate } from "../api/credits";
 
 export type CreditStatus = "idle" | "loading" | "ready" | "error";
 
 const balance = writable<number | null>(null);
 const status = writable<CreditStatus>("idle");
 const charge = writable<number | null>(null);
+const estimate = writable<CreditEstimate | null>(null);
 
 /**
  * The signed-in user's balance as the server last reported it, or null until
@@ -18,17 +19,24 @@ export const creditBalance = readonly(balance);
 export const creditStatus = readonly(status);
 /** What the latest request cost, in credits, for the confirmation shown after it. */
 export const lastCreditCharge = readonly(charge);
+/**
+ * What a request is expected to cost, so the composer can show it before the
+ * user sends one. Null until the first refresh, and stays null on a
+ * deployment that is not charging for requests.
+ */
+export const creditEstimate = readonly(estimate);
 
 let request = 0;
 
-/** Asks the server for the balance. A newer call, or a sign-out, supersedes an older one. */
+/** Asks the server for the balance and its cost estimate. A newer call, or a sign-out, supersedes an older one. */
 export async function refreshCredits(): Promise<void> {
   const current = ++request;
   status.set("loading");
   try {
-    const next = await fetchCreditBalance();
+    const snapshot = await fetchCreditSnapshot();
     if (current !== request) return;
-    balance.set(next);
+    balance.set(snapshot.balance);
+    estimate.set(snapshot.estimate);
     status.set("ready");
   } catch {
     if (current !== request) return;
@@ -65,4 +73,5 @@ export function resetCredits(): void {
   balance.set(null);
   status.set("idle");
   charge.set(null);
+  estimate.set(null);
 }

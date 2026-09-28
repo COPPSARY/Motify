@@ -1,4 +1,5 @@
-/* Credits: the balance pill in the inspector header and its activity popover. */
+/* Credits: the balance pill in the inspector header, its activity popover,
+   and the pre-send cost hint above the Tiffy composer. */
 .code-editor-scope .account-cluster {
   min-width: 0;
   flex: 1 1 auto;
@@ -254,4 +255,15 @@
 .code-editor-scope .credits-more:disabled {
   color: var(--sl-muted, #858585);
   cursor: default;
+}
+
+.code-editor-scope .ai-composer-credit-hint {
+  margin: 6px 14px 0;
+  color: var(--sl-muted, #858585);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .ai-composer-credit-hint.is-low {
+  color: #f5b041;
 }

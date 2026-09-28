@@ -1,6 +1,13 @@
 import { mount, tick, unmount } from "svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const fetchCreditSnapshot = vi.hoisted(() => vi.fn());
+vi.mock("../../api/credits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/credits")>()),
+  fetchCreditSnapshot,
+}));
+
+import { refreshCredits, resetCredits } from "../../stores/credits";
 import TiffyPanel from "./TiffyPanel.svelte";
 
 afterEach(() => {
@@ -320,6 +327,105 @@ describe("TiffyPanel drop target", () => {
       // Still cancelled, so the browser does not navigate away to the file.
       expect(drop.defaultPrevented).toBe(true);
       expect(onDropFiles).not.toHaveBeenCalled();
+    } finally {
+      await unmount(component);
+    }
+  });
+});
+
+describe("TiffyPanel credit estimate", () => {
+  beforeEach(() => {
+    resetCredits();
+    fetchCreditSnapshot.mockReset();
+  });
+
+  it("shows no cost hint on a deployment that is not charging for requests", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "Make the intro pop" }),
+    });
+
+    try {
+      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
+      expect(
+        document.querySelector<HTMLButtonElement>(".ai-composer-send"),
+      ).not.toHaveProperty("disabled", true);
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("shows what a request typically costs, and still lets it send", async () => {
+    fetchCreditSnapshot.mockResolvedValue({
+      balance: 50,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+    await refreshCredits();
+
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "Make the intro pop" }),
+    });
+
+    try {
+      const hint = must<HTMLElement>(".ai-composer-credit-hint");
+      expect(hint.textContent).toBe("Uses about 10 credits");
+      expect(hint.classList.contains("is-low")).toBe(false);
+      expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("does not block sending just because the balance is under the typical cost", async () => {
+    fetchCreditSnapshot.mockResolvedValue({
+      balance: 3,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+    await refreshCredits();
+
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "Make the intro pop" }),
+    });
+
+    try {
+      expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
+      expect(must<HTMLElement>(".ai-composer-credit-hint").textContent).toBe(
+        "Uses about 10 credits",
+      );
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("blocks sending and explains why once the balance is below what a request needs", async () => {
+    fetchCreditSnapshot.mockResolvedValue({
+      balance: 0.2,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+    await refreshCredits();
+
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "Make the intro pop" }),
+    });
+
+    try {
+      const hint = must<HTMLElement>(".ai-composer-credit-hint");
+      expect(hint.textContent).toBe("Not enough credits — you have 0.2 left.");
+      expect(hint.classList.contains("is-low")).toBe(true);
+      const send = must<HTMLButtonElement>(".ai-composer-send");
+      expect(send.disabled).toBe(true);
+      expect(send.getAttribute("aria-label")).toContain("not enough credits");
     } finally {
       await unmount(component);
     }

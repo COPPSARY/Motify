@@ -18,6 +18,25 @@ export interface CreditHistoryPage {
 }
 
 /**
+ * What a request is expected to cost, ahead of sending it. Fixed for the
+ * deployment, not a prediction for this particular message: `typical` is
+ * what an average generation costs, `min` is the fewest credits a request
+ * needs to be accepted at all, and `max` is the most any single request can
+ * ever cost. The real charge is only known once the request finishes.
+ */
+export interface CreditEstimate {
+  typical: number;
+  min: number;
+  max: number;
+}
+
+export interface CreditSnapshot {
+  balance: number;
+  /** Absent when the deployment is not charging for requests. */
+  estimate: CreditEstimate | null;
+}
+
+/**
  * Credits are read-only from the browser. The server owns every balance change
  * and there is no endpoint to set one, so this module only ever asks what the
  * balance is. Nothing here, or anywhere in the editor, can grant or spend.
@@ -27,16 +46,30 @@ function isCredits(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-export async function fetchCreditBalance(): Promise<number> {
+function isCreditEstimate(value: unknown): value is CreditEstimate {
+  const estimate = value as Partial<CreditEstimate> | null | undefined;
+  return (
+    typeof estimate === "object" &&
+    estimate !== null &&
+    isCredits(estimate.typical) &&
+    isCredits(estimate.min) &&
+    isCredits(estimate.max)
+  );
+}
+
+export async function fetchCreditSnapshot(): Promise<CreditSnapshot> {
   const response = await fetchApi("/v1/credits");
   const { data } = (await response.json()) as {
-    data?: { balance?: unknown };
+    data?: { balance?: unknown; estimate?: unknown };
   };
   const balance = data?.balance;
   if (!isCredits(balance) || balance < 0) {
     throw new Error("The credits response was not understood.");
   }
-  return balance;
+  return {
+    balance,
+    estimate: isCreditEstimate(data?.estimate) ? data.estimate : null,
+  };
 }
 
 export async function fetchCreditHistory(
