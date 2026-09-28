@@ -64,6 +64,16 @@ export async function fetchCreditHistory(
   };
 }
 
+/** The chat message for a request the server refused because the account could not pay. */
+export function insufficientCreditsMessage(
+  details: Record<string, unknown> | undefined,
+): string {
+  const balance = details?.["balance"];
+  return isCredits(balance)
+    ? `You don't have enough credits for this request. You have ${formatCredits(balance)} left.`
+    : "You don't have enough credits for this request.";
+}
+
 /**
  * Shows a balance the way a person counts: whole credits, or one decimal when
  * a generation left a fraction. It rounds down so the screen never promises

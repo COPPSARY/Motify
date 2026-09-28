@@ -5,6 +5,7 @@ import {
   fetchCreditHistory,
   formatCreditChange,
   formatCredits,
+  insufficientCreditsMessage,
 } from "./credits";
 
 function respond(body: unknown, status = 200) {
@@ -102,5 +103,24 @@ describe("formatCredits", () => {
   it("shows the direction of a change", () => {
     expect(formatCreditChange(50)).toBe("+50");
     expect(formatCreditChange(-3.4)).toBe("-3.4");
+  });
+});
+
+describe("insufficientCreditsMessage", () => {
+  it("says what is left, rounded down", () => {
+    expect(insufficientCreditsMessage({ balance: 0.29, required: 0.5 })).toBe(
+      "You don't have enough credits for this request. You have 0.2 left.",
+    );
+    expect(insufficientCreditsMessage({ balance: 0 })).toContain(
+      "You have 0 left.",
+    );
+  });
+
+  it("still makes sense without a usable balance", () => {
+    for (const details of [undefined, {}, { balance: "lots" }]) {
+      expect(insufficientCreditsMessage(details)).toBe(
+        "You don't have enough credits for this request.",
+      );
+    }
   });
 });
