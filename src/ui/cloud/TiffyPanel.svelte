@@ -9,7 +9,7 @@
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
   import type { AudioTrack } from "../../cloud/projects-api";
-  import { formatCredits } from "../../api/credits";
+  import { estimateMessageCredits, formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
   import type {
@@ -65,15 +65,23 @@
   $: accepting = !$generationStore.isActive && !uploadingMedia;
   $: dragOver = accepting && dragDepth > 0;
   /**
-   * `$creditEstimate` is fixed for the deployment (see the store), not a
-   * prediction for this particular message — the real charge is only known
-   * once the request finishes. It is null on a deployment that is not
-   * charging for requests, and the hint is hidden until then.
+   * `$creditEstimate` is fixed for the deployment (see the store); it is
+   * null on a deployment that is not charging for requests.
    */
   $: insufficientCredits =
     $creditEstimate !== null &&
     $creditBalance !== null &&
     $creditBalance < $creditEstimate.min;
+  // A rough, live guide scaled off the draft's own length — see
+  // `estimateMessageCredits`. The real cost is only known once the request
+  // finishes, so this is shown only once there is something to size it from;
+  // an empty composer has nothing to base a number on.
+  $: draftLength = assistantDraft.trim().length;
+  $: estimatedCredits = $creditEstimate
+    ? estimateMessageCredits($creditEstimate, draftLength)
+    : 0;
+  $: showCreditHint =
+    $creditEstimate !== null && (insufficientCredits || draftLength > 0);
 
   function carriesFiles(event: DragEvent): boolean {
     return Boolean(event.dataTransfer?.types.includes("Files"));
@@ -316,7 +324,7 @@
       ></progress>
     </div>
   {/if}
-  {#if $creditEstimate}
+  {#if showCreditHint}
     <p
       class="ai-composer-credit-hint"
       class:is-low={insufficientCredits}
@@ -324,7 +332,7 @@
     >
       {insufficientCredits
         ? `Not enough credits — you have ${formatCredits($creditBalance ?? 0)} left.`
-        : `Uses about ${formatCredits($creditEstimate.typical)} credits`}
+        : `Uses about ${formatCredits(estimatedCredits)} credits`}
     </p>
   {/if}
   <form class="ai-chat-composer" on:submit={submitAssistant}>

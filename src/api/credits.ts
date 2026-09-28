@@ -97,6 +97,39 @@ export async function fetchCreditHistory(
   };
 }
 
+/**
+ * A short instruction — the length `typical` already assumes a message
+ * costs around. Scaling is relative to it, so a message near this length
+ * keeps the server's average, and a much longer or shorter one moves the
+ * shown number up or down as it's typed.
+ */
+const TYPICAL_MESSAGE_CHARS = 60;
+/** How far the length of a message alone is allowed to move the estimate. */
+const MIN_LENGTH_SCALE = 0.5;
+const MAX_LENGTH_SCALE = 2.5;
+
+/**
+ * A rough, live guide to what a message might cost, scaled off its length
+ * around the server's own average. This is not a prediction: the real cost
+ * is only known once the model answers, because a short edit and a long
+ * brief can return films of similar size. It exists so the composer's hint
+ * visibly responds to what is typed, clamped to what the deployment would
+ * actually accept (`min`) or ever charge (`max`) for one request.
+ */
+export function estimateMessageCredits(
+  estimate: CreditEstimate,
+  messageLength: number,
+): number {
+  const scale = Math.min(
+    MAX_LENGTH_SCALE,
+    Math.max(MIN_LENGTH_SCALE, messageLength / TYPICAL_MESSAGE_CHARS),
+  );
+  return Math.min(
+    estimate.max,
+    Math.max(estimate.min, estimate.typical * scale),
+  );
+}
+
 /** The chat message for a request the server refused because the account could not pay. */
 export function insufficientCreditsMessage(
   details: Record<string, unknown> | undefined,

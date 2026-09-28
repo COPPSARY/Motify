@@ -357,7 +357,28 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("shows what a request typically costs, and still lets it send", async () => {
+  it("hides the cost hint until there is a message to size it from", async () => {
+    fetchCreditSnapshot.mockResolvedValue({
+      balance: 50,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+    await refreshCredits();
+
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "" }),
+    });
+
+    try {
+      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("shows about what a message of this length typically costs, and still lets it send", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -373,9 +394,40 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       const hint = must<HTMLElement>(".ai-composer-credit-hint");
-      expect(hint.textContent).toBe("Uses about 10 credits");
+      expect(hint.textContent).toBe("Uses about 5 credits");
       expect(hint.classList.contains("is-low")).toBe(false);
       expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("grows the estimate as the drafted message gets longer", async () => {
+    fetchCreditSnapshot.mockResolvedValue({
+      balance: 50,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+    await refreshCredits();
+
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ assistantDraft: "Fix it" }),
+    });
+
+    try {
+      const composer = must<HTMLTextAreaElement>(".ai-composer-input");
+      const hint = must<HTMLElement>(".ai-composer-credit-hint");
+      const short = hint.textContent;
+
+      composer.value =
+        "Slow the intro to two seconds, make the headline larger, and fade the logo in over the first second instead of cutting to it.";
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      await tick();
+
+      expect(hint.textContent).not.toBe(short);
+      expect(hint.textContent).toBe("Uses about 20.8 credits");
     } finally {
       await unmount(component);
     }
@@ -398,7 +450,7 @@ describe("TiffyPanel credit estimate", () => {
     try {
       expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
       expect(must<HTMLElement>(".ai-composer-credit-hint").textContent).toBe(
-        "Uses about 10 credits",
+        "Uses about 5 credits",
       );
     } finally {
       await unmount(component);

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  estimateMessageCredits,
   fetchCreditHistory,
   fetchCreditSnapshot,
   formatCreditChange,
@@ -135,6 +136,33 @@ describe("formatCredits", () => {
   it("shows the direction of a change", () => {
     expect(formatCreditChange(50)).toBe("+50");
     expect(formatCreditChange(-3.4)).toBe("-3.4");
+  });
+});
+
+describe("estimateMessageCredits", () => {
+  const estimate = { typical: 10, min: 0.5, max: 30 };
+
+  it("keeps the server's typical cost for a message near the reference length", () => {
+    expect(estimateMessageCredits(estimate, 60)).toBe(10);
+  });
+
+  it("grows as the message gets longer", () => {
+    const short = estimateMessageCredits(estimate, 60);
+    const long = estimateMessageCredits(estimate, 240);
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("shrinks for a short message, but not below the server's floor", () => {
+    expect(estimateMessageCredits(estimate, 1)).toBeCloseTo(5, 5);
+    expect(estimateMessageCredits({ ...estimate, typical: 0.6 }, 1)).toBe(0.5);
+  });
+
+  it("never exceeds the server's ceiling, however long the message", () => {
+    // 2.5x length-scaling alone caps at 25 here; a deployment whose typical
+    // cost is closer to the ceiling is what actually exercises the clamp.
+    expect(
+      estimateMessageCredits({ typical: 13, min: 0.5, max: 30 }, 100_000),
+    ).toBe(30);
   });
 });
 
