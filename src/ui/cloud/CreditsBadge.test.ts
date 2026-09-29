@@ -1,13 +1,18 @@
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchCreditBalance = vi.hoisted(() => vi.fn());
+const fetchCreditSnapshot = vi.hoisted(() => vi.fn());
 const fetchCreditHistory = vi.hoisted(() => vi.fn());
 vi.mock("../../api/credits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/credits")>()),
-  fetchCreditBalance,
+  fetchCreditSnapshot,
   fetchCreditHistory,
 }));
+
+/** The store only ever calls `fetchCreditSnapshot`; this is the balance-only shape most tests want. */
+function balanceOnly(balance: number) {
+  return { balance, estimate: null };
+}
 
 import { refreshCredits, resetCredits } from "../../stores/credits";
 import CreditsBadge from "./CreditsBadge.svelte";
@@ -42,7 +47,7 @@ const popover = () => document.querySelector(".credits-popover");
 
 beforeEach(() => {
   resetCredits();
-  fetchCreditBalance.mockReset().mockResolvedValue(50);
+  fetchCreditSnapshot.mockReset().mockResolvedValue(balanceOnly(50));
   fetchCreditHistory
     .mockReset()
     .mockResolvedValue({ entries: [grant], nextCursor: null });
@@ -73,7 +78,7 @@ describe("CreditsBadge", () => {
   });
 
   it("warns when there is less than one average generation left", async () => {
-    fetchCreditBalance.mockResolvedValue(4.5);
+    fetchCreditSnapshot.mockResolvedValue(balanceOnly(4.5));
     await render();
     await refreshCredits();
     await settle();
@@ -93,7 +98,7 @@ describe("CreditsBadge", () => {
     expect(popover()?.textContent).toContain("Welcome credits");
     expect(popover()?.textContent).toContain("+50");
     expect(fetchCreditHistory).toHaveBeenCalledTimes(1);
-    expect(fetchCreditBalance.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(fetchCreditSnapshot.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("closes on Escape and on a click elsewhere", async () => {
@@ -114,7 +119,7 @@ describe("CreditsBadge", () => {
   });
 
   it("says so when the balance cannot be reached, without inventing a number", async () => {
-    fetchCreditBalance.mockRejectedValue(new Error("offline"));
+    fetchCreditSnapshot.mockRejectedValue(new Error("offline"));
     await render();
     trigger()?.click();
     await settle();

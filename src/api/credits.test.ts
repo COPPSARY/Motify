@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  fetchCreditBalance,
+  estimateMessageCredits,
   fetchCreditHistory,
+  fetchCreditSnapshot,
   formatCreditChange,
   formatCredits,
+  insufficientCreditsMessage,
 } from "./credits";
 
 function respond(body: unknown, status = 200) {
@@ -25,7 +27,10 @@ describe("credit API", () => {
     const fetchMock = respond({ data: { balance: 50 } });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchCreditBalance()).resolves.toBe(50);
+    await expect(fetchCreditSnapshot()).resolves.toEqual({
+      balance: 50,
+      estimate: null,
+    });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/v1\/credits$/);
@@ -33,6 +38,35 @@ describe("credit API", () => {
     expect(init.body).toBeUndefined();
     expect(init.credentials).toBe("include");
   });
+
+  it("reads the pre-send cost estimate when the deployment sends one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({
+        data: { balance: 50, estimate: { typical: 10, min: 0.5, max: 30 } },
+      }),
+    );
+    await expect(fetchCreditSnapshot()).resolves.toEqual({
+      balance: 50,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["not an object", "typical"],
+    ["missing a field", { typical: 10, min: 0.5 }],
+    ["a field that is not a number", { typical: "10", min: 0.5, max: 30 }],
+  ])(
+    "ignores an estimate that is %s, rather than showing it",
+    async (_name, estimate) => {
+      vi.stubGlobal("fetch", respond({ data: { balance: 50, estimate } }));
+      await expect(fetchCreditSnapshot()).resolves.toEqual({
+        balance: 50,
+        estimate: null,
+      });
+    },
+  );
 
   it.each([
     ["missing", { data: {} }],
@@ -44,7 +78,7 @@ describe("credit API", () => {
     "refuses a balance that is %s rather than showing it",
     async (_name, body) => {
       vi.stubGlobal("fetch", respond(body));
-      await expect(fetchCreditBalance()).rejects.toThrow(/not understood/);
+      await expect(fetchCreditSnapshot()).rejects.toThrow(/not understood/);
     },
   );
 
@@ -53,7 +87,7 @@ describe("credit API", () => {
       "fetch",
       respond({ error: { message: "Authentication is required." } }, 401),
     );
-    await expect(fetchCreditBalance()).rejects.toThrow(
+    await expect(fetchCreditSnapshot()).rejects.toThrow(
       "Authentication is required.",
     );
   });
@@ -102,5 +136,51 @@ describe("formatCredits", () => {
   it("shows the direction of a change", () => {
     expect(formatCreditChange(50)).toBe("+50");
     expect(formatCreditChange(-3.4)).toBe("-3.4");
+  });
+});
+
+describe("estimateMessageCredits", () => {
+  const estimate = { typical: 10, min: 0.5, max: 30 };
+
+  it("keeps the server's typical cost for a message near the reference length", () => {
+    expect(estimateMessageCredits(estimate, 60)).toBe(10);
+  });
+
+  it("grows as the message gets longer", () => {
+    const short = estimateMessageCredits(estimate, 60);
+    const long = estimateMessageCredits(estimate, 240);
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("shrinks for a short message, but not below the server's floor", () => {
+    expect(estimateMessageCredits(estimate, 1)).toBeCloseTo(5, 5);
+    expect(estimateMessageCredits({ ...estimate, typical: 0.6 }, 1)).toBe(0.5);
+  });
+
+  it("never exceeds the server's ceiling, however long the message", () => {
+    // 2.5x length-scaling alone caps at 25 here; a deployment whose typical
+    // cost is closer to the ceiling is what actually exercises the clamp.
+    expect(
+      estimateMessageCredits({ typical: 13, min: 0.5, max: 30 }, 100_000),
+    ).toBe(30);
+  });
+});
+
+describe("insufficientCreditsMessage", () => {
+  it("says what is left, rounded down", () => {
+    expect(insufficientCreditsMessage({ balance: 0.29, required: 0.5 })).toBe(
+      "You don't have enough credits for this request. You have 0.2 left.",
+    );
+    expect(insufficientCreditsMessage({ balance: 0 })).toContain(
+      "You have 0 left.",
+    );
+  });
+
+  it("still makes sense without a usable balance", () => {
+    for (const details of [undefined, {}, { balance: "lots" }]) {
+      expect(insufficientCreditsMessage(details)).toBe(
+        "You don't have enough credits for this request.",
+      );
+    }
   });
 });
