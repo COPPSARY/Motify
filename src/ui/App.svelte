@@ -5,7 +5,13 @@
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
-  import { refreshCredits, resetCredits } from "../stores/credits";
+  import { get } from "svelte/store";
+  import { formatCredits } from "../api/credits";
+  import {
+    lastCreditCharge,
+    refreshCredits,
+    resetCredits,
+  } from "../stores/credits";
   import {
     ArrowLeft,
     Braces,
@@ -2322,7 +2328,7 @@
         duration_ms: Math.round(performance.now() - generationStartedAt),
         reference_asset_count: sentAttachments.length,
       });
-      showNotice("Tiffy updated the composition.");
+      showNotice(withCreditCost("Tiffy updated the composition."));
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -2425,7 +2431,7 @@
         progress: 100,
         message: reply,
       });
-      showNotice("Tiffy repaired the composition.");
+      showNotice(withCreditCost("Tiffy repaired the composition."));
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
       generationStore.set({
@@ -2614,6 +2620,14 @@
     } finally {
       exporting = false;
     }
+  }
+
+  /** Adds what the request cost, when the server charged for it. */
+  function withCreditCost(message: string): string {
+    const charged = get(lastCreditCharge);
+    return charged && charged > 0
+      ? `${message} Used ${formatCredits(charged)} credits.`
+      : message;
   }
 
   function showNotice(message: string, duration = 3200): void {
