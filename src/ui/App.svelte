@@ -4,6 +4,8 @@
   import { currentMotionlyUser, signOut } from "../auth";
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
+  import CreditsBadge from "./cloud/CreditsBadge.svelte";
+  import { refreshCredits, resetCredits } from "../stores/credits";
   import {
     ArrowLeft,
     Braces,
@@ -162,6 +164,7 @@
   import "./styles/editor-theme.css";
   import "./styles/editor-sleek.css";
   import "./styles/music-panel.css";
+  import "./styles/credits-badge.css";
 
   export let mode: AppMode = "cloud";
 
@@ -433,7 +436,10 @@
       void currentMotionlyUser().then((user) => {
         currentUser = user;
         authChecked = true;
-        if (user) identifyAnalyticsUser(user);
+        if (user) {
+          identifyAnalyticsUser(user);
+          void refreshCredits();
+        }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
         else if (pendingLandingPrompt) openAuthDialog("signup");
@@ -2167,6 +2173,7 @@
     currentUser = user;
     authChecked = true;
     identifyAnalyticsUser(user);
+    void refreshCredits();
     await cloudProjects?.refreshSession();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
@@ -2193,6 +2200,7 @@
       // editor is concerned.
     }
     currentUser = null;
+    resetCredits();
     await cloudProjects?.refreshSession();
     showNotice("Signed out of Motify.");
   }
@@ -3312,19 +3320,22 @@
           <div class="me-inspector-head">
             {#if mode === "cloud" && authChecked}
               {#if currentUser}
-                <button
-                  class="account-status account-status--button"
-                  title={`${currentUser.email} — sign out`}
-                  on:click={signOutOfMotify}
-                >
-                  <span class="account-avatar" aria-hidden="true"
-                    >{(currentUser.displayName || currentUser.email)
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase()}</span
+                <div class="account-cluster">
+                  <button
+                    class="account-status account-status--button"
+                    title={`${currentUser.email} — sign out`}
+                    on:click={signOutOfMotify}
                   >
-                  <span>{currentUser.displayName || currentUser.email}</span>
-                </button>
+                    <span class="account-avatar" aria-hidden="true"
+                      >{(currentUser.displayName || currentUser.email)
+                        .trim()
+                        .charAt(0)
+                        .toUpperCase()}</span
+                    >
+                    <span>{currentUser.displayName || currentUser.email}</span>
+                  </button>
+                  <CreditsBadge />
+                </div>
               {:else}
                 <button
                   class="account-status account-status--button account-status--signed-out"

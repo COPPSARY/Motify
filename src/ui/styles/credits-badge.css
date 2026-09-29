@@ -1,0 +1,257 @@
+/* Credits: the balance pill in the inspector header and its activity popover. */
+.code-editor-scope .account-cluster {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Static, so the popover positions against the sticky header and spans the panel. */
+.code-editor-scope .credits-badge {
+  flex: none;
+  position: static;
+}
+
+.code-editor-scope .credits-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  border-radius: 999px;
+  background: var(--sl-surface, #1a1a1a);
+  color: var(--sl-text-soft, #b4b4b4);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.code-editor-scope .credits-trigger:hover,
+.code-editor-scope .credits-trigger[aria-expanded="true"] {
+  background: var(--sl-surface-hover, #222222);
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .credits-trigger:focus-visible,
+.code-editor-scope .credits-refresh:focus-visible,
+.code-editor-scope .credits-more:focus-visible {
+  outline: 2px solid var(--sl-accent, #1a8cff);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .credits-trigger.is-low {
+  border-color: rgba(245, 176, 65, 0.45);
+  color: #f5b041;
+}
+
+.code-editor-scope .credits-trigger.is-unknown {
+  color: var(--sl-muted, #858585);
+}
+
+.code-editor-scope .credits-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(420px, 70vh);
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
+  border-radius: 10px;
+  background: var(--sl-panel, #111111);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .credits-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.code-editor-scope .credits-summary > div {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.code-editor-scope .credits-summary-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--sl-accent-soft, rgba(26, 140, 255, 0.14));
+  color: var(--sl-accent-hover, #3a9dff);
+}
+
+.code-editor-scope .credits-summary-amount {
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .credits-summary small {
+  color: var(--sl-muted, #858585);
+  font-size: 11px;
+}
+
+.code-editor-scope .credits-refresh {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-muted, #858585);
+  cursor: pointer;
+}
+
+.code-editor-scope .credits-refresh:hover:not(:disabled) {
+  background: var(--sl-surface-hover, #222222);
+  color: var(--sl-text, #ededed);
+}
+
+.code-editor-scope .credits-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.code-editor-scope .credits-spin {
+  animation: credits-spin 0.9s linear infinite;
+}
+
+@keyframes credits-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .credits-spin {
+    animation: none;
+  }
+}
+
+.code-editor-scope .credits-note {
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.code-editor-scope .credits-note--low {
+  background: rgba(245, 176, 65, 0.1);
+  color: #f5b041;
+}
+
+.code-editor-scope .credits-note--error {
+  background: rgba(255, 99, 99, 0.1);
+  color: #ff8a8a;
+}
+
+.code-editor-scope .credits-heading {
+  margin: 2px 0 0;
+  color: var(--sl-muted, #858585);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.code-editor-scope .credits-empty {
+  margin: 0;
+  color: var(--sl-muted, #858585);
+  font-size: 12px;
+}
+
+.code-editor-scope .credits-list {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+}
+
+.code-editor-scope .credits-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-top: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  font-size: 12.5px;
+}
+
+.code-editor-scope .credits-row:first-child {
+  border-top: 0;
+}
+
+.code-editor-scope .credits-row-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--sl-surface, #1a1a1a);
+  color: var(--sl-text-soft, #b4b4b4);
+}
+
+.code-editor-scope .credits-row-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.code-editor-scope .credits-row-copy small {
+  color: var(--sl-muted, #858585);
+  font-size: 11px;
+}
+
+.code-editor-scope .credits-row-amount {
+  flex: none;
+  color: #6fd6a4;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .credits-row-amount.is-spend {
+  color: var(--sl-text-soft, #b4b4b4);
+}
+
+.code-editor-scope .credits-more {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--sl-accent-hover, #3a9dff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .credits-more:disabled {
+  color: var(--sl-muted, #858585);
+  cursor: default;
+}
