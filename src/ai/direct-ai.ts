@@ -24,7 +24,13 @@ import {
   type FrameEvidence,
 } from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
-import { ProjectsApi } from "../cloud/projects-api";
+import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
+import { insufficientCreditsMessage } from "../api/credits";
+import {
+  applyServerCharge,
+  clearLastCharge,
+  refreshCredits,
+} from "../stores/credits";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -300,22 +306,39 @@ async function requestBackendProject(
         ]
       : [],
   );
-  const result = await api.sendMotionMessage(projectId, {
-    message: userPrompt,
-    ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
-    ...(frames.length > 0
-      ? {
-          frames: frames.map((frame) => ({
-            capturedAtSeconds: frame.time,
-            mediaType: frame.mimeType as "image/jpeg",
-            dataBase64: frame.dataBase64,
-          })),
-        }
-      : {}),
-    ...(audioTrackIds.length > 0
-      ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
-      : {}),
-  });
+  clearLastCharge();
+  let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
+  try {
+    result = await api.sendMotionMessage(projectId, {
+      message: userPrompt,
+      ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
+      ...(frames.length > 0
+        ? {
+            frames: frames.map((frame) => ({
+              capturedAtSeconds: frame.time,
+              mediaType: frame.mimeType as "image/jpeg",
+              dataBase64: frame.dataBase64,
+            })),
+          }
+        : {}),
+      ...(audioTrackIds.length > 0
+        ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
+        : {}),
+    });
+  } catch (error) {
+    // A failed request is not charged, but ask the server rather than assume.
+    void refreshCredits();
+    if (
+      error instanceof CloudApiError &&
+      error.code === "INSUFFICIENT_CREDITS"
+    ) {
+      throw new Error(insufficientCreditsMessage(error.details), {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+  if (result.credits) applyServerCharge(result.credits);
   if (result.type !== "generation") {
     throw new BackendConversationResponse(
       result.type,

@@ -66,6 +66,8 @@ export interface MotionMessageResult {
   response: string;
   projectId?: string;
   revision?: number;
+  /** What the request cost and what is left. Absent when credits are not being charged. */
+  credits?: { charged: number; remaining: number };
 }
 
 export interface ProjectAssetSummary {
