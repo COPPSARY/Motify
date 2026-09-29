@@ -212,9 +212,11 @@
   text-align: left;
 }
 
-.code-editor-scope .me-timeline-row:hover,
-.code-editor-scope .me-timeline-row.me-selected {
+.code-editor-scope .me-timeline-row:hover {
   background: #151719;
+}
+.code-editor-scope .me-timeline-row.me-selected {
+  background: #1a1d20;
 }
 
 .code-editor-scope .me-timeline-row.me-selected .me-track-label {
@@ -733,6 +735,11 @@
 .code-editor-scope .me-trim-handle:focus-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+.code-editor-scope .me-element-clip:hover {
+  border-color: #91e8ca;
+  background: #3d4548;
 }
 
 .code-editor-scope .me-element-clip.me-selected-clip {
