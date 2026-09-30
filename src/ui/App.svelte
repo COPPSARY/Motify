@@ -47,7 +47,11 @@
     generateWithDirectAi,
     type DirectAiResult,
   } from "../ai/direct-ai";
-  import { ProjectsApi, type AudioTrack } from "../cloud/projects-api";
+  import {
+    ProjectsApi,
+    type AudioTrack,
+    type BillingPlanId,
+  } from "../cloud/projects-api";
   import {
     userEditedIds,
     type GenerationPlanMemory,
@@ -329,6 +333,7 @@
   let authDialogMode: "signin" | "signup" = "signin";
   let promptHeldForAuth = "";
   let workspaceId = "";
+  let activePlan: BillingPlanId | null = null;
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -445,6 +450,7 @@
         if (user) {
           identifyAnalyticsUser(user);
           void refreshCredits();
+          void refreshActivePlan();
         }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
@@ -2181,6 +2187,7 @@
     identifyAnalyticsUser(user);
     void refreshCredits();
     await cloudProjects?.refreshSession();
+    void refreshActivePlan();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
     if (held) {
@@ -2206,6 +2213,7 @@
       // editor is concerned.
     }
     currentUser = null;
+    activePlan = null;
     resetCredits();
     await cloudProjects?.refreshSession();
     showNotice("Signed out of Motify.");
@@ -2479,8 +2487,25 @@
 
   function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
     workspaceId = event.detail.workspaceId;
+    void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
+  }
+
+  async function refreshActivePlan(): Promise<void> {
+    if (!currentUser || !workspaceId) {
+      activePlan = null;
+      return;
+    }
+    try {
+      const subscription = await musicApi.getSubscription(workspaceId);
+      activePlan =
+        subscription.status === "active" && subscription.plan
+          ? subscription.plan
+          : null;
+    } catch {
+      activePlan = null;
+    }
   }
 
   async function saveSource(): Promise<void> {
@@ -3348,6 +3373,14 @@
                     >
                     <span>{currentUser.displayName || currentUser.email}</span>
                   </button>
+                  {#if activePlan}
+                    <span
+                      class="account-plan-badge"
+                      title={`${activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} plan active`}
+                    >
+                      {activePlan}
+                    </span>
+                  {/if}
                   <CreditsBadge />
                 </div>
               {:else}

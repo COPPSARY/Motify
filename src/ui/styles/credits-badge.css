@@ -8,6 +8,20 @@
   gap: 8px;
 }
 
+.code-editor-scope .account-plan-badge {
+  flex: none;
+  padding: 3px 7px;
+  border: 1px solid rgba(124, 247, 197, 0.32);
+  border-radius: 999px;
+  background: rgba(124, 247, 197, 0.08);
+  color: #7cf7c5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 /* Static, so the popover positions against the sticky header and spans the panel. */
 .code-editor-scope .credits-badge {
   flex: none;

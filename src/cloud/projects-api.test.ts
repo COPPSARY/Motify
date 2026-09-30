@@ -24,6 +24,29 @@ afterEach(() => {
 });
 
 describe("ProjectsApi", () => {
+  it("loads the active subscription for a workspace", async () => {
+    const subscription = {
+      status: "active",
+      plan: "pro",
+      currentPeriodStart: "2026-09-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-10-01T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(200, { data: subscription }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").getSubscription("workspace 1"),
+    ).resolves.toEqual(subscription);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        "http://localhost:4000/v1/workspaces/workspace%201/billing/subscription",
+      ),
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
   it("keeps the session CSRF token and sends it on project mutations", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
