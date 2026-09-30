@@ -303,6 +303,18 @@ describe("App project actions", () => {
         if (url.pathname === "/v1/workspaces/workspace-1/projects") {
           return json({ data: [project] });
         }
+        if (
+          url.pathname === "/v1/workspaces/workspace-1/billing/subscription"
+        ) {
+          return json({
+            data: {
+              status: "active",
+              plan: "pro",
+              currentPeriodStart: "2026-09-01T00:00:00.000Z",
+              currentPeriodEnd: "2026-10-01T00:00:00.000Z",
+            },
+          });
+        }
         if (url.pathname === "/v1/projects/project-1") {
           return json({ data: project });
         }
@@ -328,6 +340,11 @@ describe("App project actions", () => {
 
     try {
       await tick();
+      await vi.waitFor(() => {
+        expect(
+          document.querySelector(".account-plan-badge")?.textContent?.trim(),
+        ).toBe("pro");
+      });
       const openButton = Array.from(document.querySelectorAll("button")).find(
         (button) => button.textContent?.trim() === "Open",
       );
