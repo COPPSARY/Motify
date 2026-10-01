@@ -1,6 +1,7 @@
 import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
+import type { BrandAssetRole, BrandDna, BrandResource } from "./brand-dna";
 
 export const PROJECT_SOURCE_PATHS = [
   "composition.html",
@@ -332,6 +333,52 @@ export class ProjectsApi {
     await this.ensureCsrfToken();
     return this.request<void>(
       `/v1/projects/${encodeURIComponent(projectId)}/audio/${encodeURIComponent(trackId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  getBrand(workspaceId: string) {
+    return this.request<BrandResource>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand`,
+    );
+  }
+
+  /** Replaces the brand document against the revision it was read at. */
+  async saveBrand(workspaceId: string, revision: number, dna: BrandDna) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand`,
+      { method: "PUT", body: { revision, dna } },
+    );
+  }
+
+  async addBrandAsset(
+    workspaceId: string,
+    input: { assetId: string; role: BrandAssetRole; label?: string | null },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateBrandAsset(
+    workspaceId: string,
+    assetId: string,
+    input: { role?: BrandAssetRole; label?: string | null },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets/${encodeURIComponent(assetId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async removeBrandAsset(workspaceId: string, assetId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets/${encodeURIComponent(assetId)}`,
       { method: "DELETE" },
     );
   }
