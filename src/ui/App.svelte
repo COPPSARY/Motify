@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import type { AppMode } from "../app/mode";
+  import { BRAND_ROUTE } from "../app/routes";
   import { currentMotionlyUser, signOut } from "../auth";
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
@@ -15,6 +16,7 @@
   import {
     ArrowLeft,
     Braces,
+    Dna,
     Download,
     Eye,
     EyeOff,
@@ -2680,6 +2682,14 @@
                     ><X size={16} /></button
                   >
                 {:else}
+                  <!-- A new tab, so an unsaved film is never left behind. -->
+                  <a
+                    class="me-ghost-icon-btn me-tooltip"
+                    href={BRAND_ROUTE}
+                    target="_blank"
+                    aria-label="Open Brand DNA"
+                    data-tooltip="Brand DNA"><Dna size={16} /></a
+                  >
                   <button
                     class="me-ghost-icon-btn me-tooltip"
                     aria-label="Start a new blank project"

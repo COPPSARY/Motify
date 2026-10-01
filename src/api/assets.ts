@@ -7,24 +7,14 @@ const MOTIFY_ASSET_TOKEN =
 export async function hydrateCloudAssetTokens(
   source: string,
 ): Promise<{ source: string; objectUrls: string[] }> {
-  const assetIds = [...source.matchAll(MOTIFY_ASSET_TOKEN)].map(
-    (match) => match[1],
+  const assetIds = [...source.matchAll(MOTIFY_ASSET_TOKEN)].flatMap((match) =>
+    match[1] ? [match[1]] : [],
   );
   let hydrated = source;
   const objectUrls: string[] = [];
 
   for (const assetId of new Set(assetIds)) {
-    const accessResponse = await fetchApi(`/v1/assets/${assetId}/access`);
-    const { data } = (await accessResponse.json()) as {
-      data: { url: string };
-    };
-    const imageResponse = /^https?:\/\//i.test(data.url)
-      ? await fetch(data.url)
-      : await fetchApi(data.url);
-    if (!imageResponse.ok) {
-      throw new Error(`Asset download failed: ${imageResponse.status}`);
-    }
-    const objectUrl = URL.createObjectURL(await imageResponse.blob());
+    const objectUrl = await loadAssetObjectUrl(assetId);
     objectUrls.push(objectUrl);
     hydrated = hydrated.replaceAll(`motify-asset://${assetId}`, objectUrl);
   }
@@ -34,6 +24,25 @@ export async function hydrateCloudAssetTokens(
     source: audio.source,
     objectUrls: [...objectUrls, ...audio.objectUrls],
   };
+}
+
+/**
+ * Downloads a stored asset into an object URL the page owns. Storage may hand
+ * back a signed URL or an API path behind the session cookie, so an <img> can
+ * not always point at it directly. The caller revokes the URL.
+ */
+export async function loadAssetObjectUrl(assetId: string): Promise<string> {
+  const accessResponse = await fetchApi(`/v1/assets/${assetId}/access`);
+  const { data } = (await accessResponse.json()) as {
+    data: { url: string };
+  };
+  const imageResponse = /^https?:\/\//i.test(data.url)
+    ? await fetch(data.url)
+    : await fetchApi(data.url);
+  if (!imageResponse.ok) {
+    throw new Error(`Asset download failed: ${imageResponse.status}`);
+  }
+  return URL.createObjectURL(await imageResponse.blob());
 }
 
 export async function uploadAsset(
