@@ -27,6 +27,15 @@ export interface WorkspaceSummary {
   role: "owner" | "editor" | "viewer";
 }
 
+export type BillingPlanId = "starter" | "pro" | "studio";
+
+export interface WorkspaceSubscription {
+  status: "none" | "active" | "expired";
+  plan: BillingPlanId | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+}
+
 export interface ProjectSummary {
   id: string;
   workspaceId: string;
@@ -66,6 +75,8 @@ export interface MotionMessageResult {
   response: string;
   projectId?: string;
   revision?: number;
+  /** What the request cost and what is left. Absent when credits are not being charged. */
+  credits?: { charged: number; remaining: number };
 }
 
 export interface ProjectAssetSummary {
@@ -145,6 +156,12 @@ export class ProjectsApi {
 
   listWorkspaces() {
     return this.request<WorkspaceSummary[]>("/v1/workspaces");
+  }
+
+  getSubscription(workspaceId: string) {
+    return this.request<WorkspaceSubscription>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/billing/subscription`,
+    );
   }
 
   listProjects(workspaceId: string) {

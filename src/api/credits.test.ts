@@ -1,0 +1,186 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  estimateMessageCredits,
+  fetchCreditHistory,
+  fetchCreditSnapshot,
+  formatCreditChange,
+  formatCredits,
+  insufficientCreditsMessage,
+} from "./credits";
+
+function respond(body: unknown, status = 200) {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("credit API", () => {
+  it("reads the balance with a GET to /v1/credits and nothing else", async () => {
+    const fetchMock = respond({ data: { balance: 50 } });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchCreditSnapshot()).resolves.toEqual({
+      balance: 50,
+      estimate: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/v1\/credits$/);
+    expect(init.method ?? "GET").toBe("GET");
+    expect(init.body).toBeUndefined();
+    expect(init.credentials).toBe("include");
+  });
+
+  it("reads the pre-send cost estimate when the deployment sends one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({
+        data: { balance: 50, estimate: { typical: 10, min: 0.5, max: 30 } },
+      }),
+    );
+    await expect(fetchCreditSnapshot()).resolves.toEqual({
+      balance: 50,
+      estimate: { typical: 10, min: 0.5, max: 30 },
+    });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["not an object", "typical"],
+    ["missing a field", { typical: 10, min: 0.5 }],
+    ["a field that is not a number", { typical: "10", min: 0.5, max: 30 }],
+  ])(
+    "ignores an estimate that is %s, rather than showing it",
+    async (_name, estimate) => {
+      vi.stubGlobal("fetch", respond({ data: { balance: 50, estimate } }));
+      await expect(fetchCreditSnapshot()).resolves.toEqual({
+        balance: 50,
+        estimate: null,
+      });
+    },
+  );
+
+  it.each([
+    ["missing", { data: {} }],
+    ["a string", { data: { balance: "50" } }],
+    ["negative", { data: { balance: -1 } }],
+    ["not finite", { data: { balance: null } }],
+    ["no data", {}],
+  ])(
+    "refuses a balance that is %s rather than showing it",
+    async (_name, body) => {
+      vi.stubGlobal("fetch", respond(body));
+      await expect(fetchCreditSnapshot()).rejects.toThrow(/not understood/);
+    },
+  );
+
+  it("surfaces a rejected request as an error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({ error: { message: "Authentication is required." } }, 401),
+    );
+    await expect(fetchCreditSnapshot()).rejects.toThrow(
+      "Authentication is required.",
+    );
+  });
+
+  it("pages history and passes the cursor through untouched", async () => {
+    const fetchMock = respond({
+      data: {
+        entries: [
+          {
+            id: "a",
+            kind: "SIGNUP_GRANT",
+            amount: 50,
+            description: "Welcome credits",
+            createdAt: "2026-09-28T00:00:00.000Z",
+          },
+          { id: 5, amount: "x" },
+        ],
+        nextCursor: "abc",
+      },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const page = await fetchCreditHistory("prev+/=");
+    expect(page.entries).toHaveLength(1);
+    expect(page.nextCursor).toBe("abc");
+    const url = (fetchMock.mock.calls[0] as [string])[0];
+    expect(url).toContain("limit=20");
+    expect(url).toContain("cursor=prev%2B%2F%3D");
+  });
+});
+
+describe("formatCredits", () => {
+  it.each([
+    [50, "50"],
+    [0, "0"],
+    [9.5, "9.5"],
+    [3.37, "3.3"],
+    [3.4, "3.4"],
+    [0.99, "0.9"],
+    [1234, "1,234"],
+    [-5, "0"],
+  ])("shows %s as %s, never rounding up", (input, expected) => {
+    expect(formatCredits(input)).toBe(expected);
+  });
+
+  it("shows the direction of a change", () => {
+    expect(formatCreditChange(50)).toBe("+50");
+    expect(formatCreditChange(-3.4)).toBe("-3.4");
+  });
+});
+
+describe("estimateMessageCredits", () => {
+  const estimate = { typical: 10, min: 0.5, max: 30 };
+
+  it("keeps the server's typical cost for a message near the reference length", () => {
+    expect(estimateMessageCredits(estimate, 60)).toBe(10);
+  });
+
+  it("grows as the message gets longer", () => {
+    const short = estimateMessageCredits(estimate, 60);
+    const long = estimateMessageCredits(estimate, 240);
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("shrinks for a short message, but not below the server's floor", () => {
+    expect(estimateMessageCredits(estimate, 1)).toBeCloseTo(5, 5);
+    expect(estimateMessageCredits({ ...estimate, typical: 0.6 }, 1)).toBe(0.5);
+  });
+
+  it("never exceeds the server's ceiling, however long the message", () => {
+    // 2.5x length-scaling alone caps at 25 here; a deployment whose typical
+    // cost is closer to the ceiling is what actually exercises the clamp.
+    expect(
+      estimateMessageCredits({ typical: 13, min: 0.5, max: 30 }, 100_000),
+    ).toBe(30);
+  });
+});
+
+describe("insufficientCreditsMessage", () => {
+  it("says what is left, rounded down", () => {
+    expect(insufficientCreditsMessage({ balance: 0.29, required: 0.5 })).toBe(
+      "You don't have enough credits for this request. You have 0.2 left.",
+    );
+    expect(insufficientCreditsMessage({ balance: 0 })).toContain(
+      "You have 0 left.",
+    );
+  });
+
+  it("still makes sense without a usable balance", () => {
+    for (const details of [undefined, {}, { balance: "lots" }]) {
+      expect(insufficientCreditsMessage(details)).toBe(
+        "You don't have enough credits for this request.",
+      );
+    }
+  });
+});

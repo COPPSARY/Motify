@@ -4,6 +4,14 @@
   import { currentMotionlyUser, signOut } from "../auth";
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
+  import CreditsBadge from "./cloud/CreditsBadge.svelte";
+  import { get } from "svelte/store";
+  import { formatCredits } from "../api/credits";
+  import {
+    lastCreditCharge,
+    refreshCredits,
+    resetCredits,
+  } from "../stores/credits";
   import {
     ArrowLeft,
     Braces,
@@ -39,7 +47,11 @@
     generateWithDirectAi,
     type DirectAiResult,
   } from "../ai/direct-ai";
-  import { ProjectsApi, type AudioTrack } from "../cloud/projects-api";
+  import {
+    ProjectsApi,
+    type AudioTrack,
+    type BillingPlanId,
+  } from "../cloud/projects-api";
   import {
     userEditedIds,
     type GenerationPlanMemory,
@@ -162,6 +174,7 @@
   import "./styles/editor-theme.css";
   import "./styles/editor-sleek.css";
   import "./styles/music-panel.css";
+  import "./styles/credits-badge.css";
 
   export let mode: AppMode = "cloud";
 
@@ -320,6 +333,7 @@
   let authDialogMode: "signin" | "signup" = "signin";
   let promptHeldForAuth = "";
   let workspaceId = "";
+  let activePlan: BillingPlanId | null = null;
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -433,7 +447,11 @@
       void currentMotionlyUser().then((user) => {
         currentUser = user;
         authChecked = true;
-        if (user) identifyAnalyticsUser(user);
+        if (user) {
+          identifyAnalyticsUser(user);
+          void refreshCredits();
+          void refreshActivePlan();
+        }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
         else if (pendingLandingPrompt) openAuthDialog("signup");
@@ -2167,7 +2185,9 @@
     currentUser = user;
     authChecked = true;
     identifyAnalyticsUser(user);
+    void refreshCredits();
     await cloudProjects?.refreshSession();
+    void refreshActivePlan();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
     if (held) {
@@ -2193,6 +2213,8 @@
       // editor is concerned.
     }
     currentUser = null;
+    activePlan = null;
+    resetCredits();
     await cloudProjects?.refreshSession();
     showNotice("Signed out of Motify.");
   }
@@ -2314,7 +2336,7 @@
         duration_ms: Math.round(performance.now() - generationStartedAt),
         reference_asset_count: sentAttachments.length,
       });
-      showNotice("Tiffy updated the composition.");
+      showNotice(withCreditCost("Tiffy updated the composition."));
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -2417,7 +2439,7 @@
         progress: 100,
         message: reply,
       });
-      showNotice("Tiffy repaired the composition.");
+      showNotice(withCreditCost("Tiffy repaired the composition."));
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
       generationStore.set({
@@ -2465,8 +2487,25 @@
 
   function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
     workspaceId = event.detail.workspaceId;
+    void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
+  }
+
+  async function refreshActivePlan(): Promise<void> {
+    if (!currentUser || !workspaceId) {
+      activePlan = null;
+      return;
+    }
+    try {
+      const subscription = await musicApi.getSubscription(workspaceId);
+      activePlan =
+        subscription.status === "active" && subscription.plan
+          ? subscription.plan
+          : null;
+    } catch {
+      activePlan = null;
+    }
   }
 
   async function saveSource(): Promise<void> {
@@ -2606,6 +2645,14 @@
     } finally {
       exporting = false;
     }
+  }
+
+  /** Adds what the request cost, when the server charged for it. */
+  function withCreditCost(message: string): string {
+    const charged = get(lastCreditCharge);
+    return charged && charged > 0
+      ? `${message} Used ${formatCredits(charged)} credits.`
+      : message;
   }
 
   function showNotice(message: string, duration = 3200): void {
@@ -3312,19 +3359,30 @@
           <div class="me-inspector-head">
             {#if mode === "cloud" && authChecked}
               {#if currentUser}
-                <button
-                  class="account-status account-status--button"
-                  title={`${currentUser.email} — sign out`}
-                  on:click={signOutOfMotify}
-                >
-                  <span class="account-avatar" aria-hidden="true"
-                    >{(currentUser.displayName || currentUser.email)
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase()}</span
+                <div class="account-cluster">
+                  <button
+                    class="account-status account-status--button"
+                    title={`${currentUser.email} — sign out`}
+                    on:click={signOutOfMotify}
                   >
-                  <span>{currentUser.displayName || currentUser.email}</span>
-                </button>
+                    <span class="account-avatar" aria-hidden="true"
+                      >{(currentUser.displayName || currentUser.email)
+                        .trim()
+                        .charAt(0)
+                        .toUpperCase()}</span
+                    >
+                    <span>{currentUser.displayName || currentUser.email}</span>
+                  </button>
+                  {#if activePlan}
+                    <span
+                      class="account-plan-badge"
+                      title={`${activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} plan active`}
+                    >
+                      {activePlan}
+                    </span>
+                  {/if}
+                  <CreditsBadge />
+                </div>
               {:else}
                 <button
                   class="account-status account-status--button account-status--signed-out"
