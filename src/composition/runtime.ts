@@ -389,6 +389,18 @@ export class CompositionRuntime {
     if (override.stroke !== undefined) element.style.stroke = override.stroke;
     if (override.fontSize !== undefined)
       element.style.fontSize = `${override.fontSize}px`;
+    if (override.fontFamily !== undefined)
+      element.style.fontFamily = override.fontFamily;
+    if (override.fontWeight !== undefined)
+      element.style.fontWeight = override.fontWeight;
+    if (override.fontStyle !== undefined)
+      element.style.fontStyle = override.fontStyle;
+    if (override.textAlign !== undefined)
+      element.style.textAlign = override.textAlign;
+    if (override.letterSpacing !== undefined)
+      element.style.letterSpacing = `${override.letterSpacing}px`;
+    if (override.lineHeight !== undefined)
+      element.style.lineHeight = `${override.lineHeight}px`;
     if (override.borderRadius !== undefined)
       element.style.borderRadius = `${override.borderRadius}px`;
     if (override.hidden !== undefined)

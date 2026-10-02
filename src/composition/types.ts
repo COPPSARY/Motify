@@ -51,6 +51,12 @@ export interface ElementOverride {
   fill?: string;
   stroke?: string;
   fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textAlign?: string;
+  letterSpacing?: number;
+  lineHeight?: number;
   borderRadius?: number;
   hidden?: boolean;
 }

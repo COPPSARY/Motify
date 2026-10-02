@@ -90,6 +90,12 @@ describe("code-first composition runtime", { timeout: 60_000 }, () => {
       color: "#ff705e",
       backgroundColor: "#17191c",
       fontSize: 118,
+      fontFamily: "Georgia, serif",
+      fontWeight: "700",
+      fontStyle: "italic",
+      textAlign: "center",
+      letterSpacing: 1.5,
+      lineHeight: 132,
       borderRadius: 8,
     });
     runtime.seek(1);
@@ -99,6 +105,12 @@ describe("code-first composition runtime", { timeout: 60_000 }, () => {
     expect(title?.style.color).toBe("rgb(255, 112, 94)");
     expect(title?.style.backgroundColor).toBe("rgb(23, 25, 28)");
     expect(title?.style.fontSize).toBe("118px");
+    expect(title?.style.fontFamily).toBe("Georgia, serif");
+    expect(title?.style.fontWeight).toBe("700");
+    expect(title?.style.fontStyle).toBe("italic");
+    expect(title?.style.textAlign).toBe("center");
+    expect(title?.style.letterSpacing).toBe("1.5px");
+    expect(title?.style.lineHeight).toBe("132px");
     expect(title?.style.borderRadius).toBe("8px");
   });
 

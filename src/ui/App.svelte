@@ -139,7 +139,7 @@
     type LocalAssetReference,
     type AssetIntent,
   } from "../stores/local-assets";
-  import { saveProjectDraft } from "../stores/project-drafts";
+  import { loadProjectDraft, saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
@@ -194,7 +194,7 @@
     attachments?: MessageAttachment[];
   }
 
-  const activeDraftKey = "active";
+  const unsavedDraftKey = "active";
 
   const textElementTags = new Set([
     "B",
@@ -366,6 +366,7 @@
               ...assistantMessages,
               { role: "assistant", text: completedMessage },
             ];
+      scheduleDraftSave();
     } else if (
       $generationStore.status === "AWAITING_APPLY" &&
       lastGenState !== "AWAITING_APPLY"
@@ -375,12 +376,14 @@
         ...assistantMessages,
         { role: "assistant", text: $generationStore.message },
       ];
+      scheduleDraftSave();
     } else if ($generationStore.error && lastGenState !== "ERROR") {
       lastGenState = "ERROR";
       assistantMessages = [
         ...assistantMessages,
         { role: "assistant", text: "Error: " + $generationStore.error },
       ];
+      scheduleDraftSave();
     }
   }
   let timelineMode: TimelineMode = "project";
@@ -571,7 +574,9 @@
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
     draftSaveTimer = setTimeout(() => {
       if (!runtime) return;
-      saveProjectDraft(activeDraftKey, {
+      const projectDraftKey =
+        cloudProject?.id || backendGenerationProjectId || unsavedDraftKey;
+      saveProjectDraft(projectDraftKey, {
         version: 1,
         updatedAt: Date.now(),
         files: { ...cloudFiles },
@@ -870,6 +875,11 @@
   ): Promise<void> {
     previewLoadSequence += 1;
     resetAssistantSession();
+    const draft = loadProjectDraft(project.id);
+    if (draft) {
+      assistantMessages = draft.messages.map((message) => ({ ...message }));
+      generationPlan = draft.plan ?? null;
+    }
     projectStyles?.remove();
     projectStyles = null;
     const hydrated = await hydrateCloudAssetTokens(
@@ -896,6 +906,7 @@
         duration: project.duration,
         scenes: project.scenes,
       }),
+      draft?.baseRevision === project.revision ? draft.editorState : undefined,
     );
   }
 
@@ -910,6 +921,25 @@
     zoom = 1;
   }
 
+  function isElementActuallyVisible(element: HTMLElement): boolean {
+    for (
+      let node: HTMLElement | null = element;
+      node && previewRoot.contains(node);
+      node = node.parentElement
+    ) {
+      const style = getComputedStyle(node);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        Number(style.opacity) <= 0.01
+      ) {
+        return false;
+      }
+      if (node === previewRoot) break;
+    }
+    return true;
+  }
+
   function updateSelectionRect(): void {
     if (!runtime || !selectedId || !previewRoot) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
@@ -920,17 +950,22 @@
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
       return;
     }
-    const style = getComputedStyle(element);
-    if (
-      style.visibility === "hidden" ||
-      style.display === "none" ||
-      Number(style.opacity) <= 0.01
-    ) {
+    if (!isElementActuallyVisible(element)) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
       return;
     }
     const rootRect = previewRoot.getBoundingClientRect();
-    const elRect = element.getBoundingClientRect();
+    let elRect = element.getBoundingClientRect();
+    // Text often owns a generous CSS line box. A DOM Range follows the
+    // rendered words so the outline reflects what the user actually clicked.
+    if (isTextEditable() && element.textContent?.trim()) {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      if (typeof range.getBoundingClientRect === "function") {
+        const textRect = range.getBoundingClientRect();
+        if (textRect.width > 0 && textRect.height > 0) elRect = textRect;
+      }
+    }
     const scale = rootRect.width / activeComposition.width;
     if (scale <= 0 || elRect.width <= 0 || elRect.height <= 0) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
@@ -975,14 +1010,6 @@
       }
       return null;
     };
-    const isVisible = (element: HTMLElement): boolean => {
-      const style = getComputedStyle(element);
-      return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        Number(style.opacity) > 0.01
-      );
-    };
     const areaRatio = (element: HTMLElement): number => {
       const rect = element.getBoundingClientRect();
       return (rect.width * rect.height) / rootArea;
@@ -997,7 +1024,11 @@
     )) {
       if (!previewRoot.contains(element)) continue;
       const editable = registeredAncestor(element);
-      if (editable && isVisible(editable) && !isBackdrop(editable)) {
+      if (
+        editable &&
+        isElementActuallyVisible(editable) &&
+        !isBackdrop(editable)
+      ) {
         return editable.dataset["motionlyId"] ?? "";
       }
     }
@@ -1006,7 +1037,8 @@
     //    innermost ones, and take the smallest.
     const boxed: HTMLElement[] = [];
     for (const element of activeRuntime.elements.values()) {
-      if (!previewRoot.contains(element) || !isVisible(element)) continue;
+      if (!previewRoot.contains(element) || !isElementActuallyVisible(element))
+        continue;
       if (isBackdrop(element)) continue;
       const rect = element.getBoundingClientRect();
       if (
@@ -1457,26 +1489,6 @@
     return normalizedColor(style[property], fallback);
   }
 
-  function isBackgroundTransparent(): boolean {
-    if (!runtime || !selectedId) return true;
-    const override = currentOverride().backgroundColor;
-    if (override === "transparent") return true;
-    if (typeof override === "string" && override.trim()) {
-      return (
-        override.trim() === "transparent" ||
-        override.trim() === "rgba(0, 0, 0, 0)"
-      );
-    }
-    const element = runtime.elements.get(selectedId);
-    if (!element) return true;
-    const bg = getComputedStyle(element).backgroundColor;
-    if (!bg || bg === "transparent") return true;
-    const rgb = /^rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)(?:\D+([\d.]+))?\s*\)$/i.exec(
-      bg,
-    );
-    return rgb !== null && rgb[4] !== undefined && Number(rgb[4]) === 0;
-  }
-
   function effectiveBackgroundColorHex(): string {
     const override = currentOverride().backgroundColor;
     if (override && override !== "transparent") {
@@ -1489,7 +1501,7 @@
   }
 
   function numericStyleValue(
-    property: "fontSize" | "borderRadius",
+    property: "fontSize" | "borderRadius" | "letterSpacing" | "lineHeight",
     fallback: number,
   ): number {
     const override = currentOverride()[property];
@@ -1500,10 +1512,34 @@
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+  function stringStyleValue(
+    property: "fontFamily" | "fontWeight" | "fontStyle" | "textAlign",
+    fallback: string,
+  ): string {
+    const override = currentOverride()[property];
+    if (typeof override === "string" && override.trim()) return override;
+    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    if (!element) return fallback;
+    return getComputedStyle(element)[property] || fallback;
+  }
+
   function setNumber(property: keyof ElementOverride, event: Event): void {
     if (!runtime || !selectedId) return;
     const patch = {
       [property]: Number((event.currentTarget as HTMLInputElement).value),
+    } as ElementOverride;
+    runtime.setOverride(selectedId, patch);
+    persistSourceOverride(selectedId, patch);
+    editorRevision += 1;
+    updateSelectionRect();
+    scheduleDraftSave();
+  }
+
+  function setString(property: keyof ElementOverride, event: Event): void {
+    if (!runtime || !selectedId) return;
+    const patch = {
+      [property]: (event.currentTarget as HTMLInputElement | HTMLSelectElement)
+        .value,
     } as ElementOverride;
     runtime.setOverride(selectedId, patch);
     persistSourceOverride(selectedId, patch);
@@ -1527,16 +1563,6 @@
     const patch = {
       [property]: (event.currentTarget as HTMLInputElement).value,
     } as ElementOverride;
-    runtime.setOverride(selectedId, patch);
-    persistSourceOverride(selectedId, patch);
-    editorRevision += 1;
-    updateSelectionRect();
-    scheduleDraftSave();
-  }
-
-  function clearBackground(): void {
-    if (!runtime || !selectedId) return;
-    const patch = { backgroundColor: "transparent" };
     runtime.setOverride(selectedId, patch);
     persistSourceOverride(selectedId, patch);
     editorRevision += 1;
@@ -2454,6 +2480,7 @@
         ...(sentAttachments.length ? { attachments: sentAttachments } : {}),
       },
     ];
+    scheduleDraftSave();
     assistantDraft = "";
     assetsInFlight = stagedAssets.length ? [...stagedAssets] : null;
     stagedAssets = [];
@@ -2705,6 +2732,18 @@
     if (merged.stroke !== undefined) element.style.stroke = merged.stroke;
     if (merged.fontSize !== undefined)
       element.style.fontSize = `${merged.fontSize}px`;
+    if (merged.fontFamily !== undefined)
+      element.style.fontFamily = merged.fontFamily;
+    if (merged.fontWeight !== undefined)
+      element.style.fontWeight = merged.fontWeight;
+    if (merged.fontStyle !== undefined)
+      element.style.fontStyle = merged.fontStyle;
+    if (merged.textAlign !== undefined)
+      element.style.textAlign = merged.textAlign;
+    if (merged.letterSpacing !== undefined)
+      element.style.letterSpacing = `${merged.letterSpacing}px`;
+    if (merged.lineHeight !== undefined)
+      element.style.lineHeight = `${merged.lineHeight}px`;
     if (merged.borderRadius !== undefined)
       element.style.borderRadius = `${merged.borderRadius}px`;
     if (merged.hidden !== undefined)
@@ -3515,18 +3554,6 @@
                       on:pointerdown={(event) =>
                         beginSelectionDrag(event, "scale")}
                     ></div>
-                    <div class="me-selection-badge">
-                      <span class="badge-label"
-                        >{selectedEditorGroup?.label ??
-                          selectedTrack()?.label ??
-                          selectedId}</span
-                      >
-                      <span class="badge-dims"
-                        >{Math.round(selectionRect.width)} × {Math.round(
-                          selectionRect.height,
-                        )}</span
-                      >
-                    </div>
                   </div>
                 {/if}
               </div>
@@ -3871,19 +3898,36 @@
                     </section>
                   {/if}
                   {#if selectedEditorGroup?.allowTransform}
-                    {#if isTextEditable() && (selectedEditorGroup?.fields.length ?? 0) === 0}
+                    {#if isTextEditable()}
                       <section class="me-inspector-section">
-                        <div class="me-section-title">Text</div>
+                        <div class="me-section-title">Typography</div>
+                        {#if (selectedEditorGroup?.fields.length ?? 0) === 0}
+                          <div class="me-field-line">
+                            <label class="me-property-label" for="property-text"
+                              >Content</label
+                            >
+                            <input
+                              id="property-text"
+                              class="me-text-input"
+                              type="text"
+                              value={editableTextValue()}
+                              on:input={setText}
+                            />
+                          </div>
+                        {/if}
                         <div class="me-field-line">
-                          <label class="me-property-label" for="property-text"
-                            >Content</label
+                          <label
+                            class="me-property-label"
+                            for="property-font-family">Font</label
                           >
                           <input
-                            id="property-text"
+                            id="property-font-family"
                             class="me-text-input"
+                            aria-label="Font family"
                             type="text"
-                            value={editableTextValue()}
-                            on:input={setText}
+                            value={stringStyleValue("fontFamily", "Inter")}
+                            on:change={(event) =>
+                              setString("fontFamily", event)}
                           />
                         </div>
                         <div class="me-field-line">
@@ -3900,6 +3944,101 @@
                               min="1"
                               value={numericStyleValue("fontSize", 16)}
                               on:input={(event) => setNumber("fontSize", event)}
+                            />
+                            <span class="me-field-suffix">px</span>
+                          </span>
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-font-weight">Weight</label
+                          >
+                          <select
+                            id="property-font-weight"
+                            class="me-text-input"
+                            aria-label="Font weight"
+                            value={stringStyleValue("fontWeight", "400")}
+                            on:change={(event) =>
+                              setString("fontWeight", event)}
+                          >
+                            <option value="300">Light</option>
+                            <option value="400">Regular</option>
+                            <option value="500">Medium</option>
+                            <option value="600">Semibold</option>
+                            <option value="700">Bold</option>
+                            <option value="800">Extra bold</option>
+                            <option value="900">Black</option>
+                          </select>
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-font-style">Style</label
+                          >
+                          <select
+                            id="property-font-style"
+                            class="me-text-input"
+                            aria-label="Font style"
+                            value={stringStyleValue("fontStyle", "normal")}
+                            on:change={(event) => setString("fontStyle", event)}
+                          >
+                            <option value="normal">Normal</option>
+                            <option value="italic">Italic</option>
+                            <option value="oblique">Oblique</option>
+                          </select>
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-text-align">Align</label
+                          >
+                          <select
+                            id="property-text-align"
+                            class="me-text-input"
+                            aria-label="Text alignment"
+                            value={stringStyleValue("textAlign", "center")}
+                            on:change={(event) => setString("textAlign", event)}
+                          >
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-letter-spacing">Tracking</label
+                          >
+                          <span class="me-field">
+                            <input
+                              id="property-letter-spacing"
+                              class="me-number-input"
+                              aria-label="Letter spacing"
+                              type="number"
+                              step="0.1"
+                              value={numericStyleValue("letterSpacing", 0)}
+                              on:input={(event) =>
+                                setNumber("letterSpacing", event)}
+                            />
+                            <span class="me-field-suffix">px</span>
+                          </span>
+                        </div>
+                        <div class="me-field-line">
+                          <label
+                            class="me-property-label"
+                            for="property-line-height">Line height</label
+                          >
+                          <span class="me-field">
+                            <input
+                              id="property-line-height"
+                              class="me-number-input"
+                              aria-label="Line height"
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={numericStyleValue("lineHeight", 16)}
+                              on:input={(event) =>
+                                setNumber("lineHeight", event)}
                             />
                             <span class="me-field-suffix">px</span>
                           </span>
@@ -3996,6 +4135,19 @@
                       <div class="me-section-title">Appearance</div>
                       {#if isSvgSelected()}
                         <label class="me-field-line">
+                          <span class="me-property-label">Fill</span>
+                          <span class="me-color-control">
+                            <input
+                              class="me-color-swatch"
+                              aria-label="Fill color"
+                              type="color"
+                              value={colorValue("fill", "#ffffff")}
+                              on:input={(event) => setColor("fill", event)}
+                            />
+                            <output>{colorValue("fill", "#ffffff")}</output>
+                          </span>
+                        </label>
+                        <label class="me-field-line">
                           <span class="me-property-label">Stroke</span>
                           <span class="me-color-control">
                             <input
@@ -4008,17 +4160,13 @@
                             <output>{colorValue("stroke", "#5eead4")}</output>
                           </span>
                         </label>
-                      {:else}
+                      {:else if isTextEditable()}
                         <label class="me-field-line">
-                          <span class="me-property-label"
-                            >{isTextEditable() ? "Text" : "Fill"}</span
-                          >
+                          <span class="me-property-label">Fill</span>
                           <span class="me-color-control">
                             <input
                               class="me-color-swatch"
-                              aria-label={isTextEditable()
-                                ? "Text color"
-                                : "Foreground color"}
+                              aria-label="Text fill color"
                               type="color"
                               value={colorValue("color", "#111318")}
                               on:input={(event) => setColor("color", event)}
@@ -4026,37 +4174,19 @@
                             <output>{colorValue("color", "#111318")}</output>
                           </span>
                         </label>
+                      {:else}
                         <div class="me-field-line">
-                          <span class="me-property-label">Background</span>
-                          <div
-                            class="me-color-control"
-                            class:me-transparent-bg={isBackgroundTransparent()}
-                          >
+                          <span class="me-property-label">Fill</span>
+                          <div class="me-color-control">
                             <input
                               class="me-color-swatch"
-                              aria-label="Background color"
+                              aria-label="Fill color"
                               type="color"
                               value={effectiveBackgroundColorHex()}
                               on:input={(event) =>
                                 setColor("backgroundColor", event)}
                             />
-                            <output
-                              >{isBackgroundTransparent()
-                                ? "None"
-                                : colorValue(
-                                    "backgroundColor",
-                                    "#17191c",
-                                  )}</output
-                            >
-                            {#if !isBackgroundTransparent()}
-                              <button
-                                class="me-color-clear"
-                                type="button"
-                                aria-label="Clear background"
-                                on:click={clearBackground}
-                                ><X size={12} /></button
-                              >
-                            {/if}
+                            <output>{effectiveBackgroundColorHex()}</output>
                           </div>
                         </div>
                         <div class="me-field-line">

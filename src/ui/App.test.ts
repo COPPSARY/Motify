@@ -2,6 +2,7 @@ import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
+import { saveProjectDraft } from "../stores/project-drafts";
 
 function json(data: unknown) {
   return new Response(JSON.stringify(data), {
@@ -123,6 +124,66 @@ describe("App project actions", () => {
         document.querySelector(".me-properties-panel")?.textContent,
       ).not.toContain("Animate");
       expect(document.body.textContent).not.toContain("PNG");
+
+      const previewRoot = document.querySelector<HTMLElement>(
+        ".composition-canvas",
+      );
+      const editableText = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-motionly-id]"),
+      ).find(
+        (element) =>
+          /^(H[1-6]|P|SPAN|STRONG|EM|SMALL|BUTTON)$/.test(element.tagName) &&
+          element.children.length === 0 &&
+          Boolean(element.textContent?.trim()) &&
+          !element.matches("[data-field]") &&
+          !element.querySelector("[data-field]"),
+      );
+      expect(editableText).toBeDefined();
+      // The template opens at its authored zero state, where its first text
+      // entrance has not run in jsdom. Make that registered layer visible so
+      // this test can exercise the canvas hit-test and contextual inspector.
+      for (
+        let node: HTMLElement | null = editableText ?? null;
+        node && previewRoot?.contains(node);
+        node = node.parentElement
+      ) {
+        node.style.opacity = "1";
+        node.style.visibility = "visible";
+        if (getComputedStyle(node).display === "none")
+          node.style.display = "block";
+        if (node === previewRoot) break;
+      }
+      Object.defineProperty(document, "elementsFromPoint", {
+        configurable: true,
+        value: vi.fn(() => (editableText ? [editableText] : [])),
+      });
+      document
+        .querySelector<HTMLElement>(".me-stage")
+        ?.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, clientX: 20, clientY: 20 }),
+        );
+      await tick();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Font family"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Font style"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Text fill color"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Background color"]',
+        ),
+      ).toBeNull();
+      expect(document.querySelector(".me-selection-badge")).toBeNull();
 
       document
         .querySelector<HTMLButtonElement>('[aria-label="Back to home"]')
@@ -261,6 +322,25 @@ describe("App project actions", () => {
         throw new Error(`Unexpected request: ${url.pathname}`);
       }),
     );
+    saveProjectDraft("project-1", {
+      version: 1,
+      updatedAt: Date.now(),
+      files: {
+        "composition.html":
+          '<template><main data-edit="stage">Opened from URL</main></template>',
+        "styles.css": "",
+        "timeline.js": "export function buildTimeline() {}",
+        "index.ts": "",
+      },
+      messages: [
+        { role: "user", text: "Keep this older prompt with the project" },
+        { role: "assistant", text: "I kept the conversation." },
+      ],
+      assets: [],
+      editorState: { elements: {}, animations: {}, tweens: {} },
+      metadata: { title: "Cloud Film", duration: 8, scenes: [] },
+      baseRevision: 1,
+    });
     window.history.replaceState({}, "", "/p/project-1");
     const target = document.createElement("div");
     document.body.append(target);
@@ -285,6 +365,10 @@ describe("App project actions", () => {
       await vi.waitFor(() => {
         expect(document.body.textContent).toContain("Opened from URL");
       });
+      expect(document.body.textContent).toContain(
+        "Keep this older prompt with the project",
+      );
+      expect(document.body.textContent).toContain("I kept the conversation.");
       expect(window.location.pathname).toBe("/p/project-1");
     } finally {
       await unmount(component);
