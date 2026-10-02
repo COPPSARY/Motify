@@ -83,6 +83,21 @@ describe("generated composition validation", () => {
     ).not.toThrow();
   });
 
+  it("rejects duplicate edit ids before they can make selection ambiguous", () => {
+    const duplicated = result(
+      `<template><main data-edit="card"><h1 data-edit="card">Duplicate owner</h1></main></template>`,
+    );
+    expect(() =>
+      validateGeneratedComposition(duplicated, {
+        prompt: "Change the card color",
+        previousHtml: `<template><main data-edit="card"></main></template>`,
+        previousDuration: 2,
+        previousScenes: scenes,
+      }),
+    ).toThrow(/duplicate data-edit IDs: card/);
+    expect(isFatalRenderFailure("duplicate data-edit IDs: card")).toBe(true);
+  });
+
   it("rejects unrelated layer deletion and ignored supplied images", () => {
     const previousHtml = `<template><div data-edit="card"></div><div data-edit="price"></div></template>`;
     expect(() =>

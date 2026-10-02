@@ -1591,6 +1591,21 @@ function editIds(source: string): Set<string> {
   );
 }
 
+function duplicateEditIds(source: string): string[] {
+  const documentNode = new DOMParser().parseFromString(source, "text/html");
+  const template = documentNode.querySelector("template");
+  const scope: ParentNode = template?.content ?? documentNode;
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const element of scope.querySelectorAll<HTMLElement>("[data-edit]")) {
+    const id = element.dataset["edit"]?.trim() ?? "";
+    if (!id) continue;
+    if (seen.has(id)) duplicates.add(id);
+    seen.add(id);
+  }
+  return [...duplicates];
+}
+
 const SCENE_ACCENTS = ["#6366f1", "#22d3ee", "#f59e0b", "#f472b6", "#34d399"];
 
 function wholeFilmScene(duration: number): SceneDefinition {
@@ -1706,7 +1721,7 @@ function normalizedScenes(
  * spent its passes, with an honest note attached.
  */
 export function isFatalRenderFailure(message: string): boolean {
-  return /renders no visible foreground|near-blank frame|passes through an empty frame|never renders visible scene content|did not author data-scene layers|duplicate scene IDs|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
+  return /renders no visible foreground|near-blank frame|passes through an empty frame|never renders visible scene content|did not author data-scene layers|duplicate scene IDs|duplicate data-edit IDs|no finite playable duration|no explicit data-edit layers|invalid composition duration|past the .{0,20}ceiling|removed layers you edited|did not use \d+ attached image|without rendering it as a visible source|does not parse|must export or define/i.test(
     message,
   );
 }
@@ -1760,6 +1775,14 @@ export function validateGeneratedComposition(
   const nextIds = editIds(result.compositionHtml);
   if (nextIds.size === 0) {
     throw new Error("AI composition has no explicit data-edit layers.");
+  }
+  const duplicateIds = duplicateEditIds(result.compositionHtml);
+  if (duplicateIds.length > 0) {
+    throw new Error(
+      `AI composition has duplicate data-edit IDs: ${duplicateIds
+        .slice(0, 8)
+        .join(", ")}. Each selectable layer needs one unique owner.`,
+    );
   }
   const droppedLayers = allowStructuralChange
     ? []

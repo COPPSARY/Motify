@@ -143,6 +143,10 @@
   import { loadProjectDraft, saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
+  import {
+    editableElementAtPoint,
+    isElementActuallyVisible,
+  } from "./selection-hit-test";
   import "./styles/editor-shell.css";
   import "./styles/content-panel.css";
   import "./styles/preview-stage.css";
@@ -922,25 +926,6 @@
     zoom = 1;
   }
 
-  function isElementActuallyVisible(element: HTMLElement): boolean {
-    for (
-      let node: HTMLElement | null = element;
-      node && previewRoot.contains(node);
-      node = node.parentElement
-    ) {
-      const style = getComputedStyle(node);
-      if (
-        style.display === "none" ||
-        style.visibility === "hidden" ||
-        Number(style.opacity) <= 0.01
-      ) {
-        return false;
-      }
-      if (node === previewRoot) break;
-    }
-    return true;
-  }
-
   function updateSelectionRect(): void {
     if (!runtime || !selectedId || !previewRoot) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
@@ -951,7 +936,7 @@
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
       return;
     }
-    if (!isElementActuallyVisible(element)) {
+    if (!isElementActuallyVisible(element, previewRoot)) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
       return;
     }
@@ -989,78 +974,19 @@
   }
 
   // Picks the layer the user actually pointed at. The topmost painted element
-  // wins; its nearest registered ancestor is the answer. Wrappers that fill the
-  // frame (film roots, camera worlds, backgrounds) are skipped so a click lands
-  // on the object under the cursor instead of the whole scene. Those layers stay
-  // selectable from the timeline's layer list.
-  function editableElementAtPoint(event: MouseEvent): string {
+  // wins; its nearest registered ancestor is the answer. Structural film roots,
+  // camera worlds, and scene wrappers are skipped so a click lands on the actual
+  // subject. Full-bleed images and giant type remain selectable.
+  function editableIdAtPoint(event: MouseEvent): string {
     if (!runtime || !previewRoot) return "";
-    const activeRuntime = runtime;
-    const rootRect = previewRoot.getBoundingClientRect();
-    const rootArea = Math.max(1, rootRect.width * rootRect.height);
-
-    const registeredAncestor = (
-      element: Element | null,
-    ): HTMLElement | null => {
-      for (
-        let node = element?.closest<HTMLElement>("[data-motionly-id]") ?? null;
-        node && previewRoot.contains(node);
-        node =
-          node.parentElement?.closest<HTMLElement>("[data-motionly-id]") ?? null
-      ) {
-        const id = node.dataset["motionlyId"] ?? "";
-        if (id && activeRuntime.elements.get(id) === node) return node;
-      }
-      return null;
-    };
-    const areaRatio = (element: HTMLElement): number => {
-      const rect = element.getBoundingClientRect();
-      return (rect.width * rect.height) / rootArea;
-    };
-    const isBackdrop = (element: HTMLElement): boolean =>
-      areaRatio(element) >= 0.85;
-
-    // 1. What is painted under the pointer, topmost first.
-    for (const element of document.elementsFromPoint(
-      event.clientX,
-      event.clientY,
-    )) {
-      if (!previewRoot.contains(element)) continue;
-      const editable = registeredAncestor(element);
-      if (
-        editable &&
-        isElementActuallyVisible(editable) &&
-        !isBackdrop(editable)
-      ) {
-        return editable.dataset["motionlyId"] ?? "";
-      }
-    }
-
-    // 2. Layers that ignore pointer events: use their boxes, keep only the
-    //    innermost ones, and take the smallest.
-    const boxed: HTMLElement[] = [];
-    for (const element of activeRuntime.elements.values()) {
-      if (!previewRoot.contains(element) || !isElementActuallyVisible(element))
-        continue;
-      if (isBackdrop(element)) continue;
-      const rect = element.getBoundingClientRect();
-      if (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom
-      ) {
-        boxed.push(element);
-      }
-    }
-    const innermost = boxed.filter(
-      (element) =>
-        !boxed.some((other) => other !== element && element.contains(other)),
+    return (
+      editableElementAtPoint({
+        root: previewRoot,
+        elements: runtime.elements,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      })?.dataset["motionlyId"] ?? ""
     );
-    innermost.sort((a, b) => areaRatio(a) - areaRatio(b));
-    return innermost[0]?.dataset["motionlyId"] ?? "";
   }
 
   function selectFromPreview(event: MouseEvent): void {
@@ -1070,7 +996,7 @@
     ) {
       return;
     }
-    const hitId = editableElementAtPoint(event);
+    const hitId = editableIdAtPoint(event);
     if (!hitId) {
       selectedId = "";
       selectedEditorGroup = null;
@@ -2821,9 +2747,7 @@
       element.style.opacity = String(merged.opacity);
     if (merged.color !== undefined) {
       textTarget.style.color = merged.color;
-      if (textTarget.style.webkitTextFillColor) {
-        textTarget.style.webkitTextFillColor = merged.color;
-      }
+      textTarget.style.webkitTextFillColor = merged.color;
     }
     if (merged.backgroundColor !== undefined) {
       element.style.backgroundColor = merged.backgroundColor;
