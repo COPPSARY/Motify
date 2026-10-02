@@ -389,6 +389,38 @@ export const FILM_SHAPES: Readonly<Record<FilmShape, FilmShapeDefinition>> = {
 };
 
 /**
+ * A short request whose authored subject is the supplied copy itself. These
+ * prompts rarely use motion-design vocabulary; users naturally say "make an
+ * animation saying Hi" or "animate the words Ship it". Treating that wording
+ * as an unspecified SaaS transformation is what made the generator invent a
+ * product, a dashboard, and several unrelated scenes.
+ */
+const SIMPLE_TEXT_ANIMATION =
+  /\b(?:(?:text\s+)?(?:animation|aimation)\s+(?:saying|that says|with (?:the )?(?:text|words?|copy))|animat(?:e|ed|ing)\s+(?:the\s+)?(?:text|words?|phrase|title|greeting)|(?:text|word|phrase|title|greeting)\s+animation)\b/i;
+
+export function isSimpleTextAnimation(userPrompt: string): boolean {
+  return SIMPLE_TEXT_ANIMATION.test(userPrompt);
+}
+
+/**
+ * Direction planning needs an explicit runtime even when the user omits one.
+ * A single text thought gets a compact reading beat; richer requests retain
+ * the established 20-second default. Explicit user timing always wins.
+ */
+export function inferFilmDuration(userPrompt: string): number {
+  const explicit = /\b(\d+(?:\.\d+)?)\s*-?\s*(?:seconds?|secs?|s)\b/i.exec(
+    userPrompt,
+  );
+  if (explicit?.[1]) {
+    const seconds = Number(explicit[1]);
+    if (Number.isFinite(seconds) && seconds > 0 && seconds <= 60) {
+      return seconds;
+    }
+  }
+  return isSimpleTextAnimation(userPrompt) ? 5 : 20;
+}
+
+/**
  * Signals per shape, strongest first. `task` sits last on purpose: it used to be
  * the unconditional default, and defaulting to it is what produced a dashboard
  * for every request. It now has to be asked for.
@@ -424,6 +456,7 @@ const SHAPE_SIGNALS: ReadonlyArray<readonly [FilmShape, RegExp]> = [
  * deliberate choice a request has to make, not the fallback.
  */
 export function selectFilmShape(userPrompt: string): FilmShape {
+  if (isSimpleTextAnimation(userPrompt)) return "editorial";
   // A restriction on UI does not turn an object-led ad into typography only.
   const excludesUi =
     /\b(?:no (?:interface|ui)|without (?:an? |the )?(?:interface|ui)|do not show (?:the )?(?:interface|ui))\b/i.test(
