@@ -15,6 +15,58 @@ afterEach(() => {
 });
 
 describe("TiffyPanel uploads", () => {
+  it("lets an unsaved video choose which Brand DNA Tiffy uses", async () => {
+    const selectBrand = vi.fn();
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: {
+        assistantMessages: [],
+        assistantDraft: "",
+        composerInput: undefined as unknown as HTMLTextAreaElement,
+        activityVerb: "Working",
+        pendingAssets: [],
+        classifiedAssets: [],
+        stagedPreviews: {},
+        uploadingMedia: false,
+        uploadProgress: 0,
+        uploadPreview: null,
+        uploadName: "",
+        isErrorMessage: () => false,
+        handleFixError: async () => undefined,
+        classifyStagedAsset: () => undefined,
+        removeStagedAsset: () => undefined,
+        submitAssistant: async () => undefined,
+        resizeComposer: () => undefined,
+        composerKeydown: () => undefined,
+        handlePaste: async () => undefined,
+        onAttach: () => undefined,
+        brandChoices: [
+          { workspaceId: "acme", name: "Acme", configured: true },
+          { workspaceId: "north", name: "Northstar", configured: true },
+        ],
+        selectedBrandWorkspaceId: "acme",
+        onSelectBrand: selectBrand,
+      } as never,
+    });
+
+    try {
+      const picker = document.querySelector<HTMLSelectElement>(
+        "#tiffy-brand-choice",
+      );
+      expect(picker?.value).toBe("acme");
+      if (picker) {
+        picker.value = "north";
+        picker.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      await tick();
+      expect(selectBrand).toHaveBeenCalledWith("north");
+    } finally {
+      await unmount(component);
+    }
+  });
+
   it("shows the selected file thumbnail while it is uploading", async () => {
     const target = document.createElement("div");
     document.body.append(target);

@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYREGULAR.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYMEDIUM.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYBOLD.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 700 800;
+  font-display: swap;
+}
+
 /*
  * Sleek black editor shell.
  *
@@ -18,9 +42,12 @@
   --sl-text-soft: #b4b4b4;
   --sl-muted: #858585;
   --sl-faint: #555555;
-  --sl-accent: #1a8cff;
-  --sl-accent-hover: #3a9dff;
-  --sl-accent-soft: rgba(26, 140, 255, 0.14);
+  --sl-accent: #c7c7cc;
+  --sl-accent-hover: #dedee2;
+  --sl-accent-soft: rgba(199, 199, 204, 0.12);
+  --sl-accent-ink: #111113;
+  --sl-brand-signal: #7cf7c5;
+  --sl-brand-signal-soft: rgba(124, 247, 197, 0.1);
   --sl-radius: 8px;
   --sl-row: 52px;
   background: var(--sl-bg);
@@ -43,6 +70,15 @@
   height: 100%;
   background: var(--sl-bg);
   color: var(--sl-text);
+  font-family:
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 .code-editor-scope .me-workbench {
@@ -90,7 +126,7 @@
 .code-editor-scope .brand h1 {
   margin: 0;
   color: var(--sl-text);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -101,6 +137,14 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
+}
+
+.code-editor-scope .me-sidebar-brand-mark {
+  background: var(--sl-brand-signal-soft);
+  color: var(--sl-brand-signal);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .code-editor-scope .brand .logo {
@@ -153,8 +197,9 @@
 .code-editor-scope .me-panel-header .me-panel-title {
   margin: 0 0 0 4px;
   color: var(--sl-text);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
   text-transform: none;
 }
 
@@ -165,14 +210,16 @@
 
 .code-editor-scope .me-panel-tab,
 .code-editor-scope .me-inspector-tab {
-  height: 30px;
+  height: 34px;
   padding: 0 12px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--sl-muted);
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 1.35;
   cursor: pointer;
   transition:
     background-color 0.14s ease,
@@ -193,13 +240,15 @@
 }
 
 .code-editor-scope .me-import-header-btn {
-  height: 30px;
+  height: 34px;
   border: 0;
   border-radius: 7px;
   background: var(--sl-surface);
   color: var(--sl-text-soft);
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1.35;
 }
 
 .code-editor-scope .me-import-header-btn:hover {
@@ -213,11 +262,380 @@
   scrollbar-color: #2a2a2a transparent;
 }
 
+/* ----------------------------------------------------- organized navigation */
+
+.code-editor-scope .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.code-editor-scope .me-sidebar-home {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px 10px;
+  background: var(--sl-panel);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  transition: opacity 0.15s ease;
+}
+
+.code-editor-scope .me-sidebar-home-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.code-editor-scope .me-sidebar-tool {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--sl-panel);
+  transition: opacity 0.15s ease;
+}
+
+.code-editor-scope .me-sidebar-tool-open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.code-editor-scope .me-tool-header {
+  flex: 0 0 var(--sl-row);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sl-border);
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .me-tool-back {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.code-editor-scope .me-tool-back:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-tool-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sl-text);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.code-editor-scope .me-tool-title svg {
+  flex: none;
+  color: var(--sl-accent);
+}
+
+.code-editor-scope .me-tool-title strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-creation-tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--sl-border);
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .me-creation-tabs button {
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-creation-tabs button:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text-soft);
+}
+
+.code-editor-scope .me-creation-tabs button.me-active {
+  background: var(--sl-surface-active);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-creation-tabs button.me-active svg {
+  color: var(--sl-brand-signal);
+}
+
+.code-editor-scope .me-sidebar-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0;
+}
+
+.code-editor-scope .me-sidebar-link,
+.code-editor-scope .me-sidebar-new,
+.code-editor-scope .me-sidebar-recent,
+.code-editor-scope .me-sidebar-profile,
+.code-editor-scope .me-sidebar-signin,
+.code-editor-scope .me-sidebar-upgrade {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-sidebar-link,
+.code-editor-scope .me-sidebar-new {
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.code-editor-scope .me-sidebar-link svg,
+.code-editor-scope .me-sidebar-new svg,
+.code-editor-scope .me-sidebar-recent svg {
+  flex: none;
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .me-sidebar-link:hover,
+.code-editor-scope .me-sidebar-link.me-active {
+  background: var(--sl-surface-active);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-sidebar-link.me-active svg {
+  color: var(--sl-accent-hover);
+}
+
+.code-editor-scope .me-sidebar-new {
+  justify-content: center;
+  margin-bottom: 5px;
+  background: var(--sl-accent);
+  color: var(--sl-accent-ink);
+  font-weight: 600;
+}
+
+.code-editor-scope .me-sidebar-new svg {
+  color: currentColor;
+}
+
+.code-editor-scope .me-sidebar-new:hover:not(:disabled) {
+  background: var(--sl-accent-hover);
+}
+
+.code-editor-scope .me-sidebar-link:disabled,
+.code-editor-scope .me-sidebar-new:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.code-editor-scope .me-sidebar-recents {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 22px;
+  overflow: hidden;
+}
+
+.code-editor-scope .me-sidebar-recents h2 {
+  margin: 0 10px 7px;
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.code-editor-scope .me-sidebar-recent-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.code-editor-scope .me-sidebar-recent-list p {
+  margin: 7px 10px;
+  color: var(--sl-faint);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .me-sidebar-recent {
+  width: 100%;
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.code-editor-scope .me-sidebar-recent span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-sidebar-recent:hover,
+.code-editor-scope .me-sidebar-recent.me-current {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-sidebar-account {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sl-border);
+}
+
+.code-editor-scope .me-sidebar-account-row,
+.code-editor-scope .me-sidebar-profile {
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 9px;
+  color: var(--sl-text-soft);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.code-editor-scope .me-sidebar-account-row > span:nth-child(2) {
+  flex: 1;
+}
+
+.code-editor-scope .me-sidebar-account-row small {
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.code-editor-scope .me-sidebar-account-row .credits-trigger {
+  height: 25px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-sidebar-profile {
+  width: 100%;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+}
+
+.code-editor-scope .me-sidebar-profile > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-sidebar-profile:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-sidebar-signin,
+.code-editor-scope .me-sidebar-upgrade {
+  min-height: 38px;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-sidebar-signin {
+  background: var(--sl-surface);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-sidebar-upgrade {
+  margin-top: 4px;
+  background: var(--sl-accent);
+  color: var(--sl-accent-ink);
+}
+
+.code-editor-scope .me-sidebar-upgrade:hover {
+  background: var(--sl-accent-hover);
+}
+
 .code-editor-scope .me-category-title {
   margin: 0 2px 12px;
   color: var(--sl-text);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -246,15 +664,20 @@
 .code-editor-scope .me-preset-name {
   display: block;
   color: var(--sl-text);
-  font-size: 12.5px;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 1.35;
   text-align: left;
 }
 
 .code-editor-scope .me-preset-info small {
   margin-top: 3px;
   color: var(--sl-muted);
-  font-size: 11px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .code-editor-scope .panel-copy {
@@ -280,6 +703,10 @@
   border-bottom: 1px solid var(--sl-border);
 }
 
+.code-editor-scope .ai-chat-header svg {
+  color: var(--sl-accent-hover);
+}
+
 .code-editor-scope .ai-chat-identity {
   display: inline-flex;
   align-items: center;
@@ -288,16 +715,16 @@
 
 .code-editor-scope .ai-chat-identity strong {
   color: var(--sl-text);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.35;
 }
 
 .code-editor-scope .ai-chat-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--sl-muted);
-  font-size: 11px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
 }
 
 .code-editor-scope .ai-chat-state::before {
@@ -305,12 +732,77 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #3ecf8e;
+  background: color-mix(in srgb, var(--sl-brand-signal) 68%, #77787e);
 }
 
 .code-editor-scope .ai-chat-state.is-busy::before {
-  background: var(--sl-accent);
+  background: var(--sl-brand-signal);
   animation: ai-chat-activity-pulse 1.2s ease-in-out infinite;
+}
+
+.code-editor-scope .ai-brand-context {
+  min-height: 45px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--sl-border);
+  color: var(--sl-text-soft);
+}
+
+.code-editor-scope .ai-brand-context > svg {
+  color: var(--sl-accent-hover);
+}
+
+.code-editor-scope .ai-brand-context label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-brand-context select {
+  min-width: 0;
+  height: 30px;
+  padding: 0 26px 0 9px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 7px;
+  background: var(--sl-surface);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.code-editor-scope .ai-brand-context select:focus-visible {
+  border-color: var(--sl-accent);
+  outline: 2px solid color-mix(in srgb, var(--sl-accent) 24%, transparent);
+  outline-offset: 1px;
+}
+
+.code-editor-scope .ai-brand-context select:disabled {
+  color: var(--sl-text-soft);
+  opacity: 0.78;
+}
+
+.code-editor-scope .ai-brand-context button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-accent-hover);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .ai-brand-context button:hover {
+  background: var(--sl-surface-hover);
 }
 
 .code-editor-scope .ai-chat-messages {
@@ -327,7 +819,9 @@
   border-radius: 0;
   background: transparent;
   color: var(--sl-text-soft);
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.6;
 }
 
@@ -365,12 +859,13 @@
 
 .code-editor-scope .ai-chat-activity {
   color: var(--sl-muted);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .code-editor-scope .ai-chat-activity-dot {
-  background: var(--sl-accent);
-  box-shadow: 0 0 0 4px var(--sl-accent-soft);
+  background: var(--sl-brand-signal);
+  box-shadow: 0 0 0 4px var(--sl-brand-signal-soft);
 }
 
 .code-editor-scope .ai-chat-attachments {
@@ -407,7 +902,10 @@
 
 .code-editor-scope .ai-composer-input {
   color: var(--sl-text);
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .code-editor-scope .ai-composer-input::placeholder {
@@ -416,6 +914,7 @@
 
 .code-editor-scope .ai-composer-send {
   background: var(--sl-accent);
+  color: var(--sl-accent-ink);
 }
 
 .code-editor-scope .ai-composer-add:disabled,
@@ -558,7 +1057,7 @@
 .code-editor-scope .btn-primary:hover:not(:disabled) {
   border: 0;
   background: var(--sl-accent);
-  color: #fff;
+  color: var(--sl-accent-ink);
 }
 
 .code-editor-scope .btn-primary:hover:not(:disabled) {
@@ -575,8 +1074,89 @@
 /* ---------------------------------------------------------------- stage */
 
 .code-editor-scope .me-preview-container {
+  position: relative;
   flex: 1 1 auto;
   background: var(--sl-bg);
+}
+
+.code-editor-scope .me-view-controls-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.code-editor-scope .me-preview-empty .me-stage {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.code-editor-scope .me-empty-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 32px;
+  text-align: center;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
+.code-editor-scope .me-empty-editor__mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 15px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 14px;
+  background: var(--sl-surface);
+  color: var(--sl-brand-signal);
+  box-shadow: 0 0 0 5px var(--sl-brand-signal-soft);
+}
+
+.code-editor-scope .me-empty-editor h2 {
+  margin: 0;
+  color: var(--sl-text);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.code-editor-scope .me-empty-editor p {
+  max-width: 380px;
+  margin: 8px 0 18px;
+  color: var(--sl-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .me-empty-editor button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--sl-accent);
+  color: var(--sl-accent-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-empty-editor button:hover {
+  background: var(--sl-accent-hover);
+}
+
+.code-editor-scope .me-scene-bar.me-no-project {
+  display: none;
 }
 
 .code-editor-scope .me-stage {
@@ -617,11 +1197,11 @@
 }
 
 .code-editor-scope .me-selection-badge .badge-label {
-  color: #fff;
+  color: var(--sl-accent-ink);
 }
 
 .code-editor-scope .me-selection-badge .badge-dims {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(5, 6, 8, 0.65);
 }
 
 /* -------------------------------------------------------------- timeline */
@@ -960,7 +1540,7 @@
 
 .code-editor-scope .me-scene-pill.me-active {
   background-color: var(--sl-accent);
-  color: #fff;
+  color: var(--sl-accent-ink);
 }
 
 .code-editor-scope .me-scene-bar__scrub {

@@ -189,6 +189,41 @@
     saveError = "";
   }
 
+  async function changeWorkspace(event: Event) {
+    const select = event.currentTarget as HTMLSelectElement;
+    const nextWorkspaceId = select.value;
+    if (!nextWorkspaceId || nextWorkspaceId === workspaceId) return;
+    if (
+      dirty &&
+      !window.confirm(
+        "You have unsaved Brand DNA changes. Switch brands and discard them?",
+      )
+    ) {
+      select.value = workspaceId;
+      return;
+    }
+    workspaceId = nextWorkspaceId;
+    state = "loading";
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", workspaceId);
+    window.history.replaceState({}, "", url);
+    try {
+      await loadBrand();
+      state = "ready";
+      current = 0;
+      thread = [];
+      reaction = "";
+      typing = false;
+      finished = false;
+      editingFromReview = false;
+      mode = resource && resource.revision > 0 ? "review" : "chat";
+      if (mode === "chat") void ask(0);
+    } catch (error) {
+      loadError = messageOf(error, "Brand DNA could not be loaded.");
+      state = "error";
+    }
+  }
+
   function applyResource(next: BrandResource) {
     resource = next;
     saved = cloneBrandDna(next.dna);
@@ -624,6 +659,16 @@
         </span>
       {/if}
     </div>
+    {#if state === "ready" && workspaces.length > 1}
+      <label class="bd-workspace-picker">
+        <span>Brand</span>
+        <select value={workspaceId} on:change={changeWorkspace}>
+          {#each workspaces as item (item.id)}
+            <option value={item.id}>{item.name}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     {#if state === "ready"}
       <div class="bd-switch" role="tablist" aria-label="View">
         <button

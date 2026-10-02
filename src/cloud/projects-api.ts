@@ -88,6 +88,23 @@ export interface ProjectAssetSummary {
   token: string | null;
 }
 
+export interface WorkspaceAsset {
+  id: string;
+  workspaceId: string;
+  state: "PENDING" | "READY" | "FAILED" | "DELETED";
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  checksum: string;
+  label: string | null;
+  tags: string[];
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  createdAt: string;
+  downloadUrl: string | null;
+}
+
 /** A song in the music library: the user's own upload or a built-in track. */
 export interface AudioTrack {
   id: string;
@@ -249,6 +266,14 @@ export class ProjectsApi {
   listProjectAssets(projectId: string) {
     return this.request<ProjectAssetSummary[]>(
       `/v1/projects/${encodeURIComponent(projectId)}/assets`,
+    );
+  }
+
+  listWorkspaceAssets(workspaceId: string, query = "") {
+    const params = new URLSearchParams({ pageSize: "100" });
+    if (query.trim()) params.set("q", query.trim());
+    return this.request<WorkspaceAsset[]>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/assets?${params}`,
     );
   }
 
