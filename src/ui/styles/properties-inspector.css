@@ -744,6 +744,46 @@
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.code-editor-scope .me-color-clear {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #7d8590;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-color-clear:hover {
+  background: #25282e;
+  color: #f0f6fc;
+}
+
+.code-editor-scope .me-add-bg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px dashed #2a2d33;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.code-editor-scope .me-add-bg-btn:hover {
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.08);
+  color: #e4e6ea;
+}
+
 /* Preset Cards */
 .code-editor-scope .me-preset-cards {
   display: grid;

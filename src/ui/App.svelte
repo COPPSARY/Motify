@@ -1451,12 +1451,26 @@
       ? editorGroupTextTarget(selectedEditorGroup)
       : null;
     if (declaredTarget) return declaredTarget;
-    if (element.dataset["motionlySplitUnit"]) return element;
-    if (element.children.length > 0) return null;
-    return selectedTrack()?.kind === "Text" ||
-      textElementTags.has(element.tagName)
-      ? element
-      : null;
+    if (
+      element.dataset["motionlySplitUnit"] ||
+      element.querySelector(".motionly-text-motion-layer, .motionly-split-item")
+    ) {
+      return element;
+    }
+    if (textElementTags.has(element.tagName)) return element;
+    const innerTextTags = element.querySelectorAll<HTMLElement>(
+      "h1, h2, h3, h4, h5, h6, p, .editorial-thought",
+    );
+    if (innerTextTags.length === 1 && innerTextTags[0]) return innerTextTags[0];
+    if (
+      !element.querySelector(
+        "div, section, article, table, ul, ol, img, svg",
+      ) &&
+      Boolean(element.textContent?.trim())
+    ) {
+      return element;
+    }
+    return selectedTrack()?.kind === "Text" ? element : null;
   }
 
   function isTextEditable(): boolean {
@@ -1491,8 +1505,13 @@
       .join("")}`;
   }
 
-  function colorValue(property: ColorProperty, fallback: string): string {
-    const override = currentOverride()[property];
+  function colorValue(
+    property: ColorProperty,
+    fallback: string,
+    _revision = editorRevision,
+  ): string {
+    void _revision;
+    const override = currentOverride(_revision)[property];
     if (typeof override === "string")
       return normalizedColor(override, fallback);
     const element =
@@ -1506,8 +1525,30 @@
     return normalizedColor(style[property], fallback);
   }
 
-  function effectiveBackgroundColorHex(): string {
-    const override = currentOverride().backgroundColor;
+  function isBackgroundTransparent(_revision = editorRevision): boolean {
+    void _revision;
+    if (!runtime || !selectedId) return true;
+    const override = currentOverride(_revision).backgroundColor;
+    if (override === "transparent") return true;
+    if (typeof override === "string" && override.trim()) {
+      return (
+        override.trim() === "transparent" ||
+        override.trim() === "rgba(0, 0, 0, 0)"
+      );
+    }
+    const element = selectedId ? runtime.elements.get(selectedId) : undefined;
+    if (!element) return true;
+    const bg = getComputedStyle(element).backgroundColor;
+    if (!bg || bg === "transparent") return true;
+    const rgb = /^rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)(?:\D+([\d.]+))?\s*\)$/i.exec(
+      bg,
+    );
+    return Boolean(rgb && rgb[4] !== undefined && Number(rgb[4]) === 0);
+  }
+
+  function effectiveBackgroundColorHex(_revision = editorRevision): string {
+    void _revision;
+    const override = currentOverride(_revision).backgroundColor;
     if (override && override !== "transparent") {
       return normalizedColor(override, "#17191c");
     }
@@ -1517,11 +1558,36 @@
     return normalizedColor(bg, "#17191c");
   }
 
+  function addBackground(): void {
+    if (!runtime || !selectedId) return;
+    const patch: ElementOverride = {
+      backgroundColor: "#17191c",
+      borderRadius: numericStyleValue("borderRadius", 8) || 8,
+    };
+    runtime.setOverride(selectedId, patch);
+    persistSourceOverride(selectedId, patch);
+    editorRevision += 1;
+    updateSelectionRect();
+    scheduleDraftSave();
+  }
+
+  function clearBackground(): void {
+    if (!runtime || !selectedId) return;
+    const patch: ElementOverride = { backgroundColor: "transparent" };
+    runtime.setOverride(selectedId, patch);
+    persistSourceOverride(selectedId, patch);
+    editorRevision += 1;
+    updateSelectionRect();
+    scheduleDraftSave();
+  }
+
   function numericStyleValue(
     property: "fontSize" | "borderRadius" | "letterSpacing" | "lineHeight",
     fallback: number,
+    _revision = editorRevision,
   ): number {
-    const override = currentOverride()[property];
+    void _revision;
+    const override = currentOverride(_revision)[property];
     if (typeof override === "number") return override;
     const element =
       property === "borderRadius"
@@ -2727,7 +2793,10 @@
     );
     const template = documentSource.querySelector("template");
     const scope: ParentNode = template?.content ?? documentSource;
-    const escapedId = CSS.escape(id);
+    const escapedId =
+      typeof globalThis.CSS?.escape === "function"
+        ? globalThis.CSS.escape(id)
+        : id.replace(/["'\\]/g, "\\$&");
     const element = scope.querySelector<HTMLElement>(
       `[data-edit="${escapedId}"], [data-motionly-id="${escapedId}"], #${escapedId}`,
     );
@@ -2750,9 +2819,18 @@
       element.style.rotate = `${merged.rotation}deg`;
     if (merged.opacity !== undefined)
       element.style.opacity = String(merged.opacity);
-    if (merged.color !== undefined) textTarget.style.color = merged.color;
-    if (merged.backgroundColor !== undefined)
+    if (merged.color !== undefined) {
+      textTarget.style.color = merged.color;
+      if (textTarget.style.webkitTextFillColor) {
+        textTarget.style.webkitTextFillColor = merged.color;
+      }
+    }
+    if (merged.backgroundColor !== undefined) {
       element.style.backgroundColor = merged.backgroundColor;
+      if (textTarget !== element && merged.backgroundColor === "transparent") {
+        textTarget.style.backgroundColor = "transparent";
+      }
+    }
     if (merged.fill !== undefined) element.style.fill = merged.fill;
     if (merged.stroke !== undefined) element.style.stroke = merged.stroke;
     if (merged.fontSize !== undefined)
@@ -4187,18 +4265,94 @@
                         </label>
                       {:else if isTextEditable()}
                         <label class="me-field-line">
-                          <span class="me-property-label">Fill</span>
+                          <span class="me-property-label">Text</span>
                           <span class="me-color-control">
                             <input
                               class="me-color-swatch"
                               aria-label="Text fill color"
                               type="color"
-                              value={colorValue("color", "#111318")}
+                              value={colorValue(
+                                "color",
+                                "#111318",
+                                editorRevision,
+                              )}
                               on:input={(event) => setColor("color", event)}
                             />
-                            <output>{colorValue("color", "#111318")}</output>
+                            <output
+                              >{colorValue(
+                                "color",
+                                "#111318",
+                                editorRevision,
+                              )}</output
+                            >
                           </span>
                         </label>
+                        {#if isBackgroundTransparent(editorRevision)}
+                          <div class="me-field-line">
+                            <span class="me-property-label">Background</span>
+                            <button
+                              class="me-add-bg-btn"
+                              type="button"
+                              aria-label="Add background"
+                              on:click={addBackground}
+                            >
+                              <Plus size={12} /> Add background
+                            </button>
+                          </div>
+                        {:else}
+                          <div class="me-field-line">
+                            <span class="me-property-label">Background</span>
+                            <div class="me-color-control">
+                              <input
+                                class="me-color-swatch"
+                                aria-label="Background color"
+                                type="color"
+                                value={effectiveBackgroundColorHex(
+                                  editorRevision,
+                                )}
+                                on:input={(event) =>
+                                  setColor("backgroundColor", event)}
+                              />
+                              <output
+                                >{effectiveBackgroundColorHex(
+                                  editorRevision,
+                                )}</output
+                              >
+                              <button
+                                class="me-color-clear"
+                                type="button"
+                                aria-label="Remove background"
+                                title="Remove background"
+                                on:click={clearBackground}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          </div>
+                          <div class="me-field-line">
+                            <label
+                              class="me-property-label"
+                              for="property-radius">Radius</label
+                            >
+                            <span class="me-field">
+                              <input
+                                id="property-radius"
+                                class="me-number-input"
+                                aria-label="Corner radius"
+                                type="number"
+                                min="0"
+                                value={numericStyleValue(
+                                  "borderRadius",
+                                  0,
+                                  editorRevision,
+                                )}
+                                on:input={(event) =>
+                                  setNumber("borderRadius", event)}
+                              />
+                              <span class="me-field-suffix">px</span>
+                            </span>
+                          </div>
+                        {/if}
                       {:else}
                         <div class="me-field-line">
                           <span class="me-property-label">Fill</span>

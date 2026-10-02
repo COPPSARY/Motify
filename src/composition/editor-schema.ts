@@ -151,6 +151,34 @@ function fallbackFields(element: HTMLElement): EditorFieldDefinition[] {
       },
     ];
   }
+  const headingOrTextChild = element.querySelectorAll<HTMLElement>(
+    "h1, h2, h3, h4, h5, h6, p, .editorial-thought, .motionly-text-motion-layer",
+  );
+  if (headingOrTextChild.length === 1 && headingOrTextChild[0]) {
+    return [
+      {
+        id: "content",
+        label: "Content",
+        type: "text",
+        binding: "text",
+        target: headingOrTextChild[0],
+      },
+    ];
+  }
+  if (
+    !element.querySelector("div, section, article, table, ul, ol, img, svg") &&
+    Boolean(element.textContent?.trim())
+  ) {
+    return [
+      {
+        id: "content",
+        label: "Content",
+        type: "text",
+        binding: "text",
+        target: element,
+      },
+    ];
+  }
   return [];
 }
 

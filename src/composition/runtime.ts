@@ -385,9 +385,21 @@ export class CompositionRuntime {
     if (override.opacity !== undefined)
       element.style.opacity = String(override.opacity);
     const textTarget = this.textStyleTarget(element);
-    if (override.color !== undefined) textTarget.style.color = override.color;
-    if (override.backgroundColor !== undefined)
+    if (override.color !== undefined) {
+      textTarget.style.color = override.color;
+      if (textTarget.style.webkitTextFillColor) {
+        textTarget.style.webkitTextFillColor = override.color;
+      }
+    }
+    if (override.backgroundColor !== undefined) {
       element.style.backgroundColor = override.backgroundColor;
+      if (
+        textTarget !== element &&
+        override.backgroundColor === "transparent"
+      ) {
+        textTarget.style.backgroundColor = "transparent";
+      }
+    }
     if (override.fill !== undefined) element.style.fill = override.fill;
     if (override.stroke !== undefined) element.style.stroke = override.stroke;
     if (override.fontSize !== undefined)

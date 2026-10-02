@@ -183,6 +183,39 @@ describe("App project actions", () => {
           '.me-properties-panel [aria-label="Background color"]',
         ),
       ).toBeNull();
+      const addBgBtn = document.querySelector<HTMLButtonElement>(
+        '.me-properties-panel [aria-label="Add background"]',
+      );
+      expect(addBgBtn).not.toBeNull();
+      addBgBtn?.click();
+      await tick();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Background color"]',
+        ),
+      ).not.toBeNull();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Corner radius"]',
+        ),
+      ).not.toBeNull();
+
+      const removeBgBtn = document.querySelector<HTMLButtonElement>(
+        '.me-properties-panel [aria-label="Remove background"]',
+      );
+      expect(removeBgBtn).not.toBeNull();
+      removeBgBtn?.click();
+      await tick();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Background color"]',
+        ),
+      ).toBeNull();
+      expect(
+        document.querySelector(
+          '.me-properties-panel [aria-label="Add background"]',
+        ),
+      ).not.toBeNull();
       expect(document.querySelector(".me-selection-badge")).toBeNull();
 
       document
