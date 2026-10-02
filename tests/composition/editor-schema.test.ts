@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEditorField,
+  editorGroupTextTarget,
   editorFieldValue,
   readEditorGroup,
 } from "../../src/composition/editor-schema";
@@ -39,6 +40,20 @@ describe("editor schema", () => {
     applyEditorField(field, "$59.99");
     expect(editorFieldValue(field)).toBe("$59.99");
     expect(group.querySelector(".feature")?.textContent).toBe("100% recycled");
+  });
+
+  it("identifies the nested content node as a text-only group's style target", () => {
+    const group = document.createElement("div");
+    group.dataset.edit = "greetingText";
+    group.dataset.editAppearance = "true";
+    group.innerHTML =
+      '<span data-field="content" data-field-type="text">Hi.</span>';
+
+    const schema = readEditorGroup("greetingText", group);
+
+    expect(editorGroupTextTarget(schema)).toBe(
+      group.querySelector('[data-field="content"]'),
+    );
   });
 
   it("falls back conservatively for legacy image elements", () => {

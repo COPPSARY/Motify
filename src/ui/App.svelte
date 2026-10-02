@@ -61,6 +61,7 @@
   import { createGeneratedAdapterSource } from "../composition/generated-adapter";
   import {
     applyEditorField,
+    editorGroupTextTarget,
     editorFieldValue,
     readEditorGroup,
   } from "../composition/editor-schema";
@@ -955,12 +956,14 @@
       return;
     }
     const rootRect = previewRoot.getBoundingClientRect();
-    let elRect = element.getBoundingClientRect();
+    const textTarget = selectedTextTarget();
+    const boundsElement = textTarget ?? element;
+    let elRect = boundsElement.getBoundingClientRect();
     // Text often owns a generous CSS line box. A DOM Range follows the
     // rendered words so the outline reflects what the user actually clicked.
-    if (isTextEditable() && element.textContent?.trim()) {
+    if (textTarget?.textContent?.trim()) {
       const range = document.createRange();
-      range.selectNodeContents(element);
+      range.selectNodeContents(textTarget);
       if (typeof range.getBoundingClientRect === "function") {
         const textRect = range.getBoundingClientRect();
         if (textRect.width > 0 && textRect.height > 0) elRect = textRect;
@@ -1440,15 +1443,24 @@
     return selectedId && runtime ? runtime.getOverride(selectedId) : {};
   }
 
-  function isTextEditable(): boolean {
-    if (!runtime || !selectedId) return false;
+  function selectedTextTarget(): HTMLElement | null {
+    if (!runtime || !selectedId) return null;
     const element = runtime.elements.get(selectedId);
-    if (!element) return false;
-    if (element.dataset["motionlySplitUnit"]) return true;
-    if (element.children.length > 0) return false;
-    return (
-      selectedTrack()?.kind === "Text" || textElementTags.has(element.tagName)
-    );
+    if (!element) return null;
+    const declaredTarget = selectedEditorGroup
+      ? editorGroupTextTarget(selectedEditorGroup)
+      : null;
+    if (declaredTarget) return declaredTarget;
+    if (element.dataset["motionlySplitUnit"]) return element;
+    if (element.children.length > 0) return null;
+    return selectedTrack()?.kind === "Text" ||
+      textElementTags.has(element.tagName)
+      ? element
+      : null;
+  }
+
+  function isTextEditable(): boolean {
+    return selectedTextTarget() !== null;
   }
 
   function editableTextValue(): string {
@@ -1483,7 +1495,12 @@
     const override = currentOverride()[property];
     if (typeof override === "string")
       return normalizedColor(override, fallback);
-    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    const element =
+      property === "color"
+        ? selectedTextTarget()
+        : selectedId
+          ? runtime?.elements.get(selectedId)
+          : undefined;
     if (!element) return fallback;
     const style = getComputedStyle(element);
     return normalizedColor(style[property], fallback);
@@ -1506,7 +1523,12 @@
   ): number {
     const override = currentOverride()[property];
     if (typeof override === "number") return override;
-    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    const element =
+      property === "borderRadius"
+        ? selectedId
+          ? runtime?.elements.get(selectedId)
+          : undefined
+        : selectedTextTarget();
     if (!element) return fallback;
     const parsed = Number.parseFloat(getComputedStyle(element)[property]);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -1518,7 +1540,7 @@
   ): string {
     const override = currentOverride()[property];
     if (typeof override === "string" && override.trim()) return override;
-    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    const element = selectedTextTarget();
     if (!element) return fallback;
     return getComputedStyle(element)[property] || fallback;
   }
@@ -2711,6 +2733,9 @@
     );
     if (!element) return;
 
+    const textTarget =
+      editorGroupTextTarget(readEditorGroup(id, element)) ?? element;
+
     const merged: ElementOverride = {
       ...(runtime?.getOverride(id) ?? {}),
       ...patch,
@@ -2725,25 +2750,25 @@
       element.style.rotate = `${merged.rotation}deg`;
     if (merged.opacity !== undefined)
       element.style.opacity = String(merged.opacity);
-    if (merged.color !== undefined) element.style.color = merged.color;
+    if (merged.color !== undefined) textTarget.style.color = merged.color;
     if (merged.backgroundColor !== undefined)
       element.style.backgroundColor = merged.backgroundColor;
     if (merged.fill !== undefined) element.style.fill = merged.fill;
     if (merged.stroke !== undefined) element.style.stroke = merged.stroke;
     if (merged.fontSize !== undefined)
-      element.style.fontSize = `${merged.fontSize}px`;
+      textTarget.style.fontSize = `${merged.fontSize}px`;
     if (merged.fontFamily !== undefined)
-      element.style.fontFamily = merged.fontFamily;
+      textTarget.style.fontFamily = merged.fontFamily;
     if (merged.fontWeight !== undefined)
-      element.style.fontWeight = merged.fontWeight;
+      textTarget.style.fontWeight = merged.fontWeight;
     if (merged.fontStyle !== undefined)
-      element.style.fontStyle = merged.fontStyle;
+      textTarget.style.fontStyle = merged.fontStyle;
     if (merged.textAlign !== undefined)
-      element.style.textAlign = merged.textAlign;
+      textTarget.style.textAlign = merged.textAlign;
     if (merged.letterSpacing !== undefined)
-      element.style.letterSpacing = `${merged.letterSpacing}px`;
+      textTarget.style.letterSpacing = `${merged.letterSpacing}px`;
     if (merged.lineHeight !== undefined)
-      element.style.lineHeight = `${merged.lineHeight}px`;
+      textTarget.style.lineHeight = `${merged.lineHeight}px`;
     if (merged.borderRadius !== undefined)
       element.style.borderRadius = `${merged.borderRadius}px`;
     if (merged.hidden !== undefined)

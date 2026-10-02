@@ -8,6 +8,7 @@ import type {
   TweenDescriptor,
   TweenOverride,
 } from "./types";
+import { editorGroupTextTarget, readEditorGroup } from "./editor-schema";
 
 export type RuntimeListener = (snapshot: RuntimeSnapshot) => void;
 
@@ -23,6 +24,7 @@ export class CompositionRuntime {
   >();
   private readonly tweenOverrides = new Map<string, TweenOverride>();
   private readonly tweenIds = new WeakMap<gsap.core.Tween, string>();
+  private readonly textStyleTargets = new WeakMap<HTMLElement, HTMLElement>();
   private readonly tweenBaselines = new WeakMap<
     gsap.core.Tween,
     {
@@ -382,29 +384,39 @@ export class CompositionRuntime {
       element.style.rotate = `${override.rotation}deg`;
     if (override.opacity !== undefined)
       element.style.opacity = String(override.opacity);
-    if (override.color !== undefined) element.style.color = override.color;
+    const textTarget = this.textStyleTarget(element);
+    if (override.color !== undefined) textTarget.style.color = override.color;
     if (override.backgroundColor !== undefined)
       element.style.backgroundColor = override.backgroundColor;
     if (override.fill !== undefined) element.style.fill = override.fill;
     if (override.stroke !== undefined) element.style.stroke = override.stroke;
     if (override.fontSize !== undefined)
-      element.style.fontSize = `${override.fontSize}px`;
+      textTarget.style.fontSize = `${override.fontSize}px`;
     if (override.fontFamily !== undefined)
-      element.style.fontFamily = override.fontFamily;
+      textTarget.style.fontFamily = override.fontFamily;
     if (override.fontWeight !== undefined)
-      element.style.fontWeight = override.fontWeight;
+      textTarget.style.fontWeight = override.fontWeight;
     if (override.fontStyle !== undefined)
-      element.style.fontStyle = override.fontStyle;
+      textTarget.style.fontStyle = override.fontStyle;
     if (override.textAlign !== undefined)
-      element.style.textAlign = override.textAlign;
+      textTarget.style.textAlign = override.textAlign;
     if (override.letterSpacing !== undefined)
-      element.style.letterSpacing = `${override.letterSpacing}px`;
+      textTarget.style.letterSpacing = `${override.letterSpacing}px`;
     if (override.lineHeight !== undefined)
-      element.style.lineHeight = `${override.lineHeight}px`;
+      textTarget.style.lineHeight = `${override.lineHeight}px`;
     if (override.borderRadius !== undefined)
       element.style.borderRadius = `${override.borderRadius}px`;
     if (override.hidden !== undefined)
       element.style.visibility = override.hidden ? "hidden" : "";
+  }
+
+  private textStyleTarget(element: HTMLElement): HTMLElement {
+    const cached = this.textStyleTargets.get(element);
+    if (cached) return cached;
+    const group = readEditorGroup(element.dataset["motionlyId"] ?? "", element);
+    const target = editorGroupTextTarget(group) ?? element;
+    this.textStyleTargets.set(element, target);
+    return target;
   }
 
   private elementTweens(id: string): gsap.core.Tween[] {

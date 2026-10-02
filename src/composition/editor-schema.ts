@@ -181,6 +181,28 @@ export function readEditorGroup(
   };
 }
 
+/**
+ * Returns the one DOM node that visually owns a text-only editor group.
+ * Generated compositions commonly register a positioning wrapper while the
+ * declared Content field sits one level inside it. Typography belongs on that
+ * field target; transforms still belong on the registered wrapper.
+ */
+export function editorGroupTextTarget(
+  group: EditorGroupDefinition,
+): HTMLElement | null {
+  const textFields = group.fields.filter((field) => field.binding === "text");
+  const target = textFields[0]?.target;
+  if (!target || textFields.some((field) => field.target !== target))
+    return null;
+  const hasDifferentVisualTarget = group.fields.some(
+    (field) =>
+      field.target !== target &&
+      field.binding !== "css-variable" &&
+      field.type !== "toggle",
+  );
+  return hasDifferentVisualTarget ? null : target;
+}
+
 export function editorFieldValue(field: EditorFieldDefinition): string {
   if (field.binding === "text") {
     return (field.target.textContent ?? "").replace(/\s+/g, " ").trim();
