@@ -851,22 +851,6 @@
   border-radius: 50%;
 }
 
-.code-editor-scope .me-selection-badge {
-  border: 0;
-  border-radius: 6px;
-  background: var(--sl-accent);
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.code-editor-scope .me-selection-badge .badge-label {
-  color: var(--sl-accent-ink);
-}
-
-.code-editor-scope .me-selection-badge .badge-dims {
-  color: rgba(5, 6, 8, 0.65);
-}
-
 /* -------------------------------------------------------------- timeline */
 
 .code-editor-scope .me-timeline-panel {
@@ -1536,6 +1520,28 @@
 
 .code-editor-scope .me-color-clear:hover {
   background: var(--sl-surface-active);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-add-bg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--sl-radius);
+  border: 1px dashed var(--sl-border);
+  background: transparent;
+  color: var(--sl-text-soft);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.code-editor-scope .me-add-bg-btn:hover {
+  border-color: var(--sl-accent);
+  background: var(--sl-surface-hover);
   color: var(--sl-text);
 }
 

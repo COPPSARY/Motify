@@ -7,7 +7,7 @@ import {
   buildMotionlyUserMessage,
   buildRegistryBrief,
   buildSkillRoutingBrief,
-  QUALITY_REPAIR_THRESHOLD,
+  inferFilmDuration,
   selectBackgroundDirection,
   selectFilmShape,
   selectReferenceRoles,
@@ -314,40 +314,16 @@ describe("Motionly AI Prompt and Choreography Rules", () => {
     expect(report.score).toBeGreaterThanOrEqual(90);
   });
 
-  it("ships a compact generation foundation that passes the static gate", () => {
-    const report = analyzeMotionQuality({
-      title: "Foundation",
-      duration: 20,
-      scenes: foundationScenes,
-      direction: foundationScenes.map((scene) => ({
-        scene: scene.id,
-        composition: "Carrier-led composition",
-        spatialRegion: "Distinct camera-world region",
-        cameraStart: "Wide",
-        cameraEnd: "Focused",
-        cameraTarget: "Persistent carrier",
-        primary: "Carrier",
-        secondary: "Authentic product evidence",
-        hold: "Readable action hold",
-        transition: "Carrier morphs into the next role",
-      })),
-      techniques: foundationScenes.map((scene, index) => ({
-        beat: scene.id,
-        registryReference: "morph-swap",
-        motionlyPresets: ["morph", "wordSlideRotate"],
-        sustainedMotion: "The interaction develops during camera travel.",
-        handoff:
-          index === foundationScenes.length - 1
-            ? ("final-hold" as const)
-            : ("morph" as const),
-      })),
-      seams: foundationSeams,
-      compositionHtml: foundationHtml,
-      timelineJs: foundationTimeline,
-      reply: "Foundation ready.",
-    });
+  it("ships a neutral technical scaffold instead of an example product", () => {
     expect(foundationHtml).toContain(GENERATION_FOUNDATION_PROFILE);
-    expect(report.issues).toEqual([]);
+    expect(foundationScenes).toHaveLength(1);
+    expect(foundationSeams).toEqual([]);
+    expect(foundationHtml).not.toMatch(
+      /Northstar|sidebar|navigation|dashboard|workspace|metric|proof|product/i,
+    );
+    expect(foundationTimeline).not.toMatch(
+      /typed|cursor|prompt|morph|counter|product/i,
+    );
   });
 
   it("supports executing compositions using wordSlideRotate, morph, and cameraPush presets", () => {
@@ -724,22 +700,56 @@ describe("Product-adaptive direction and the premium quality gate", () => {
     expect(blocking).toContain("supplied media is missing");
     expect(blocking).toContain("branding leaked");
   });
+});
 
-  it("ships a sound film with refinements noted instead of burning a repair pass", () => {
+describe("simple text animation intent", () => {
+  it.each([
+    'make an animation saying "Hi"',
+    'maek an aimation saying "Hi"',
+    "create a text animation that says Welcome",
+    "animate the words Ship it",
+    "title animation for Launch day",
+  ])("routes %s to a compact editorial film", (prompt) => {
+    expect(selectFilmShape(prompt)).toBe("editorial");
+    expect(inferFilmDuration(prompt)).toBe(5);
+  });
+
+  it("keeps explicit timing and richer product requests intact", () => {
+    expect(inferFilmDuration('make a 7 second animation saying "Hi"')).toBe(7);
+    expect(inferFilmDuration('make a 7-second animation saying "Hi"')).toBe(7);
+    expect(inferFilmDuration("ad for our AI security scanner")).toBe(20);
+    expect(selectFilmShape("ad for our AI security scanner")).toBe(
+      "transformation",
+    );
+  });
+
+  it("does not report missing declaration metadata when the transport dropped it", () => {
     const report = analyzeMotionQuality({
-      title: "Foundation",
-      duration: 20,
-      scenes: foundationScenes,
-      compositionHtml: foundationHtml,
-      timelineJs: foundationTimeline,
-      reply: "Foundation ready.",
+      duration: 8,
+      qualityMetadataAvailable: false,
+      scenes: [
+        {
+          id: "scene-01",
+          label: "One",
+          start: 0,
+          duration: 4,
+          accent: "#ffffff",
+        },
+        {
+          id: "scene-02",
+          label: "Two",
+          start: 4,
+          duration: 4,
+          accent: "#ffffff",
+        },
+      ],
+      compositionHtml:
+        '<template><main data-edit="stage"><section data-edit="scene-01" data-scene="scene-01">One</section><section data-edit="scene-02" data-scene="scene-02">Two</section></main></template>',
+      timelineJs:
+        "export function buildTimeline({ timeline }) { timeline.to(sceneOne, { x: -200, duration: 1 }, 3.5); timeline.to(sceneTwo, { x: 0, duration: 1 }, 3.5); }",
+      reply: "Done",
     });
-    // Missing direction/technique plans are refinements, not broken films, and
-    // a film this sound should reach the user on the first round trip.
-    expect(report.blockingIssues).toEqual([]);
-    expect(report.issues.length).toBeGreaterThan(0);
-    expect(report.score).toBeGreaterThanOrEqual(QUALITY_REPAIR_THRESHOLD);
-    expect(report.requiresRepair).toBe(false);
+    expect(report.issues.join(" ")).not.toContain("declares no seams");
   });
 });
 
