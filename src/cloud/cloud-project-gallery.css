@@ -353,46 +353,16 @@
   overflow-y: auto;
 }
 
-.cloud-new-project-card,
 .cloud-project-card {
   min-width: 0;
 }
 
-.cloud-new-project-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.cloud-new-project-cover,
 .cloud-project-cover {
   width: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 13px;
 }
 
-.cloud-new-project-cover {
-  display: grid;
-  place-items: center;
-  border: 1px dashed #4a4f58;
-  background: #15161a;
-  color: #818792;
-}
-
-.cloud-new-project-card:hover .cloud-new-project-cover,
-.cloud-new-project-card:focus-visible .cloud-new-project-cover {
-  border-color: #c7c7cc;
-  background: #202024;
-  color: #dedee2;
-}
-
-.cloud-new-project-card:focus-visible,
 .cloud-project-cover:focus-visible,
 .cloud-project-title:focus-visible,
 .cloud-card-menu:focus-visible,
@@ -404,14 +374,6 @@
   outline-offset: 2px;
 }
 
-.cloud-card-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 3px;
-}
-
-.cloud-card-copy strong,
 .cloud-project-title strong {
   overflow: hidden;
   color: #f0f2f4;
@@ -421,7 +383,6 @@
   white-space: nowrap;
 }
 
-.cloud-card-copy small,
 .cloud-project-title small {
   color: #7e848e;
   font-size: 10px;
@@ -841,5 +802,94 @@
   .cloud-cover-open,
   .cloud-project-cover::after {
     transition: none;
+  }
+}
+
+/* As the My Videos page: no backdrop or frame, filling the page it sits in. */
+.cloud-projects-backdrop.is-page {
+  position: static;
+  z-index: auto;
+  display: block;
+  height: 100%;
+  padding: 0;
+  background: none;
+}
+
+.cloud-projects-backdrop.is-page .cloud-projects-dialog {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cloud-projects-backdrop.is-page .cloud-projects-header {
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* Placeholder cards while the workspace's videos load. */
+.cloud-gallery-skeleton {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 24px 18px;
+  padding: 12px 24px 28px;
+  pointer-events: none;
+}
+
+.cloud-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cloud-skeleton {
+  display: block;
+  border-radius: 8px;
+  background:
+    linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.06) 50%,
+        transparent 100%
+      )
+      0 0 / 200% 100% no-repeat,
+    #18191c;
+  animation: cloud-shimmer 1.4s ease-in-out infinite;
+}
+
+.cloud-skeleton-cover {
+  aspect-ratio: 16 / 9;
+  border-radius: 13px;
+}
+
+.cloud-skeleton-line {
+  width: 60%;
+  height: 12px;
+}
+
+.cloud-skeleton-line.is-short {
+  width: 30%;
+  height: 10px;
+}
+
+@keyframes cloud-shimmer {
+  from {
+    background-position:
+      150% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      -50% 0,
+      0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-skeleton {
+    animation: none;
   }
 }

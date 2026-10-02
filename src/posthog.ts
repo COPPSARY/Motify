@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 
 export type MotionlyAnalyticsEvent =
   | "ai generation completed"
@@ -20,6 +20,15 @@ export interface AnalyticsUser {
 }
 
 let analyticsEnabled = false;
+/**
+ * The client loads after the page instead of with it. Calls made before it
+ * arrives wait on this promise, so no event is lost.
+ */
+let client: Promise<PostHog> | null = null;
+
+function withClient(use: (posthog: PostHog) => void): void {
+  void client?.then(use);
+}
 
 function shouldCaptureInThisEnvironment(): boolean {
   return (
@@ -36,11 +45,14 @@ export function initPostHog(): boolean {
     string | undefined;
   if (!key || !host || !shouldCaptureInThisEnvironment()) return false;
 
-  posthog.init(key, {
-    api_host: host,
-    ui_host: "https://us.posthog.com",
-    defaults: "2026-05-30",
-    person_profiles: "identified_only",
+  client = import("posthog-js").then(({ default: posthog }) => {
+    posthog.init(key, {
+      api_host: host,
+      ui_host: "https://us.posthog.com",
+      defaults: "2026-05-30",
+      person_profiles: "identified_only",
+    });
+    return posthog;
   });
   analyticsEnabled = true;
   return true;
@@ -51,20 +63,22 @@ export function captureEvent(
   properties?: Record<string, string | number | boolean>,
 ): void {
   if (!analyticsEnabled) return;
-  posthog.capture(event, properties);
+  withClient((posthog) => posthog.capture(event, properties));
 }
 
 export function identifyAnalyticsUser(user: AnalyticsUser): void {
   if (!analyticsEnabled) return;
-  posthog.identify(user.id, {
-    email: user.email,
-    display_name: user.displayName,
-  });
+  withClient((posthog) =>
+    posthog.identify(user.id, {
+      email: user.email,
+      display_name: user.displayName,
+    }),
+  );
 }
 
 export function resetAnalyticsIdentity(): void {
   if (!analyticsEnabled) return;
-  posthog.reset();
+  withClient((posthog) => posthog.reset());
 }
 
 export function isAnalyticsEnabled(): boolean {

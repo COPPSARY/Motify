@@ -8,3 +8,14 @@ export const MOTIFY_API_URL = configuredApiUrl
   : typeof window !== "undefined"
     ? window.location.origin
     : "";
+
+const configuredSiteUrl = (
+  import.meta.env["VITE_MOTIFY_SITE_URL"] as string | undefined
+)?.trim();
+
+/** The marketing site, which hosts plans and checkout. */
+export const MOTIFY_SITE_URL = (
+  configuredSiteUrl || "https://motify.video"
+).replace(/\/+$/, "");
+
+export const PRICING_URL = `${MOTIFY_SITE_URL}/pricing`;

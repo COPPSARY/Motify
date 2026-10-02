@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ApiRequestError } from "../../api/client";
   import { onDestroy } from "svelte";
   import {
     Film,
@@ -7,6 +8,7 @@
     Plus,
     RefreshCcw,
     Settings2,
+    Trash2,
     Upload,
   } from "lucide-svelte";
   import { loadAssetObjectUrl, uploadAsset } from "../../api/assets";
@@ -37,6 +39,11 @@
   let brandAssets: BrandAsset[] = [];
   let projectAssets: ProjectAssetSummary[] = [];
   let previews: Record<string, string> = {};
+  /** Assets whose file is gone from storage; they can't be put in a video. */
+  let missing = new Set<string>();
+  /** Deleting takes two clicks: the first arms it, the second deletes. */
+  let confirmingDelete = "";
+  let deleting = "";
 
   $: loadKey = `${workspaceId}:${projectId}`;
   $: if (workspaceId && loadKey !== loadedKey) {
@@ -72,7 +79,7 @@
     try {
       const [assets, brand, attached] = await Promise.all([
         api.listWorkspaceAssets(workspaceId),
-        api.getBrand(workspaceId).catch(() => null),
+        api.getBrand().catch(() => null),
         projectId
           ? api.listProjectAssets(projectId).catch(() => [])
           : Promise.resolve([]),
@@ -97,6 +104,7 @@
     assets: readonly WorkspaceAsset[],
     version: number,
   ): Promise<void> {
+    const gone = new Set<string>();
     const entries = await Promise.all(
       assets.map(async (asset) => {
         if (
@@ -107,7 +115,13 @@
         }
         try {
           return [asset.id, await loadAssetObjectUrl(asset.id)] as const;
-        } catch {
+        } catch (reason) {
+          if (
+            reason instanceof ApiRequestError &&
+            reason.code === "ASSET_FILE_MISSING"
+          ) {
+            gone.add(asset.id);
+          }
           return [asset.id, ""] as const;
         }
       }),
@@ -120,6 +134,33 @@
     }
     revokePreviews();
     previews = Object.fromEntries(entries);
+    missing = gone;
+  }
+
+  async function deleteAsset(asset: WorkspaceAsset): Promise<void> {
+    if (confirmingDelete !== asset.id) {
+      confirmingDelete = asset.id;
+      return;
+    }
+    confirmingDelete = "";
+    deleting = asset.id;
+    try {
+      await api.deleteAsset(asset.id);
+      workspaceAssets = workspaceAssets.filter(
+        (candidate) => candidate.id !== asset.id,
+      );
+      const preview = previews[asset.id];
+      if (preview) URL.revokeObjectURL(preview);
+      onNotice(`${displayName(asset)} deleted.`);
+    } catch (reason) {
+      onNotice(
+        reason instanceof Error
+          ? reason.message
+          : `${displayName(asset)} could not be deleted.`,
+      );
+    } finally {
+      deleting = "";
+    }
   }
 
   function revokePreviews(): void {
@@ -163,7 +204,7 @@
   asset: WorkspaceAsset,
   source: "brand" | "video" | "library",
 )}
-  <article class="asset-library-card">
+  <article class="asset-library-card" class:is-missing={missing.has(asset.id)}>
     <div class="asset-library-preview">
       {#if previews[asset.id] && asset.contentType.startsWith("image/")}
         <img src={previews[asset.id]} alt={displayName(asset)} />
@@ -178,23 +219,52 @@
     <div class="asset-library-copy">
       <strong title={displayName(asset)}>{displayName(asset)}</strong>
       <small
-        >{source === "brand"
-          ? "Brand asset"
-          : source === "video"
-            ? "In this video"
-            : asset.contentType.split("/")[0]}</small
+        >{missing.has(asset.id)
+          ? "File missing — upload it again"
+          : source === "brand"
+            ? "Brand asset"
+            : source === "video"
+              ? "In this video"
+              : asset.contentType.split("/")[0]}</small
       >
     </div>
-    {#if source !== "video"}
-      <button
-        type="button"
-        class="asset-library-use"
-        disabled={busy}
-        aria-label={`Add ${displayName(asset)} to the next prompt`}
-        title="Add to next prompt"
-        on:click={() => onUse(asset)}><Plus size={14} /></button
-      >
-    {/if}
+    <div class="asset-library-card-actions">
+      {#if source !== "video"}
+        <button
+          type="button"
+          class="asset-library-use"
+          disabled={busy || missing.has(asset.id)}
+          aria-label={`Add ${displayName(asset)} to the next prompt`}
+          title="Add to next prompt"
+          on:click={() => onUse(asset)}><Plus size={14} /></button
+        >
+      {/if}
+      {#if source === "library"}
+        <button
+          type="button"
+          class="asset-library-delete"
+          class:is-confirming={confirmingDelete === asset.id}
+          disabled={busy || deleting === asset.id}
+          aria-label={confirmingDelete === asset.id
+            ? `Confirm deleting ${displayName(asset)}`
+            : `Delete ${displayName(asset)}`}
+          title={confirmingDelete === asset.id
+            ? "Click again to delete"
+            : "Delete"}
+          on:click={() => deleteAsset(asset)}
+          on:blur={() => {
+            if (confirmingDelete === asset.id) confirmingDelete = "";
+          }}
+        >
+          {#if deleting === asset.id}<LoaderCircle
+              class="asset-library-spin"
+              size={14}
+            />{:else if confirmingDelete === asset.id}Delete?{:else}<Trash2
+              size={14}
+            />{/if}
+        </button>
+      {/if}
+    </div>
   </article>
 {/snippet}
 
@@ -264,7 +334,21 @@
 
   <div class="asset-library-heading"><h3>Workspace assets</h3></div>
   {#if loading && workspaceAssets.length === 0}
-    <p class="asset-library-empty">Loading assets…</p>
+    <div
+      class="asset-library-list"
+      aria-busy="true"
+      aria-label="Loading assets"
+    >
+      {#each [0, 1, 2] as row (row)}
+        <div class="asset-library-card" aria-hidden="true">
+          <span class="me-skeleton asset-skeleton-thumb"></span>
+          <span class="asset-skeleton-copy"
+            ><span class="me-skeleton"></span><span class="me-skeleton"
+            ></span></span
+          >
+        </div>
+      {/each}
+    </div>
   {:else if libraryItems.length === 0}
     <p class="asset-library-empty">
       No other media yet. Upload an image or video to reuse it here.

@@ -85,7 +85,7 @@
 .code-editor-scope .asset-library-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 30px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   padding: 6px;
@@ -170,4 +170,44 @@
 .code-editor-scope .asset-library-error {
   background: rgba(240, 155, 155, 0.08);
   color: #f0a3a3;
+}
+
+.code-editor-scope .asset-library-card.is-missing .asset-library-preview {
+  opacity: 0.45;
+}
+
+.code-editor-scope .asset-library-card.is-missing small {
+  color: #f0a3a3;
+}
+
+.code-editor-scope .asset-library-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.code-editor-scope .asset-library-delete {
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .asset-library-delete:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f7a8a8;
+}
+
+.code-editor-scope .asset-library-delete.is-confirming {
+  background: rgba(239, 68, 68, 0.16);
+  color: #ff8a8a;
 }

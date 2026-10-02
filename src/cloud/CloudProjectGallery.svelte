@@ -7,7 +7,6 @@
     Film,
     FolderOpen,
     MoreHorizontal,
-    Plus,
     RefreshCcw,
     Search,
     Trash2,
@@ -30,6 +29,11 @@
   export let height: number;
   export let fps: number;
   export let duration: number;
+  /**
+   * Where to draw the gallery as a page. Without one it opens as a dialog,
+   * which is how saving an unsaved video asks for a name.
+   */
+  export let host: HTMLElement | null = null;
 
   const dispatch = createEventDispatcher<{
     projectchange: {
@@ -95,6 +99,19 @@
     await tick();
     dialogElement?.focus();
     if (state === "error") await bootstrap();
+  }
+
+  export function closeManager(): void {
+    if (visible) close();
+  }
+
+  /** Moves the gallery into its page host, or leaves it where it was mounted. */
+  function portal(node: HTMLElement, target: HTMLElement | null) {
+    const place = (next: HTMLElement | null) => {
+      if (next && node.parentElement !== next) next.appendChild(node);
+    };
+    place(target);
+    return { update: place };
   }
 
   export async function saveActive(): Promise<void> {
@@ -511,25 +528,30 @@
     if (!visible || event.key !== "Escape") return;
     if (detailsProject) closeDetails();
     else if (createMode) createMode = false;
-    else close();
+    // A page is left through navigation, not dismissed.
+    else if (!host) close();
   }
 </script>
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
 {#if visible}
-  <div class="cloud-projects-backdrop">
+  <div
+    class="cloud-projects-backdrop"
+    class:is-page={Boolean(host)}
+    use:portal={host}
+  >
     <div
       bind:this={dialogElement}
       class="cloud-projects-dialog"
-      role="dialog"
-      aria-modal="true"
+      role={host ? "region" : "dialog"}
+      aria-modal={host ? undefined : "true"}
       aria-labelledby="cloud-projects-title"
       tabindex="-1"
     >
       <header class="cloud-projects-header">
         <div class="cloud-projects-heading">
-          <h2 id="cloud-projects-title">My projects</h2>
+          <h2 id="cloud-projects-title">My Videos</h2>
           <p>
             {#if user}Pick up where you left off, {user.displayName ||
                 user.email}.{:else}Your saved Motify projects.{/if}
@@ -559,20 +581,31 @@
               <RefreshCcw class={busy ? "cloud-spin" : ""} size={16} />
             </button>
           {/if}
-          <button
-            class="cloud-icon-button"
-            on:click={close}
-            aria-label="Close projects"
-          >
-            <X size={18} />
-          </button>
+          {#if !host}
+            <button
+              class="cloud-icon-button"
+              on:click={close}
+              aria-label="Close projects"
+            >
+              <X size={18} />
+            </button>
+          {/if}
         </div>
       </header>
 
       {#if state === "loading"}
-        <div class="cloud-projects-state" aria-live="polite">
-          <RefreshCcw class="cloud-spin" size={22} />
-          <strong>Loading your projects…</strong>
+        <div
+          class="cloud-gallery-skeleton"
+          aria-busy="true"
+          aria-label="Loading your videos"
+        >
+          {#each [0, 1, 2] as card (card)}
+            <div class="cloud-skeleton-card" aria-hidden="true">
+              <span class="cloud-skeleton cloud-skeleton-cover"></span>
+              <span class="cloud-skeleton cloud-skeleton-line"></span>
+              <span class="cloud-skeleton cloud-skeleton-line is-short"></span>
+            </div>
+          {/each}
         </div>
       {:else if state === "guest"}
         <div class="cloud-login-layout">
@@ -638,8 +671,10 @@
             on:submit|preventDefault={createProject}
           >
             <div>
-              <strong>Name your new project</strong>
-              <span>The project starts as a blank Motify composition.</span>
+              <strong>Name this video</strong>
+              <span
+                >It's saved to your workspace so you can come back to it.</span
+              >
             </div>
             <input
               id="cloud-new-project-name"
@@ -653,27 +688,13 @@
                 >Cancel</button
               >
               <button class="cloud-primary" disabled={busy || !canWrite()}>
-                {busy ? "Creating…" : "Create project"}
+                {busy ? "Saving…" : "Save video"}
               </button>
             </div>
           </form>
         {/if}
 
         <main class="cloud-project-gallery" aria-label="Recent projects">
-          {#if !searchQuery}
-            <button
-              class="cloud-new-project-card"
-              on:click={beginCreate}
-              disabled={busy || !canWrite()}
-            >
-              <span class="cloud-new-project-cover"><Plus size={28} /></span>
-              <span class="cloud-card-copy">
-                <strong>Create new project</strong>
-                <small>Start from a blank composition</small>
-              </span>
-            </button>
-          {/if}
-
           {#each filteredProjects as project}
             <article
               class:active={currentProject?.id === project.id}
@@ -730,8 +751,9 @@
             {:else}
               <div class="cloud-gallery-empty">
                 <Film size={22} />
-                <strong>No saved projects yet</strong>
-                <span>Create your first project to find it here next time.</span
+                <strong>No videos yet</strong>
+                <span
+                  >Describe one on the Create page and it will appear here.</span
                 >
               </div>
             {/if}

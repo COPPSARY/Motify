@@ -1,0 +1,1082 @@
+/*
+ * Home shell: what the cloud editor shows around a video.
+ *
+ * With no video open the left column is navigation and the center column is a
+ * full-width page (create, templates, music, assets, settings). Once a video
+ * is open the left column is Tiffy's chat for that video and the inspector
+ * returns. Loaded after every other editor stylesheet.
+ */
+
+/* ---------------------------------------------------------------- layout */
+
+.code-editor-scope .me-workbench.me-no-inspector {
+  grid-template-columns: var(--left-panel-width, 320px) minmax(0, 1fr);
+}
+
+/* A page replaces the editor without unmounting it: the preview keeps its
+   runtime, and comes back where it was. */
+.code-editor-scope .me-center-paged > :not(.me-page) {
+  display: none !important;
+}
+
+.code-editor-scope .me-page {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--sl-bg);
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}
+
+.code-editor-scope .me-page-back {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 2;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 9px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: var(--sl-panel);
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-page-back:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-page-body {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 36px 32px 48px;
+}
+
+.code-editor-scope .me-page-body--narrow {
+  max-width: 760px;
+}
+
+.code-editor-scope .me-page-back ~ .me-page-body {
+  padding-top: 64px;
+}
+
+.code-editor-scope .me-videos-page {
+  height: 100%;
+  padding: 12px 16px 0;
+}
+
+.code-editor-scope .me-page-back ~ .me-videos-page {
+  padding-top: 56px;
+}
+
+.code-editor-scope .me-videos-host {
+  height: 100%;
+}
+
+.code-editor-scope .me-page-header {
+  margin-bottom: 20px;
+}
+
+.code-editor-scope .me-page-header h1 {
+  margin: 0;
+  color: var(--sl-text);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.code-editor-scope .me-page-header p {
+  margin: 6px 0 0;
+  color: var(--sl-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .me-page-empty {
+  grid-column: 1 / -1;
+  margin: 8px 0;
+  color: var(--sl-muted);
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------- sidebar */
+
+.code-editor-scope .me-sidebar-brand {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 0 8px;
+  color: var(--sl-text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.code-editor-scope .me-sidebar-brand img {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.code-editor-scope .me-sidebar-plan {
+  text-transform: capitalize;
+}
+
+.code-editor-scope .me-profile {
+  position: relative;
+}
+
+.code-editor-scope .me-sidebar-profile__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-sidebar-profile > svg {
+  flex: none;
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .me-sidebar-profile[aria-expanded="true"] {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-sidebar-upgrade {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+/* Popover menus: the composer's add menu and the profile menu. */
+.code-editor-scope .me-profile-menu,
+.code-editor-scope .ai-add-menu {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  padding: 5px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 12px;
+  background: #1c1c1c;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.code-editor-scope .me-profile-menu {
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: 0;
+}
+
+.code-editor-scope .ai-add-menu {
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 214px;
+}
+
+.code-editor-scope .me-profile-menu button,
+.code-editor-scope .ai-add-menu button {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-profile-menu button:hover,
+.code-editor-scope .ai-add-menu button:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-profile-menu__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--sl-border);
+}
+
+.code-editor-scope .me-profile-menu__who strong,
+.code-editor-scope .me-profile-menu__who small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-profile-menu__who strong {
+  color: var(--sl-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-profile-menu__who small {
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------ Tiffy chat */
+
+.code-editor-scope .ai-chat-panel:not(.is-hero) .ai-chat-header {
+  flex: 0 0 var(--sl-row);
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .ai-chat-back {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.code-editor-scope .ai-chat-back svg {
+  color: currentColor;
+}
+
+.code-editor-scope .ai-chat-back:hover:not(:disabled) {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .ai-chat-back:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.code-editor-scope .ai-chat-header .ai-chat-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.code-editor-scope .ai-chat-identity strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-chat-identity small {
+  color: var(--sl-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.code-editor-scope .ai-brand-chip {
+  min-width: 0;
+  max-width: 190px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .ai-brand-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-brand-chip svg {
+  flex: none;
+  color: var(--sl-brand-signal);
+}
+
+.code-editor-scope .ai-brand-chip.is-unset svg {
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .ai-brand-chip:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+/* With a draft to send, the arrow widens into "Generate" and its cost. */
+.code-editor-scope .ai-composer-send.is-generate {
+  width: auto;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 13px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-send-cost {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .ai-send-cost svg {
+  flex: none;
+}
+
+/* ------------------------------------------------------------ create page */
+
+/* A faint grid, strongest behind the prompt and fading out toward the
+   edges, so the page has texture without competing with the composer. */
+.code-editor-scope .me-page--create {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+.code-editor-scope .me-page--create::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-position: center center;
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 65% at 50% 45%,
+    #000 30%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 70% 65% at 50% 45%,
+    #000 30%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.code-editor-scope .me-page--create > * {
+  position: relative;
+}
+
+.code-editor-scope .me-create {
+  width: min(760px, 100%);
+  margin-top: -6vh;
+}
+
+.code-editor-scope .ai-chat-panel.is-hero {
+  flex: none;
+  overflow: visible;
+  background: transparent;
+}
+
+.code-editor-scope .ai-hero-title {
+  margin: 0 0 24px;
+  color: var(--sl-text);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.code-editor-scope .is-hero .ai-chat-composer {
+  margin: 0;
+  padding: 14px 14px 10px;
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.code-editor-scope .is-hero .ai-composer-input {
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.code-editor-scope .is-hero .ai-attachment-intent {
+  margin: 0 0 10px;
+}
+
+.code-editor-scope .is-hero .ai-chat-attachments {
+  margin-bottom: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.code-editor-scope .is-hero .ai-composer-credit-hint {
+  text-align: center;
+}
+
+/* ---------------------------------------------------------- templates page */
+
+.code-editor-scope .me-page-search {
+  width: min(420px, 100%);
+  height: 40px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-panel);
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .me-page-search:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.code-editor-scope .me-page-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.code-editor-scope .me-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 26px;
+}
+
+.code-editor-scope .me-chip {
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-chip:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-chip.me-active {
+  border-color: var(--sl-text);
+  background: var(--sl-text);
+  color: var(--sl-accent-ink);
+}
+
+.code-editor-scope .me-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 26px 20px;
+}
+
+.code-editor-scope .me-template-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-template-thumb {
+  position: relative;
+  border: 1px solid var(--sl-border);
+  border-radius: 14px;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.code-editor-scope .me-template-card:hover .me-template-thumb {
+  border-color: var(--sl-border-strong);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+.code-editor-scope .me-template-card:focus-visible {
+  outline: none;
+}
+
+.code-editor-scope .me-template-card:focus-visible .me-template-thumb {
+  outline: 2px solid var(--sl-accent);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .me-template-duration {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-template-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.code-editor-scope .me-template-meta strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sl-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-template-tag {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--sl-surface-active);
+  color: var(--sl-text-soft);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.code-editor-scope .me-template-summary {
+  margin-top: -4px;
+  padding: 0 2px;
+  color: var(--sl-muted);
+  font-size: 12.5px;
+}
+
+/* ------------------------------------------------------- library pages */
+
+.code-editor-scope .me-library {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--sl-border);
+  border-radius: 14px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .me-library > .music-panel {
+  padding: 14px;
+}
+
+/* ---------------------------------------------------------- settings page */
+
+.code-editor-scope .me-settings-card {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 6px 16px;
+  border: 1px solid var(--sl-border);
+  border-radius: 14px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .me-settings-card h2 {
+  margin: 10px 0 4px;
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.code-editor-scope .me-settings-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--sl-border);
+  color: var(--sl-text-soft);
+  font-size: 14px;
+}
+
+.code-editor-scope .me-settings-card h2 + .me-settings-row {
+  border-top: 0;
+}
+
+.code-editor-scope .me-settings-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sl-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .me-settings-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.code-editor-scope .me-settings-row a {
+  color: var(--sl-text);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.code-editor-scope .me-settings-signout {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.06);
+  color: #f7a8a8;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-settings-signout:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* ----------------------------------------------------------- support page */
+
+.code-editor-scope .me-support-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+.code-editor-scope .me-support-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--sl-brand-signal-soft);
+  color: var(--sl-brand-signal);
+}
+
+.code-editor-scope .me-support-copy {
+  min-width: 0;
+}
+
+.code-editor-scope .me-support-card h2 {
+  margin: 0 0 2px;
+}
+
+.code-editor-scope .me-support-copy a {
+  color: var(--sl-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.code-editor-scope .me-support-copy a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.code-editor-scope .me-support-copy-btn {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-support-copy-btn:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-support-list {
+  margin: 4px 0 12px;
+  padding-left: 18px;
+  color: var(--sl-text-soft);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.code-editor-scope .me-support-mail {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: var(--sl-accent);
+  color: var(--sl-accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.code-editor-scope .me-support-mail:hover {
+  background: var(--sl-accent-hover);
+}
+
+/* ------------------------------------------------------ loading states */
+
+/* A placeholder bar with a light passing over it. */
+.code-editor-scope .me-skeleton {
+  display: block;
+  min-height: 10px;
+  border-radius: 6px;
+  background:
+    linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.06) 50%,
+        transparent 100%
+      )
+      0 0 / 200% 100% no-repeat,
+    var(--sl-surface);
+  animation: me-shimmer 1.4s ease-in-out infinite;
+}
+
+.code-editor-scope .me-recent-skeleton {
+  height: 12px;
+  margin: 12px 10px;
+}
+
+.code-editor-scope .asset-skeleton-thumb {
+  width: 48px;
+  height: 38px;
+  border-radius: 7px;
+}
+
+.code-editor-scope .asset-skeleton-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.code-editor-scope .asset-skeleton-copy .me-skeleton:first-child {
+  width: 70%;
+  height: 11px;
+}
+
+.code-editor-scope .asset-skeleton-copy .me-skeleton:last-child {
+  width: 35%;
+  height: 9px;
+}
+
+.code-editor-scope .music-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-editor-scope .music-skeleton__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--sl-border);
+  border-radius: 9px;
+}
+
+.code-editor-scope .music-skeleton__play {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.code-editor-scope .me-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--sl-text);
+  border-radius: 50%;
+  animation: me-spin 0.8s linear infinite;
+}
+
+/* A template whose code is downloading. */
+.code-editor-scope .me-template-card:disabled {
+  cursor: default;
+}
+
+.code-editor-scope .me-template-card:disabled:not([aria-busy="true"]) {
+  opacity: 0.55;
+}
+
+.code-editor-scope .me-template-opening {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: inherit;
+  background: rgba(8, 8, 9, 0.62);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+}
+
+/* While Tiffy works: the canvas dims under a light sweep, and a card says
+   what is happening and for how long. */
+.code-editor-scope .me-generating {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(10, 10, 10, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.code-editor-scope .me-generating--opening {
+  background: var(--sl-bg);
+  backdrop-filter: none;
+}
+
+.code-editor-scope .me-generating__sweep {
+  position: absolute;
+  inset: -50% -20%;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(124, 247, 197, 0.07) 47%,
+    rgba(138, 180, 255, 0.09) 53%,
+    transparent 65%
+  );
+  animation: me-sweep 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.code-editor-scope .me-generating__card {
+  position: relative;
+  width: min(360px, calc(100% - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 16px;
+  background: rgba(20, 20, 21, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.code-editor-scope .me-generating--opening .me-generating__card {
+  flex-direction: row;
+  justify-content: center;
+  width: auto;
+  padding: 14px 18px;
+}
+
+.code-editor-scope .me-generating__mark {
+  margin-bottom: 2px;
+  animation: me-breathe 1.8s ease-in-out infinite;
+}
+
+.code-editor-scope .me-generating__card strong {
+  color: var(--sl-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.code-editor-scope .me-generating__card p {
+  margin: 0;
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .me-generating__card small {
+  color: var(--sl-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .me-generating__bar {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  margin: 6px 0 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sl-surface-active);
+}
+
+.code-editor-scope .me-generating__bar span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8ab4ff, #7cf7c5);
+  animation: me-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes me-shimmer {
+  from {
+    background-position:
+      150% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      -50% 0,
+      0 0;
+  }
+}
+
+@keyframes me-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes me-sweep {
+  from {
+    transform: translateX(-45%);
+  }
+  to {
+    transform: translateX(45%);
+  }
+}
+
+@keyframes me-breathe {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.8;
+  }
+}
+
+@keyframes me-indeterminate {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .me-skeleton,
+  .code-editor-scope .me-generating__sweep,
+  .code-editor-scope .me-generating__mark,
+  .code-editor-scope .me-generating__bar span {
+    animation: none;
+  }
+
+  .code-editor-scope .me-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+/* --------------------------------------------------------------- inspector */
+
+.code-editor-scope .me-inspector-title {
+  color: var(--sl-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ----------------------------------------------------------- narrow view */
+
+@media (max-width: 1180px) {
+  .code-editor-scope .me-workbench.me-no-inspector {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .code-editor-scope .me-workbench.me-no-inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .code-editor-scope .me-page-body {
+    padding: 24px 16px 40px;
+  }
+
+  .code-editor-scope .ai-hero-title {
+    font-size: 26px;
+  }
+}

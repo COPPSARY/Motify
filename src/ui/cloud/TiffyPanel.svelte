@@ -1,19 +1,14 @@
-<script context="module" lang="ts">
-  export interface BrandChoice {
-    workspaceId: string;
-    name: string;
-    configured: boolean;
-  }
-</script>
-
 <script lang="ts">
   import {
+    ArrowLeft,
     ArrowUp,
+    Coins,
     Dna,
     Image as ImageIcon,
+    Images,
     Music,
     Plus,
-    Settings2,
+    Upload,
     Wand2,
     X,
   } from "lucide-svelte";
@@ -70,15 +65,29 @@
   export let removeSelectedAudio: (track: AudioTrack) => void = () => undefined;
   /** Files dropped on the panel: songs go to the library, images to the prompt. */
   export let onDropFiles: (files: File[]) => void = () => undefined;
-  /** A workspace owns one reusable Brand DNA profile. */
-  export let brandChoices: BrandChoice[] = [];
-  export let selectedBrandWorkspaceId = "";
-  export let brandLocked = false;
-  export let brandLoading = false;
-  export let onSelectBrand: (workspaceId: string) => void = () => undefined;
+  /**
+   * `hero` is the centered "what would you like to create?" prompt shown
+   * before a video exists; `panel` is the chat that sits beside an open video.
+   */
+  export let variant: "panel" | "hero" = "panel";
+  /** The open video's name, shown in the panel header. */
+  export let title = "";
+  /** Leaves the video for the home page; the header shows a back button when set. */
+  export let onBack: (() => void) | null = null;
+  /**
+   * The person's Brand DNA, which every generation uses. Null while it has
+   * not been set up (or cannot be read).
+   */
+  export let brandName: string | null = null;
   export let onManageBrand: () => void = () => undefined;
+  /** Library pickers offered from the composer's add menu. */
+  export let onOpenMusic: (() => void) | null = null;
+  export let onOpenAssets: (() => void) | null = null;
 
   let dragDepth = 0;
+  let addMenuOpen = false;
+  let addMenu: HTMLDivElement;
+  $: hasLibraries = Boolean(onOpenMusic || onOpenAssets);
   $: accepting = !$generationStore.isActive && !uploadingMedia;
   $: dragOver = accepting && dragDepth > 0;
   /**
@@ -97,8 +106,9 @@
   $: estimatedCredits = $creditEstimate
     ? estimateMessageCredits($creditEstimate, draftLength)
     : 0;
-  $: showCreditHint =
-    $creditEstimate !== null && (insufficientCredits || draftLength > 0);
+  // With something to send, the button says what it will cost; only a
+  // balance too low to pay for it needs a line of its own.
+  $: showCost = $creditEstimate !== null && draftLength > 0;
 
   function carriesFiles(event: DragEvent): boolean {
     return Boolean(event.dataTransfer?.types.includes("Files"));
@@ -131,14 +141,29 @@
     if (accepting && files.length > 0) onDropFiles(files);
   }
 
-  function changeBrand(event: Event): void {
-    onSelectBrand((event.currentTarget as HTMLSelectElement).value);
+  function addClicked(): void {
+    if (hasLibraries) addMenuOpen = !addMenuOpen;
+    else onAttach();
+  }
+
+  function pickFromMenu(action: (() => void) | null): void {
+    addMenuOpen = false;
+    action?.();
+  }
+
+  function closeAddMenu(event: PointerEvent): void {
+    if (addMenuOpen && !addMenu?.contains(event.target as Node)) {
+      addMenuOpen = false;
+    }
   }
 </script>
+
+<svelte:window on:pointerdown={closeAddMenu} />
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <section
   class="ai-chat-panel"
+  class:is-hero={variant === "hero"}
   class:is-drag-over={dragOver}
   data-drop-hint="Drop images or songs to add them"
   aria-label="Tiffy"
@@ -148,121 +173,110 @@
   on:dragleave={onDragLeave}
   on:drop={onDrop}
 >
-  <header class="ai-chat-header">
-    <span class="ai-chat-identity">
-      <TiffyMark size={24} />
-      <strong>Tiffy</strong>
-    </span>
-    <span
-      class="ai-chat-state"
-      class:is-busy={$generationStore.isActive}
-      aria-label={$generationStore.isActive
-        ? "Tiffy is working"
-        : "Tiffy is ready"}
-      title={$generationStore.isActive ? "Working" : "Ready"}
-    >
-      <span class="sr-only"
-        >{$generationStore.isActive ? "Working" : "Ready"}</span
-      >
-    </span>
-  </header>
-  <div class="ai-brand-context" class:is-locked={brandLocked}>
-    <Dna size={15} />
-    <label class="sr-only" for="tiffy-brand-choice">Brand for this video</label>
-    <select
-      id="tiffy-brand-choice"
-      value={selectedBrandWorkspaceId}
-      disabled={brandLocked || brandLoading || $generationStore.isActive}
-      title={brandLocked
-        ? "The brand is saved with this video. Start a new video to choose another."
-        : "Choose the saved Brand DNA Tiffy should use."}
-      on:change={changeBrand}
-    >
-      {#if brandChoices.length === 0}
-        <option value=""
-          >{brandLoading ? "Loading brands…" : "No brand yet"}</option
+  {#if variant === "hero"}
+    <h1 class="ai-hero-title">What are we making today?</h1>
+  {:else}
+    <header class="ai-chat-header">
+      {#if onBack}
+        <button
+          type="button"
+          class="ai-chat-back"
+          aria-label="Back to home"
+          title={$generationStore.isActive
+            ? "Tiffy is still working on this video"
+            : "Back to home"}
+          disabled={$generationStore.isActive}
+          on:click={() => onBack?.()}><ArrowLeft size={17} /></button
         >
       {:else}
-        {#each brandChoices as brand (brand.workspaceId)}
-          <option value={brand.workspaceId}>
-            {brand.name}{brand.configured ? "" : " · Set up"}
-          </option>
-        {/each}
+        <TiffyMark size={24} />
       {/if}
-    </select>
-    <button
-      type="button"
-      on:click={onManageBrand}
-      title="Manage Brand Kit"
-      aria-label="Manage Brand Kit"
-    >
-      <Settings2 size={15} />
-    </button>
-  </div>
-  <div class="ai-chat-messages" aria-live="polite">
-    <div class="ai-chat-message assistant">
-      What video would you like to make today? Describe it, and I’ll bring it to
-      life.
-    </div>
-    {#each assistantMessages as message}
-      <div
-        class:assistant={message.role === "assistant"}
-        class:user={message.role === "user"}
-        class:is-error={message.role === "assistant" &&
-          isErrorMessage(message.text)}
-        class="ai-chat-message"
+      <span class="ai-chat-identity">
+        <strong>{title || "Tiffy"}</strong>
+        <small>Tiffy · changes preview live</small>
+      </span>
+      <span
+        class="ai-chat-state"
+        class:is-busy={$generationStore.isActive}
+        aria-label={$generationStore.isActive
+          ? "Tiffy is working"
+          : "Tiffy is ready"}
+        title={$generationStore.isActive ? "Working" : "Ready"}
       >
-        {#if message.attachments?.length}
-          <div class="ai-message-attachments">
-            {#each message.attachments as attachment (attachment.id)}
-              <span
-                class="ai-message-attachment"
-                class:is-image={Boolean(attachment.previewUrl)}
-                title={attachment.name}
-              >
-                {#if attachment.previewUrl}
-                  <img
-                    class="ai-message-attachment-image"
-                    src={attachment.previewUrl}
-                    alt={attachment.name}
-                  />
-                {:else}
-                  <span
-                    class="ai-message-attachment-thumb ai-attachment-fallback"
-                    aria-hidden="true"
-                    >{#if attachment.kind === "audio"}<Music
-                        size={12}
-                      />{:else}<ImageIcon size={12} />{/if}</span
-                  >
-                {/if}
-                {#if !attachment.previewUrl}
-                  <span class="ai-message-attachment-name"
-                    >{attachment.name}</span
-                  >
-                {/if}
-              </span>
-            {/each}
-          </div>
-        {/if}
-        <div>{message.text}</div>
-        {#if message.role === "assistant" && isErrorMessage(message.text)}
-          <button
-            class="ai-fix-btn"
-            disabled={$generationStore.isActive}
-            on:click={() => handleFixError(message.text)}
-          >
-            <Wand2 size={12} />
-            Fix
-          </button>
-        {/if}
-      </div>
-    {/each}
-    {#if $generationStore.isActive}
-      <div class="ai-chat-activity" aria-live="polite">
-        <span class="ai-chat-activity-dot"></span>{activityVerb}…
-      </div>
-    {/if}
-  </div>
+        <span class="sr-only"
+          >{$generationStore.isActive ? "Working" : "Ready"}</span
+        >
+      </span>
+    </header>
+  {/if}
+  {#if variant === "panel"}
+    <div class="ai-chat-messages" aria-live="polite">
+      {#if assistantMessages.length === 0}
+        <div class="ai-chat-message assistant">
+          Tell me what to change — copy, colors, pacing, music — and I’ll update
+          the video.
+        </div>
+      {/if}
+      {#each assistantMessages as message}
+        <div
+          class:assistant={message.role === "assistant"}
+          class:user={message.role === "user"}
+          class:is-error={message.role === "assistant" &&
+            isErrorMessage(message.text)}
+          class="ai-chat-message"
+        >
+          {#if message.attachments?.length}
+            <div class="ai-message-attachments">
+              {#each message.attachments as attachment (attachment.id)}
+                <span
+                  class="ai-message-attachment"
+                  class:is-image={Boolean(attachment.previewUrl)}
+                  title={attachment.name}
+                >
+                  {#if attachment.previewUrl}
+                    <img
+                      class="ai-message-attachment-image"
+                      src={attachment.previewUrl}
+                      alt={attachment.name}
+                    />
+                  {:else}
+                    <span
+                      class="ai-message-attachment-thumb ai-attachment-fallback"
+                      aria-hidden="true"
+                      >{#if attachment.kind === "audio"}<Music
+                          size={12}
+                        />{:else}<ImageIcon size={12} />{/if}</span
+                    >
+                  {/if}
+                  {#if !attachment.previewUrl}
+                    <span class="ai-message-attachment-name"
+                      >{attachment.name}</span
+                    >
+                  {/if}
+                </span>
+              {/each}
+            </div>
+          {/if}
+          <div>{message.text}</div>
+          {#if message.role === "assistant" && isErrorMessage(message.text)}
+            <button
+              class="ai-fix-btn"
+              disabled={$generationStore.isActive}
+              on:click={() => handleFixError(message.text)}
+            >
+              <Wand2 size={12} />
+              Fix
+            </button>
+          {/if}
+        </div>
+      {/each}
+      {#if $generationStore.isActive}
+        <div class="ai-chat-activity" aria-live="polite">
+          <span class="ai-chat-activity-dot"></span>{activityVerb}…
+        </div>
+      {/if}
+    </div>
+  {/if}
   {#each pendingAssets as asset (asset.id)}
     <div class="ai-attachment-intent">
       {#if stagedPreviews[asset.id]}
@@ -387,31 +401,19 @@
       ></progress>
     </div>
   {/if}
-  {#if showCreditHint}
-    <p
-      class="ai-composer-credit-hint"
-      class:is-low={insufficientCredits}
-      role={insufficientCredits ? "status" : undefined}
-    >
-      {insufficientCredits
-        ? `Not enough credits — you have ${formatCredits($creditBalance ?? 0)} left.`
-        : `Uses about ${formatCredits(estimatedCredits)} credits`}
+  {#if insufficientCredits}
+    <p class="ai-composer-credit-hint is-low" role="status">
+      Not enough credits — you have {formatCredits($creditBalance ?? 0)} left.
     </p>
   {/if}
   <form class="ai-chat-composer" on:submit={submitAssistant}>
-    <button
-      class="ai-composer-add"
-      type="button"
-      aria-label="Attach an image or song"
-      title="Attach an image or song, or drop one here"
-      disabled={uploadingMedia || $generationStore.isActive}
-      on:click={() => onAttach()}><Plus size={17} /></button
-    >
     <textarea
       class="ai-composer-input"
       aria-label="Assistant prompt"
-      rows="1"
-      placeholder="Ask Tiffy anything"
+      rows={variant === "hero" ? 2 : 1}
+      placeholder={variant === "hero"
+        ? "Describe your video, or paste your script in plain words…"
+        : "What should we change?"}
       bind:this={composerInput}
       bind:value={assistantDraft}
       on:input={resizeComposer}
@@ -419,17 +421,83 @@
       on:paste={handlePaste}
       disabled={$generationStore.isActive}
     ></textarea>
-    <button
-      class="ai-composer-send"
-      aria-label={insufficientCredits
-        ? "Send message to Tiffy (not enough credits)"
-        : "Send message to Tiffy"}
-      disabled={!assistantDraft.trim() ||
-        $generationStore.isActive ||
-        uploadingMedia ||
-        pendingAssets.length > 0 ||
-        insufficientCredits}
-      type="submit"><ArrowUp size={17} /></button
-    >
+    <div class="ai-composer-bar">
+      <div class="ai-composer-add-wrap" bind:this={addMenu}>
+        <button
+          class="ai-composer-add"
+          type="button"
+          aria-label="Attach an image or song"
+          aria-haspopup={hasLibraries ? "menu" : undefined}
+          aria-expanded={hasLibraries ? addMenuOpen : undefined}
+          title="Attach an image or song, or drop one here"
+          disabled={uploadingMedia || $generationStore.isActive}
+          on:click={addClicked}><Plus size={17} /></button
+        >
+        {#if addMenuOpen}
+          <div class="ai-add-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              on:click={() => pickFromMenu(onAttach)}
+              ><Upload size={15} /> Upload image or song</button
+            >
+            {#if onOpenAssets}
+              <button
+                type="button"
+                role="menuitem"
+                on:click={() => pickFromMenu(onOpenAssets)}
+                ><Images size={15} /> From assets</button
+              >
+            {/if}
+            {#if onOpenMusic}
+              <button
+                type="button"
+                role="menuitem"
+                on:click={() => pickFromMenu(onOpenMusic)}
+                ><Music size={15} /> From music library</button
+              >
+            {/if}
+          </div>
+        {/if}
+      </div>
+      <button
+        type="button"
+        class="ai-brand-chip"
+        class:is-unset={!brandName}
+        title={brandName
+          ? `Tiffy uses the ${brandName} Brand DNA for every video. Click to edit it.`
+          : "Set up your Brand DNA so every video is on brand."}
+        on:click={onManageBrand}
+      >
+        <Dna size={14} /><span>{brandName ?? "Set up brand"}</span>
+      </button>
+      <button
+        class="ai-composer-send"
+        class:is-generate={showCost}
+        aria-label={insufficientCredits
+          ? "Send message to Tiffy (not enough credits)"
+          : "Send message to Tiffy"}
+        title={showCost
+          ? `Uses about ${formatCredits(estimatedCredits)} credits`
+          : undefined}
+        disabled={!assistantDraft.trim() ||
+          $generationStore.isActive ||
+          uploadingMedia ||
+          pendingAssets.length > 0 ||
+          insufficientCredits}
+        type="submit"
+      >
+        {#if showCost}
+          <span>Generate</span>
+          <span class="ai-send-cost"
+            ><Coins size={13} aria-hidden="true" />{formatCredits(
+              estimatedCredits,
+            )}</span
+          >
+        {:else}
+          <ArrowUp size={17} />
+        {/if}
+      </button>
+    </div>
   </form>
 </section>

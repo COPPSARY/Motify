@@ -1,27 +1,5 @@
-/* Credits: the balance pill in the inspector header, its activity popover,
-   and the pre-send cost hint above the Tiffy composer. */
-.code-editor-scope .account-cluster {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.code-editor-scope .account-plan-badge {
-  flex: none;
-  padding: 3px 7px;
-  border: 1px solid rgba(199, 199, 204, 0.3);
-  border-radius: 999px;
-  background: rgba(199, 199, 204, 0.08);
-  color: #c7c7cc;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
+/* Credits: the balance pill in the sidebar and settings, its activity
+   popover, and the pre-send cost hint above the Tiffy composer. */
 /* Static, so the popover positions against the sticky header and spans the panel. */
 .code-editor-scope .credits-badge {
   flex: none;

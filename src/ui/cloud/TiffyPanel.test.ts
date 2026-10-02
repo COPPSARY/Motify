@@ -15,8 +15,8 @@ afterEach(() => {
 });
 
 describe("TiffyPanel uploads", () => {
-  it("lets an unsaved video choose which Brand DNA Tiffy uses", async () => {
-    const selectBrand = vi.fn();
+  it("shows the person's Brand DNA and opens it from the composer", async () => {
+    const manageBrand = vi.fn();
     const target = document.createElement("div");
     document.body.append(target);
     const component = mount(TiffyPanel, {
@@ -42,26 +42,57 @@ describe("TiffyPanel uploads", () => {
         composerKeydown: () => undefined,
         handlePaste: async () => undefined,
         onAttach: () => undefined,
-        brandChoices: [
-          { workspaceId: "acme", name: "Acme", configured: true },
-          { workspaceId: "north", name: "Northstar", configured: true },
-        ],
-        selectedBrandWorkspaceId: "acme",
-        onSelectBrand: selectBrand,
+        brandName: "Acme",
+        onManageBrand: manageBrand,
       } as never,
     });
 
     try {
-      const picker = document.querySelector<HTMLSelectElement>(
-        "#tiffy-brand-choice",
-      );
-      expect(picker?.value).toBe("acme");
-      if (picker) {
-        picker.value = "north";
-        picker.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      await tick();
-      expect(selectBrand).toHaveBeenCalledWith("north");
+      const chip = document.querySelector<HTMLButtonElement>(".ai-brand-chip");
+      expect(chip?.textContent?.trim()).toBe("Acme");
+      chip?.click();
+      expect(manageBrand).toHaveBeenCalledOnce();
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("shows the hero prompt without a message thread", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: {
+        variant: "hero",
+        assistantMessages: [],
+        assistantDraft: "",
+        composerInput: undefined as unknown as HTMLTextAreaElement,
+        activityVerb: "Working",
+        pendingAssets: [],
+        classifiedAssets: [],
+        stagedPreviews: {},
+        uploadingMedia: false,
+        uploadProgress: 0,
+        uploadPreview: null,
+        uploadName: "",
+        isErrorMessage: () => false,
+        handleFixError: async () => undefined,
+        classifyStagedAsset: () => undefined,
+        removeStagedAsset: () => undefined,
+        submitAssistant: async () => undefined,
+        resizeComposer: () => undefined,
+        composerKeydown: () => undefined,
+        handlePaste: async () => undefined,
+        onAttach: () => undefined,
+      } as never,
+    });
+
+    try {
+      expect(document.body.textContent).toContain("What are we making today?");
+      expect(document.querySelector(".ai-chat-messages")).toBeNull();
+      expect(
+        document.querySelector(".ai-brand-chip")?.textContent?.trim(),
+      ).toBe("Set up brand");
     } finally {
       await unmount(component);
     }
@@ -391,7 +422,7 @@ describe("TiffyPanel credit estimate", () => {
     fetchCreditSnapshot.mockReset();
   });
 
-  it("shows no cost hint on a deployment that is not charging for requests", async () => {
+  it("keeps the plain send arrow on a deployment that is not charging for requests", async () => {
     const target = document.createElement("div");
     document.body.append(target);
     const component = mount(TiffyPanel, {
@@ -401,6 +432,7 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
+      expect(document.querySelector(".ai-send-cost")).toBeNull();
       expect(
         document.querySelector<HTMLButtonElement>(".ai-composer-send"),
       ).not.toHaveProperty("disabled", true);
@@ -409,7 +441,7 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("hides the cost hint until there is a message to size it from", async () => {
+  it("shows no cost until there is a message to size it from", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -424,13 +456,14 @@ describe("TiffyPanel credit estimate", () => {
     });
 
     try {
+      expect(document.querySelector(".ai-send-cost")).toBeNull();
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
     } finally {
       await unmount(component);
     }
   });
 
-  it("shows about what a message of this length typically costs, and still lets it send", async () => {
+  it("turns send into Generate with what the message typically costs", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -445,10 +478,11 @@ describe("TiffyPanel credit estimate", () => {
     });
 
     try {
-      const hint = must<HTMLElement>(".ai-composer-credit-hint");
-      expect(hint.textContent).toBe("Uses about 5 credits");
-      expect(hint.classList.contains("is-low")).toBe(false);
-      expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
+      const send = must<HTMLButtonElement>(".ai-composer-send");
+      expect(send.textContent?.replace(/\s+/g, " ").trim()).toBe("Generate 5");
+      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
+      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
+      expect(send.disabled).toBe(false);
     } finally {
       await unmount(component);
     }
@@ -470,16 +504,16 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       const composer = must<HTMLTextAreaElement>(".ai-composer-input");
-      const hint = must<HTMLElement>(".ai-composer-credit-hint");
-      const short = hint.textContent;
+      const cost = must<HTMLElement>(".ai-send-cost");
+      const short = cost.textContent;
 
       composer.value =
         "Slow the intro to two seconds, make the headline larger, and fade the logo in over the first second instead of cutting to it.";
       composer.dispatchEvent(new Event("input", { bubbles: true }));
       await tick();
 
-      expect(hint.textContent).not.toBe(short);
-      expect(hint.textContent).toBe("Uses about 20.8 credits");
+      expect(cost.textContent).not.toBe(short);
+      expect(cost.textContent?.trim()).toBe("20.8");
     } finally {
       await unmount(component);
     }
@@ -501,9 +535,8 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
-      expect(must<HTMLElement>(".ai-composer-credit-hint").textContent).toBe(
-        "Uses about 5 credits",
-      );
+      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
+      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
     } finally {
       await unmount(component);
     }
@@ -525,7 +558,9 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       const hint = must<HTMLElement>(".ai-composer-credit-hint");
-      expect(hint.textContent).toBe("Not enough credits — you have 0.2 left.");
+      expect(hint.textContent?.trim()).toBe(
+        "Not enough credits — you have 0.2 left.",
+      );
       expect(hint.classList.contains("is-low")).toBe(true);
       const send = must<HTMLButtonElement>(".ai-composer-send");
       expect(send.disabled).toBe(true);
