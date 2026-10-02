@@ -566,7 +566,7 @@
 /* Illuminated matte controls and Motify-native accent system. */
 .code-editor-scope .me-motion-editor {
   --accent: #78a8ff;
-  --accent-mint: #70ddb8;
+  --accent-mint: #c7c7cc;
   --accent-gradient: linear-gradient(135deg, #5f8fe8 0%, #4eb392 100%);
   font-family:
     "Inter Variable",
@@ -769,7 +769,7 @@ and logo-gradient interactions. */
   background: linear-gradient(
     135deg,
     rgba(138, 180, 255, 0.16),
-    rgba(124, 247, 197, 0.09)
+    rgba(199, 199, 204, 0.09)
   );
   color: #f5f8f7;
 }
@@ -786,7 +786,7 @@ and logo-gradient interactions. */
   background: linear-gradient(
     90deg,
     rgba(138, 180, 255, 0.15),
-    rgba(124, 247, 197, 0.07)
+    rgba(199, 199, 204, 0.07)
   );
   box-shadow: inset 2px 0 0 #8ab4ff;
 }
@@ -794,7 +794,7 @@ and logo-gradient interactions. */
   background: linear-gradient(
     135deg,
     rgba(138, 180, 255, 0.06),
-    rgba(124, 247, 197, 0.025)
+    rgba(199, 199, 204, 0.025)
   );
 }
 

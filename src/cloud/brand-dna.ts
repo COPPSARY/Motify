@@ -171,6 +171,45 @@ export function sameBrandDna(left: BrandDna, right: BrandDna): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/**
+ * Gives Tiffy the saved brand context without making the user repeat it in
+ * every prompt. The workspace remains the source of truth; this is only the
+ * generation brief derived from that source.
+ */
+export function brandGenerationBrief(resource: BrandResource): string {
+  const { dna, assets } = resource;
+  const lines = [
+    "BRAND DNA (saved by the user; apply it throughout this film):",
+    `Brand: ${dna.identity.name || "Not specified"}`,
+    dna.identity.websiteUrl ? `Website: ${dna.identity.websiteUrl}` : "",
+    dna.identity.tagline ? `Tagline: ${dna.identity.tagline}` : "",
+    dna.visual.colors.length
+      ? `Colors: ${dna.visual.colors.map((color) => `${color.name} ${color.hex} (${color.role})`).join(", ")}`
+      : "",
+    dna.visual.fonts.length
+      ? `Typography: ${dna.visual.fonts.map((font) => `${font.family} (${font.role})`).join(", ")}`
+      : "",
+    dna.product.description ? `Product: ${dna.product.description}` : "",
+    dna.product.features.length
+      ? `Features: ${dna.product.features.map((feature) => `${feature.title}: ${feature.description}`).join("; ")}`
+      : "",
+    dna.product.targetAudience ? `Audience: ${dna.product.targetAudience}` : "",
+    dna.story.problem ? `Problem: ${dna.story.problem}` : "",
+    dna.story.solution ? `Solution: ${dna.story.solution}` : "",
+    dna.story.differentiators
+      ? `Differentiators: ${dna.story.differentiators}`
+      : "",
+    dna.story.proof ? `Proof: ${dna.story.proof}` : "",
+    dna.voice.tone.length ? `Tone: ${dna.voice.tone.join(", ")}` : "",
+    dna.voice.writingStyle ? `Writing style: ${dna.voice.writingStyle}` : "",
+    assets.length
+      ? `Brand assets: ${assets.map((asset) => `${asset.role} ${asset.label || asset.fileName} (${asset.token})`).join("; ")}`
+      : "",
+    "Use these facts as established context. Do not ask the user to re-enter them, and do not invent replacements for specified brand details.",
+  ];
+  return lines.filter(Boolean).join("\n");
+}
+
 export function newItemId(): string {
   return crypto.randomUUID().slice(0, 12);
 }

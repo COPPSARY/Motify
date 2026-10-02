@@ -157,8 +157,8 @@
 
 .auth-panel__field input:focus {
   outline: none;
-  border-color: #70ddb8;
-  box-shadow: 0 0 0 2px rgba(112, 221, 184, 0.14);
+  border-color: #c7c7cc;
+  box-shadow: 0 0 0 2px rgba(199, 199, 204, 0.14);
 }
 
 .auth-panel__submit {
@@ -167,7 +167,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #70ddb8;
+  border: 1px solid #c7c7cc;
   border-radius: 9px;
   background: #286b57;
   color: #f3fffb;

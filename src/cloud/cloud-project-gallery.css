@@ -160,7 +160,7 @@
 
 .cloud-login-copy > svg {
   margin-bottom: 22px;
-  color: #70ddb8;
+  color: #c7c7cc;
 }
 
 .cloud-login-copy h3 {
@@ -211,8 +211,8 @@
 .cloud-create-panel input:focus,
 .cloud-rename-row input:focus,
 .cloud-search:focus-within {
-  border-color: #70ddb8;
-  box-shadow: 0 0 0 2px rgba(112, 221, 184, 0.14);
+  border-color: #c7c7cc;
+  box-shadow: 0 0 0 2px rgba(199, 199, 204, 0.14);
 }
 
 .cloud-primary,
@@ -239,14 +239,14 @@
 }
 
 .cloud-primary {
-  border-color: #70ddb8;
-  background: #286b57;
-  color: #f3fffb;
+  border-color: #c7c7cc;
+  background: #c7c7cc;
+  color: #111113;
 }
 
 .cloud-primary:hover,
 .cloud-primary:focus-visible {
-  background: #327c66;
+  background: #dedee2;
 }
 
 .cloud-google {
@@ -321,7 +321,7 @@
   gap: 18px;
   margin: 0 24px 10px;
   padding: 14px;
-  border: 1px solid rgba(112, 221, 184, 0.28);
+  border: 1px solid rgba(199, 199, 204, 0.28);
   border-radius: 12px;
   background: #171b1d;
 }
@@ -387,9 +387,9 @@
 
 .cloud-new-project-card:hover .cloud-new-project-cover,
 .cloud-new-project-card:focus-visible .cloud-new-project-cover {
-  border-color: #70ddb8;
-  background: #18201e;
-  color: #9debd1;
+  border-color: #c7c7cc;
+  background: #202024;
+  color: #dedee2;
 }
 
 .cloud-new-project-card:focus-visible,
@@ -400,7 +400,7 @@
 .cloud-google:focus-visible,
 .cloud-create-actions button:focus-visible,
 .cloud-delete:focus-visible {
-  outline: 2px solid #9debd1;
+  outline: 2px solid #dedee2;
   outline-offset: 2px;
 }
 
@@ -710,8 +710,8 @@
   gap: 10px;
   padding: 13px;
   border-radius: 10px;
-  background: rgba(112, 221, 184, 0.08);
-  color: #8ce4c6;
+  background: rgba(199, 199, 204, 0.08);
+  color: #c7c7cc;
 }
 
 .cloud-latest-save > div {

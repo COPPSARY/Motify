@@ -82,6 +82,43 @@ describe("App project actions", () => {
         "previous-project-logo.png",
       );
       expect(document.body.textContent).not.toContain("Previous draft");
+      expect(document.body.textContent).toContain("No video open");
+      expect(
+        document.querySelector(".me-scene-bar.me-no-project"),
+      ).not.toBeNull();
+
+      const newVideo = Array.from(document.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "New video",
+      );
+      newVideo?.click();
+      await vi.waitFor(() => {
+        expect(document.querySelector(".me-empty-editor")).toBeNull();
+      });
+      expect(document.querySelector(".me-scene-bar.me-no-project")).toBeNull();
+      expect(
+        document.querySelector(".me-sidebar-tool.me-sidebar-tool-open"),
+      ).not.toBeNull();
+      expect(
+        document
+          .querySelector<HTMLButtonElement>(
+            '.me-creation-tabs button[aria-current="page"]',
+          )
+          ?.textContent?.trim(),
+      ).toBe("Chat");
+
+      const creationTabs = document.querySelector(".me-creation-tabs");
+      const templates = Array.from(
+        creationTabs?.querySelectorAll("button") ?? [],
+      ).find((button) => button.textContent?.trim() === "Templates");
+      templates?.click();
+      await tick();
+      expect(
+        document
+          .querySelector<HTMLButtonElement>(
+            '.me-creation-tabs button[aria-current="page"]',
+          )
+          ?.textContent?.trim(),
+      ).toBe("Templates");
     } finally {
       await unmount(component);
     }

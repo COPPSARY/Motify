@@ -12,8 +12,11 @@
   --bd-soft: #c9c9d1;
   --bd-muted: #85858f;
   --bd-faint: #585862;
-  --bd-accent: #0a84ff;
-  --bd-accent-soft: rgba(10, 132, 255, 0.13);
+  --bd-accent: #c7c7cc;
+  --bd-accent-hover: #dedee2;
+  --bd-accent-soft: rgba(199, 199, 204, 0.12);
+  --bd-accent-ink: #111113;
+  --bd-brand-signal: #7cf7c5;
   --bd-danger: #ff6b6b;
 
   position: fixed;
@@ -23,7 +26,7 @@
   background:
     radial-gradient(
       900px 420px at 50% -120px,
-      rgba(31, 123, 255, 0.12),
+      rgba(124, 247, 197, 0.025),
       transparent 70%
     ),
     var(--bd-bg);
@@ -40,8 +43,9 @@
 /* Top bar ----------------------------------------------------------------- */
 .bd-top {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto auto 1fr;
   align-items: center;
+  gap: 12px;
   flex: none;
   height: 56px;
   padding: 0 16px;
@@ -86,8 +90,30 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--bd-accent);
+  background: linear-gradient(
+    90deg,
+    var(--bd-accent) 0 84%,
+    var(--bd-brand-signal) 100%
+  );
   transition: width 320ms ease;
+}
+.bd-workspace-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--bd-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.bd-workspace-picker select {
+  height: 30px;
+  max-width: 180px;
+  padding: 0 28px 0 9px;
+  border: 1px solid var(--bd-border);
+  border-radius: 8px;
+  background: var(--bd-field);
+  color: var(--bd-text);
+  font: inherit;
 }
 .bd-switch {
   display: inline-flex;
@@ -133,7 +159,12 @@
 .bd-chat__progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #6cc0ff, #1f7bff 55%, #5b3dff);
+  background: linear-gradient(
+    90deg,
+    #77787e,
+    #b3b3b9 72%,
+    var(--bd-brand-signal)
+  );
   transition: width 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .bd-thread {
@@ -192,7 +223,7 @@
   font-weight: 500;
 }
 .bd-reaction {
-  color: #8fc3ff;
+  color: var(--bd-accent);
   font-weight: 500;
 }
 .bd-bubble--you {
@@ -200,8 +231,8 @@
   align-items: center;
   gap: 10px;
   border-radius: 18px 18px 6px 18px;
-  border-color: rgba(10, 132, 255, 0.35);
-  background: rgba(10, 132, 255, 0.16);
+  border-color: rgba(199, 199, 204, 0.35);
+  background: rgba(199, 199, 204, 0.12);
   color: var(--bd-text);
   font: inherit;
   font-size: 14px;
@@ -505,8 +536,8 @@
   border-color: var(--bd-border-strong);
 }
 .bd-input:focus {
-  border-color: rgba(10, 132, 255, 0.65);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+  border-color: rgba(199, 199, 204, 0.65);
+  box-shadow: 0 0 0 3px rgba(199, 199, 204, 0.14);
 }
 .bd-input--big {
   height: 50px;
@@ -737,7 +768,7 @@
 }
 .bd-file__italic.is-on {
   background: var(--bd-accent-soft);
-  color: #8fc3ff;
+  color: var(--bd-accent);
 }
 .bd-file__remove:hover {
   color: var(--bd-danger);
@@ -877,9 +908,9 @@
   color: var(--bd-text);
 }
 .bd-chip.is-on {
-  border-color: rgba(10, 132, 255, 0.6);
+  border-color: rgba(199, 199, 204, 0.6);
   background: var(--bd-accent-soft);
-  color: #d3e8ff;
+  color: var(--bd-text);
 }
 .bd-chip-add input {
   width: 124px;
@@ -1021,10 +1052,10 @@
 .bd-btn--primary {
   border-color: transparent;
   background: var(--bd-accent);
-  color: #fff;
+  color: var(--bd-accent-ink);
 }
 .bd-btn--primary:hover:not(:disabled) {
-  background: #2994ff;
+  background: var(--bd-accent-hover);
 }
 .bd-state {
   display: flex;
@@ -1267,12 +1298,18 @@
 /* Narrow screens ---------------------------------------------------------- */
 @media (max-width: 760px) {
   .bd-top {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr auto auto;
     gap: 8px;
     padding: 0 10px;
   }
   .bd-top__title {
     justify-content: center;
+  }
+  .bd-workspace-picker span {
+    display: none;
+  }
+  .bd-workspace-picker select {
+    max-width: 110px;
   }
   .bd-switch button {
     padding: 0 9px;
@@ -1424,8 +1461,8 @@
 }
 .bd-step.is-done .bd-step__dot {
   border-color: transparent;
-  background: rgba(10, 132, 255, 0.2);
-  color: #7fbaff;
+  background: rgba(199, 199, 204, 0.18);
+  color: var(--bd-accent);
 }
 .bd-step.is-current {
   background: rgba(255, 255, 255, 0.06);
@@ -1437,8 +1474,8 @@
 .bd-step.is-current .bd-step__dot {
   border-color: var(--bd-accent);
   background: var(--bd-accent);
-  color: #fff;
-  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.18);
+  color: var(--bd-accent-ink);
+  box-shadow: 0 0 0 4px rgba(199, 199, 204, 0.16);
 }
 
 @media (max-width: 760px) {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   brandCompleteness,
+  brandGenerationBrief,
   displayUrl,
   emptyBrandDna,
   normalizeHex,
@@ -50,6 +51,49 @@ describe("Brand DNA helpers", () => {
     expect(sameBrandDna(saved, draft)).toBe(true);
     draft.story.proof = "4,000 teams";
     expect(sameBrandDna(saved, draft)).toBe(false);
+  });
+
+  it("turns saved Brand DNA into reusable Tiffy context", () => {
+    const dna = emptyBrandDna();
+    dna.identity = {
+      name: "Acme",
+      websiteUrl: "https://acme.test",
+      tagline: "Ship brighter",
+    };
+    dna.visual.colors = [
+      { id: "mint", name: "Mint", hex: "#7cf7c5", role: "primary" },
+    ];
+    dna.voice.tone = ["Confident", "Warm"];
+    const brief = brandGenerationBrief({
+      workspaceId: "ws",
+      revision: 2,
+      schemaVersion: 1,
+      dna,
+      provenance: {},
+      assets: [
+        {
+          assetId: "logo",
+          role: "logo",
+          label: "Primary mark",
+          source: "manual",
+          sourceUrl: null,
+          fileName: "logo.svg",
+          contentType: "image/svg+xml",
+          byteSize: 100,
+          width: 100,
+          height: 100,
+          token: "motify-asset://logo",
+          createdAt: "2026-10-01T00:00:00.000Z",
+        },
+      ],
+      updatedAt: "2026-10-01T00:00:00.000Z",
+    });
+
+    expect(brief).toContain("Brand: Acme");
+    expect(brief).toContain("Mint #7cf7c5 (primary)");
+    expect(brief).toContain("Tone: Confident, Warm");
+    expect(brief).toContain("motify-asset://logo");
+    expect(brief).toContain("Do not ask the user to re-enter them");
   });
 
   it("routes only /brand to the Brand DNA page", () => {

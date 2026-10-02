@@ -38,12 +38,17 @@
     };
     notice: string;
     cloudready: { workspaceId: string };
+    navigationchange: {
+      workspaceId: string;
+      workspaces: WorkspaceSummary[];
+      projects: ProjectSummary[];
+    };
   }>();
   const api = new ProjectsApi();
   const coverPalettes = [
     { background: "#151c2f", accent: "#6ea8fe", ink: "#e8f1ff" },
     { background: "#24192d", accent: "#d99df7", ink: "#f9ecff" },
-    { background: "#132623", accent: "#70ddb8", ink: "#e8fff7" },
+    { background: "#202024", accent: "#c7c7cc", ink: "#f1f1f3" },
     { background: "#2b2016", accent: "#f2ad67", ink: "#fff0df" },
     { background: "#25191c", accent: "#ff7f8a", ink: "#ffecef" },
   ];
@@ -135,6 +140,23 @@
     await openProject(project ?? (await api.getProject(projectId)));
   }
 
+  /** Lets the editor sidebar switch workspace without duplicating API state. */
+  export async function selectWorkspace(
+    nextWorkspaceId: string,
+  ): Promise<void> {
+    if (!workspaces.some((workspace) => workspace.id === nextWorkspaceId))
+      return;
+    workspaceId = nextWorkspaceId;
+    currentProject = null;
+    files = copyFiles(initialFiles);
+    searchQuery = "";
+    createMode = false;
+    closeDetails();
+    dispatch("projectchange", { project: null, files: copyFiles(files) });
+    await refreshProjects();
+    dispatch("cloudready", { workspaceId });
+  }
+
   function copyFiles(source: ProjectSourceFiles): ProjectSourceFiles {
     return {
       "composition.html": source["composition.html"],
@@ -158,6 +180,9 @@
     } catch (error) {
       if (error instanceof CloudApiError && error.status === 401) {
         state = "guest";
+        workspaces = [];
+        projects = [];
+        publishNavigation();
         return;
       }
       state = "error";
@@ -166,20 +191,25 @@
   }
 
   async function changeWorkspace(event: Event): Promise<void> {
-    workspaceId = (event.currentTarget as HTMLSelectElement).value;
-    currentProject = null;
-    files = copyFiles(initialFiles);
-    searchQuery = "";
-    createMode = false;
-    closeDetails();
-    dispatch("projectchange", { project: null, files: copyFiles(files) });
-    await refreshProjects();
-    dispatch("cloudready", { workspaceId });
+    await selectWorkspace((event.currentTarget as HTMLSelectElement).value);
+  }
+
+  function publishNavigation(): void {
+    dispatch("navigationchange", {
+      workspaceId,
+      workspaces: [...workspaces],
+      projects: [...projects].sort(
+        (left, right) =>
+          new Date(right.updatedAt).getTime() -
+          new Date(left.updatedAt).getTime(),
+      ),
+    });
   }
 
   async function refreshProjects(): Promise<void> {
     if (!workspaceId) {
       projects = [];
+      publishNavigation();
       return;
     }
     busy = true;
@@ -190,6 +220,7 @@
       errorMessage = errorText(error);
     } finally {
       busy = false;
+      publishNavigation();
     }
   }
 
@@ -259,6 +290,11 @@
         api.getProject(project.id),
         api.getSource(project.id),
       ]);
+      if (latestProject.workspaceId !== workspaceId) {
+        workspaceId = latestProject.workspaceId;
+        await refreshProjects();
+        dispatch("cloudready", { workspaceId });
+      }
       currentProject = latestProject;
       files = splitCompositionSource(
         source["composition.html"],

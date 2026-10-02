@@ -144,15 +144,15 @@ button {
   background: linear-gradient(
     135deg,
     rgba(138, 180, 255, 0.16),
-    rgba(124, 247, 197, 0.09)
+    rgba(199, 199, 204, 0.09)
   );
   color: #f5f8f7;
 }
 .btn-primary,
 .btn-primary:hover {
   border-color: rgba(255, 255, 255, 0.18);
-  background: linear-gradient(135deg, #8ab4ff, #7cf7c5);
-  color: #fff;
+  background: #c7c7cc;
+  color: #111113;
 }
 .export-action {
   min-width: 98px;
@@ -284,10 +284,10 @@ button {
   left: 50%;
   z-index: 500;
   padding: 10px 14px;
-  border: 1px solid rgba(124, 247, 197, 0.32);
+  border: 1px solid rgba(199, 199, 204, 0.3);
   border-radius: 8px;
   background: #17191cee;
-  color: #dffbf0;
+  color: #ededf0;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
   font-size: 12px;
   transform: translateX(-50%);

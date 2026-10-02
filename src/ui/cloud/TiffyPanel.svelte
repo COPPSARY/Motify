@@ -1,9 +1,19 @@
+<script context="module" lang="ts">
+  export interface BrandChoice {
+    workspaceId: string;
+    name: string;
+    configured: boolean;
+  }
+</script>
+
 <script lang="ts">
   import {
     ArrowUp,
+    Dna,
     Image as ImageIcon,
     Music,
     Plus,
+    Settings2,
     Wand2,
     X,
   } from "lucide-svelte";
@@ -60,6 +70,13 @@
   export let removeSelectedAudio: (track: AudioTrack) => void = () => undefined;
   /** Files dropped on the panel: songs go to the library, images to the prompt. */
   export let onDropFiles: (files: File[]) => void = () => undefined;
+  /** A workspace owns one reusable Brand DNA profile. */
+  export let brandChoices: BrandChoice[] = [];
+  export let selectedBrandWorkspaceId = "";
+  export let brandLocked = false;
+  export let brandLoading = false;
+  export let onSelectBrand: (workspaceId: string) => void = () => undefined;
+  export let onManageBrand: () => void = () => undefined;
 
   let dragDepth = 0;
   $: accepting = !$generationStore.isActive && !uploadingMedia;
@@ -113,6 +130,10 @@
     const files = [...(event.dataTransfer?.files ?? [])];
     if (accepting && files.length > 0) onDropFiles(files);
   }
+
+  function changeBrand(event: Event): void {
+    onSelectBrand((event.currentTarget as HTMLSelectElement).value);
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -132,14 +153,56 @@
       <TiffyMark size={24} />
       <strong>Tiffy</strong>
     </span>
-    <span class="ai-chat-state" class:is-busy={$generationStore.isActive}
-      >{$generationStore.isActive ? "Working" : "Ready"}</span
+    <span
+      class="ai-chat-state"
+      class:is-busy={$generationStore.isActive}
+      aria-label={$generationStore.isActive
+        ? "Tiffy is working"
+        : "Tiffy is ready"}
+      title={$generationStore.isActive ? "Working" : "Ready"}
     >
+      <span class="sr-only"
+        >{$generationStore.isActive ? "Working" : "Ready"}</span
+      >
+    </span>
   </header>
+  <div class="ai-brand-context" class:is-locked={brandLocked}>
+    <Dna size={15} />
+    <label class="sr-only" for="tiffy-brand-choice">Brand for this video</label>
+    <select
+      id="tiffy-brand-choice"
+      value={selectedBrandWorkspaceId}
+      disabled={brandLocked || brandLoading || $generationStore.isActive}
+      title={brandLocked
+        ? "The brand is saved with this video. Start a new video to choose another."
+        : "Choose the saved Brand DNA Tiffy should use."}
+      on:change={changeBrand}
+    >
+      {#if brandChoices.length === 0}
+        <option value=""
+          >{brandLoading ? "Loading brands…" : "No brand yet"}</option
+        >
+      {:else}
+        {#each brandChoices as brand (brand.workspaceId)}
+          <option value={brand.workspaceId}>
+            {brand.name}{brand.configured ? "" : " · Set up"}
+          </option>
+        {/each}
+      {/if}
+    </select>
+    <button
+      type="button"
+      on:click={onManageBrand}
+      title="Manage Brand Kit"
+      aria-label="Manage Brand Kit"
+    >
+      <Settings2 size={15} />
+    </button>
+  </div>
   <div class="ai-chat-messages" aria-live="polite">
     <div class="ai-chat-message assistant">
-      Hi, I’m Tiffy. Describe a scene, transition, camera move, or timing change
-      and I’ll build it with GSAP.
+      What video would you like to make today? Describe it, and I’ll bring it to
+      life.
     </div>
     {#each assistantMessages as message}
       <div

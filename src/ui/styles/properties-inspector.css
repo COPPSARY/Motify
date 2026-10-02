@@ -289,8 +289,8 @@
 
 .code-editor-scope .me-ease-preset:hover,
 .code-editor-scope .me-ease-preset.me-active {
-  border-color: rgba(112, 221, 184, 0.55);
-  background: rgba(112, 221, 184, 0.09);
+  border-color: rgba(199, 199, 204, 0.55);
+  background: rgba(199, 199, 204, 0.09);
   color: #dffaf1;
 }
 
@@ -308,7 +308,7 @@
 
 .code-editor-scope .me-ease-curve {
   fill: none;
-  stroke: #70ddb8;
+  stroke: #c7c7cc;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
@@ -343,8 +343,8 @@
 }
 
 .code-editor-scope .me-layer-visibility.me-restore {
-  border-color: rgba(112, 221, 184, 0.45);
-  background: rgba(112, 221, 184, 0.09);
+  border-color: rgba(199, 199, 204, 0.45);
+  background: rgba(199, 199, 204, 0.09);
   color: #9aebd0;
 }
 

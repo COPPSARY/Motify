@@ -26,9 +26,10 @@
       y2="30"
       gradientUnits="userSpaceOnUse"
     >
-      <stop offset="0" stop-color="#6cc0ff" />
-      <stop offset="0.55" stop-color="#1f7bff" />
-      <stop offset="1" stop-color="#5b3dff" />
+      <stop offset="0" stop-color="#8f9096" />
+      <stop offset="0.55" stop-color="#5f6066" />
+      <stop offset="0.86" stop-color="#38393e" />
+      <stop offset="1" stop-color="#5fa98d" />
     </linearGradient>
   </defs>
   <rect

@@ -16,16 +16,22 @@
   import {
     ArrowLeft,
     Braces,
+    CirclePlay,
+    CreditCard,
     Dna,
     Download,
     Eye,
     EyeOff,
+    Film,
     FileText,
     FolderOpen,
+    Gift,
     Image as ImageIcon,
+    LayoutGrid,
     Layers3,
     Maximize2,
     Minus,
+    Music2,
     PanelBottomClose,
     PanelBottomOpen,
     Pause,
@@ -53,7 +59,10 @@
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
+    type WorkspaceAsset,
+    type WorkspaceSummary,
   } from "../cloud/projects-api";
+  import { brandGenerationBrief, type BrandResource } from "../cloud/brand-dna";
   import {
     userEditedIds,
     type GenerationPlanMemory,
@@ -133,7 +142,9 @@
   } from "./timeline-data";
   import AnimationControls from "./AnimationControls.svelte";
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
+  import type { BrandChoice } from "./cloud/TiffyPanel.svelte";
   import MusicPanel from "./cloud/MusicPanel.svelte";
+  import AssetsPanel from "./cloud/AssetsPanel.svelte";
   import { generationStore } from "../stores/generation";
   import { hydrateCloudAssetTokens, uploadAsset } from "../api/assets";
   import { AUDIO_ACCEPT, addTrackToLibrary, isAudioFile } from "../api/audio";
@@ -180,7 +191,7 @@
 
   export let mode: AppMode = "cloud";
 
-  type EditorTab = "chat" | "presets" | "music";
+  type EditorTab = "chat" | "presets" | "assets" | "music";
 
   type TimelineMode = "project" | "scene";
 
@@ -301,6 +312,12 @@
   let zoom = 1;
   let fitScale = 0.5;
   let activeTab: EditorTab = mode === "local" ? "presets" : "chat";
+  let sidebarSheetOpen = false;
+  let sidebarProjects: ProjectSummary[] = [];
+  let brandResources: Record<string, BrandResource | null> = {};
+  let brandChoices: BrandChoice[] = [];
+  let brandLoading = false;
+  let brandLoadVersion = 0;
   let localPanelOpen = false;
   let localPanelView: "presets" | "source" | "assets" = "presets";
   let localAssets: string[] = [];
@@ -412,6 +429,18 @@
   let cloudProject: ProjectSummary | null = null;
   let localProjectName = "";
   let backendGenerationProjectId = "";
+  let projectStarted = mode === "local";
+
+  $: selectedBrandWorkspaceId = cloudProject?.workspaceId ?? workspaceId;
+  $: selectedBrand = brandResources[selectedBrandWorkspaceId] ?? null;
+  $: brandLocked = Boolean(cloudProject || backendGenerationProjectId);
+  $: hasEditorProject =
+    mode === "local" ||
+    projectStarted ||
+    Boolean(cloudProject || backendGenerationProjectId);
+  $: brandKitHref = selectedBrandWorkspaceId
+    ? `${BRAND_ROUTE}?workspace=${encodeURIComponent(selectedBrandWorkspaceId)}`
+    : BRAND_ROUTE;
 
   interface SelectionRect {
     visible: boolean;
@@ -634,6 +663,7 @@
       if (!cloudProject) return;
       cloudProject = null;
       backendGenerationProjectId = "";
+      projectStarted = false;
       cloudFiles = { ...blankProjectFiles };
       cloudProjects?.startUnsaved(cloudFiles);
       mountComposition(createBlankComposition());
@@ -644,6 +674,8 @@
   }
 
   async function startNewProject(): Promise<void> {
+    projectStarted = true;
+    if (mode === "cloud") openSidebarTool("chat");
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
     clearProjectDrafts();
     try {
@@ -1605,6 +1637,102 @@
     activeTab = tab;
   }
 
+  function openSidebarTool(tab: EditorTab): void {
+    selectTab(tab);
+    sidebarSheetOpen = true;
+  }
+
+  function closeSidebarTool(): void {
+    sourceOpen = false;
+    sidebarSheetOpen = false;
+  }
+
+  function handleSidebarNavigation(
+    event: CustomEvent<{
+      workspaceId: string;
+      workspaces: WorkspaceSummary[];
+      projects: ProjectSummary[];
+    }>,
+  ): void {
+    sidebarProjects = event.detail.projects;
+    void loadBrandChoices(event.detail.workspaces);
+  }
+
+  async function loadBrandChoices(
+    workspaces: readonly WorkspaceSummary[],
+  ): Promise<void> {
+    const version = ++brandLoadVersion;
+    brandLoading = true;
+    const api = new ProjectsApi();
+    const results = await Promise.all(
+      workspaces.map(async (workspace) => {
+        try {
+          return { workspace, resource: await api.getBrand(workspace.id) };
+        } catch {
+          return { workspace, resource: null };
+        }
+      }),
+    );
+    if (version !== brandLoadVersion) return;
+    brandResources = Object.fromEntries(
+      results.map(({ workspace, resource }) => [workspace.id, resource]),
+    );
+    brandChoices = results.map(({ workspace, resource }) => ({
+      workspaceId: workspace.id,
+      name: resource?.dna.identity.name.trim() || workspace.name,
+      configured: Boolean(resource && resource.revision > 0),
+    }));
+    brandLoading = false;
+  }
+
+  async function selectGenerationBrand(nextWorkspaceId: string): Promise<void> {
+    if (
+      !nextWorkspaceId ||
+      nextWorkspaceId === selectedBrandWorkspaceId ||
+      brandLocked ||
+      $generationStore.isActive
+    )
+      return;
+    await cloudProjects?.selectWorkspace(nextWorkspaceId);
+    workspaceId = nextWorkspaceId;
+    void refreshActivePlan();
+    const selected = brandChoices.find(
+      (brand) => brand.workspaceId === nextWorkspaceId,
+    );
+    showNotice(`${selected?.name ?? "Brand"} will be used for this video.`);
+  }
+
+  function openSelectedBrandKit(): void {
+    window.open(brandKitHref, "_blank", "noopener,noreferrer");
+  }
+
+  function openRecentProject(projectId: string): void {
+    void cloudProjects?.openProjectById(projectId);
+  }
+
+  function useLibraryAsset(asset: WorkspaceAsset): void {
+    if (stagedAssets.some((candidate) => candidate.uploadId === asset.id)) {
+      showNotice(
+        `${asset.label || asset.fileName} is already in the next prompt.`,
+      );
+      openSidebarTool("chat");
+      return;
+    }
+    stagedAssets = [
+      ...stagedAssets,
+      {
+        id: asset.id,
+        uploadId: asset.id,
+        name: asset.label || asset.fileName,
+        mimeType: asset.contentType,
+        token: `motify-asset://${asset.id}`,
+        intent: "asset",
+      },
+    ];
+    openSidebarTool("chat");
+    showNotice(`${asset.label || asset.fileName} added to the next prompt.`);
+  }
+
   function openLocalPanel(tab: "presets" | "source" | "assets"): void {
     if (tab === "source") {
       sourceOpen = true;
@@ -1841,6 +1969,7 @@
    * must not ride along into the next generation.
    */
   function resetAssistantSession(): void {
+    projectStarted = true;
     Object.values(stagedPreviews).forEach((url) => URL.revokeObjectURL(url));
     stagedPreviews = {};
     stagedAssets = [];
@@ -1903,6 +2032,22 @@
   }
 
   async function generateAndApplyAssistant(prompt: string): Promise<string> {
+    projectStarted = true;
+    let generationBrand = selectedBrand;
+    if (selectedBrandWorkspaceId) {
+      try {
+        generationBrand = await new ProjectsApi().getBrand(
+          selectedBrandWorkspaceId,
+        );
+        brandResources = {
+          ...brandResources,
+          [selectedBrandWorkspaceId]: generationBrand,
+        };
+      } catch {
+        // A temporarily unavailable Brand Kit must not block generation. The
+        // most recently loaded copy is still useful when one exists.
+      }
+    }
     const basis = assistantGenerationBasis();
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
@@ -1965,8 +2110,11 @@
       }
     };
 
+    const generationPrompt = generationBrand
+      ? `${brandGenerationBrief(generationBrand)}\n\nUSER REQUEST:\n${prompt}`
+      : prompt;
     const result = await generateWithDirectAi(
-      prompt,
+      generationPrompt,
       {
         backendProjectId:
           cloudProject?.id ?? (backendGenerationProjectId || undefined),
@@ -2511,6 +2659,7 @@
   }
 
   async function saveSource(): Promise<void> {
+    if (!hasEditorProject) return;
     if (mode === "local") {
       const saved = await saveLocalProject(cloudFiles);
       showNotice(saved ? "Saved local project." : "No local project is open.");
@@ -2599,7 +2748,7 @@
   let exportStatus = "";
 
   async function exportFullVideo(): Promise<void> {
-    if (!runtime || exporting) return;
+    if (!hasEditorProject || !runtime || exporting) return;
     exporting = true;
     exportStatus = "Initializing video export...";
     showNotice("Rendering full video export (1080p)...", 20000);
@@ -2629,7 +2778,7 @@
   }
 
   async function exportFrame(): Promise<void> {
-    if (!runtime || exporting) return;
+    if (!hasEditorProject || !runtime || exporting) return;
     exporting = true;
     showNotice("Rendering current frame snapshot…", 6000);
     try {
@@ -2690,287 +2839,454 @@
       <div class="me-workbench">
         {#if mode === "cloud" || localPanelOpen}
           <aside class="me-left-panel">
-            <div class="me-brand-row">
-              <div class="brand">
-                <span class="logo-shell"
-                  ><img src="/logo.svg" alt="Motify" class="logo" /></span
-                >
-                <h1>Motify</h1>
-              </div>
-              <div class="me-brand-actions">
-                {#if mode === "local"}
+            {#if mode === "cloud"}
+              <nav
+                class="me-sidebar-home"
+                class:me-sidebar-home-hidden={sidebarSheetOpen}
+                aria-label="Motify navigation"
+              >
+                <div class="me-sidebar-primary">
                   <button
-                    class="me-ghost-icon-btn me-tooltip"
-                    aria-label="Close editor controls"
-                    data-tooltip="Close editor controls"
-                    on:click={() => (localPanelOpen = false)}
-                    ><X size={16} /></button
-                  >
-                {:else}
-                  <!-- A new tab, so an unsaved film is never left behind. -->
-                  <a
-                    class="me-ghost-icon-btn me-tooltip"
-                    href={BRAND_ROUTE}
-                    target="_blank"
-                    aria-label="Open Brand DNA"
-                    data-tooltip="Brand DNA"><Dna size={16} /></a
-                  >
-                  <button
-                    class="me-ghost-icon-btn me-tooltip"
-                    aria-label="Start a new blank project"
-                    data-tooltip="New project"
+                    class="me-sidebar-new"
                     on:click={startNewProject}
                     disabled={$generationStore.isActive || exporting}
-                    ><Plus size={16} /></button
                   >
-                {/if}
-              </div>
-            </div>
-            <div class="me-panel-header">
-              {#if mode === "local" && localPanelView === "assets"}
-                <div class="me-panel-title"><ImageIcon size={15} /> Assets</div>
-              {:else if sourceOpen}
-                <div class="me-panel-title"><Braces size={15} /> Source</div>
-                <button
-                  class="me-header-icon-btn"
-                  aria-label="Close composition source"
-                  on:click={() => (sourceOpen = false)}><X size={15} /></button
+                    <Plus size={16} /><span>New video</span>
+                  </button>
+                  <button
+                    class="me-sidebar-link"
+                    on:click={() => openSidebarTool("chat")}
+                  >
+                    <span>Chat with Tiffy</span>
+                  </button>
+                  <button
+                    class="me-sidebar-link me-active"
+                    on:click={() => cloudProjects.openManager()}
+                  >
+                    <LayoutGrid size={16} /><span>My Videos</span>
+                  </button>
+                  <button
+                    class="me-sidebar-link"
+                    on:click={() => openSidebarTool("presets")}
+                  >
+                    <FolderOpen size={16} /><span>Templates</span>
+                  </button>
+                  <a
+                    class="me-sidebar-link"
+                    href={brandKitHref}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Dna size={16} /><span>Brand Kit</span>
+                  </a>
+                  <button
+                    class="me-sidebar-link"
+                    on:click={() => openSidebarTool("assets")}
+                  >
+                    <ImageIcon size={16} /><span>Assets</span>
+                  </button>
+                  <button
+                    class="me-sidebar-link"
+                    on:click={() => openSidebarTool("music")}
+                  >
+                    <Music2 size={16} /><span>Music</span>
+                  </button>
+                </div>
+
+                <section
+                  class="me-sidebar-recents"
+                  aria-labelledby="sidebar-recents-title"
                 >
-              {:else}
-                <div class="me-panel-tabs">
-                  {#if mode === "cloud"}
+                  <h2 id="sidebar-recents-title">Recents</h2>
+                  <div class="me-sidebar-recent-list">
+                    {#each sidebarProjects.slice(0, 5) as project (project.id)}
+                      <button
+                        class="me-sidebar-recent"
+                        class:me-current={cloudProject?.id === project.id}
+                        title={project.name}
+                        on:click={() => openRecentProject(project.id)}
+                      >
+                        <CirclePlay size={14} /><span>{project.name}</span>
+                      </button>
+                    {:else}
+                      <p>No saved videos yet.</p>
+                    {/each}
+                  </div>
+                </section>
+
+                <div class="me-sidebar-account">
+                  {#if currentUser}
+                    <div class="me-sidebar-account-row">
+                      <CreditCard size={15} />
+                      <span>Credits</span>
+                      <CreditsBadge />
+                    </div>
+                    <div class="me-sidebar-account-row">
+                      <Gift size={15} /><span>Plan</span>
+                      <small>{activePlan ?? "Free"}</small>
+                    </div>
                     <button
-                      class="me-panel-tab"
-                      class:me-active={activeTab === "chat"}
-                      on:click={() => selectTab("chat")}>Chat</button
+                      class="me-sidebar-profile"
+                      on:click={signOutOfMotify}
                     >
+                      <span class="account-avatar" aria-hidden="true">
+                        {(currentUser.displayName || currentUser.email)
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
+                      <span>{currentUser.displayName || currentUser.email}</span
+                      >
+                    </button>
+                  {:else}
+                    <button
+                      class="me-sidebar-signin"
+                      on:click={() => openAuthDialog("signin")}
+                    >
+                      Sign in
+                    </button>
                   {/if}
                   <button
-                    class="me-panel-tab"
-                    class:me-active={activeTab === "presets"}
-                    on:click={() => selectTab("presets")}>Presets</button
+                    class="me-sidebar-upgrade"
+                    on:click={() =>
+                      showNotice(
+                        "Choose a plan from your Motify account page.",
+                      )}
                   >
-                  {#if mode === "cloud"}
+                    Upgrade
+                  </button>
+                </div>
+              </nav>
+            {/if}
+            <div
+              class:me-sidebar-tool={mode === "cloud"}
+              class:me-sidebar-tool-open={sidebarSheetOpen || mode === "local"}
+            >
+              {#if mode === "cloud"}
+                <header class="me-tool-header">
+                  <button
+                    class="me-tool-back"
+                    aria-label="Back to navigation"
+                    on:click={closeSidebarTool}
+                  >
+                    <ArrowLeft size={17} />
+                  </button>
+                  <div class="me-tool-title">
+                    {#if activeTab === "chat"}
+                      <strong>Chat with Tiffy</strong>
+                    {:else if activeTab === "presets"}
+                      <FolderOpen size={16} /><strong>Templates</strong>
+                    {:else if activeTab === "assets"}
+                      <ImageIcon size={16} /><strong>Assets</strong>
+                    {:else}
+                      <Music2 size={16} /><strong>Music</strong>
+                    {/if}
+                  </div>
+                  {#if activeTab === "presets"}
                     <button
-                      class="me-panel-tab"
-                      class:me-active={activeTab === "music"}
-                      on:click={() => selectTab("music")}>Music</button
+                      class="me-import-header-btn me-tooltip"
+                      data-tooltip="Import media"
+                      on:click={() => mediaInput.click()}
                     >
+                      <Upload size={14} /> Import
+                    </button>
+                  {/if}
+                </header>
+                <nav class="me-creation-tabs" aria-label="Video creation tools">
+                  <button
+                    type="button"
+                    class:me-active={activeTab === "chat"}
+                    aria-current={activeTab === "chat" ? "page" : undefined}
+                    on:click={() => selectTab("chat")}
+                  >
+                    Chat
+                  </button>
+                  <button
+                    type="button"
+                    class:me-active={activeTab === "presets"}
+                    aria-current={activeTab === "presets" ? "page" : undefined}
+                    on:click={() => selectTab("presets")}
+                  >
+                    <FolderOpen size={14} /> Templates
+                  </button>
+                  <button
+                    type="button"
+                    class:me-active={activeTab === "music"}
+                    aria-current={activeTab === "music" ? "page" : undefined}
+                    on:click={() => selectTab("music")}
+                  >
+                    <Music2 size={14} /> Music
+                  </button>
+                </nav>
+              {:else}
+                <div class="me-brand-row">
+                  <div class="brand">
+                    <span
+                      class="logo-shell me-sidebar-brand-mark"
+                      aria-hidden="true">M</span
+                    >
+                    <h1>Motify</h1>
+                  </div>
+                  <div class="me-brand-actions">
+                    <button
+                      class="me-ghost-icon-btn me-tooltip"
+                      aria-label="Close editor controls"
+                      data-tooltip="Close editor controls"
+                      on:click={() => (localPanelOpen = false)}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div class="me-panel-header">
+                  {#if localPanelView === "assets"}
+                    <div class="me-panel-title">
+                      <ImageIcon size={15} /> Assets
+                    </div>
+                  {:else if sourceOpen}
+                    <div class="me-panel-title">
+                      <Braces size={15} /> Source
+                    </div>
+                    <button
+                      class="me-header-icon-btn"
+                      aria-label="Close composition source"
+                      on:click={() => (sourceOpen = false)}
+                    >
+                      <X size={15} />
+                    </button>
+                  {:else}
+                    <div class="me-panel-title">
+                      <FolderOpen size={15} /> Presets
+                    </div>
+                    <button
+                      class="me-header-icon-btn me-tooltip"
+                      aria-label="Open composition HTML source"
+                      data-tooltip="Composition source"
+                      on:click={openTimelineSource}
+                    >
+                      <Braces size={15} />
+                    </button>
                   {/if}
                 </div>
-                {#if activeTab === "presets" && mode === "cloud"}
-                  <button
-                    class="me-import-header-btn me-tooltip"
-                    data-tooltip="Import media"
-                    on:click={() => mediaInput.click()}
-                    ><Upload size={14} /> Import</button
-                  >
-                {:else}
-                  <button
-                    class="me-header-icon-btn me-tooltip"
-                    aria-label="Open composition HTML source"
-                    data-tooltip="Composition source"
-                    on:click={openTimelineSource}><Braces size={15} /></button
-                  >
-                {/if}
+              {/if}
+
+              {#if mode === "local" && localPanelView === "assets"}
+                <div class="me-panel-content">
+                  <h3 class="me-category-title">Project assets</h3>
+                  {#each localAssets as asset}
+                    <a
+                      class="me-local-asset"
+                      href={`/assets/${asset.split("/").map(encodeURIComponent).join("/")}`}
+                      target="_blank"
+                      rel="noreferrer">{asset}</a
+                    >
+                  {:else}
+                    <p class="panel-copy">
+                      Files in your project's assets folder appear here.
+                    </p>
+                  {/each}
+                </div>
+              {:else if sourceOpen}
+                <div class="me-panel-content">
+                  <h3 class="me-category-title">Composition source</h3>
+                  <div class="source-heading">
+                    <Braces size={15} />
+                    {(cloudProject?.name ?? localProjectName) ||
+                      "Unsaved project"} / composition.html
+                  </div>
+                  <pre class="source-code">{cloudFiles[
+                      "composition.html"
+                    ]}</pre>
+                  {#if mode === "local"}
+                    <h3 class="me-category-title">styles.css</h3>
+                    <pre class="source-code">{cloudFiles["styles.css"]}</pre>
+                    <h3 class="me-category-title">timeline.js</h3>
+                    <pre class="source-code">{cloudFiles["timeline.js"]}</pre>
+                    <h3 class="me-category-title">index.ts</h3>
+                    <pre class="source-code">{cloudFiles["index.ts"]}</pre>
+                  {/if}
+                </div>
+              {:else if activeTab === "presets"}
+                <div class="me-panel-content">
+                  <h3 class="me-category-title">Presets</h3>
+                  <div class="me-preset-grid">
+                    <button class="me-preset-card" on:click={loadClaudePreset}>
+                      <span class="me-preset-thumbnail claude-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>RESEARCH / REASON / CREATE</small><strong
+                            >CLAUDE<br /><em>THINKS.</em></strong
+                          ><i>PROMPT · ARTIFACT · ACTION</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name"
+                          >Claude Calorie & Climax</strong
+                        >
+                        <small>24.5s · Build, Macro Zoom & Climax</small></span
+                      >
+                    </button>
+                    <button class="me-preset-card" on:click={loadMotifyPreset}>
+                      <span class="me-preset-thumbnail promo-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>CODE-FIRST MOTION</small><strong
+                            >MOTIFY<br /><em>LAUNCH.</em></strong
+                          ><i>PROMPT · EDIT · EXPORT</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name"
+                          >Motify Launch Film</strong
+                        >
+                        <small>52s · Product story and showcase</small></span
+                      >
+                    </button>
+                    <button class="me-preset-card" on:click={loadKiriTtsPreset}>
+                      <span class="me-preset-thumbnail kiritts-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>UNIFIED AI VOICE</small><strong
+                            >KIRI<br /><em>TTS.</em></strong
+                          ><i>TTS · STT · CLONING · API</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">KiriTTS SaaS Ad</strong>
+                        <small>28.5s · 5 Acts · Claude-Grade Camera</small
+                        ></span
+                      >
+                    </button>
+                    <button
+                      class="me-preset-card"
+                      on:click={loadAppleNotesPreset}
+                    >
+                      <span class="me-preset-thumbnail apple-notes-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>EXPANSIVE CAMERA</small><strong
+                            >APPLE<br /><em>NOTES.</em></strong
+                          ><i>GLASS · ECOSYSTEM · PENCIL</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">Apple Notes</strong>
+                        <small>24s · 2.5D Expansive Camera</small></span
+                      >
+                    </button>
+                    <button class="me-preset-card" on:click={loadTesseraPreset}>
+                      <span class="me-preset-thumbnail tessera-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>DATA CONTRACT</small><strong
+                            >ONE<br /><em>SHAPE.</em></strong
+                          ><i>CORRIDOR · GATE · CONTRACT</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">Tessera</strong>
+                        <small>20s · Transformation, no UI shell</small></span
+                      >
+                    </button>
+                    <button class="me-preset-card" on:click={loadRelayPreset}>
+                      <span class="me-preset-thumbnail relay-thumbnail"
+                        ><span class="promo-thumbnail-art"
+                          ><small>REVIEW AND HANDOFF</small><strong
+                            >PASS<br /><em>IT ON.</em></strong
+                          ><i>26 SECOND PRODUCT FILM</i></span
+                        ></span
+                      >
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">Relay</strong><small
+                          >26s &middot; Review and handoff</small
+                        ></span
+                      >
+                    </button>
+                    <button class="me-preset-card" on:click={loadRecoupPreset}>
+                      <span class="me-preset-thumbnail recoup-thumbnail"
+                        ><span class="promo-thumbnail-art"
+                          ><small>FAILED PAYMENT RECOVERY</small><strong
+                            >WIN IT<br /><em>BACK.</em></strong
+                          ><i>LIQUID GLASS &middot; 3D CAMERA</i></span
+                        ></span
+                      >
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">Recoup</strong><small
+                          >26s &middot; Liquid glass, 3D camera</small
+                        ></span
+                      >
+                    </button>
+                    <button
+                      class="me-preset-card"
+                      on:click={loadMotionlyPromoPreset}
+                    >
+                      <span class="me-preset-thumbnail promo-thumbnail">
+                        <span class="promo-thumbnail-art"
+                          ><small>KINETIC PRODUCT FILM</small><strong
+                            >MAKE IT<br /><em>MOVE.</em></strong
+                          ><i>EDITORIAL · SAAS · GSAP</i></span
+                        >
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">Motionly Promo</strong>
+                        <small>20s · HTML/CSS + GSAP</small></span
+                      >
+                    </button>
+                  </div>
+                  <p class="panel-copy">
+                    Fast kinetic type, native product UI, overlapping handoffs,
+                    and one directed GSAP timeline. No generated media.
+                  </p>
+                </div>
+              {:else if activeTab === "music" && mode === "cloud"}
+                <MusicPanel
+                  api={musicApi}
+                  {workspaceId}
+                  busy={$generationStore.isActive}
+                  onUse={useAudioTrack}
+                  onRemoveFromProject={removeAudioFromProject}
+                  onNotice={(message) => showNotice(message)}
+                />
+              {:else if activeTab === "assets" && mode === "cloud"}
+                <AssetsPanel
+                  api={musicApi}
+                  {workspaceId}
+                  projectId={cloudProject?.id ?? backendGenerationProjectId}
+                  busy={$generationStore.isActive}
+                  onUse={useLibraryAsset}
+                  onManageBrand={openSelectedBrandKit}
+                  onNotice={(message) => showNotice(message)}
+                />
+              {:else if mode === "cloud"}
+                <TiffyPanel
+                  {assistantMessages}
+                  bind:assistantDraft
+                  bind:composerInput
+                  {activityVerb}
+                  {pendingAssets}
+                  {classifiedAssets}
+                  {stagedPreviews}
+                  {uploadingMedia}
+                  {uploadProgress}
+                  {uploadPreview}
+                  {uploadName}
+                  {isErrorMessage}
+                  {handleFixError}
+                  {classifyStagedAsset}
+                  {removeStagedAsset}
+                  {submitAssistant}
+                  {resizeComposer}
+                  {composerKeydown}
+                  {handlePaste}
+                  onAttach={() => mediaInput.click()}
+                  selectedAudio={$selectedAudio}
+                  removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
+                  onDropFiles={handleChatDrop}
+                  {brandChoices}
+                  {selectedBrandWorkspaceId}
+                  {brandLocked}
+                  {brandLoading}
+                  onSelectBrand={(workspace) =>
+                    void selectGenerationBrand(workspace)}
+                  onManageBrand={openSelectedBrandKit}
+                />
               {/if}
             </div>
-
-            {#if mode === "local" && localPanelView === "assets"}
-              <div class="me-panel-content">
-                <h3 class="me-category-title">Project assets</h3>
-                {#each localAssets as asset}
-                  <a
-                    class="me-local-asset"
-                    href={`/assets/${asset.split("/").map(encodeURIComponent).join("/")}`}
-                    target="_blank"
-                    rel="noreferrer">{asset}</a
-                  >
-                {:else}
-                  <p class="panel-copy">
-                    Files in your project's assets folder appear here.
-                  </p>
-                {/each}
-              </div>
-            {:else if sourceOpen}
-              <div class="me-panel-content">
-                <h3 class="me-category-title">Composition source</h3>
-                <div class="source-heading">
-                  <Braces size={15} />
-                  {(cloudProject?.name ?? localProjectName) ||
-                    "Unsaved project"} / composition.html
-                </div>
-                <pre class="source-code">{cloudFiles["composition.html"]}</pre>
-                {#if mode === "local"}
-                  <h3 class="me-category-title">styles.css</h3>
-                  <pre class="source-code">{cloudFiles["styles.css"]}</pre>
-                  <h3 class="me-category-title">timeline.js</h3>
-                  <pre class="source-code">{cloudFiles["timeline.js"]}</pre>
-                  <h3 class="me-category-title">index.ts</h3>
-                  <pre class="source-code">{cloudFiles["index.ts"]}</pre>
-                {/if}
-              </div>
-            {:else if activeTab === "presets"}
-              <div class="me-panel-content">
-                <h3 class="me-category-title">Presets</h3>
-                <div class="me-preset-grid">
-                  <button class="me-preset-card" on:click={loadClaudePreset}>
-                    <span class="me-preset-thumbnail claude-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>RESEARCH / REASON / CREATE</small><strong
-                          >CLAUDE<br /><em>THINKS.</em></strong
-                        ><i>PROMPT · ARTIFACT · ACTION</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name"
-                        >Claude Calorie & Climax</strong
-                      >
-                      <small>24.5s · Build, Macro Zoom & Climax</small></span
-                    >
-                  </button>
-                  <button class="me-preset-card" on:click={loadMotifyPreset}>
-                    <span class="me-preset-thumbnail promo-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>CODE-FIRST MOTION</small><strong
-                          >MOTIFY<br /><em>LAUNCH.</em></strong
-                        ><i>PROMPT · EDIT · EXPORT</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Motify Launch Film</strong
-                      >
-                      <small>52s · Product story and showcase</small></span
-                    >
-                  </button>
-                  <button class="me-preset-card" on:click={loadKiriTtsPreset}>
-                    <span class="me-preset-thumbnail kiritts-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>UNIFIED AI VOICE</small><strong
-                          >KIRI<br /><em>TTS.</em></strong
-                        ><i>TTS · STT · CLONING · API</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">KiriTTS SaaS Ad</strong>
-                      <small>28.5s · 5 Acts · Claude-Grade Camera</small></span
-                    >
-                  </button>
-                  <button
-                    class="me-preset-card"
-                    on:click={loadAppleNotesPreset}
-                  >
-                    <span class="me-preset-thumbnail apple-notes-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>EXPANSIVE CAMERA</small><strong
-                          >APPLE<br /><em>NOTES.</em></strong
-                        ><i>GLASS · ECOSYSTEM · PENCIL</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Apple Notes</strong>
-                      <small>24s · 2.5D Expansive Camera</small></span
-                    >
-                  </button>
-                  <button class="me-preset-card" on:click={loadTesseraPreset}>
-                    <span class="me-preset-thumbnail tessera-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>DATA CONTRACT</small><strong
-                          >ONE<br /><em>SHAPE.</em></strong
-                        ><i>CORRIDOR · GATE · CONTRACT</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Tessera</strong>
-                      <small>20s · Transformation, no UI shell</small></span
-                    >
-                  </button>
-                  <button class="me-preset-card" on:click={loadRelayPreset}>
-                    <span class="me-preset-thumbnail relay-thumbnail"
-                      ><span class="promo-thumbnail-art"
-                        ><small>REVIEW AND HANDOFF</small><strong
-                          >PASS<br /><em>IT ON.</em></strong
-                        ><i>26 SECOND PRODUCT FILM</i></span
-                      ></span
-                    >
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Relay</strong><small
-                        >26s &middot; Review and handoff</small
-                      ></span
-                    >
-                  </button>
-                  <button class="me-preset-card" on:click={loadRecoupPreset}>
-                    <span class="me-preset-thumbnail recoup-thumbnail"
-                      ><span class="promo-thumbnail-art"
-                        ><small>FAILED PAYMENT RECOVERY</small><strong
-                          >WIN IT<br /><em>BACK.</em></strong
-                        ><i>LIQUID GLASS &middot; 3D CAMERA</i></span
-                      ></span
-                    >
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Recoup</strong><small
-                        >26s &middot; Liquid glass, 3D camera</small
-                      ></span
-                    >
-                  </button>
-                  <button
-                    class="me-preset-card"
-                    on:click={loadMotionlyPromoPreset}
-                  >
-                    <span class="me-preset-thumbnail promo-thumbnail">
-                      <span class="promo-thumbnail-art"
-                        ><small>KINETIC PRODUCT FILM</small><strong
-                          >MAKE IT<br /><em>MOVE.</em></strong
-                        ><i>EDITORIAL · SAAS · GSAP</i></span
-                      >
-                    </span>
-                    <span class="me-preset-info"
-                      ><strong class="me-preset-name">Motionly Promo</strong>
-                      <small>20s · HTML/CSS + GSAP</small></span
-                    >
-                  </button>
-                </div>
-                <p class="panel-copy">
-                  Fast kinetic type, native product UI, overlapping handoffs,
-                  and one directed GSAP timeline. No generated media.
-                </p>
-              </div>
-            {:else if activeTab === "music" && mode === "cloud"}
-              <MusicPanel
-                api={musicApi}
-                {workspaceId}
-                busy={$generationStore.isActive}
-                onUse={useAudioTrack}
-                onRemoveFromProject={removeAudioFromProject}
-                onNotice={(message) => showNotice(message)}
-              />
-            {:else if mode === "cloud"}
-              <TiffyPanel
-                {assistantMessages}
-                bind:assistantDraft
-                bind:composerInput
-                {activityVerb}
-                {pendingAssets}
-                {classifiedAssets}
-                {stagedPreviews}
-                {uploadingMedia}
-                {uploadProgress}
-                {uploadPreview}
-                {uploadName}
-                {isErrorMessage}
-                {handleFixError}
-                {classifyStagedAsset}
-                {removeStagedAsset}
-                {submitAssistant}
-                {resizeComposer}
-                {composerKeydown}
-                {handlePaste}
-                onAttach={() => mediaInput.click()}
-                selectedAudio={$selectedAudio}
-                removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
-                onDropFiles={handleChatDrop}
-              />
-            {/if}
           </aside>
         {/if}
 
@@ -2996,12 +3312,15 @@
             {/if}
             <div class="file-info">
               <FileText size={15} /><span class="file-info__name"
-                >{(cloudProject?.name ?? localProjectName) ||
-                  "Unsaved Motify project"}</span
+                >{hasEditorProject
+                  ? (cloudProject?.name ?? localProjectName) ||
+                    "Unsaved Motify project"
+                  : "No video open"}</span
               >
             </div>
             <div
               class="me-view-controls"
+              class:me-view-controls-hidden={!hasEditorProject}
               role="toolbar"
               aria-label="Canvas view"
             >
@@ -3042,14 +3361,18 @@
                   ><FolderOpen size={15} /><span>Open</span></button
                 >
               {/if}
-              <button class="btn" title="Save project" on:click={saveSource}
+              <button
+                class="btn"
+                title="Save project"
+                on:click={saveSource}
+                disabled={!hasEditorProject}
                 ><Save size={15} /><span>Save</span></button
               >
               <button
                 class="btn me-tooltip"
                 data-tooltip="Export current frame as PNG"
                 on:click={exportFrame}
-                disabled={exporting}
+                disabled={!hasEditorProject || exporting}
               >
                 <ImageIcon size={15} /><span>PNG</span>
               </button>
@@ -3057,11 +3380,15 @@
                 class="btn btn-primary me-export-compact"
                 aria-label="Export video"
                 on:click={exportFullVideo}
-                disabled={exporting}><Download size={15} /></button
+                disabled={!hasEditorProject || exporting}
+                ><Download size={15} /></button
               >
             </div>
           </header>
-          <main class="me-preview-container">
+          <main
+            class="me-preview-container"
+            class:me-preview-empty={!hasEditorProject}
+          >
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
             <div
               class="me-stage"
@@ -3142,8 +3469,27 @@
                 {/if}
               </div>
             </div>
+            {#if !hasEditorProject}
+              <div class="me-empty-editor" role="status">
+                <span class="me-empty-editor__mark" aria-hidden="true">
+                  <Film size={23} />
+                </span>
+                <h2>No video open</h2>
+                <p>
+                  Start a new video, open a recent one, or ask Tiffy to create
+                  one.
+                </p>
+                <button type="button" on:click={startNewProject}>
+                  <Plus size={15} /> New video
+                </button>
+              </div>
+            {/if}
           </main>
-          <section class="me-scene-bar" aria-label="Scenes">
+          <section
+            class="me-scene-bar"
+            class:me-no-project={!hasEditorProject}
+            aria-label="Scenes"
+          >
             <div class="me-scene-bar__transport">
               <button
                 class="me-scene-bar__play"
@@ -3207,7 +3553,7 @@
                 /> View timeline{/if}</button
             >
           </section>
-          {#if timelineOpen}
+          {#if timelineOpen && hasEditorProject}
             <section bind:this={timelinePanel} class="me-timeline-panel">
               <button class="me-timeline-resizer" aria-label="Resize timeline"
                 ><span></span></button
@@ -3409,7 +3755,7 @@
               class="btn btn-primary export-action me-tooltip"
               data-tooltip="Render and download 1080p video"
               on:click={exportFullVideo}
-              disabled={exporting}
+              disabled={!hasEditorProject || exporting}
             >
               <Download size={15} /><span
                 >{exporting ? exportStatus || "Rendering…" : "Export"}</span
@@ -3799,6 +4145,7 @@
       fps={60}
       duration={5}
       on:cloudready={handleCloudReady}
+      on:navigationchange={handleSidebarNavigation}
       on:projectchange={handleCloudProjectChange}
       on:notice={(event) => showNotice(event.detail)}
     />
