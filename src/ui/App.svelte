@@ -115,7 +115,6 @@
     type SceneTrack,
   } from "./timeline-data";
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
-  import TiffyMark from "./cloud/TiffyMark.svelte";
   import MusicPanel from "./cloud/MusicPanel.svelte";
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
   import { generationStore } from "../stores/generation";
@@ -275,9 +274,6 @@
   /** A /p/:id link whose project is still being fetched. */
   let openingProject =
     mode === "cloud" && /^\/p\/[^/]+\/?$/.test(window.location.pathname);
-  /** Seconds the current generation has been running, for the progress card. */
-  let generationSeconds = 0;
-  let generationStartedAt = 0;
   /** The template whose code is downloading, shown as busy on its card. */
   let openingTemplate: TemplateId | null = null;
   let templateCategory: TemplateCategory | "All" = "All";
@@ -333,14 +329,7 @@
   } | null = null;
 
   let lastGenState = "";
-  let generationWasActive = false;
-  $: if ($generationStore.isActive !== generationWasActive) {
-    generationWasActive = $generationStore.isActive;
-    if (generationWasActive) {
-      generationStartedAt = performance.now();
-      generationSeconds = 0;
-    }
-  }
+
   $: {
     if (
       $generationStore.isActive &&
@@ -520,9 +509,6 @@
     if (mode === "cloud") {
       activityTimer = setInterval(() => {
         if (!$generationStore.isActive) return;
-        generationSeconds = Math.round(
-          (performance.now() - generationStartedAt) / 1000,
-        );
         const currentIndex = activityVerbs.indexOf(activityVerb);
         const nextIndex = (currentIndex + 1) % activityVerbs.length;
         activityVerb =
@@ -3547,30 +3533,16 @@
             </div>
             {#if mode === "cloud" && $generationStore.isActive}
               <div class="me-generating" role="status" aria-live="polite">
-                <span class="me-generating__sweep" aria-hidden="true"></span>
-                <div class="me-generating__card">
-                  <span class="me-generating__mark" aria-hidden="true"
-                    ><TiffyMark size={30} /></span
-                  >
-                  <strong>{activityVerb} your video…</strong>
-                  <p>{$generationStore.message || "Tiffy is working on it."}</p>
-                  <span class="me-generating__bar" aria-hidden="true"
-                    ><span></span></span
-                  >
-                  <small
-                    >{generationSeconds < 60
-                      ? `${generationSeconds}s`
-                      : `${Math.floor(generationSeconds / 60)}m ${generationSeconds % 60}s`}
-                    · usually under two minutes</small
-                  >
-                </div>
+                <span class="me-spinner me-spinner--large" aria-hidden="true"
+                ></span>
+                <strong>Generating your video…</strong>
+                <p>{$generationStore.message || "Tiffy is working on it."}</p>
               </div>
             {:else if openingProject}
-              <div class="me-generating me-generating--opening" role="status">
-                <div class="me-generating__card">
-                  <span class="me-spinner" aria-hidden="true"></span>
-                  <strong>Opening your video…</strong>
-                </div>
+              <div class="me-generating" role="status">
+                <span class="me-spinner me-spinner--large" aria-hidden="true"
+                ></span>
+                <strong>Opening your video…</strong>
               </div>
             {/if}
           </main>

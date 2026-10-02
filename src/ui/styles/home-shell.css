@@ -896,102 +896,41 @@
   backdrop-filter: blur(2px);
 }
 
-/* While Tiffy works: the canvas dims under a light sweep, and a card says
-   what is happening and for how long. */
+/* While Tiffy works, or a linked video loads: a spinner and a line of
+   status over a plain dark canvas. */
 .code-editor-scope .me-generating {
   position: absolute;
   inset: 0;
   z-index: 6;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: rgba(10, 10, 10, 0.55);
-  backdrop-filter: blur(3px);
-}
-
-.code-editor-scope .me-generating--opening {
-  background: var(--sl-bg);
-  backdrop-filter: none;
-}
-
-.code-editor-scope .me-generating__sweep {
-  position: absolute;
-  inset: -50% -20%;
-  background: linear-gradient(
-    100deg,
-    transparent 35%,
-    rgba(124, 247, 197, 0.07) 47%,
-    rgba(138, 180, 255, 0.09) 53%,
-    transparent 65%
-  );
-  animation: me-sweep 2.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.code-editor-scope .me-generating__card {
-  position: relative;
-  width: min(360px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 22px 24px 18px;
-  border: 1px solid var(--sl-border-strong);
-  border-radius: 16px;
-  background: rgba(20, 20, 21, 0.92);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: rgba(10, 10, 10, 0.88);
   text-align: center;
 }
 
-.code-editor-scope .me-generating--opening .me-generating__card {
-  flex-direction: row;
-  justify-content: center;
-  width: auto;
-  padding: 14px 18px;
-}
-
-.code-editor-scope .me-generating__mark {
-  margin-bottom: 2px;
-  animation: me-breathe 1.8s ease-in-out infinite;
-}
-
-.code-editor-scope .me-generating__card strong {
+.code-editor-scope .me-generating strong {
+  margin-top: 6px;
   color: var(--sl-text);
   font-size: 15px;
   font-weight: 600;
 }
 
-.code-editor-scope .me-generating__card p {
+.code-editor-scope .me-generating p {
+  max-width: 360px;
   margin: 0;
-  color: var(--sl-text-soft);
+  color: var(--sl-muted);
   font-size: 13px;
   line-height: 1.5;
 }
 
-.code-editor-scope .me-generating__card small {
-  color: var(--sl-muted);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.code-editor-scope .me-generating__bar {
-  position: relative;
-  width: 100%;
-  height: 3px;
-  margin: 6px 0 2px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--sl-surface-active);
-}
-
-.code-editor-scope .me-generating__bar span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #8ab4ff, #7cf7c5);
-  animation: me-indeterminate 1.5s ease-in-out infinite;
+.code-editor-scope .me-spinner--large {
+  width: 28px;
+  height: 28px;
+  border-width: 2.5px;
 }
 
 @keyframes me-shimmer {
@@ -1013,36 +952,8 @@
   }
 }
 
-@keyframes me-sweep {
-  from {
-    transform: translateX(-45%);
-  }
-  to {
-    transform: translateX(45%);
-  }
-}
-
-@keyframes me-breathe {
-  50% {
-    transform: scale(1.08);
-    opacity: 0.8;
-  }
-}
-
-@keyframes me-indeterminate {
-  from {
-    left: -40%;
-  }
-  to {
-    left: 100%;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .code-editor-scope .me-skeleton,
-  .code-editor-scope .me-generating__sweep,
-  .code-editor-scope .me-generating__mark,
-  .code-editor-scope .me-generating__bar span {
+  .code-editor-scope .me-skeleton {
     animation: none;
   }
 
