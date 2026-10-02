@@ -1,13 +1,19 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import type { AppMode } from "../app/mode";
-  import { BRAND_ROUTE } from "../app/routes";
+  import {
+    BRAND_ROUTE,
+    homePageFromPath,
+    homePagePath,
+    type HomePageRoute,
+  } from "../app/routes";
   import { currentMotionlyUser, signOut } from "../auth";
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
+  import { PRICING_URL } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -16,19 +22,23 @@
   import {
     ArrowLeft,
     Braces,
+    ChevronsUpDown,
     CirclePlay,
     CreditCard,
+    Crown,
     Dna,
     Download,
     Eye,
     EyeOff,
-    Film,
     FileText,
     FolderOpen,
     Gift,
     Image as ImageIcon,
     LayoutGrid,
     Layers3,
+    LifeBuoy,
+    LogOut,
+    Mail,
     Maximize2,
     Minus,
     Music2,
@@ -38,7 +48,12 @@
     Play,
     Plus,
     Save,
+    Search,
+    Settings,
+    Copy,
+    Check,
     Sparkles,
+    SquarePen,
     Upload,
     X,
   } from "lucide-svelte";
@@ -50,11 +65,11 @@
     readEditorGroup,
   } from "../composition/editor-schema";
   import { hydratePresetAssets } from "../compositions/preset-assets";
+  import type { DirectAiResult } from "../ai/direct-ai";
   import {
-    BackendConversationResponse,
-    generateWithDirectAi,
-    type DirectAiResult,
-  } from "../ai/direct-ai";
+    loadGenerationPipeline,
+    type GenerationPipeline,
+  } from "../ai/load-generation-pipeline";
   import {
     ProjectsApi,
     type AudioTrack,
@@ -63,14 +78,8 @@
     type WorkspaceSummary,
   } from "../cloud/projects-api";
   import { brandGenerationBrief, type BrandResource } from "../cloud/brand-dna";
-  import {
-    userEditedIds,
-    type GenerationPlanMemory,
-  } from "../ai/generation-guidance";
-  import {
-    resolveGenerationBasis,
-    type GenerationBasis,
-  } from "../ai/generation-basis";
+  import type { GenerationPlanMemory } from "../ai/generation-guidance";
+  import type { GenerationBasis } from "../ai/generation-basis";
   import {
     blankProjectFiles,
     blankScenes,
@@ -87,11 +96,6 @@
     ProjectSourceFiles,
     ProjectSummary,
   } from "../cloud/projects-api";
-  import {
-    downloadBlob,
-    exportPng,
-    exportVideo,
-  } from "../composition/exporter";
   import { CompositionRuntime } from "../composition/runtime";
   import type {
     CompositionDefinition,
@@ -102,47 +106,15 @@
     RuntimeSnapshot,
   } from "../composition/types";
   import {
-    appleNotesPreset,
-    claudePreset,
-    kiriTtsPreset,
-    motifyPreset,
-    motionlyPromoPreset,
-    recoupPreset,
-    relayPreset,
-    tesseraPreset,
-  } from "../compositions/presets";
-  import appleNotesHtmlSource from "../compositions/presets/apple-notesapp/composition.html?raw";
-  import appleNotesAdapterSource from "../compositions/presets/apple-notesapp/index.ts?raw";
-  import appleNotesTimelineSource from "../compositions/presets/apple-notesapp/timeline.js?raw";
-  import claudeHtmlSource from "../compositions/presets/claude/composition.html?raw";
-  import claudeAdapterSource from "../compositions/presets/claude/index.ts?raw";
-  import claudeTimelineSource from "../compositions/presets/claude/timeline.js?raw";
-  import kiriTtsHtmlSource from "../compositions/presets/KiriTTS/composition.html?raw";
-  import kiriTtsAdapterSource from "../compositions/presets/KiriTTS/index.ts?raw";
-  import kiriTtsTimelineSource from "../compositions/presets/KiriTTS/timeline.js?raw";
-  import motionlyPromoHtmlSource from "../compositions/presets/motionly-promo/composition.html?raw";
-  import motionlyPromoAdapterSource from "../compositions/presets/motionly-promo/index.ts?raw";
-  import motionlyPromoTimelineSource from "../compositions/presets/motionly-promo/timeline.js?raw";
-  import motifyHtmlSource from "../compositions/presets/motify/composition.html?raw";
-  import motifyAdapterSource from "../compositions/presets/motify/index.ts?raw";
-  import motifyTimelineSource from "../compositions/presets/motify/timeline.js?raw";
-  import tesseraHtmlSource from "../compositions/presets/tessera/composition.html?raw";
-  import tesseraAdapterSource from "../compositions/presets/tessera/index.ts?raw";
-  import tesseraTimelineSource from "../compositions/presets/tessera/timeline.js?raw";
-  import relayHtmlSource from "../compositions/presets/relay/composition.html?raw";
-  import relayAdapterSource from "../compositions/presets/relay/index.ts?raw";
-  import relayTimelineSource from "../compositions/presets/relay/timeline.js?raw";
-  import recoupHtmlSource from "../compositions/presets/recoup/composition.html?raw";
-  import recoupAdapterSource from "../compositions/presets/recoup/index.ts?raw";
-  import recoupTimelineSource from "../compositions/presets/recoup/timeline.js?raw";
+    loadTemplate,
+    type TemplateId,
+  } from "../compositions/template-loader";
   import {
     deriveSceneTracks,
     formatTimelineSeconds,
     type SceneTrack,
   } from "./timeline-data";
-  import AnimationControls from "./AnimationControls.svelte";
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
-  import type { BrandChoice } from "./cloud/TiffyPanel.svelte";
   import MusicPanel from "./cloud/MusicPanel.svelte";
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
   import { generationStore } from "../stores/generation";
@@ -158,13 +130,8 @@
     selectAudioTrack,
     selectedAudio,
   } from "../stores/music-library";
+  import type { ValidatedGeneration } from "../ai/validate-generation";
   import {
-    isFatalRenderFailure,
-    validateGeneratedComposition,
-    type ValidatedGeneration,
-  } from "../ai/validate-generation";
-  import {
-    clearLocalAssets,
     generationAsset,
     hydrateAssetTokens,
     readLocalAsset,
@@ -172,12 +139,8 @@
     type LocalAssetReference,
     type AssetIntent,
   } from "../stores/local-assets";
-  import {
-    clearProjectDrafts,
-    saveProjectDraft,
-  } from "../stores/project-drafts";
+  import { saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
-  import { observeCandidateFilm } from "./frame-capture";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import "./styles/editor-shell.css";
   import "./styles/content-panel.css";
@@ -188,10 +151,31 @@
   import "./styles/editor-sleek.css";
   import "./styles/music-panel.css";
   import "./styles/credits-badge.css";
+  import "./styles/home-shell.css";
 
   export let mode: AppMode = "cloud";
 
-  type EditorTab = "chat" | "presets" | "assets" | "music";
+  /** Full-width pages of the cloud editor; "create" is the page at "/". */
+  type HomePage = "create" | HomePageRoute;
+
+  const SUPPORT_EMAIL = "support@motify.video";
+
+  type TemplateCategory =
+    "Product launch" | "SaaS" | "AI" | "Explainer" | "Kinetic type";
+
+  interface TemplateCard {
+    id: TemplateId;
+    name: string;
+    duration: string;
+    summary: string;
+    category: TemplateCategory;
+    /** Thumbnail art: a class for its palette and three lines of lettering. */
+    thumbnail: string;
+    eyebrow: string;
+    headline: string;
+    accent: string;
+    footnote: string;
+  }
 
   type TimelineMode = "project" | "scene";
 
@@ -210,46 +194,6 @@
     attachments?: MessageAttachment[];
   }
 
-  const claudeProjectFiles = splitCompositionSource(
-    claudeHtmlSource,
-    claudeTimelineSource,
-    claudeAdapterSource,
-  );
-  const kiriTtsProjectFiles = splitCompositionSource(
-    kiriTtsHtmlSource,
-    kiriTtsTimelineSource,
-    kiriTtsAdapterSource,
-  );
-  const motionlyPromoProjectFiles = splitCompositionSource(
-    motionlyPromoHtmlSource,
-    motionlyPromoTimelineSource,
-    motionlyPromoAdapterSource,
-  );
-  const motifyProjectFiles = splitCompositionSource(
-    motifyHtmlSource,
-    motifyTimelineSource,
-    motifyAdapterSource,
-  );
-  const appleNotesProjectFiles = splitCompositionSource(
-    appleNotesHtmlSource,
-    appleNotesTimelineSource,
-    appleNotesAdapterSource,
-  );
-  const tesseraProjectFiles = splitCompositionSource(
-    tesseraHtmlSource,
-    tesseraTimelineSource,
-    tesseraAdapterSource,
-  );
-  const relayProjectFiles = splitCompositionSource(
-    relayHtmlSource,
-    relayTimelineSource,
-    relayAdapterSource,
-  );
-  const recoupProjectFiles = splitCompositionSource(
-    recoupHtmlSource,
-    recoupTimelineSource,
-    recoupAdapterSource,
-  );
   const activeDraftKey = "active";
 
   const textElementTags = new Set([
@@ -311,17 +255,34 @@
   let selectedId = "";
   let zoom = 1;
   let fitScale = 0.5;
-  let activeTab: EditorTab = mode === "local" ? "presets" : "chat";
-  let sidebarSheetOpen = false;
+  /**
+   * The page shown in the center column instead of the editor. Null means
+   * "the default": the editor while a video is open, the create page before.
+   */
+  let page: HomePageRoute | null =
+    mode === "cloud"
+      ? (homePageFromPath(window.location.pathname) ?? null)
+      : null;
+  /** Where the My Videos page draws the project gallery. */
+  let videosHost: HTMLElement | null = null;
+  let profileMenuOpen = false;
+  let supportEmailCopied = false;
+  let profileMenu: HTMLDivElement;
+  let templateQuery = "";
+  /** Until the workspace answers, Recents shows placeholders, not "none". */
+  let recentsLoaded = false;
+  /** A /p/:id link whose project is still being fetched. */
+  let openingProject =
+    mode === "cloud" && /^\/p\/[^/]+\/?$/.test(window.location.pathname);
+  /** The template whose code is downloading, shown as busy on its card. */
+  let openingTemplate: TemplateId | null = null;
+  let templateCategory: TemplateCategory | "All" = "All";
   let sidebarProjects: ProjectSummary[] = [];
-  let brandResources: Record<string, BrandResource | null> = {};
-  let brandChoices: BrandChoice[] = [];
-  let brandLoading = false;
-  let brandLoadVersion = 0;
+  /** The signed-in person's Brand DNA. Every video they make is made with it. */
+  let brand: BrandResource | null = null;
   let localPanelOpen = false;
   let localPanelView: "presets" | "source" | "assets" = "presets";
   let localAssets: string[] = [];
-  let inspectorTab: "design" | "animate" = "design";
   // The full layer timeline is opt-in; by default the canvas gets the room and
   // only the scenes bar sits under it.
   let timelineOpen = false;
@@ -344,8 +305,6 @@
   let activityVerb: string = activityVerbs[0] ?? "Composing";
   let activityTimer: ReturnType<typeof setInterval> | undefined;
   let editorRevision = 0;
-  let animationSpeed = 1;
-  let animationEase = "power3.inOut";
   let currentUser: MotionlyUser | null = null;
   let authChecked = false;
   let authDialogOpen = false;
@@ -370,6 +329,7 @@
   } | null = null;
 
   let lastGenState = "";
+
   $: {
     if (
       $generationStore.isActive &&
@@ -429,18 +389,29 @@
   let cloudProject: ProjectSummary | null = null;
   let localProjectName = "";
   let backendGenerationProjectId = "";
-  let projectStarted = mode === "local";
+  // A /p/:id link opens straight into its video, so the editor (not the
+  // create page) is shown while that project loads.
+  let projectStarted =
+    mode === "local" || /^\/p\/[^/]+\/?$/.test(window.location.pathname);
+  /** Manual edits not yet saved to the cloud project. */
+  let sourceDirty = false;
 
-  $: selectedBrandWorkspaceId = cloudProject?.workspaceId ?? workspaceId;
-  $: selectedBrand = brandResources[selectedBrandWorkspaceId] ?? null;
-  $: brandLocked = Boolean(cloudProject || backendGenerationProjectId);
   $: hasEditorProject =
     mode === "local" ||
     projectStarted ||
     Boolean(cloudProject || backendGenerationProjectId);
-  $: brandKitHref = selectedBrandWorkspaceId
-    ? `${BRAND_ROUTE}?workspace=${encodeURIComponent(selectedBrandWorkspaceId)}`
-    : BRAND_ROUTE;
+  $: brandName =
+    brand && brand.revision > 0
+      ? brand.dna.identity.name.trim() || "Your brand"
+      : null;
+  $: centerPage =
+    mode === "cloud" ? (page ?? (hasEditorProject ? null : "create")) : null;
+  $: showInspector =
+    mode === "local" || (hasEditorProject && centerPage === null);
+  $: projectTitle =
+    (cloudProject?.name ?? localProjectName) ||
+    activeComposition.title ||
+    "Untitled video";
 
   interface SelectionRect {
     visible: boolean;
@@ -472,7 +443,6 @@
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
-      activeTab = "chat";
     }
     if (mode === "cloud") {
       void currentMotionlyUser().then((user) => {
@@ -482,6 +452,7 @@
           identifyAnalyticsUser(user);
           void refreshCredits();
           void refreshActivePlan();
+          void loadBrand();
         }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
@@ -492,9 +463,27 @@
     void restoreStartupProject().finally(() => {
       if (mode === "cloud") void runLandingPrompt();
     });
-    const restoreRouteProject = () => void restoreProjectFromRoute();
-    if (mode === "cloud")
+    const restoreRouteProject = () => syncRouteFromHistory();
+    // Brand DNA and plans are managed on their own pages, usually in another
+    // tab; coming back picks up a changed brand or a plan just paid for.
+    const refreshBrandOnReturn = () => {
+      if (document.visibilityState !== "visible" || !currentUser) return;
+      void loadBrand();
+      void refreshActivePlan();
+      void refreshCredits();
+    };
+    if (mode === "cloud") {
+      // Fetch the generation pipeline once the page is idle, so the first
+      // prompt rarely waits for it.
+      const warm = () => void loadGenerationPipeline();
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(warm);
+      } else {
+        setTimeout(warm, 1500);
+      }
       window.addEventListener("popstate", restoreRouteProject);
+      document.addEventListener("visibilitychange", refreshBrandOnReturn);
+    }
     let playbackFrame = 0;
     const syncPlaybackUi = () => {
       if (runtime) {
@@ -535,6 +524,7 @@
       window.removeEventListener("pointermove", updateSelectionDrag);
       window.removeEventListener("pointerup", endSelectionDrag);
       window.removeEventListener("popstate", restoreRouteProject);
+      document.removeEventListener("visibilitychange", refreshBrandOnReturn);
       observer.disconnect();
       runtime?.destroy();
       assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -560,7 +550,6 @@
     if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
       selectedId = previousSelectedId;
       refreshSelectedEditorGroup();
-      syncAnimationControls();
     }
     runtimeUnsubscribe = runtime.subscribe((value) => {
       snapshot = value;
@@ -573,6 +562,8 @@
     });
     fitPreview();
     editorRevision += 1;
+    // Whatever was just mounted is what the project holds.
+    sourceDirty = false;
   }
 
   function scheduleDraftSave(): void {
@@ -653,46 +644,55 @@
   }
 
   function clearProjectRoute(): void {
-    if (window.location.pathname === "/") return;
-    window.history.pushState({}, "", "/");
+    navigate("/");
+  }
+
+  function navigate(pathname: string, replace = false): void {
+    if (window.location.pathname === pathname) return;
+    window.history[replace ? "replaceState" : "pushState"]({}, "", pathname);
+  }
+
+  /** Back and forward: show whatever the URL now names. */
+  function syncRouteFromHistory(): void {
+    const routed = homePageFromPath(window.location.pathname);
+    if (routed !== undefined) {
+      if (hasEditorProject && !$generationStore.isActive) closeProject();
+      page = routed;
+    }
+    void restoreProjectFromRoute();
   }
 
   async function restoreProjectFromRoute(): Promise<void> {
     const projectId = projectIdFromRoute();
     if (!projectId) {
-      if (!cloudProject) return;
-      cloudProject = null;
-      backendGenerationProjectId = "";
-      projectStarted = false;
-      cloudFiles = { ...blankProjectFiles };
-      cloudProjects?.startUnsaved(cloudFiles);
-      mountComposition(createBlankComposition());
+      if (cloudProject) closeProject();
       return;
     }
-    if (!cloudProjects || cloudProject?.id === projectId) return;
-    await cloudProjects.openProjectById(projectId);
+    if (!cloudProjects || cloudProject?.id === projectId) {
+      openingProject = false;
+      return;
+    }
+    openingProject = true;
+    try {
+      await cloudProjects.openProjectById(projectId);
+    } finally {
+      openingProject = false;
+    }
   }
 
-  async function startNewProject(): Promise<void> {
-    projectStarted = true;
-    if (mode === "cloud") openSidebarTool("chat");
+  /** Unloads the open video and returns the editor to its empty state. */
+  function closeProject(): void {
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
-    clearProjectDrafts();
-    try {
-      await clearLocalAssets();
-    } catch {
-      // A fresh editor can still start if browser asset cleanup is unavailable.
-    }
-    assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
-    assetObjectUrls = [];
     resetAssistantSession();
+    projectStarted = false;
+    page = null;
     cloudProject = null;
     localProjectName = "";
     backendGenerationProjectId = "";
-    clearProjectRoute();
     cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     timelineMode = "project";
+    timelineOpen = false;
     sourceOpen = false;
     generationStore.set({
       isActive: false,
@@ -702,112 +702,166 @@
       message: "",
     });
     mountComposition(createBlankComposition());
-    runtime?.seek(0);
-    captureEvent("project started", { source: "new_button" });
-    showNotice("Started a new blank project and cleared local Motify data.");
   }
 
-  function loadClaudePreset(): void {
+  /**
+   * The chat's back button. Edits made by hand are saved first, so leaving a
+   * video never drops them; Tiffy's edits are already saved by the backend.
+   */
+  async function returnHome(): Promise<void> {
+    if ($generationStore.isActive) return;
+    if (sourceDirty && cloudProject) await saveSource();
+    closeProject();
+    clearProjectRoute();
+  }
+
+  const templateCategories: readonly TemplateCategory[] = [
+    "Product launch",
+    "SaaS",
+    "AI",
+    "Explainer",
+    "Kinetic type",
+  ];
+
+  const templates: readonly TemplateCard[] = [
+    {
+      id: "claude",
+      name: "Claude Calorie & Climax",
+      duration: "0:24",
+      summary: "Build, macro zoom & climax",
+      category: "AI",
+      thumbnail: "claude-thumbnail",
+      eyebrow: "RESEARCH / REASON / CREATE",
+      headline: "CLAUDE",
+      accent: "THINKS.",
+      footnote: "PROMPT · ARTIFACT · ACTION",
+    },
+    {
+      id: "motify",
+      name: "Motify Launch Film",
+      duration: "0:52",
+      summary: "Product story and showcase",
+      category: "Product launch",
+      thumbnail: "promo-thumbnail",
+      eyebrow: "CODE-FIRST MOTION",
+      headline: "MOTIFY",
+      accent: "LAUNCH.",
+      footnote: "PROMPT · EDIT · EXPORT",
+    },
+    {
+      id: "kiri-tts",
+      name: "KiriTTS SaaS Ad",
+      duration: "0:28",
+      summary: "5 acts, Claude-grade camera",
+      category: "SaaS",
+      thumbnail: "kiritts-thumbnail",
+      eyebrow: "UNIFIED AI VOICE",
+      headline: "KIRI",
+      accent: "TTS.",
+      footnote: "TTS · STT · CLONING · API",
+    },
+    {
+      id: "apple-notes",
+      name: "Apple Notes",
+      duration: "0:24",
+      summary: "2.5D expansive camera",
+      category: "Product launch",
+      thumbnail: "apple-notes-thumbnail",
+      eyebrow: "EXPANSIVE CAMERA",
+      headline: "APPLE",
+      accent: "NOTES.",
+      footnote: "GLASS · ECOSYSTEM · PENCIL",
+    },
+    {
+      id: "tessera",
+      name: "Tessera",
+      duration: "0:20",
+      summary: "Transformation, no UI shell",
+      category: "Explainer",
+      thumbnail: "tessera-thumbnail",
+      eyebrow: "DATA CONTRACT",
+      headline: "ONE",
+      accent: "SHAPE.",
+      footnote: "CORRIDOR · GATE · CONTRACT",
+    },
+    {
+      id: "relay",
+      name: "Relay",
+      duration: "0:26",
+      summary: "Review and handoff",
+      category: "SaaS",
+      thumbnail: "relay-thumbnail",
+      eyebrow: "REVIEW AND HANDOFF",
+      headline: "PASS",
+      accent: "IT ON.",
+      footnote: "26 SECOND PRODUCT FILM",
+    },
+    {
+      id: "recoup",
+      name: "Recoup",
+      duration: "0:26",
+      summary: "Liquid glass, 3D camera",
+      category: "SaaS",
+      thumbnail: "recoup-thumbnail",
+      eyebrow: "FAILED PAYMENT RECOVERY",
+      headline: "WIN IT",
+      accent: "BACK.",
+      footnote: "LIQUID GLASS · 3D CAMERA",
+    },
+    {
+      id: "motionly-promo",
+      name: "Motionly Promo",
+      duration: "0:20",
+      summary: "HTML/CSS + GSAP",
+      category: "Kinetic type",
+      thumbnail: "promo-thumbnail",
+      eyebrow: "KINETIC PRODUCT FILM",
+      headline: "MAKE IT",
+      accent: "MOVE.",
+      footnote: "EDITORIAL · SAAS · GSAP",
+    },
+  ];
+
+  $: visibleTemplates = templates.filter((template) => {
+    const query = templateQuery.trim().toLowerCase();
+    return (
+      (templateCategory === "All" || template.category === templateCategory) &&
+      (!query ||
+        `${template.name} ${template.summary} ${template.category}`
+          .toLowerCase()
+          .includes(query))
+    );
+  });
+
+  /**
+   * Fetches a template's code the first time it is opened, then mounts it as
+   * an unsaved video.
+   */
+  async function openTemplate(template: TemplateCard): Promise<void> {
+    if (openingTemplate) return;
+    openingTemplate = template.id;
+    let loaded: Awaited<ReturnType<typeof loadTemplate>>;
+    try {
+      loaded = await loadTemplate(template.id);
+    } catch {
+      showNotice(`${template.name} could not be opened. Try again.`);
+      return;
+    } finally {
+      openingTemplate = null;
+    }
     previewLoadSequence += 1;
     resetAssistantSession();
     cloudProject = null;
     backendGenerationProjectId = "";
     clearProjectRoute();
-    cloudFiles = { ...claudeProjectFiles };
+    cloudFiles = { ...loaded.files };
     cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(claudePreset);
-    captureEvent("preset loaded", { preset_name: "claude" });
-    showNotice("Claude Calorie & Climax preset loaded.");
-  }
-
-  function loadKiriTtsPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...kiriTtsProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(kiriTtsPreset);
-    captureEvent("preset loaded", { preset_name: "kiri_tts" });
-    showNotice("KiriTTS SaaS Ad preset loaded.");
-  }
-
-  function loadMotionlyPromoPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...motionlyPromoProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(motionlyPromoPreset);
-    captureEvent("preset loaded", { preset_name: "motionly_promo" });
-    showNotice("Motionly Promo preset loaded.");
-  }
-
-  function loadMotifyPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    clearProjectRoute();
-    cloudFiles = { ...motifyProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(motifyPreset);
-    captureEvent("preset loaded", { preset_name: "motify" });
-    showNotice("Motify Launch Film preset loaded.");
-  }
-
-  function loadAppleNotesPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...appleNotesProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(appleNotesPreset);
-    captureEvent("preset loaded", { preset_name: "apple_notes" });
-    showNotice("Apple Notes 24s Product Film loaded.");
-  }
-
-  function loadTesseraPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...tesseraProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(tesseraPreset);
-    captureEvent("preset loaded", { preset_name: "tessera" });
-    showNotice("Tessera 20s data-contract film loaded.");
-  }
-
-  function loadRelayPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...relayProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(relayPreset);
-    captureEvent("preset loaded", { preset_name: "relay" });
-    showNotice("Relay 26s film loaded.");
-  }
-
-  function loadRecoupPreset(): void {
-    previewLoadSequence += 1;
-    resetAssistantSession();
-    cloudProject = null;
-    backendGenerationProjectId = "";
-    clearProjectRoute();
-    cloudFiles = { ...recoupProjectFiles };
-    cloudProjects?.startUnsaved(cloudFiles);
-    mountComposition(recoupPreset);
-    captureEvent("preset loaded", { preset_name: "recoup" });
-    showNotice("Recoup 26s liquid-glass SaaS ad loaded.");
+    mountComposition(loaded.composition);
+    page = null;
+    captureEvent("preset loaded", {
+      preset_name: template.id.replace(/-/g, "_"),
+    });
+    showNotice(`${template.name} template opened.`);
   }
 
   async function mountSavedProject(
@@ -992,7 +1046,6 @@
     selectedSceneId = snapshot.sceneId;
     selectedId = hitId;
     refreshSelectedEditorGroup();
-    syncAnimationControls();
     updateSelectionRect();
   }
 
@@ -1340,19 +1393,7 @@
     }
     selectedId = track.id;
     refreshSelectedEditorGroup();
-    syncAnimationControls();
     updateSelectionRect();
-  }
-
-  function syncAnimationControls(): void {
-    if (!runtime || !selectedId) {
-      animationSpeed = 1;
-      animationEase = "power3.inOut";
-      return;
-    }
-    const settings = runtime.getAnimationOverride(selectedId);
-    animationSpeed = settings.speed;
-    animationEase = settings.ease;
   }
 
   function selectedTrack(): SceneTrack | undefined {
@@ -1513,30 +1554,6 @@
     scheduleDraftSave();
   }
 
-  function animationSettings() {
-    return selectedId && runtime
-      ? runtime.getAnimationOverride(selectedId)
-      : { speed: 1, ease: "power3.inOut", tweenCount: 0 };
-  }
-
-  function setAnimationSpeed(speed: number): void {
-    if (!runtime || !selectedId) return;
-    animationSpeed = speed;
-    runtime.setAnimationOverride(selectedId, {
-      speed: animationSpeed,
-    });
-    editorRevision += 1;
-    scheduleDraftSave();
-  }
-
-  function setAnimationEase(ease: string): void {
-    if (!runtime || !selectedId) return;
-    animationEase = ease;
-    runtime.setAnimationOverride(selectedId, { ease });
-    editorRevision += 1;
-    scheduleDraftSave();
-  }
-
   function editorFieldInputValue(field: EditorFieldDefinition): string {
     void editorRevision;
     const value = editorFieldValue(field);
@@ -1573,6 +1590,7 @@
       "composition.html":
         template?.outerHTML ?? documentSource.body.innerHTML.trim(),
     };
+    sourceDirty = true;
     cloudProjects?.setFiles(cloudFiles);
     scheduleDraftSave();
   }
@@ -1632,19 +1650,34 @@
     return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
   }
 
-  function selectTab(tab: EditorTab): void {
-    sourceOpen = false;
-    activeTab = tab;
+  function openPage(next: HomePage): void {
+    profileMenuOpen = false;
+    // With no video open the create page is the default view.
+    page = next === "create" ? null : next;
+    // Inside a video a page is a picker over it, and the URL stays the video's.
+    if (mode === "cloud" && !hasEditorProject) navigate(homePagePath(page));
   }
 
-  function openSidebarTool(tab: EditorTab): void {
-    selectTab(tab);
-    sidebarSheetOpen = true;
+  // The gallery is one instance (it also holds the open project), drawn into
+  // the My Videos page while that page is showing.
+  $: galleryHost = centerPage === "videos" ? videosHost : null;
+  $: if (galleryHost && cloudProjects) void cloudProjects.openManager();
+  $: if (centerPage !== "videos") cloudProjects?.closeManager();
+
+  async function copySupportEmail(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
+      supportEmailCopied = true;
+      window.setTimeout(() => (supportEmailCopied = false), 2000);
+    } catch {
+      showNotice(`Email us at ${SUPPORT_EMAIL}.`);
+    }
   }
 
-  function closeSidebarTool(): void {
-    sourceOpen = false;
-    sidebarSheetOpen = false;
+  function closeProfileMenu(event: PointerEvent): void {
+    if (profileMenuOpen && !profileMenu?.contains(event.target as Node)) {
+      profileMenuOpen = false;
+    }
   }
 
   function handleSidebarNavigation(
@@ -1655,55 +1688,23 @@
     }>,
   ): void {
     sidebarProjects = event.detail.projects;
-    void loadBrandChoices(event.detail.workspaces);
+    recentsLoaded = true;
   }
 
-  async function loadBrandChoices(
-    workspaces: readonly WorkspaceSummary[],
-  ): Promise<void> {
-    const version = ++brandLoadVersion;
-    brandLoading = true;
-    const api = new ProjectsApi();
-    const results = await Promise.all(
-      workspaces.map(async (workspace) => {
-        try {
-          return { workspace, resource: await api.getBrand(workspace.id) };
-        } catch {
-          return { workspace, resource: null };
-        }
-      }),
-    );
-    if (version !== brandLoadVersion) return;
-    brandResources = Object.fromEntries(
-      results.map(({ workspace, resource }) => [workspace.id, resource]),
-    );
-    brandChoices = results.map(({ workspace, resource }) => ({
-      workspaceId: workspace.id,
-      name: resource?.dna.identity.name.trim() || workspace.name,
-      configured: Boolean(resource && resource.revision > 0),
-    }));
-    brandLoading = false;
+  /** Reads the person's Brand DNA; null for a guest or when it cannot be read. */
+  async function loadBrand(): Promise<BrandResource | null> {
+    if (mode !== "cloud" || !currentUser) return null;
+    try {
+      brand = await new ProjectsApi().getBrand();
+      return brand;
+    } catch {
+      return null;
+    }
   }
 
-  async function selectGenerationBrand(nextWorkspaceId: string): Promise<void> {
-    if (
-      !nextWorkspaceId ||
-      nextWorkspaceId === selectedBrandWorkspaceId ||
-      brandLocked ||
-      $generationStore.isActive
-    )
-      return;
-    await cloudProjects?.selectWorkspace(nextWorkspaceId);
-    workspaceId = nextWorkspaceId;
-    void refreshActivePlan();
-    const selected = brandChoices.find(
-      (brand) => brand.workspaceId === nextWorkspaceId,
-    );
-    showNotice(`${selected?.name ?? "Brand"} will be used for this video.`);
-  }
-
-  function openSelectedBrandKit(): void {
-    window.open(brandKitHref, "_blank", "noopener,noreferrer");
+  /** Brand DNA belongs to the person, so its page takes no workspace. */
+  function openBrandKit(): void {
+    window.open(BRAND_ROUTE, "_blank", "noopener,noreferrer");
   }
 
   function openRecentProject(projectId: string): void {
@@ -1715,7 +1716,7 @@
       showNotice(
         `${asset.label || asset.fileName} is already in the next prompt.`,
       );
-      openSidebarTool("chat");
+      openPage("create");
       return;
     }
     stagedAssets = [
@@ -1729,16 +1730,12 @@
         intent: "asset",
       },
     ];
-    openSidebarTool("chat");
+    openPage("create");
     showNotice(`${asset.label || asset.fileName} added to the next prompt.`);
   }
 
   function openLocalPanel(tab: "presets" | "source" | "assets"): void {
-    if (tab === "source") {
-      sourceOpen = true;
-    } else {
-      selectTab("presets");
-    }
+    sourceOpen = tab === "source";
     localPanelView = tab;
     localPanelOpen = true;
   }
@@ -1825,7 +1822,7 @@
       showNotice(`A message can use up to ${MAX_SELECTED_AUDIO} songs.`);
       return;
     }
-    selectTab("chat");
+    openPage("create");
     showNotice(`${track.title} will score your next prompt.`);
     void tick().then(() => composerInput?.focus());
   }
@@ -2023,32 +2020,25 @@
     }
   }
 
-  function assistantGenerationBasis(): GenerationBasis & {
+  function assistantGenerationBasis(ai: GenerationPipeline): GenerationBasis & {
     editorState?: Partial<RuntimeEditorState>;
   } {
-    const basis = resolveGenerationBasis(cloudFiles, activeComposition);
+    const basis = ai.resolveGenerationBasis(cloudFiles, activeComposition);
     if (basis.generationProfile === "claude-foundation-v1") return basis;
     return { ...basis, editorState: runtime?.exportEditorState() };
   }
 
   async function generateAndApplyAssistant(prompt: string): Promise<string> {
     projectStarted = true;
-    let generationBrand = selectedBrand;
-    if (selectedBrandWorkspaceId) {
-      try {
-        generationBrand = await new ProjectsApi().getBrand(
-          selectedBrandWorkspaceId,
-        );
-        brandResources = {
-          ...brandResources,
-          [selectedBrandWorkspaceId]: generationBrand,
-        };
-      } catch {
-        // A temporarily unavailable Brand Kit must not block generation. The
-        // most recently loaded copy is still useful when one exists.
-      }
-    }
-    const basis = assistantGenerationBasis();
+    // Read fresh so an edit made on the Brand DNA page is used right away. A
+    // brand that cannot be read must not block generation; the copy loaded
+    // earlier is still useful when there is one.
+    const [ai, loadedBrand] = await Promise.all([
+      loadGenerationPipeline(),
+      loadBrand(),
+    ]);
+    const generationBrand = loadedBrand ?? brand;
+    const basis = assistantGenerationBasis(ai);
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
         name: "Untitled Motionly Project",
@@ -2092,7 +2082,7 @@
         hydratePresetAssets(candidate.compositionHtml),
       );
       try {
-        return validateGeneratedComposition(candidate, {
+        return ai.validateGeneratedComposition(candidate, {
           prompt,
           previousHtml: currentHtml,
           previousDuration: basis.duration,
@@ -2102,7 +2092,7 @@
             .map((asset) => asset.token),
           renderedHtml: rendered.source,
           generationProfile: basis.generationProfile,
-          userEditedIds: userEditedIds(basis.editorState),
+          userEditedIds: ai.userEditedIds(basis.editorState),
           lenient,
         });
       } finally {
@@ -2110,10 +2100,11 @@
       }
     };
 
-    const generationPrompt = generationBrand
-      ? `${brandGenerationBrief(generationBrand)}\n\nUSER REQUEST:\n${prompt}`
-      : prompt;
-    const result = await generateWithDirectAi(
+    const generationPrompt =
+      generationBrand && generationBrand.revision > 0
+        ? `${brandGenerationBrief(generationBrand)}\n\nUSER REQUEST:\n${prompt}`
+        : prompt;
+    const result = await ai.generateWithDirectAi(
       generationPrompt,
       {
         backendProjectId:
@@ -2150,7 +2141,7 @@
           return {
             ok: false as const,
             message,
-            fatal: isFatalRenderFailure(message),
+            fatal: ai.isFatalRenderFailure(message),
           };
         }
       },
@@ -2165,7 +2156,7 @@
           hydratePresetAssets(candidate.compositionHtml),
         );
         try {
-          return await observeCandidateFilm({
+          return await ai.observeCandidateFilm({
             renderedHtml: rendered.source,
             timelineJs: candidate.timelineJs,
             title: candidate.title,
@@ -2276,6 +2267,7 @@
     try {
       return await generateAndApplyAssistant(prompt);
     } catch (error: unknown) {
+      const { BackendConversationResponse } = await loadGenerationPipeline();
       if (error instanceof BackendConversationResponse) {
         backendGenerationProjectId =
           error.projectId ?? backendGenerationProjectId;
@@ -2338,13 +2330,13 @@
     void refreshCredits();
     await cloudProjects?.refreshSession();
     void refreshActivePlan();
+    void loadBrand();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
     if (held) {
       sessionStorage.removeItem("motionly_pending_prompt");
       pendingLandingPrompt = "";
       assistantDraft = held;
-      activeTab = "chat";
       await tick();
       await submitAssistant(new SubmitEvent("submit"));
     }
@@ -2364,6 +2356,10 @@
     }
     currentUser = null;
     activePlan = null;
+    brand = null;
+    profileMenuOpen = false;
+    if (!hasEditorProject) openPage("create");
+    else page = null;
     resetCredits();
     await cloudProjects?.refreshSession();
     showNotice("Signed out of Motify.");
@@ -2430,6 +2426,9 @@
     const prompt = assistantDraft.trim();
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt)) return;
+    // The first prompt turns the create page into this video's chat.
+    projectStarted = true;
+    page = null;
 
     const sentAudio = $selectedAudio;
     const sentAttachments: MessageAttachment[] = [
@@ -2666,6 +2665,7 @@
     } else {
       cloudProjects.setFiles(cloudFiles);
       await cloudProjects.saveActive();
+      sourceDirty = false;
       captureEvent("project saved", { has_cloud_project: !!cloudProject });
     }
     scheduleDraftSave();
@@ -2715,6 +2715,7 @@
       "composition.html":
         template?.outerHTML ?? documentSource.body.innerHTML.trim(),
     };
+    sourceDirty = true;
     cloudProjects?.setFiles(cloudFiles);
     scheduleDraftSave();
   }
@@ -2729,6 +2730,7 @@
     backendGenerationProjectId = cloudProject?.id ?? "";
     cloudFiles = event.detail.files;
     if (cloudProject) {
+      page = null;
       await mountSavedProject(cloudProject, cloudFiles);
       setProjectRoute(cloudProject.id);
     } else {
@@ -2753,6 +2755,9 @@
     exportStatus = "Initializing video export...";
     showNotice("Rendering full video export (1080p)...", 20000);
     try {
+      // The encoder loads on the first export, not with the editor.
+      const { downloadBlob, exportVideo } =
+        await import("../composition/exporter");
       const blob = await exportVideo(
         runtime,
         (_progress, statusText) => {
@@ -2777,27 +2782,6 @@
     }
   }
 
-  async function exportFrame(): Promise<void> {
-    if (!hasEditorProject || !runtime || exporting) return;
-    exporting = true;
-    showNotice("Rendering current frame snapshot…", 6000);
-    try {
-      const blob = await exportPng(runtime, 1);
-      downloadBlob(
-        blob,
-        `motify-${Math.round(snapshot.time * activeComposition.fps)}.png`,
-      );
-      captureEvent("frame exported", {
-        frame: Math.round(snapshot.time * activeComposition.fps),
-      });
-      showNotice("Frame PNG saved.");
-    } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Export failed.");
-    } finally {
-      exporting = false;
-    }
-  }
-
   /** Adds what the request cost, when the server charged for it. */
   function withCreditCost(message: string): string {
     const charged = get(lastCreditCharge);
@@ -2813,6 +2797,8 @@
     }, duration);
   }
 </script>
+
+<svelte:window on:pointerdown={closeProfileMenu} />
 
 <div
   class="app"
@@ -2836,58 +2822,60 @@
   />
   <div class="code-editor-scope">
     <div class="me-motion-editor" style="--timeline-height: 218px;">
-      <div class="me-workbench">
-        {#if mode === "cloud" || localPanelOpen}
+      <div class="me-workbench" class:me-no-inspector={!showInspector}>
+        {#if mode === "cloud"}
           <aside class="me-left-panel">
-            {#if mode === "cloud"}
-              <nav
-                class="me-sidebar-home"
-                class:me-sidebar-home-hidden={sidebarSheetOpen}
-                aria-label="Motify navigation"
-              >
+            {#if hasEditorProject}
+              {@render tiffy("panel")}
+            {:else}
+              <nav class="me-sidebar-home" aria-label="Motify navigation">
+                <div class="me-sidebar-brand">
+                  <img src="/logo.svg" alt="" width="26" height="26" />
+                  <span>Motify</span>
+                </div>
                 <div class="me-sidebar-primary">
                   <button
-                    class="me-sidebar-new"
-                    on:click={startNewProject}
-                    disabled={$generationStore.isActive || exporting}
+                    class="me-sidebar-link"
+                    class:me-active={centerPage === "create"}
+                    aria-current={centerPage === "create" ? "page" : undefined}
+                    on:click={() => openPage("create")}
                   >
-                    <Plus size={16} /><span>New video</span>
+                    <SquarePen size={16} /><span>Create</span>
                   </button>
                   <button
                     class="me-sidebar-link"
-                    on:click={() => openSidebarTool("chat")}
-                  >
-                    <span>Chat with Tiffy</span>
-                  </button>
-                  <button
-                    class="me-sidebar-link me-active"
-                    on:click={() => cloudProjects.openManager()}
+                    class:me-active={centerPage === "videos"}
+                    aria-current={centerPage === "videos" ? "page" : undefined}
+                    on:click={() => openPage("videos")}
                   >
                     <LayoutGrid size={16} /><span>My Videos</span>
                   </button>
                   <button
                     class="me-sidebar-link"
-                    on:click={() => openSidebarTool("presets")}
+                    class:me-active={centerPage === "templates"}
+                    aria-current={centerPage === "templates"
+                      ? "page"
+                      : undefined}
+                    on:click={() => openPage("templates")}
                   >
                     <FolderOpen size={16} /><span>Templates</span>
                   </button>
-                  <a
-                    class="me-sidebar-link"
-                    href={brandKitHref}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a class="me-sidebar-link" href={BRAND_ROUTE}>
                     <Dna size={16} /><span>Brand Kit</span>
                   </a>
                   <button
                     class="me-sidebar-link"
-                    on:click={() => openSidebarTool("assets")}
+                    class:me-active={centerPage === "assets"}
+                    aria-current={centerPage === "assets" ? "page" : undefined}
+                    on:click={() => openPage("assets")}
                   >
                     <ImageIcon size={16} /><span>Assets</span>
                   </button>
                   <button
                     class="me-sidebar-link"
-                    on:click={() => openSidebarTool("music")}
+                    class:me-active={centerPage === "music"}
+                    aria-current={centerPage === "music" ? "page" : undefined}
+                    on:click={() => openPage("music")}
                   >
                     <Music2 size={16} /><span>Music</span>
                   </button>
@@ -2909,7 +2897,17 @@
                         <CirclePlay size={14} /><span>{project.name}</span>
                       </button>
                     {:else}
-                      <p>No saved videos yet.</p>
+                      {#if recentsLoaded}
+                        <p>No saved videos yet.</p>
+                      {:else}
+                        {#each [72, 58, 66] as width (width)}
+                          <span
+                            class="me-skeleton me-recent-skeleton"
+                            style:width={`${width}%`}
+                            aria-hidden="true"
+                          ></span>
+                        {/each}
+                      {/if}
                     {/each}
                   </div>
                 </section>
@@ -2923,21 +2921,61 @@
                     </div>
                     <div class="me-sidebar-account-row">
                       <Gift size={15} /><span>Plan</span>
-                      <small>{activePlan ?? "Free"}</small>
-                    </div>
-                    <button
-                      class="me-sidebar-profile"
-                      on:click={signOutOfMotify}
-                    >
-                      <span class="account-avatar" aria-hidden="true">
-                        {(currentUser.displayName || currentUser.email)
-                          .trim()
-                          .charAt(0)
-                          .toUpperCase()}
-                      </span>
-                      <span>{currentUser.displayName || currentUser.email}</span
+                      <small class="me-sidebar-plan"
+                        >{activePlan ?? "Free"}</small
                       >
-                    </button>
+                    </div>
+                    <div class="me-profile" bind:this={profileMenu}>
+                      {#if profileMenuOpen}
+                        <div class="me-profile-menu" role="menu">
+                          <div class="me-profile-menu__who">
+                            <strong
+                              >{currentUser.displayName ||
+                                currentUser.email}</strong
+                            >
+                            <small>{currentUser.email}</small>
+                          </div>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            on:click={() => openPage("settings")}
+                          >
+                            <Settings size={15} /> Settings
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            on:click={() => openPage("support")}
+                          >
+                            <LifeBuoy size={15} /> Support
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            on:click={signOutOfMotify}
+                          >
+                            <LogOut size={15} /> Sign out
+                          </button>
+                        </div>
+                      {/if}
+                      <button
+                        class="me-sidebar-profile"
+                        aria-haspopup="menu"
+                        aria-expanded={profileMenuOpen}
+                        on:click={() => (profileMenuOpen = !profileMenuOpen)}
+                      >
+                        <span class="account-avatar" aria-hidden="true">
+                          {(currentUser.displayName || currentUser.email)
+                            .trim()
+                            .charAt(0)
+                            .toUpperCase()}
+                        </span>
+                        <span class="me-sidebar-profile__name"
+                          >{currentUser.displayName || currentUser.email}</span
+                        >
+                        <ChevronsUpDown size={14} />
+                      </button>
+                    </div>
                   {:else}
                     <button
                       class="me-sidebar-signin"
@@ -2946,351 +2984,383 @@
                       Sign in
                     </button>
                   {/if}
-                  <button
+                  <a
                     class="me-sidebar-upgrade"
-                    on:click={() =>
-                      showNotice(
-                        "Choose a plan from your Motify account page.",
-                      )}
+                    href={PRICING_URL}
+                    target="_blank"
+                    rel="noopener"
                   >
-                    Upgrade
-                  </button>
+                    <Crown size={15} /><span>Upgrade</span>
+                  </a>
                 </div>
               </nav>
             {/if}
-            <div
-              class:me-sidebar-tool={mode === "cloud"}
-              class:me-sidebar-tool-open={sidebarSheetOpen || mode === "local"}
-            >
-              {#if mode === "cloud"}
-                <header class="me-tool-header">
-                  <button
-                    class="me-tool-back"
-                    aria-label="Back to navigation"
-                    on:click={closeSidebarTool}
-                  >
-                    <ArrowLeft size={17} />
-                  </button>
-                  <div class="me-tool-title">
-                    {#if activeTab === "chat"}
-                      <strong>Chat with Tiffy</strong>
-                    {:else if activeTab === "presets"}
-                      <FolderOpen size={16} /><strong>Templates</strong>
-                    {:else if activeTab === "assets"}
-                      <ImageIcon size={16} /><strong>Assets</strong>
-                    {:else}
-                      <Music2 size={16} /><strong>Music</strong>
-                    {/if}
-                  </div>
-                  {#if activeTab === "presets"}
-                    <button
-                      class="me-import-header-btn me-tooltip"
-                      data-tooltip="Import media"
-                      on:click={() => mediaInput.click()}
-                    >
-                      <Upload size={14} /> Import
-                    </button>
-                  {/if}
-                </header>
-                <nav class="me-creation-tabs" aria-label="Video creation tools">
-                  <button
-                    type="button"
-                    class:me-active={activeTab === "chat"}
-                    aria-current={activeTab === "chat" ? "page" : undefined}
-                    on:click={() => selectTab("chat")}
-                  >
-                    Chat
-                  </button>
-                  <button
-                    type="button"
-                    class:me-active={activeTab === "presets"}
-                    aria-current={activeTab === "presets" ? "page" : undefined}
-                    on:click={() => selectTab("presets")}
-                  >
-                    <FolderOpen size={14} /> Templates
-                  </button>
-                  <button
-                    type="button"
-                    class:me-active={activeTab === "music"}
-                    aria-current={activeTab === "music" ? "page" : undefined}
-                    on:click={() => selectTab("music")}
-                  >
-                    <Music2 size={14} /> Music
-                  </button>
-                </nav>
-              {:else}
-                <div class="me-brand-row">
-                  <div class="brand">
-                    <span
-                      class="logo-shell me-sidebar-brand-mark"
-                      aria-hidden="true">M</span
-                    >
-                    <h1>Motify</h1>
-                  </div>
-                  <div class="me-brand-actions">
-                    <button
-                      class="me-ghost-icon-btn me-tooltip"
-                      aria-label="Close editor controls"
-                      data-tooltip="Close editor controls"
-                      on:click={() => (localPanelOpen = false)}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-                <div class="me-panel-header">
-                  {#if localPanelView === "assets"}
-                    <div class="me-panel-title">
-                      <ImageIcon size={15} /> Assets
-                    </div>
-                  {:else if sourceOpen}
-                    <div class="me-panel-title">
-                      <Braces size={15} /> Source
-                    </div>
-                    <button
-                      class="me-header-icon-btn"
-                      aria-label="Close composition source"
-                      on:click={() => (sourceOpen = false)}
-                    >
-                      <X size={15} />
-                    </button>
-                  {:else}
-                    <div class="me-panel-title">
-                      <FolderOpen size={15} /> Presets
-                    </div>
-                    <button
-                      class="me-header-icon-btn me-tooltip"
-                      aria-label="Open composition HTML source"
-                      data-tooltip="Composition source"
-                      on:click={openTimelineSource}
-                    >
-                      <Braces size={15} />
-                    </button>
-                  {/if}
-                </div>
-              {/if}
-
-              {#if mode === "local" && localPanelView === "assets"}
-                <div class="me-panel-content">
-                  <h3 class="me-category-title">Project assets</h3>
-                  {#each localAssets as asset}
-                    <a
-                      class="me-local-asset"
-                      href={`/assets/${asset.split("/").map(encodeURIComponent).join("/")}`}
-                      target="_blank"
-                      rel="noreferrer">{asset}</a
-                    >
-                  {:else}
-                    <p class="panel-copy">
-                      Files in your project's assets folder appear here.
-                    </p>
-                  {/each}
+          </aside>
+        {:else if localPanelOpen}
+          <aside class="me-left-panel">
+            <div class="me-brand-row">
+              <div class="brand">
+                <span
+                  class="logo-shell me-sidebar-brand-mark"
+                  aria-hidden="true">M</span
+                >
+                <h1>Motify</h1>
+              </div>
+              <div class="me-brand-actions">
+                <button
+                  class="me-ghost-icon-btn me-tooltip"
+                  aria-label="Close editor controls"
+                  data-tooltip="Close editor controls"
+                  on:click={() => (localPanelOpen = false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div class="me-panel-header">
+              {#if localPanelView === "assets"}
+                <div class="me-panel-title">
+                  <ImageIcon size={15} /> Assets
                 </div>
               {:else if sourceOpen}
-                <div class="me-panel-content">
-                  <h3 class="me-category-title">Composition source</h3>
-                  <div class="source-heading">
-                    <Braces size={15} />
-                    {(cloudProject?.name ?? localProjectName) ||
-                      "Unsaved project"} / composition.html
-                  </div>
-                  <pre class="source-code">{cloudFiles[
-                      "composition.html"
-                    ]}</pre>
-                  {#if mode === "local"}
-                    <h3 class="me-category-title">styles.css</h3>
-                    <pre class="source-code">{cloudFiles["styles.css"]}</pre>
-                    <h3 class="me-category-title">timeline.js</h3>
-                    <pre class="source-code">{cloudFiles["timeline.js"]}</pre>
-                    <h3 class="me-category-title">index.ts</h3>
-                    <pre class="source-code">{cloudFiles["index.ts"]}</pre>
-                  {/if}
+                <div class="me-panel-title">
+                  <Braces size={15} /> Source
                 </div>
-              {:else if activeTab === "presets"}
-                <div class="me-panel-content">
-                  <h3 class="me-category-title">Presets</h3>
-                  <div class="me-preset-grid">
-                    <button class="me-preset-card" on:click={loadClaudePreset}>
-                      <span class="me-preset-thumbnail claude-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>RESEARCH / REASON / CREATE</small><strong
-                            >CLAUDE<br /><em>THINKS.</em></strong
-                          ><i>PROMPT · ARTIFACT · ACTION</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name"
-                          >Claude Calorie & Climax</strong
-                        >
-                        <small>24.5s · Build, Macro Zoom & Climax</small></span
-                      >
-                    </button>
-                    <button class="me-preset-card" on:click={loadMotifyPreset}>
-                      <span class="me-preset-thumbnail promo-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>CODE-FIRST MOTION</small><strong
-                            >MOTIFY<br /><em>LAUNCH.</em></strong
-                          ><i>PROMPT · EDIT · EXPORT</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name"
-                          >Motify Launch Film</strong
-                        >
-                        <small>52s · Product story and showcase</small></span
-                      >
-                    </button>
-                    <button class="me-preset-card" on:click={loadKiriTtsPreset}>
-                      <span class="me-preset-thumbnail kiritts-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>UNIFIED AI VOICE</small><strong
-                            >KIRI<br /><em>TTS.</em></strong
-                          ><i>TTS · STT · CLONING · API</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">KiriTTS SaaS Ad</strong>
-                        <small>28.5s · 5 Acts · Claude-Grade Camera</small
-                        ></span
-                      >
-                    </button>
-                    <button
-                      class="me-preset-card"
-                      on:click={loadAppleNotesPreset}
-                    >
-                      <span class="me-preset-thumbnail apple-notes-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>EXPANSIVE CAMERA</small><strong
-                            >APPLE<br /><em>NOTES.</em></strong
-                          ><i>GLASS · ECOSYSTEM · PENCIL</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">Apple Notes</strong>
-                        <small>24s · 2.5D Expansive Camera</small></span
-                      >
-                    </button>
-                    <button class="me-preset-card" on:click={loadTesseraPreset}>
-                      <span class="me-preset-thumbnail tessera-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>DATA CONTRACT</small><strong
-                            >ONE<br /><em>SHAPE.</em></strong
-                          ><i>CORRIDOR · GATE · CONTRACT</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">Tessera</strong>
-                        <small>20s · Transformation, no UI shell</small></span
-                      >
-                    </button>
-                    <button class="me-preset-card" on:click={loadRelayPreset}>
-                      <span class="me-preset-thumbnail relay-thumbnail"
-                        ><span class="promo-thumbnail-art"
-                          ><small>REVIEW AND HANDOFF</small><strong
-                            >PASS<br /><em>IT ON.</em></strong
-                          ><i>26 SECOND PRODUCT FILM</i></span
-                        ></span
-                      >
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">Relay</strong><small
-                          >26s &middot; Review and handoff</small
-                        ></span
-                      >
-                    </button>
-                    <button class="me-preset-card" on:click={loadRecoupPreset}>
-                      <span class="me-preset-thumbnail recoup-thumbnail"
-                        ><span class="promo-thumbnail-art"
-                          ><small>FAILED PAYMENT RECOVERY</small><strong
-                            >WIN IT<br /><em>BACK.</em></strong
-                          ><i>LIQUID GLASS &middot; 3D CAMERA</i></span
-                        ></span
-                      >
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">Recoup</strong><small
-                          >26s &middot; Liquid glass, 3D camera</small
-                        ></span
-                      >
-                    </button>
-                    <button
-                      class="me-preset-card"
-                      on:click={loadMotionlyPromoPreset}
-                    >
-                      <span class="me-preset-thumbnail promo-thumbnail">
-                        <span class="promo-thumbnail-art"
-                          ><small>KINETIC PRODUCT FILM</small><strong
-                            >MAKE IT<br /><em>MOVE.</em></strong
-                          ><i>EDITORIAL · SAAS · GSAP</i></span
-                        >
-                      </span>
-                      <span class="me-preset-info"
-                        ><strong class="me-preset-name">Motionly Promo</strong>
-                        <small>20s · HTML/CSS + GSAP</small></span
-                      >
-                    </button>
-                  </div>
-                  <p class="panel-copy">
-                    Fast kinetic type, native product UI, overlapping handoffs,
-                    and one directed GSAP timeline. No generated media.
-                  </p>
+                <button
+                  class="me-header-icon-btn"
+                  aria-label="Close composition source"
+                  on:click={() => (sourceOpen = false)}
+                >
+                  <X size={15} />
+                </button>
+              {:else}
+                <div class="me-panel-title">
+                  <FolderOpen size={15} /> Presets
                 </div>
-              {:else if activeTab === "music" && mode === "cloud"}
-                <MusicPanel
-                  api={musicApi}
-                  {workspaceId}
-                  busy={$generationStore.isActive}
-                  onUse={useAudioTrack}
-                  onRemoveFromProject={removeAudioFromProject}
-                  onNotice={(message) => showNotice(message)}
-                />
-              {:else if activeTab === "assets" && mode === "cloud"}
-                <AssetsPanel
-                  api={musicApi}
-                  {workspaceId}
-                  projectId={cloudProject?.id ?? backendGenerationProjectId}
-                  busy={$generationStore.isActive}
-                  onUse={useLibraryAsset}
-                  onManageBrand={openSelectedBrandKit}
-                  onNotice={(message) => showNotice(message)}
-                />
-              {:else if mode === "cloud"}
-                <TiffyPanel
-                  {assistantMessages}
-                  bind:assistantDraft
-                  bind:composerInput
-                  {activityVerb}
-                  {pendingAssets}
-                  {classifiedAssets}
-                  {stagedPreviews}
-                  {uploadingMedia}
-                  {uploadProgress}
-                  {uploadPreview}
-                  {uploadName}
-                  {isErrorMessage}
-                  {handleFixError}
-                  {classifyStagedAsset}
-                  {removeStagedAsset}
-                  {submitAssistant}
-                  {resizeComposer}
-                  {composerKeydown}
-                  {handlePaste}
-                  onAttach={() => mediaInput.click()}
-                  selectedAudio={$selectedAudio}
-                  removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
-                  onDropFiles={handleChatDrop}
-                  {brandChoices}
-                  {selectedBrandWorkspaceId}
-                  {brandLocked}
-                  {brandLoading}
-                  onSelectBrand={(workspace) =>
-                    void selectGenerationBrand(workspace)}
-                  onManageBrand={openSelectedBrandKit}
-                />
+                <button
+                  class="me-header-icon-btn me-tooltip"
+                  aria-label="Open composition HTML source"
+                  data-tooltip="Composition source"
+                  on:click={openTimelineSource}
+                >
+                  <Braces size={15} />
+                </button>
               {/if}
             </div>
+
+            {#if localPanelView === "assets"}
+              <div class="me-panel-content">
+                <h3 class="me-category-title">Project assets</h3>
+                {#each localAssets as asset}
+                  <a
+                    class="me-local-asset"
+                    href={`/assets/${asset.split("/").map(encodeURIComponent).join("/")}`}
+                    target="_blank"
+                    rel="noreferrer">{asset}</a
+                  >
+                {:else}
+                  <p class="panel-copy">
+                    Files in your project's assets folder appear here.
+                  </p>
+                {/each}
+              </div>
+            {:else if sourceOpen}
+              <div class="me-panel-content">
+                <h3 class="me-category-title">Composition source</h3>
+                <div class="source-heading">
+                  <Braces size={15} />
+                  {localProjectName || "Unsaved project"} / composition.html
+                </div>
+                <pre class="source-code">{cloudFiles["composition.html"]}</pre>
+                <h3 class="me-category-title">styles.css</h3>
+                <pre class="source-code">{cloudFiles["styles.css"]}</pre>
+                <h3 class="me-category-title">timeline.js</h3>
+                <pre class="source-code">{cloudFiles["timeline.js"]}</pre>
+                <h3 class="me-category-title">index.ts</h3>
+                <pre class="source-code">{cloudFiles["index.ts"]}</pre>
+              </div>
+            {:else}
+              <div class="me-panel-content">
+                <h3 class="me-category-title">Presets</h3>
+                <div class="me-preset-grid">
+                  {#each templates as template (template.id)}
+                    <button
+                      class="me-preset-card"
+                      disabled={openingTemplate !== null}
+                      aria-busy={openingTemplate === template.id}
+                      on:click={() => openTemplate(template)}
+                    >
+                      <span class={`me-preset-thumbnail ${template.thumbnail}`}>
+                        {@render templateArt(template)}
+                      </span>
+                      <span class="me-preset-info"
+                        ><strong class="me-preset-name">{template.name}</strong>
+                        <small>{template.duration} · {template.summary}</small
+                        ></span
+                      >
+                    </button>
+                  {/each}
+                </div>
+                <p class="panel-copy">
+                  Fast kinetic type, native product UI, overlapping handoffs,
+                  and one directed GSAP timeline. No generated media.
+                </p>
+              </div>
+            {/if}
           </aside>
         {/if}
 
-        <div class="me-center-column">
+        <div
+          class="me-center-column"
+          class:me-center-paged={centerPage !== null}
+        >
+          {#if centerPage}
+            <div
+              class="me-page"
+              class:me-page--create={centerPage === "create"}
+            >
+              {#if hasEditorProject}
+                <button
+                  type="button"
+                  class="me-page-back"
+                  on:click={() => (page = null)}
+                  ><ArrowLeft size={15} /> Back to video</button
+                >
+              {/if}
+              {#if centerPage === "create"}
+                <div class="me-create">
+                  {@render tiffy("hero")}
+                </div>
+              {:else if centerPage === "templates"}
+                <section class="me-page-body" aria-labelledby="templates-title">
+                  <header class="me-page-header">
+                    <h1 id="templates-title">Templates</h1>
+                    <p>
+                      Open a finished film, then ask Tiffy to make it yours.
+                    </p>
+                  </header>
+                  <label class="me-page-search">
+                    <Search size={15} />
+                    <input
+                      type="search"
+                      placeholder="Search templates…"
+                      aria-label="Search templates"
+                      bind:value={templateQuery}
+                    />
+                  </label>
+                  <div class="me-chip-row" aria-label="Template categories">
+                    {#each ["All", ...templateCategories] as category (category)}
+                      <button
+                        type="button"
+                        class="me-chip"
+                        class:me-active={templateCategory === category}
+                        aria-pressed={templateCategory === category}
+                        on:click={() =>
+                          (templateCategory = category as
+                            TemplateCategory | "All")}>{category}</button
+                      >
+                    {/each}
+                  </div>
+                  <div class="me-template-grid">
+                    {#each visibleTemplates as template (template.id)}
+                      <button
+                        type="button"
+                        class="me-template-card"
+                        aria-label={`Open the ${template.name} template`}
+                        aria-busy={openingTemplate === template.id}
+                        disabled={openingTemplate !== null}
+                        on:click={() => openTemplate(template)}
+                      >
+                        <span
+                          class={`me-preset-thumbnail me-template-thumb ${template.thumbnail}`}
+                        >
+                          {@render templateArt(template)}
+                          <span class="me-template-duration"
+                            >{template.duration}</span
+                          >
+                          {#if openingTemplate === template.id}
+                            <span class="me-template-opening"
+                              ><span class="me-spinner" aria-hidden="true"
+                              ></span>Opening…</span
+                            >
+                          {/if}
+                        </span>
+                        <span class="me-template-meta">
+                          <strong>{template.name}</strong>
+                          <span class="me-template-tag"
+                            >{template.category}</span
+                          >
+                        </span>
+                        <small class="me-template-summary"
+                          >{template.summary}</small
+                        >
+                      </button>
+                    {:else}
+                      <p class="me-page-empty">
+                        No templates match your search.
+                      </p>
+                    {/each}
+                  </div>
+                </section>
+              {:else if centerPage === "music"}
+                <section
+                  class="me-page-body me-page-body--narrow"
+                  aria-labelledby="music-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="music-title">Music</h1>
+                    <p>
+                      Pick a song and Tiffy will score your next video to it.
+                    </p>
+                  </header>
+                  <div class="me-library">
+                    <MusicPanel
+                      api={musicApi}
+                      {workspaceId}
+                      busy={$generationStore.isActive}
+                      onUse={useAudioTrack}
+                      onRemoveFromProject={removeAudioFromProject}
+                      onNotice={(message) => showNotice(message)}
+                    />
+                  </div>
+                </section>
+              {:else if centerPage === "assets"}
+                <section
+                  class="me-page-body me-page-body--narrow"
+                  aria-labelledby="assets-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="assets-title">Assets</h1>
+                    <p>Your images and logos, ready to drop into a video.</p>
+                  </header>
+                  <div class="me-library">
+                    <AssetsPanel
+                      api={musicApi}
+                      {workspaceId}
+                      projectId={cloudProject?.id ?? backendGenerationProjectId}
+                      busy={$generationStore.isActive}
+                      onUse={useLibraryAsset}
+                      onManageBrand={openBrandKit}
+                      onNotice={(message) => showNotice(message)}
+                    />
+                  </div>
+                </section>
+              {:else if centerPage === "videos"}
+                <section
+                  class="me-page-body me-videos-page"
+                  aria-label="My Videos"
+                >
+                  <div class="me-videos-host" bind:this={videosHost}></div>
+                </section>
+              {:else if centerPage === "support"}
+                <section
+                  class="me-page-body me-page-body--narrow"
+                  aria-labelledby="support-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="support-title">Support</h1>
+                    <p>
+                      Stuck on a video, a payment, or something that looks
+                      broken? We read every message and usually reply within one
+                      business day.
+                    </p>
+                  </header>
+                  <div class="me-settings-card me-support-card">
+                    <span class="me-support-icon" aria-hidden="true"
+                      ><Mail size={18} /></span
+                    >
+                    <div class="me-support-copy">
+                      <h2>Email us</h2>
+                      <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+                    </div>
+                    <button
+                      type="button"
+                      class="me-support-copy-btn"
+                      aria-label="Copy support email address"
+                      on:click={copySupportEmail}
+                    >
+                      {#if supportEmailCopied}<Check size={14} /> Copied{:else}<Copy
+                          size={14}
+                        /> Copy{/if}
+                    </button>
+                  </div>
+                  <div class="me-settings-card">
+                    <h2>To help us help you faster</h2>
+                    <ul class="me-support-list">
+                      <li>The email address you sign in with.</li>
+                      <li>
+                        Which video it's about — its name, or the link from your
+                        address bar.
+                      </li>
+                      <li>
+                        What you expected, what happened instead, and a
+                        screenshot if you can.
+                      </li>
+                      <li>For billing, the date and amount of the payment.</li>
+                    </ul>
+                  </div>
+                  <a
+                    class="me-support-mail"
+                    href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Motify support")}`}
+                    ><Mail size={15} /> Write to support</a
+                  >
+                </section>
+              {:else}
+                <section
+                  class="me-page-body me-page-body--narrow"
+                  aria-labelledby="settings-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="settings-title">Settings</h1>
+                  </header>
+                  {#if currentUser}
+                    <div class="me-settings-card">
+                      <h2>Account</h2>
+                      <div class="me-settings-row">
+                        <span>Name</span>
+                        <strong>{currentUser.displayName || "—"}</strong>
+                      </div>
+                      <div class="me-settings-row">
+                        <span>Email</span>
+                        <strong>{currentUser.email}</strong>
+                      </div>
+                    </div>
+                    <div class="me-settings-card">
+                      <h2>Plan & credits</h2>
+                      <div class="me-settings-row">
+                        <span>Plan</span>
+                        <span class="me-settings-value">
+                          <strong class="me-sidebar-plan"
+                            >{activePlan ?? "Free"}</strong
+                          >
+                          <a href={PRICING_URL} target="_blank" rel="noopener"
+                            >{activePlan ? "Change plan" : "Upgrade"}</a
+                          >
+                        </span>
+                      </div>
+                      <div class="me-settings-row">
+                        <span>Credits</span>
+                        <CreditsBadge />
+                      </div>
+                    </div>
+                    <div class="me-settings-card">
+                      <h2>Brand</h2>
+                      <div class="me-settings-row">
+                        <span>Brand DNA</span>
+                        <a href={BRAND_ROUTE}>{brandName ?? "Set it up"}</a>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="me-settings-signout"
+                      on:click={signOutOfMotify}
+                      ><LogOut size={15} /> Sign out</button
+                    >
+                  {/if}
+                </section>
+              {/if}
+            </div>
+          {/if}
           <header class="me-center-toolbar">
             {#if mode === "local"}
               <div
@@ -3320,7 +3390,6 @@
             </div>
             <div
               class="me-view-controls"
-              class:me-view-controls-hidden={!hasEditorProject}
               role="toolbar"
               aria-label="Canvas view"
             >
@@ -3357,7 +3426,7 @@
                 <button
                   class="btn"
                   title="Open a saved project"
-                  on:click={() => cloudProjects.openManager()}
+                  on:click={() => openPage("videos")}
                   ><FolderOpen size={15} /><span>Open</span></button
                 >
               {/if}
@@ -3369,26 +3438,19 @@
                 ><Save size={15} /><span>Save</span></button
               >
               <button
-                class="btn me-tooltip"
-                data-tooltip="Export current frame as PNG"
-                on:click={exportFrame}
-                disabled={!hasEditorProject || exporting}
-              >
-                <ImageIcon size={15} /><span>PNG</span>
-              </button>
-              <button
-                class="btn btn-primary me-export-compact"
+                class="btn btn-primary export-action me-tooltip"
                 aria-label="Export video"
+                data-tooltip="Render and download 1080p video"
                 on:click={exportFullVideo}
                 disabled={!hasEditorProject || exporting}
-                ><Download size={15} /></button
               >
+                <Download size={15} /><span
+                  >{exporting ? exportStatus || "Rendering…" : "Export"}</span
+                >
+              </button>
             </div>
           </header>
-          <main
-            class="me-preview-container"
-            class:me-preview-empty={!hasEditorProject}
-          >
+          <main class="me-preview-container">
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
             <div
               class="me-stage"
@@ -3469,27 +3531,22 @@
                 {/if}
               </div>
             </div>
-            {#if !hasEditorProject}
-              <div class="me-empty-editor" role="status">
-                <span class="me-empty-editor__mark" aria-hidden="true">
-                  <Film size={23} />
-                </span>
-                <h2>No video open</h2>
-                <p>
-                  Start a new video, open a recent one, or ask Tiffy to create
-                  one.
-                </p>
-                <button type="button" on:click={startNewProject}>
-                  <Plus size={15} /> New video
-                </button>
+            {#if mode === "cloud" && $generationStore.isActive}
+              <div class="me-generating" role="status" aria-live="polite">
+                <span class="me-spinner me-spinner--large" aria-hidden="true"
+                ></span>
+                <strong>Generating your video…</strong>
+                <p>{$generationStore.message || "Tiffy is working on it."}</p>
+              </div>
+            {:else if openingProject}
+              <div class="me-generating" role="status">
+                <span class="me-spinner me-spinner--large" aria-hidden="true"
+                ></span>
+                <strong>Opening your video…</strong>
               </div>
             {/if}
           </main>
-          <section
-            class="me-scene-bar"
-            class:me-no-project={!hasEditorProject}
-            aria-label="Scenes"
-          >
+          <section class="me-scene-bar" aria-label="Scenes">
             <div class="me-scene-bar__transport">
               <button
                 class="me-scene-bar__play"
@@ -3711,96 +3768,23 @@
           {/if}
         </div>
 
-        <aside class="me-properties-panel">
-          <div class="me-inspector-head">
-            {#if mode === "cloud" && authChecked}
-              {#if currentUser}
-                <div class="account-cluster">
-                  <button
-                    class="account-status account-status--button"
-                    title={`${currentUser.email} — sign out`}
-                    on:click={signOutOfMotify}
+        {#if showInspector}
+          <aside class="me-properties-panel">
+            <div class="me-inspector-head">
+              <strong class="me-inspector-title">Design</strong>
+            </div>
+            <div class="me-inspector-body">
+              {#if selectedId}
+                <div class="me-selection-summary">
+                  <span class="me-layer-icon"><Sparkles size={14} /></span>
+                  <span
+                    ><strong
+                      >{selectedEditorGroup?.label ??
+                        selectedTrack()?.label ??
+                        selectedId}</strong
+                    ><small>{selectedId} · editable layer</small></span
                   >
-                    <span class="account-avatar" aria-hidden="true"
-                      >{(currentUser.displayName || currentUser.email)
-                        .trim()
-                        .charAt(0)
-                        .toUpperCase()}</span
-                    >
-                    <span>{currentUser.displayName || currentUser.email}</span>
-                  </button>
-                  {#if activePlan}
-                    <span
-                      class="account-plan-badge"
-                      title={`${activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} plan active`}
-                    >
-                      {activePlan}
-                    </span>
-                  {/if}
-                  <CreditsBadge />
                 </div>
-              {:else}
-                <button
-                  class="account-status account-status--button account-status--signed-out"
-                  on:click={() => openAuthDialog("signin")}
-                >
-                  <span class="account-status__dot" aria-hidden="true"></span>
-                  <span>Sign in</span>
-                </button>
-              {/if}
-            {:else}
-              <span></span>
-            {/if}
-            <button
-              class="btn btn-primary export-action me-tooltip"
-              data-tooltip="Render and download 1080p video"
-              on:click={exportFullVideo}
-              disabled={!hasEditorProject || exporting}
-            >
-              <Download size={15} /><span
-                >{exporting ? exportStatus || "Rendering…" : "Export"}</span
-              >
-            </button>
-          </div>
-          <div class="me-inspector-tabs" role="tablist">
-            <button
-              class="me-inspector-tab"
-              role="tab"
-              aria-selected={inspectorTab === "design"}
-              class:me-active={inspectorTab === "design"}
-              on:click={() => (inspectorTab = "design")}>Design</button
-            >
-            <button
-              class="me-inspector-tab"
-              role="tab"
-              aria-selected={inspectorTab === "animate"}
-              class:me-active={inspectorTab === "animate"}
-              on:click={() => (inspectorTab = "animate")}>Animate</button
-            >
-          </div>
-          <div class="me-inspector-body">
-            {#if selectedId}
-              <div class="me-selection-summary">
-                <span class="me-layer-icon"><Sparkles size={14} /></span>
-                <span
-                  ><strong
-                    >{selectedEditorGroup?.label ??
-                      selectedTrack()?.label ??
-                      selectedId}</strong
-                  ><small>{selectedId} · editable layer</small></span
-                >
-              </div>
-              {#if inspectorTab === "animate"}
-                <div class="me-primary-properties me-animate-properties">
-                  <AnimationControls
-                    speed={animationSpeed}
-                    ease={animationEase}
-                    tweenCount={animationSettings().tweenCount}
-                    onSpeed={setAnimationSpeed}
-                    onEase={setAnimationEase}
-                  />
-                </div>
-              {:else}
                 <div class="me-primary-properties">
                   {#if selectedEditorGroup && selectedEditorGroup.fields.length > 0}
                     <section class="me-inspector-section">
@@ -4107,17 +4091,17 @@
                       /> Restore layer{:else}<EyeOff size={14} /> Remove layer{/if}
                   </button>
                 </div>
+              {:else}
+                <div class="me-properties-empty">
+                  <Sparkles size={30} /><strong>Select an element</strong><span
+                    >Click an editable object in the preview to change its
+                    visual properties.</span
+                  >
+                </div>
               {/if}
-            {:else}
-              <div class="me-properties-empty">
-                <Sparkles size={30} /><strong>Select an element</strong><span
-                  >Click an editable object in the preview to change its visual
-                  properties.</span
-                >
-              </div>
-            {/if}
-          </div>
-        </aside>
+            </div>
+          </aside>
+        {/if}
       </div>
     </div>
   </div>
@@ -4129,16 +4113,17 @@
       bind:open={authDialogOpen}
       bind:mode={authDialogMode}
       title={promptHeldForAuth || pendingLandingPrompt
-        ? "Create your account to run this prompt"
-        : "Sign in to Motify"}
+        ? "Your prompt is waiting"
+        : ""}
       subtitle={promptHeldForAuth || pendingLandingPrompt
-        ? "Tiffy builds your film inside your own workspace, so your prompt is waiting right here until you are signed in."
-        : "Sign in or create an account to save projects and generate with Tiffy."}
+        ? "Log in or create an account and Tiffy starts on it right away."
+        : ""}
       onauthenticated={handleAuthenticated}
       onclose={cancelAuthDialog}
     />
     <CloudProjectGallery
       bind:this={cloudProjects}
+      host={galleryHost}
       initialFiles={blankProjectFiles}
       width={1920}
       height={1080}
@@ -4151,3 +4136,46 @@
     />
   {/if}
 </div>
+
+{#snippet templateArt(template: TemplateCard)}
+  <span class="promo-thumbnail-art"
+    ><small>{template.eyebrow}</small><strong
+      >{template.headline}<br /><em>{template.accent}</em></strong
+    ><i>{template.footnote}</i></span
+  >
+{/snippet}
+
+{#snippet tiffy(variant: "panel" | "hero")}
+  <TiffyPanel
+    {variant}
+    title={projectTitle}
+    onBack={variant === "panel" ? () => void returnHome() : null}
+    {brandName}
+    onManageBrand={openBrandKit}
+    onOpenMusic={() => openPage("music")}
+    onOpenAssets={() => openPage("assets")}
+    {assistantMessages}
+    bind:assistantDraft
+    bind:composerInput
+    {activityVerb}
+    {pendingAssets}
+    {classifiedAssets}
+    {stagedPreviews}
+    {uploadingMedia}
+    {uploadProgress}
+    {uploadPreview}
+    {uploadName}
+    {isErrorMessage}
+    {handleFixError}
+    {classifyStagedAsset}
+    {removeStagedAsset}
+    {submitAssistant}
+    {resizeComposer}
+    {composerKeydown}
+    {handlePaste}
+    onAttach={() => mediaInput.click()}
+    selectedAudio={$selectedAudio}
+    removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
+    onDropFiles={handleChatDrop}
+  />
+{/snippet}

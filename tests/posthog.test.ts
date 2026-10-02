@@ -52,6 +52,8 @@ describe("PostHog analytics", () => {
     const analytics = await import("../src/posthog");
 
     expect(analytics.initPostHog()).toBe(true);
+    // The client loads after the page; events sent meanwhile are kept.
+    await vi.waitFor(() => expect(posthogMock.init).toHaveBeenCalled());
     expect(posthogMock.init).toHaveBeenCalledWith(
       "phc_test",
       expect.objectContaining({
@@ -68,6 +70,7 @@ describe("PostHog analytics", () => {
       displayName: "Designer",
     });
     analytics.resetAnalyticsIdentity();
+    await vi.waitFor(() => expect(posthogMock.reset).toHaveBeenCalled());
 
     expect(posthogMock.capture).toHaveBeenCalledWith("project started", {
       source: "new_button",

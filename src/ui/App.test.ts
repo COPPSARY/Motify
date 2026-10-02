@@ -82,43 +82,55 @@ describe("App project actions", () => {
         "previous-project-logo.png",
       );
       expect(document.body.textContent).not.toContain("Previous draft");
-      expect(document.body.textContent).toContain("No video open");
+      // With no video open: the create prompt, navigation, and no inspector.
+      expect(document.body.textContent).toContain("What are we making today?");
+      expect(document.querySelector(".me-properties-panel")).toBeNull();
+      expect(document.querySelector(".ai-chat-header")).toBeNull();
+      expect(document.body.textContent).not.toContain("Chat with Tiffy");
+      expect(document.body.textContent).not.toContain("New video");
       expect(
-        document.querySelector(".me-scene-bar.me-no-project"),
-      ).not.toBeNull();
-
-      const newVideo = Array.from(document.querySelectorAll("button")).find(
-        (button) => button.textContent?.trim() === "New video",
-      );
-      newVideo?.click();
-      await vi.waitFor(() => {
-        expect(document.querySelector(".me-empty-editor")).toBeNull();
-      });
-      expect(document.querySelector(".me-scene-bar.me-no-project")).toBeNull();
-      expect(
-        document.querySelector(".me-sidebar-tool.me-sidebar-tool-open"),
+        document.querySelector<HTMLAnchorElement>(
+          '.me-sidebar-home a[href="/brand"]',
+        ),
       ).not.toBeNull();
       expect(
-        document
-          .querySelector<HTMLButtonElement>(
-            '.me-creation-tabs button[aria-current="page"]',
-          )
-          ?.textContent?.trim(),
-      ).toBe("Chat");
+        document.querySelector(".me-sidebar-upgrade")?.getAttribute("href"),
+      ).toBe("https://motify.video/pricing");
 
-      const creationTabs = document.querySelector(".me-creation-tabs");
-      const templates = Array.from(
-        creationTabs?.querySelectorAll("button") ?? [],
-      ).find((button) => button.textContent?.trim() === "Templates");
-      templates?.click();
+      const nav = (label: string) =>
+        Array.from(
+          document.querySelectorAll<HTMLButtonElement>(".me-sidebar-link"),
+        ).find((button) => button.textContent?.trim() === label);
+      nav("Templates")?.click();
       await tick();
+      expect(document.querySelector(".me-template-grid")).not.toBeNull();
+      expect(window.location.pathname).toBe("/templates");
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Open the Relay template"]',
+        )
+        ?.click();
+
+      // A video is open: Tiffy's chat replaces the navigation, and the
+      // inspector has only its design controls.
+      await vi.waitFor(() => {
+        expect(document.querySelector(".ai-chat-header")).not.toBeNull();
+      });
+      expect(document.querySelector(".me-sidebar-home")).toBeNull();
+      expect(document.querySelector(".me-template-grid")).toBeNull();
+      expect(document.querySelector(".me-properties-panel")).not.toBeNull();
       expect(
-        document
-          .querySelector<HTMLButtonElement>(
-            '.me-creation-tabs button[aria-current="page"]',
-          )
-          ?.textContent?.trim(),
-      ).toBe("Templates");
+        document.querySelector(".me-properties-panel")?.textContent,
+      ).not.toContain("Animate");
+      expect(document.body.textContent).not.toContain("PNG");
+
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Back to home"]')
+        ?.click();
+      await vi.waitFor(() => {
+        expect(document.querySelector(".me-sidebar-home")).not.toBeNull();
+      });
+      expect(document.body.textContent).toContain("What are we making today?");
     } finally {
       await unmount(component);
     }
@@ -279,7 +291,7 @@ describe("App project actions", () => {
     }
   });
 
-  it("opens the saved-project gallery from the top bar", async () => {
+  it("opens the saved-project gallery from My Videos", async () => {
     const project = {
       id: "project-1",
       workspaceId: "workspace-1",
@@ -379,11 +391,27 @@ describe("App project actions", () => {
       await tick();
       await vi.waitFor(() => {
         expect(
-          document.querySelector(".account-plan-badge")?.textContent?.trim(),
+          document.querySelector(".me-sidebar-plan")?.textContent?.trim(),
         ).toBe("pro");
       });
+      document.querySelector<HTMLButtonElement>(".me-sidebar-profile")?.click();
+      await tick();
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>(".me-profile-menu button"),
+      )
+        .find((button) => button.textContent?.trim() === "Support")
+        ?.click();
+      await tick();
+      expect(
+        document
+          .querySelector(
+            '.me-support-copy a[href="mailto:support@motify.video"]',
+          )
+          ?.textContent?.trim(),
+      ).toBe("support@motify.video");
+
       const openButton = Array.from(document.querySelectorAll("button")).find(
-        (button) => button.textContent?.trim() === "Open",
+        (button) => button.textContent?.trim() === "My Videos",
       );
 
       expect(openButton).toBeDefined();
@@ -392,6 +420,11 @@ describe("App project actions", () => {
       await vi.waitFor(() => {
         expect(document.querySelector(".cloud-projects-dialog")).not.toBeNull();
       });
+      // My Videos is a page with its own URL, not a dialog over the app.
+      expect(window.location.pathname).toBe("/videos");
+      expect(
+        document.querySelector(".me-videos-host .cloud-projects-dialog"),
+      ).not.toBeNull();
 
       const projectButton = document.querySelector<HTMLButtonElement>(
         '[aria-label="Open Cloud Film"]',
@@ -403,6 +436,7 @@ describe("App project actions", () => {
         expect(document.querySelector(".cloud-projects-dialog")).toBeNull();
         expect(document.body.textContent).toContain("Opened cloud project");
       });
+      expect(window.location.pathname).toBe("/p/project-1");
     } finally {
       await unmount(component);
     }

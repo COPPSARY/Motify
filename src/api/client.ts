@@ -4,7 +4,19 @@ import { MOTIFY_API_URL } from "./config";
 export const API_URL = MOTIFY_API_URL;
 
 interface ApiErrorEnvelope {
-  error?: { message?: string };
+  error?: { message?: string; code?: string };
+}
+
+/** A non-2xx API answer, keeping the status and the server's error code. */
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
 }
 
 export async function fetchApi(
@@ -31,7 +43,11 @@ export async function fetchApi(
     const payload = (await response
       .json()
       .catch(() => ({}))) as ApiErrorEnvelope;
-    throw new Error(payload.error?.message || `API error: ${response.status}`);
+    throw new ApiRequestError(
+      payload.error?.message || `API error: ${response.status}`,
+      response.status,
+      payload.error?.code,
+    );
   }
 
   return response;

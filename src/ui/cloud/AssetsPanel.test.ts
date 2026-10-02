@@ -7,6 +7,7 @@ vi.mock("../../api/assets", () => ({
   uploadAsset: vi.fn(),
 }));
 
+import { ApiRequestError } from "../../api/client";
 import type { WorkspaceAsset } from "../../cloud/projects-api";
 import AssetsPanel from "./AssetsPanel.svelte";
 
@@ -96,6 +97,87 @@ describe("AssetsPanel", () => {
         )
         ?.click();
       expect(onUse).toHaveBeenCalledWith(assets[2]);
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("marks an asset whose file is gone and keeps it out of prompts", async () => {
+    loadAssetObjectUrl.mockRejectedValue(
+      new ApiRequestError("Gone.", 404, "ASSET_FILE_MISSING"),
+    );
+    const api = {
+      listWorkspaceAssets: vi
+        .fn()
+        .mockResolvedValue([asset("orphan", "old-shot.png")]),
+      getBrand: vi.fn().mockResolvedValue({ assets: [] }),
+      listProjectAssets: vi.fn().mockResolvedValue([]),
+    };
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(AssetsPanel, {
+      target,
+      props: { api, workspaceId: "workspace", onUse: vi.fn() } as never,
+    });
+
+    try {
+      await vi.waitFor(() => {
+        expect(document.body.textContent).toContain("File missing");
+      });
+      expect(
+        document.querySelector<HTMLButtonElement>(
+          '[aria-label="Add old-shot.png to the next prompt"]',
+        )?.disabled,
+      ).toBe(true);
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("deletes a library asset after a second, confirming click", async () => {
+    loadAssetObjectUrl.mockImplementation(async (id: string) => `blob:${id}`);
+    const onNotice = vi.fn();
+    const api = {
+      listWorkspaceAssets: vi
+        .fn()
+        .mockResolvedValue([asset("old", "old-shot.png")]),
+      getBrand: vi.fn().mockResolvedValue({ assets: [] }),
+      listProjectAssets: vi.fn().mockResolvedValue([]),
+      deleteAsset: vi.fn().mockResolvedValue(undefined),
+    };
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(AssetsPanel, {
+      target,
+      props: { api, workspaceId: "workspace", onNotice } as never,
+    });
+
+    try {
+      await vi.waitFor(() => {
+        expect(document.body.textContent).toContain("old-shot.png");
+      });
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Delete old-shot.png"]')
+        ?.click();
+      await vi.waitFor(() => {
+        expect(
+          document.querySelector(
+            '[aria-label="Confirm deleting old-shot.png"]',
+          ),
+        ).not.toBeNull();
+      });
+      expect(api.deleteAsset).not.toHaveBeenCalled();
+
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Confirm deleting old-shot.png"]',
+        )
+        ?.click();
+      await vi.waitFor(() => {
+        expect(document.body.textContent).not.toContain("old-shot.png");
+      });
+      expect(api.deleteAsset).toHaveBeenCalledWith("old");
+      expect(onNotice).toHaveBeenCalledWith("old-shot.png deleted.");
     } finally {
       await unmount(component);
     }

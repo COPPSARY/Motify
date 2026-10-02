@@ -16,11 +16,7 @@
   } from "lucide-svelte";
   import { currentMotionlyUser } from "../auth";
   import { loadAssetObjectUrl, uploadAsset } from "../api/assets";
-  import {
-    CloudApiError,
-    ProjectsApi,
-    type WorkspaceSummary,
-  } from "../cloud/projects-api";
+  import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
   import {
     BRAND_COLOR_ROLES,
     BRAND_LIMITS,
@@ -87,8 +83,6 @@
   let loadError = "";
   let authOpen = false;
   let authMode: "signin" | "signup" = "signin";
-  let workspaces: WorkspaceSummary[] = [];
-  let workspaceId = "";
   let resource: BrandResource | null = null;
   let saved: BrandDna = emptyBrandDna();
   let draft: BrandDna = emptyBrandDna();
@@ -112,8 +106,8 @@
   let threadEnd: HTMLElement;
   let answerInput: HTMLInputElement | HTMLTextAreaElement | undefined;
 
-  $: workspace = workspaces.find((entry) => entry.id === workspaceId) ?? null;
-  $: readOnly = workspace?.role === "viewer";
+  // The brand is kept in the person's own workspace; uploads go there too.
+  $: workspaceId = resource?.workspaceId ?? "";
   $: dirty = !sameBrandDna(draft, saved);
   $: assets = resource?.assets ?? [];
   $: completeness = brandCompleteness(draft, assets);
@@ -157,16 +151,6 @@
         state = "guest";
         return;
       }
-      workspaces = await api.listWorkspaces();
-      const requested = new URL(window.location.href).searchParams.get(
-        "workspace",
-      );
-      workspaceId =
-        workspaces.find((entry) => entry.id === requested)?.id ??
-        workspaces.find((entry) => entry.kind === "personal")?.id ??
-        workspaces[0]?.id ??
-        "";
-      if (!workspaceId) throw new Error("You don't have a workspace yet.");
       await loadBrand();
       state = "ready";
       // A brand that has been started opens on its overview; a new one opens
@@ -184,44 +168,9 @@
   }
 
   async function loadBrand() {
-    applyResource(await api.getBrand(workspaceId));
+    applyResource(await api.getBrand());
     conflict = false;
     saveError = "";
-  }
-
-  async function changeWorkspace(event: Event) {
-    const select = event.currentTarget as HTMLSelectElement;
-    const nextWorkspaceId = select.value;
-    if (!nextWorkspaceId || nextWorkspaceId === workspaceId) return;
-    if (
-      dirty &&
-      !window.confirm(
-        "You have unsaved Brand DNA changes. Switch brands and discard them?",
-      )
-    ) {
-      select.value = workspaceId;
-      return;
-    }
-    workspaceId = nextWorkspaceId;
-    state = "loading";
-    const url = new URL(window.location.href);
-    url.searchParams.set("workspace", workspaceId);
-    window.history.replaceState({}, "", url);
-    try {
-      await loadBrand();
-      state = "ready";
-      current = 0;
-      thread = [];
-      reaction = "";
-      typing = false;
-      finished = false;
-      editingFromReview = false;
-      mode = resource && resource.revision > 0 ? "review" : "chat";
-      if (mode === "chat") void ask(0);
-    } catch (error) {
-      loadError = messageOf(error, "Brand DNA could not be loaded.");
-      state = "error";
-    }
   }
 
   function applyResource(next: BrandResource) {
@@ -231,11 +180,11 @@
   }
 
   async function save(): Promise<boolean> {
-    if (!resource || saving || readOnly) return false;
+    if (!resource || saving) return false;
     saving = true;
     saveError = "";
     try {
-      applyResource(await api.saveBrand(workspaceId, resource.revision, draft));
+      applyResource(await api.saveBrand(resource.revision, draft));
       return true;
     } catch (error) {
       if (
@@ -282,7 +231,7 @@
 
   async function answer(skip = false) {
     if (!skip && !canAnswer) return;
-    if (dirty && !readOnly && !(await save())) return;
+    if (dirty && !(await save())) return;
     // Sending an optional question with nothing in it is a skip, not an answer.
     const skipped = skip || !question.answered(draft, assets);
     thread = [...thread, { index: current, skipped }];
@@ -366,13 +315,12 @@
 
   async function linkFile(file: File, role: BrandAssetRole): Promise<string> {
     const assetId = await uploadAsset(workspaceId, file);
-    const next = await api.addBrandAsset(workspaceId, { assetId, role });
+    const next = await api.addBrandAsset({ assetId, role });
     if (resource) resource = { ...resource, assets: next.assets };
     return assetId;
   }
 
   async function upload(role: BrandAssetRole, files: File[]) {
-    if (readOnly) return;
     uploading = { ...uploading, [role]: (uploading[role] ?? 0) + files.length };
     for (const file of files) {
       try {
@@ -389,9 +337,9 @@
   }
 
   async function removeAsset(assetId: string) {
-    if (!resource || readOnly) return;
+    if (!resource) return;
     try {
-      await api.removeBrandAsset(workspaceId, assetId);
+      await api.removeBrandAsset(assetId);
       resource = {
         ...resource,
         assets: resource.assets.filter((asset) => asset.assetId !== assetId),
@@ -659,16 +607,6 @@
         </span>
       {/if}
     </div>
-    {#if state === "ready" && workspaces.length > 1}
-      <label class="bd-workspace-picker">
-        <span>Brand</span>
-        <select value={workspaceId} on:change={changeWorkspace}>
-          {#each workspaces as item (item.id)}
-            <option value={item.id}>{item.name}</option>
-          {/each}
-        </select>
-      </label>
-    {/if}
     {#if state === "ready"}
       <div class="bd-switch" role="tablist" aria-label="View">
         <button
@@ -705,8 +643,7 @@
       <TiffyMark size={44} />
       <strong>Sign in so I can learn your brand</strong>
       <span
-        >Brand DNA lives in your workspace, so every film you make stays on
-        brand.</span
+        >Brand DNA follows your account, so every film you make stays on brand.</span
       >
       <button
         type="button"
@@ -847,7 +784,7 @@
                   "files",
                 ].includes(question.kind)}
               >
-                <fieldset class="bd-answer__body" disabled={readOnly}>
+                <fieldset class="bd-answer__body">
                   {#if question.kind === "text" || question.kind === "url"}
                     <input
                       bind:this={answerInput}
@@ -885,7 +822,6 @@
                         assets={logo}
                         {previews}
                         uploading={uploading.logo ?? 0}
-                        disabled={readOnly}
                         emptyLabel="Drop your logo"
                         onupload={(files) => upload("logo", files)}
                         onremove={removeAsset}
@@ -900,7 +836,6 @@
                           assets={favicon}
                           {previews}
                           uploading={uploading.favicon ?? 0}
-                          disabled={readOnly}
                           emptyLabel="Drop favicon"
                           onupload={(files) => upload("favicon", files)}
                           onremove={removeAsset}
@@ -976,7 +911,6 @@
                   {:else if question.kind === "fonts"}
                     <BrandFonts
                       bind:fonts={draft.visual.fonts}
-                      disabled={readOnly}
                       upload={(file) => linkFile(file, "font")}
                       onnotice={showToast}
                     />
@@ -1054,7 +988,6 @@
                           assets={screenshots}
                           {previews}
                           uploading={uploading.screenshot ?? 0}
-                          disabled={readOnly}
                           emptyLabel="Drop screenshots"
                           onupload={(files) => upload("screenshot", files)}
                           onremove={removeAsset}
@@ -1067,7 +1000,6 @@
                           assets={images}
                           {previews}
                           uploading={uploading.image ?? 0}
-                          disabled={readOnly}
                           emptyLabel="Drop images"
                           onupload={(files) => upload("image", files)}
                           onremove={removeAsset}
@@ -1081,7 +1013,6 @@
                           {previews}
                           uploading={(uploading.logo_variant ?? 0) +
                             (uploading.icon ?? 0)}
-                          disabled={readOnly}
                           emptyLabel="Drop logos or icons"
                           onupload={(files) => upload("logo_variant", files)}
                           onremove={removeAsset}
@@ -1137,7 +1068,7 @@
                       type="button"
                       class="bd-btn bd-btn--primary"
                       on:click={() => answer()}
-                      disabled={saving || conflict || !canAnswer || readOnly}
+                      disabled={saving || conflict || !canAnswer}
                     >
                       {#if saving}<LoaderCircle
                           class="brand-spin"
@@ -1177,11 +1108,6 @@
             </button>
           {/if}
         </header>
-        {#if readOnly}
-          <p class="bd-readonly">
-            You have view access, so this brand is read-only.
-          </p>
-        {/if}
         <div class="bd-review__grid">
           {#each Object.entries(SECTIONS) as [section, title] (section)}
             <section class="bd-card">
@@ -1191,7 +1117,6 @@
                   <button
                     type="button"
                     class="bd-card__row"
-                    disabled={readOnly}
                     on:click={() => editQuestion(index, true)}
                   >
                     <dt>{entry.label}</dt>
@@ -1219,7 +1144,7 @@
     bind:open={authOpen}
     bind:mode={authMode}
     title="Sign in to Motionly"
-    subtitle="Brand DNA is saved to your workspace."
+    subtitle="Brand DNA is saved to your account."
     onauthenticated={handleAuthenticated}
     onclose={() => (authOpen = false)}
   />

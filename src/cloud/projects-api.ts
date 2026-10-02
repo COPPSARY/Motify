@@ -289,6 +289,14 @@ export class ProjectsApi {
     );
   }
 
+  /** Deletes an asset and its file. Refused while a project, song or brand uses it. */
+  async deleteAsset(assetId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(`/v1/assets/${encodeURIComponent(assetId)}`, {
+      method: "DELETE",
+    });
+  }
+
   async detachProjectAsset(projectId: string, assetId: string) {
     await this.ensureCsrfToken();
     return this.request<void>(
@@ -362,48 +370,50 @@ export class ProjectsApi {
     );
   }
 
-  getBrand(workspaceId: string) {
-    return this.request<BrandResource>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand`,
-    );
+  /**
+   * The signed-in person's Brand DNA. A brand belongs to the person, not to a
+   * workspace, and every film they generate is made with it.
+   */
+  getBrand() {
+    return this.request<BrandResource>("/v1/brand");
   }
 
   /** Replaces the brand document against the revision it was read at. */
-  async saveBrand(workspaceId: string, revision: number, dna: BrandDna) {
+  async saveBrand(revision: number, dna: BrandDna) {
     await this.ensureCsrfToken();
-    return this.request<BrandResource>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand`,
-      { method: "PUT", body: { revision, dna } },
-    );
+    return this.request<BrandResource>("/v1/brand", {
+      method: "PUT",
+      body: { revision, dna },
+    });
   }
 
-  async addBrandAsset(
-    workspaceId: string,
-    input: { assetId: string; role: BrandAssetRole; label?: string | null },
-  ) {
+  async addBrandAsset(input: {
+    assetId: string;
+    role: BrandAssetRole;
+    label?: string | null;
+  }) {
     await this.ensureCsrfToken();
-    return this.request<BrandResource>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets`,
-      { method: "POST", body: input },
-    );
+    return this.request<BrandResource>("/v1/brand/assets", {
+      method: "POST",
+      body: input,
+    });
   }
 
   async updateBrandAsset(
-    workspaceId: string,
     assetId: string,
     input: { role?: BrandAssetRole; label?: string | null },
   ) {
     await this.ensureCsrfToken();
     return this.request<BrandResource>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets/${encodeURIComponent(assetId)}`,
+      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
       { method: "PATCH", body: input },
     );
   }
 
-  async removeBrandAsset(workspaceId: string, assetId: string) {
+  async removeBrandAsset(assetId: string) {
     await this.ensureCsrfToken();
     return this.request<void>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/brand/assets/${encodeURIComponent(assetId)}`,
+      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
       { method: "DELETE" },
     );
   }

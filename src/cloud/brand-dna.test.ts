@@ -116,11 +116,11 @@ describe("ProjectsApi Brand DNA", () => {
     const api = new ProjectsApi("http://localhost:4000");
     const dna = emptyBrandDna();
 
-    await expect(api.saveBrand("ws", 3, dna)).resolves.toEqual({
+    await expect(api.saveBrand(3, dna)).resolves.toEqual({
       revision: 4,
     });
     expect(fetchMock).toHaveBeenLastCalledWith(
-      new URL("http://localhost:4000/v1/workspaces/ws/brand"),
+      new URL("http://localhost:4000/v1/brand"),
       expect.objectContaining({
         method: "PUT",
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf" }),
@@ -140,14 +140,14 @@ describe("ProjectsApi Brand DNA", () => {
     vi.stubGlobal("fetch", fetchMock);
     const api = new ProjectsApi("http://localhost:4000");
 
-    await api.addBrandAsset("ws", { assetId: "a1", role: "logo" });
-    await api.removeBrandAsset("ws", "a1");
+    await api.addBrandAsset({ assetId: "a1", role: "logo" });
+    await api.removeBrandAsset("a1");
 
     expect(fetchMock.mock.calls[1]?.[0]).toEqual(
-      new URL("http://localhost:4000/v1/workspaces/ws/brand/assets"),
+      new URL("http://localhost:4000/v1/brand/assets"),
     );
     expect(fetchMock.mock.calls[2]?.[0]).toEqual(
-      new URL("http://localhost:4000/v1/workspaces/ws/brand/assets/a1"),
+      new URL("http://localhost:4000/v1/brand/assets/a1"),
     );
     expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: "DELETE" });
   });
@@ -171,7 +171,7 @@ describe("ProjectsApi Brand DNA", () => {
         ),
     );
     const error = await new ProjectsApi("http://localhost:4000")
-      .saveBrand("ws", 3, emptyBrandDna())
+      .saveBrand(3, emptyBrandDna())
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(CloudApiError);
     expect(error).toMatchObject({
