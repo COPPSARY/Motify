@@ -162,6 +162,7 @@ describe("code-first composition runtime", { timeout: 60_000 }, () => {
       const content = wrapper?.querySelector<HTMLElement>("[data-field]");
 
       expect(content?.style.color).toBe("rgb(34, 204, 136)");
+      expect(content?.style.webkitTextFillColor).toBe("rgb(34, 204, 136)");
       expect(content?.style.fontFamily).toBe("Georgia, serif");
       expect(content?.style.fontWeight).toBe("700");
       expect(wrapper?.style.color).toBe("");

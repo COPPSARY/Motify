@@ -203,9 +203,10 @@ export function readEditorGroup(
     explicit,
     fields: explicit ? declared : fallbackFields(element),
     allowTransform: element.dataset["editTransform"] !== "false",
-    allowAppearance: explicit
-      ? element.dataset["editAppearance"] === "true"
-      : true,
+    // Appearance is a core editor capability, not an advanced field that
+    // generated markup must remember to opt into. Authors can still suppress
+    // it deliberately for non-visual control groups.
+    allowAppearance: element.dataset["editAppearance"] !== "false",
   };
 }
 

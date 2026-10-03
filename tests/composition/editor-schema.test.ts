@@ -25,6 +25,21 @@ describe("editor schema", () => {
       "image",
     ]);
     expect(schema.allowTransform).toBe(true);
+    expect(schema.allowAppearance).toBe(true);
+  });
+
+  it("keeps appearance controls available for generated explicit fields", () => {
+    const title = document.createElement("h1");
+    title.dataset.edit = "hero-title";
+    title.dataset.field = "content";
+    title.dataset.fieldType = "text";
+    title.dataset.fieldBinding = "text";
+    title.textContent = "Build what matters";
+
+    expect(readEditorGroup("hero-title", title).allowAppearance).toBe(true);
+
+    title.dataset.editAppearance = "false";
+    expect(readEditorGroup("hero-title", title).allowAppearance).toBe(false);
   });
 
   it("updates the declared binding without touching sibling content", () => {

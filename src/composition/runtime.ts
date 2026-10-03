@@ -387,9 +387,11 @@ export class CompositionRuntime {
     const textTarget = this.textStyleTarget(element);
     if (override.color !== undefined) {
       textTarget.style.color = override.color;
-      if (textTarget.style.webkitTextFillColor) {
-        textTarget.style.webkitTextFillColor = override.color;
-      }
+      // Generated editorial type commonly gets its gradient through a CSS
+      // rule, so the inline property is empty even though computed
+      // -webkit-text-fill-color is transparent. Always write the solid editor
+      // override or the color picker changes state without changing the film.
+      textTarget.style.webkitTextFillColor = override.color;
     }
     if (override.backgroundColor !== undefined) {
       element.style.backgroundColor = override.backgroundColor;
