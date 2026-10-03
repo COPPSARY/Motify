@@ -74,6 +74,7 @@
   } from "../ai/load-generation-pipeline";
   import {
     CloudApiError,
+    GenerationJobLostError,
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
@@ -2926,6 +2927,7 @@
     "Sorry, we ran into a problem and couldn't finish this video. Please retry — you're only charged for videos that finish, so this one cost nothing.";
 
   function isTransientFailure(error: unknown): boolean {
+    if (error instanceof GenerationJobLostError) return true;
     if (error instanceof CloudApiError) {
       return error.status === 0 || error.status === 408 || error.status >= 500;
     }
@@ -2942,6 +2944,7 @@
    * with its own error has already stopped (and released the credits).
    */
   function mayStillBeRunning(error: unknown): boolean {
+    if (error instanceof GenerationJobLostError) return true;
     if (error instanceof CloudApiError) {
       return error.code === "REQUEST_FAILED" && error.status >= 502;
     }
