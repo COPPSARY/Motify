@@ -49,3 +49,112 @@ describe("the first frame is the authored opening state", () => {
     });
   }
 });
+
+describe("deferred entrances do not flash before they start", () => {
+  const film = (
+    build: (
+      els: Record<string, HTMLElement>,
+      timeline: gsap.core.Timeline,
+    ) => void,
+  ) => ({
+    id: "deferred",
+    title: "Deferred",
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    duration: 4,
+    scenes: [{ id: "scene-01", label: "One", start: 0, duration: 4 }],
+    build({
+      root,
+      timeline,
+    }: {
+      root: HTMLElement;
+      timeline: gsap.core.Timeline;
+    }) {
+      root.innerHTML =
+        '<h1 data-edit="headline">Hi</h1><p data-edit="kicker">K</p><ul data-edit="list"><li>a</li><li>b</li><li>c</li></ul>';
+      const el = (id: string) =>
+        root.querySelector<HTMLElement>('[data-edit="' + id + '"]')!;
+      build(
+        { headline: el("headline"), kicker: el("kicker"), list: el("list") },
+        timeline,
+      );
+    },
+  });
+
+  const mount = (definition: ReturnType<typeof film>) => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const runtime = new CompositionRuntime(definition as never, root);
+    return { root, runtime };
+  };
+  const opacity = (el: Element) => Number(gsap.getProperty(el, "opacity"));
+
+  it("holds an immediateRender:false entrance at its from state until it plays", () => {
+    let kicker!: HTMLElement;
+    const { runtime, root } = mount(
+      film((els, timeline) => {
+        kicker = els.kicker!;
+        timeline.fromTo(
+          kicker,
+          { autoAlpha: 0, y: 24 },
+          { autoAlpha: 1, y: 0, duration: 0.5, immediateRender: false },
+          1,
+        );
+      }),
+    );
+    expect(opacity(kicker)).toBe(0);
+    runtime.seek(0.5);
+    expect(opacity(kicker)).toBe(0);
+    expect(gsap.getProperty(kicker, "y")).toBe(24);
+    runtime.seek(2);
+    expect(opacity(kicker)).toBe(1);
+    // Scrubbing back before the entrance hides it again.
+    runtime.seek(0.5);
+    expect(opacity(kicker)).toBe(0);
+    runtime.seek(0);
+    expect(opacity(kicker)).toBe(0);
+    runtime.destroy();
+    root.remove();
+  });
+
+  it("hides every staggered item until its own turn", () => {
+    let list!: HTMLElement;
+    const { runtime, root } = mount(
+      film((els, timeline) => {
+        list = els.list!;
+        timeline.fromTo(
+          list.children,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.3, stagger: 0.5, immediateRender: false },
+          0,
+        );
+      }),
+    );
+    runtime.seek(0.2);
+    expect([...list.children].map(opacity)).toEqual([expect.any(Number), 0, 0]);
+    runtime.seek(3);
+    expect([...list.children].map(opacity)).toEqual([1, 1, 1]);
+    runtime.destroy();
+    root.remove();
+  });
+
+  it("leaves a property alone when an earlier tween owns its opening state", () => {
+    let headline!: HTMLElement;
+    const { runtime, root } = mount(
+      film((els, timeline) => {
+        headline = els.headline!;
+        timeline.to(headline, { opacity: 0.5, duration: 0.5 }, 0.5);
+        timeline.fromTo(
+          headline,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.5, immediateRender: false },
+          2,
+        );
+      }),
+    );
+    expect(opacity(headline)).toBe(1);
+    runtime.destroy();
+    root.remove();
+  });
+});
