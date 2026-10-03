@@ -295,4 +295,119 @@
   left: calc(100% + (3px * var(--me-selection-ui-scale, 1)));
 }
 
+.code-editor-scope .me-stage.me-dragging,
+.code-editor-scope .me-stage.me-dragging * {
+  cursor: grabbing !important;
+}
+
+/* Inline AI edit for the selected layer. It lives in canvas space, so it is
+   counter-scaled like the handles to stay a constant size on screen. */
+.code-editor-scope .me-selection-ai {
+  position: absolute;
+  bottom: calc(100% + (12px * var(--me-selection-ui-scale, 1)));
+  left: 50%;
+  transform: translateX(-50%) scale(var(--me-selection-ui-scale, 1));
+  transform-origin: 50% 100%;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.code-editor-scope .me-selection-ai.me-below {
+  top: calc(100% + (16px * var(--me-selection-ui-scale, 1)));
+  bottom: auto;
+  transform-origin: 50% 0;
+}
+
+.code-editor-scope .me-selection-ai__trigger {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: var(--sl-brand-cobalt, #1f45b0);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.code-editor-scope .me-selection-ai__trigger:hover {
+  background: var(--sl-brand-cobalt-hover, #2752c9);
+  transform: scale(1.06);
+}
+
+.code-editor-scope .me-selection-ai__trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.code-editor-scope .me-selection-ai__form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 320px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: #1c1c1f;
+  color: #a1a1a6;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.code-editor-scope .me-selection-ai__form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f5f5f7;
+  font:
+    13px/1.2 Inter,
+    system-ui,
+    sans-serif;
+}
+
+.code-editor-scope .me-selection-ai__form input::placeholder {
+  color: #7c7c82;
+}
+
+.code-editor-scope .me-selection-ai__form button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sl-brand-cobalt, #1f45b0);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-selection-ai__form button:disabled {
+  background: rgba(255, 255, 255, 0.12);
+  color: #7c7c82;
+  cursor: default;
+}
+
+/* Field labels that scrub their value when dragged sideways. */
+.code-editor-scope .me-field-prefix.me-scrub-handle,
+.code-editor-scope .me-scrub-handle {
+  pointer-events: auto;
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.code-editor-scope .me-scrub-handle:hover {
+  color: var(--sl-text, #ededed);
+}
+
 /* Properties Panel Controls */

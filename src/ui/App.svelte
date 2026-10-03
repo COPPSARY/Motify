@@ -53,6 +53,7 @@
     Copy,
     Check,
     Sparkles,
+    ArrowUp,
     SquarePen,
     Upload,
     X,
@@ -72,6 +73,7 @@
     type GenerationPipeline,
   } from "../ai/load-generation-pipeline";
   import {
+    CloudApiError,
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
@@ -322,6 +324,14 @@
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let assetObjectUrls: string[] = [];
   let selectedEditorGroup: EditorGroupDefinition | null = null;
+  type ScrubProperty =
+    | "x"
+    | "y"
+    | "scale"
+    | "rotation"
+    | "fontSize"
+    | "letterSpacing"
+    | "lineHeight";
   let selectionDrag: {
     pointerId: number;
     mode: "move" | "scale";
@@ -332,6 +342,28 @@
     scale: number;
     width: number;
   } | null = null;
+  // A press on the canvas becomes a move only after the pointer travels a few
+  // pixels, so a plain click still just selects.
+  const CANVAS_DRAG_THRESHOLD = 3;
+  let pendingCanvasDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    id: string;
+  } | null = null;
+  let suppressPreviewClick = false;
+  let numberScrub: {
+    pointerId: number;
+    property: ScrubProperty;
+    startX: number;
+    start: number;
+    value: number;
+  } | null = null;
+  let elementPromptOpen = false;
+  let elementPromptDraft = "";
+  let elementPromptInput: HTMLInputElement;
+  // What the last send actually asked Tiffy, so Retry repeats it exactly.
+  let lastSentPrompt: { text: string; prompt: string } | null = null;
 
   let lastGenState = "";
 
@@ -531,6 +563,8 @@
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
       window.removeEventListener("pointermove", updateSelectionDrag);
       window.removeEventListener("pointerup", endSelectionDrag);
+      window.removeEventListener("pointermove", watchCanvasDrag);
+      window.removeEventListener("pointerup", cancelCanvasDrag);
       window.removeEventListener("popstate", restoreRouteProject);
       document.removeEventListener("visibilitychange", refreshBrandOnReturn);
       observer.disconnect();
@@ -996,8 +1030,25 @@
     ) {
       return;
     }
+    // The click that ends a canvas drag must not reselect what lies beneath.
+    if (suppressPreviewClick) {
+      suppressPreviewClick = false;
+      return;
+    }
     const hitId = editableIdAtPoint(event);
     if (!hitId) {
+      selectElement("");
+      return;
+    }
+    selectElement(hitId);
+  }
+
+  function selectElement(id: string): void {
+    if (id !== selectedId) {
+      elementPromptOpen = false;
+      elementPromptDraft = "";
+    }
+    if (!id) {
       selectedId = "";
       selectedEditorGroup = null;
       updateSelectionRect();
@@ -1005,17 +1056,96 @@
     }
     timelineMode = "scene";
     selectedSceneId = snapshot.sceneId;
-    selectedId = hitId;
+    selectedId = id;
     refreshSelectedEditorGroup();
     updateSelectionRect();
   }
 
-  function handlePreviewKey(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      selectedId = "";
-      selectedEditorGroup = null;
-      updateSelectionRect();
+  /**
+   * Pressing any editable layer arms a move. Selection outlines stay visual
+   * only (a full-rect hit target would block smaller layers), so dragging
+   * starts from the same hit test a click uses.
+   */
+  function pressPreview(event: PointerEvent): void {
+    if (event.button !== 0 || !runtime) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".me-selection-overlay")
+    ) {
+      return;
     }
+    const hitId = editableIdAtPoint(event);
+    if (!hitId) return;
+    pendingCanvasDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      id: hitId,
+    };
+    window.addEventListener("pointermove", watchCanvasDrag);
+    window.addEventListener("pointerup", cancelCanvasDrag);
+  }
+
+  function watchCanvasDrag(event: PointerEvent): void {
+    const pending = pendingCanvasDrag;
+    if (!pending || event.pointerId !== pending.pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - pending.startX,
+      event.clientY - pending.startY,
+    );
+    if (distance < CANVAS_DRAG_THRESHOLD) return;
+    cancelCanvasDrag();
+    if (pending.id !== selectedId) selectElement(pending.id);
+    if (!selectedEditorGroup?.allowTransform) return;
+    suppressPreviewClick = true;
+    startSelectionDrag(
+      pending.pointerId,
+      pending.startX,
+      pending.startY,
+      "move",
+    );
+    updateSelectionDrag(event);
+  }
+
+  function cancelCanvasDrag(): void {
+    pendingCanvasDrag = null;
+    window.removeEventListener("pointermove", watchCanvasDrag);
+    window.removeEventListener("pointerup", cancelCanvasDrag);
+  }
+
+  function handlePreviewKey(event: KeyboardEvent): void {
+    // Typing in the element prompt bubbles here; it is not a canvas command.
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    if (event.key === "Escape") {
+      selectElement("");
+      return;
+    }
+    const nudge: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    };
+    const direction = nudge[event.key];
+    if (!direction || !runtime || !selectedId) return;
+    if (!selectedEditorGroup?.allowTransform) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 10 : 1;
+    const current = currentOverride();
+    const patch: ElementOverride = {
+      x: (current.x ?? 0) + direction[0] * step,
+      y: (current.y ?? 0) + direction[1] * step,
+    };
+    runtime.setOverride(selectedId, patch);
+    persistSourceOverride(selectedId, patch);
+    editorRevision += 1;
+    updateSelectionRect();
+    scheduleDraftSave();
   }
 
   function refreshSelectedEditorGroup(): void {
@@ -1030,12 +1160,21 @@
     if (!runtime || !selectedId || !selectedEditorGroup?.allowTransform) return;
     event.preventDefault();
     event.stopPropagation();
+    startSelectionDrag(event.pointerId, event.clientX, event.clientY, mode);
+  }
+
+  function startSelectionDrag(
+    pointerId: number,
+    startX: number,
+    startY: number,
+    mode: "move" | "scale",
+  ): void {
     const current = currentOverride();
     selectionDrag = {
-      pointerId: event.pointerId,
+      pointerId,
       mode,
-      startX: event.clientX,
-      startY: event.clientY,
+      startX,
+      startY,
       x: current.x ?? 0,
       y: current.y ?? 0,
       scale: current.scale ?? 1,
@@ -1060,7 +1199,10 @@
     const dy = (event.clientY - selectionDrag.startY) / previewScale;
     const patch: ElementOverride =
       selectionDrag.mode === "move"
-        ? { x: selectionDrag.x + dx, y: selectionDrag.y + dy }
+        ? {
+            x: Math.round(selectionDrag.x + dx),
+            y: Math.round(selectionDrag.y + dy),
+          }
         : {
             scale: Math.max(
               0.05,
@@ -1080,6 +1222,116 @@
     }
     selectionDrag = null;
     scheduleDraftSave();
+    // A release off the stage never produces the click that would clear this.
+    if (suppressPreviewClick) {
+      setTimeout(() => {
+        suppressPreviewClick = false;
+      }, 0);
+    }
+  }
+
+  const SCRUB_FIELDS: Record<
+    ScrubProperty,
+    { step: number; fallback: number; min?: number }
+  > = {
+    x: { step: 1, fallback: 0 },
+    y: { step: 1, fallback: 0 },
+    scale: { step: 0.01, fallback: 1, min: 0.05 },
+    rotation: { step: 1, fallback: 0 },
+    fontSize: { step: 1, fallback: 16, min: 1 },
+    letterSpacing: { step: 0.1, fallback: 0 },
+    lineHeight: { step: 1, fallback: 16, min: 1 },
+  };
+
+  function scrubStartValue(property: ScrubProperty): number {
+    const fallback = SCRUB_FIELDS[property].fallback;
+    if (
+      property === "fontSize" ||
+      property === "letterSpacing" ||
+      property === "lineHeight"
+    ) {
+      return numericStyleValue(property, fallback);
+    }
+    return currentOverride()[property] ?? fallback;
+  }
+
+  /**
+   * Drag a field's label left or right to change its value, like the number
+   * fields in Figma or After Effects. Shift moves 10x faster, Alt 10x finer.
+   */
+  function beginNumberScrub(
+    event: PointerEvent,
+    property: ScrubProperty,
+  ): void {
+    if (event.button !== 0 || !runtime || !selectedId) return;
+    event.preventDefault();
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    const start = scrubStartValue(property);
+    numberScrub = {
+      pointerId: event.pointerId,
+      property,
+      startX: event.clientX,
+      start,
+      value: start,
+    };
+  }
+
+  function moveNumberScrub(event: PointerEvent): void {
+    if (!numberScrub || event.pointerId !== numberScrub.pointerId) return;
+    if (!runtime || !selectedId) return;
+    const { step, min } = SCRUB_FIELDS[numberScrub.property];
+    const factor = event.shiftKey ? 10 : event.altKey ? 0.1 : 1;
+    const raw =
+      numberScrub.start + (event.clientX - numberScrub.startX) * step * factor;
+    const precision = step < 1 || factor < 1 ? 100 : 1;
+    const value = Math.max(
+      min ?? -Infinity,
+      Math.round(raw * precision) / precision,
+    );
+    if (value === numberScrub.value) return;
+    numberScrub.value = value;
+    runtime.setOverride(selectedId, {
+      [numberScrub.property]: value,
+    } as ElementOverride);
+    editorRevision += 1;
+    updateSelectionRect();
+  }
+
+  function endNumberScrub(event: PointerEvent): void {
+    if (!numberScrub || event.pointerId !== numberScrub.pointerId) return;
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture?.(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+    const { property, value, start } = numberScrub;
+    numberScrub = null;
+    if (!runtime || !selectedId || value === start) return;
+    persistSourceOverride(selectedId, {
+      [property]: value,
+    } as ElementOverride);
+    scheduleDraftSave();
+  }
+
+  /** Svelte action: makes a field label a horizontal scrubber. */
+  function scrubber(node: HTMLElement, property: ScrubProperty) {
+    let current = property;
+    const down = (event: PointerEvent) => beginNumberScrub(event, current);
+    node.classList.add("me-scrub-handle");
+    node.addEventListener("pointerdown", down);
+    node.addEventListener("pointermove", moveNumberScrub);
+    node.addEventListener("pointerup", endNumberScrub);
+    node.addEventListener("pointercancel", endNumberScrub);
+    return {
+      update(next: ScrubProperty) {
+        current = next;
+      },
+      destroy() {
+        node.removeEventListener("pointerdown", down);
+        node.removeEventListener("pointermove", moveNumberScrub);
+        node.removeEventListener("pointerup", endNumberScrub);
+        node.removeEventListener("pointercancel", endNumberScrub);
+      },
+    };
   }
 
   function scrubTimeFromPointer(event: PointerEvent): number {
@@ -2461,11 +2713,20 @@
     }
   }
 
-  async function submitAssistant(event: SubmitEvent): Promise<void> {
+  /**
+   * `scoped` sends an edit for one canvas element: the chat shows what the
+   * user typed while Tiffy receives it with the element's identity attached.
+   */
+  async function submitAssistant(
+    event: SubmitEvent,
+    scoped?: { text: string; prompt: string },
+  ): Promise<void> {
     event.preventDefault();
-    const prompt = assistantDraft.trim();
+    const shownText = (scoped?.text ?? assistantDraft).trim();
+    const prompt = (scoped?.prompt ?? assistantDraft).trim();
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt)) return;
+    lastSentPrompt = { text: shownText, prompt };
     // The first prompt turns the create page into this video's chat.
     projectStarted = true;
     page = null;
@@ -2490,12 +2751,12 @@
       ...assistantMessages,
       {
         role: "user",
-        text: prompt,
+        text: shownText,
         ...(sentAttachments.length ? { attachments: sentAttachments } : {}),
       },
     ];
     scheduleDraftSave();
-    assistantDraft = "";
+    if (!scoped) assistantDraft = "";
     assetsInFlight = stagedAssets.length ? [...stagedAssets] : null;
     stagedAssets = [];
     audioInFlight = sentAudio.length ? [...sentAudio] : null;
@@ -2559,16 +2820,14 @@
         message: "",
         error: errorMsg,
       });
-      const formattedError = errorMsg.startsWith("Error:")
-        ? errorMsg
-        : `Error: ${errorMsg}`;
+      const formattedError = failureMessage(err, errorMsg);
       if (assistantMessages.at(-1)?.text !== formattedError) {
         assistantMessages = [
           ...assistantMessages,
           { role: "assistant", text: formattedError },
         ];
       }
-      showNotice(errorMsg);
+      showNotice(isRetryMessage(formattedError) ? formattedError : errorMsg);
     } finally {
       assetsInFlight = null;
       audioInFlight = null;
@@ -2579,6 +2838,94 @@
         cloudProject?.id ?? (backendGenerationProjectId || null),
       );
     }
+  }
+
+  async function toggleElementPrompt(): Promise<void> {
+    elementPromptOpen = !elementPromptOpen;
+    if (!elementPromptOpen) return;
+    await tick();
+    elementPromptInput?.focus();
+  }
+
+  /**
+   * Describes the selected layer so Tiffy can find it in composition.html.
+   * The runtime's own id attribute is stripped because it is not in the source.
+   */
+  function selectedElementBrief(): string {
+    const element = selectedId ? runtime?.elements.get(selectedId) : undefined;
+    if (!element) return "";
+    const clone = element.cloneNode(true) as HTMLElement;
+    for (const node of [clone, ...clone.querySelectorAll<HTMLElement>("*")]) {
+      node.removeAttribute("data-motionly-id");
+      node.removeAttribute("style");
+    }
+    const markup = clone.outerHTML.replace(/\s+/g, " ");
+    const excerpt = markup.length > 600 ? `${markup.slice(0, 600)}…` : markup;
+    const text = (element.textContent ?? "").replace(/\s+/g, " ").trim();
+    return [
+      `Registered timeline id: "${selectedId}"`,
+      selectedEditorGroup ? `Editor label: "${selectedEditorGroup.label}"` : "",
+      text ? `Visible text: "${text.slice(0, 160)}"` : "",
+      `Markup: ${excerpt}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  async function submitElementPrompt(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const request = elementPromptDraft.trim();
+    if (!request || !selectedId || $generationStore.isActive) return;
+    const label = selectedEditorGroup?.label ?? selectedId;
+    const prompt = [
+      `Edit only this one element of the current composition. Keep every other element, scene, timing, and transition exactly as it is.`,
+      selectedElementBrief(),
+      `Requested change: ${request}`,
+    ].join("\n\n");
+    elementPromptDraft = "";
+    elementPromptOpen = false;
+    await submitAssistant(new SubmitEvent("submit"), {
+      text: `${label}: ${request}`,
+      prompt,
+    });
+  }
+
+  function elementPromptKeydown(event: KeyboardEvent): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      elementPromptOpen = false;
+      previewStage?.focus();
+    }
+  }
+
+  // The server does not charge a request that fails (see direct-ai.ts), so a
+  // dropped connection or server fault is safe to retry as-is.
+  const RETRY_NOTICE =
+    "Sorry, we ran into a problem and couldn't finish this. Please retry — failed requests aren't charged, so no credits were used.";
+
+  function isTransientFailure(error: unknown): boolean {
+    if (error instanceof CloudApiError) {
+      return error.status === 0 || error.status === 408 || error.status >= 500;
+    }
+    const text = error instanceof Error ? error.message : String(error);
+    return /failed to fetch|networkerror|network error|network request failed|load failed|timed? ?out|aborted|502|503|504/i.test(
+      text,
+    );
+  }
+
+  function failureMessage(error: unknown, fallback: string): string {
+    if (isTransientFailure(error)) return RETRY_NOTICE;
+    const text = error instanceof Error ? error.message : fallback;
+    return text.startsWith("Error:") ? text : `Error: ${text}`;
+  }
+
+  function isRetryMessage(text: string): boolean {
+    return text === RETRY_NOTICE;
+  }
+
+  async function retryLastPrompt(): Promise<void> {
+    if (!lastSentPrompt || $generationStore.isActive) return;
+    await submitAssistant(new SubmitEvent("submit"), lastSentPrompt);
   }
 
   function isErrorMessage(text: string): boolean {
@@ -2640,16 +2987,14 @@
         message: "",
         error: errorMsg,
       });
-      const formattedError = errorMsg.startsWith("Error:")
-        ? errorMsg
-        : `Error: ${errorMsg}`;
+      const formattedError = failureMessage(err, errorMsg);
       if (assistantMessages.at(-1)?.text !== formattedError) {
         assistantMessages = [
           ...assistantMessages,
           { role: "assistant", text: formattedError },
         ];
       }
-      showNotice(errorMsg);
+      showNotice(isRetryMessage(formattedError) ? formattedError : errorMsg);
     }
   }
 
@@ -2896,7 +3241,7 @@
             {:else}
               <nav class="me-sidebar-home" aria-label="Motify navigation">
                 <div class="me-sidebar-brand">
-                  <img src="/logo.svg" alt="" width="26" height="26" />
+                  <img src="/logo.svg" alt="" width="22" height="22" />
                   <span>Motify</span>
                 </div>
                 <div class="me-sidebar-primary">
@@ -3066,10 +3411,13 @@
           <aside class="me-left-panel">
             <div class="me-brand-row">
               <div class="brand">
-                <span
-                  class="logo-shell me-sidebar-brand-mark"
-                  aria-hidden="true">M</span
-                >
+                <img
+                  class="logo-shell"
+                  src="/logo.svg"
+                  alt=""
+                  width="22"
+                  height="22"
+                />
                 <h1>Motify</h1>
               </div>
               <div class="me-brand-actions">
@@ -3488,13 +3836,8 @@
               >
             </div>
             <div class="actions">
-              {#if mode === "cloud"}
-                <button
-                  class="btn"
-                  title="Open a saved project"
-                  on:click={() => openPage("videos")}
-                  ><FolderOpen size={15} /><span>Open</span></button
-                >
+              {#if mode === "cloud" && currentUser}
+                <CreditsBadge />
               {/if}
               <button
                 class="btn"
@@ -3525,6 +3868,8 @@
               role="application"
               aria-label="Composition preview"
               tabindex="0"
+              class:me-dragging={selectionDrag?.mode === "move"}
+              on:pointerdown|capture={pressPreview}
               on:click|capture={selectFromPreview}
               on:keydown={handlePreviewKey}
             >
@@ -3581,6 +3926,48 @@
                       on:pointerdown={(event) =>
                         beginSelectionDrag(event, "scale")}
                     ></div>
+                    {#if mode === "cloud" && !selectionDrag}
+                      <div
+                        class="me-selection-ai"
+                        class:me-below={selectionRect.top <
+                          56 / Math.max(0.05, fitScale * zoom)}
+                        class:me-open={elementPromptOpen}
+                      >
+                        {#if elementPromptOpen}
+                          <form
+                            class="me-selection-ai__form"
+                            on:submit={submitElementPrompt}
+                          >
+                            <Sparkles size={14} />
+                            <input
+                              bind:this={elementPromptInput}
+                              bind:value={elementPromptDraft}
+                              aria-label="Describe a change to this element"
+                              placeholder={`Edit ${selectedEditorGroup?.label ?? "this element"}…`}
+                              disabled={$generationStore.isActive}
+                              on:keydown={elementPromptKeydown}
+                            />
+                            <button
+                              type="submit"
+                              aria-label="Send edit to Tiffy"
+                              disabled={!elementPromptDraft.trim() ||
+                                $generationStore.isActive}
+                              ><ArrowUp size={14} /></button
+                            >
+                          </form>
+                        {:else}
+                          <button
+                            type="button"
+                            class="me-selection-ai__trigger"
+                            aria-label="Edit this element with AI"
+                            title="Edit with AI"
+                            disabled={$generationStore.isActive}
+                            on:click={toggleElementPrompt}
+                            ><Sparkles size={14} /></button
+                          >
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
                 {/if}
               </div>
@@ -3960,7 +4347,8 @@
                         <div class="me-field-line">
                           <label
                             class="me-property-label"
-                            for="property-font-size">Size</label
+                            for="property-font-size"
+                            use:scrubber={"fontSize"}>Size</label
                           >
                           <span class="me-field">
                             <input
@@ -4034,7 +4422,8 @@
                         <div class="me-field-line">
                           <label
                             class="me-property-label"
-                            for="property-letter-spacing">Tracking</label
+                            for="property-letter-spacing"
+                            use:scrubber={"letterSpacing"}>Tracking</label
                           >
                           <span class="me-field">
                             <input
@@ -4053,7 +4442,8 @@
                         <div class="me-field-line">
                           <label
                             class="me-property-label"
-                            for="property-line-height">Line height</label
+                            for="property-line-height"
+                            use:scrubber={"lineHeight"}>Line height</label
                           >
                           <span class="me-field">
                             <input
@@ -4078,7 +4468,9 @@
                         <span class="me-property-label">Position</span>
                         <div class="me-field-pair">
                           <label class="me-field"
-                            ><span class="me-field-prefix">X</span>
+                            ><span class="me-field-prefix" use:scrubber={"x"}
+                              >X</span
+                            >
                             <input
                               class="me-number-input"
                               aria-label="X position"
@@ -4089,7 +4481,9 @@
                             /></label
                           >
                           <label class="me-field"
-                            ><span class="me-field-prefix">Y</span>
+                            ><span class="me-field-prefix" use:scrubber={"y"}
+                              >Y</span
+                            >
                             <input
                               class="me-number-input"
                               aria-label="Y position"
@@ -4104,7 +4498,9 @@
                       <div class="me-field-line">
                         <span class="me-property-label">Scale</span>
                         <label class="me-field"
-                          ><span class="me-field-prefix">×</span>
+                          ><span class="me-field-prefix" use:scrubber={"scale"}
+                            >×</span
+                          >
                           <input
                             class="me-number-input"
                             aria-label="Scale"
@@ -4119,7 +4515,10 @@
                       <div class="me-field-line">
                         <span class="me-property-label">Rotate</span>
                         <label class="me-field"
-                          ><span class="me-field-prefix">∠</span>
+                          ><span
+                            class="me-field-prefix"
+                            use:scrubber={"rotation"}>∠</span
+                          >
                           <input
                             class="me-number-input"
                             aria-label="Rotation"
@@ -4400,6 +4799,8 @@
     {uploadName}
     {isErrorMessage}
     {handleFixError}
+    {isRetryMessage}
+    {retryLastPrompt}
     {classifyStagedAsset}
     {removeStagedAsset}
     {submitAssistant}

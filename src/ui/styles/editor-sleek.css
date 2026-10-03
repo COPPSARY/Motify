@@ -25,6 +25,9 @@
   --sl-brand-signal: #7cf7c5;
   --sl-brand-signal-soft: rgba(124, 247, 197, 0.1);
   --sl-radius: 8px;
+  /* Brand cobalt: the primary action and Tiffy's own color. */
+  --sl-brand-cobalt: #1f45b0;
+  --sl-brand-cobalt-hover: #2752c9;
   --sl-row: 52px;
   background: var(--sl-bg);
 }
@@ -108,10 +111,10 @@
 }
 
 .code-editor-scope .logo-shell {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
+  margin: 2px;
   border: 0;
-  border-radius: 7px;
   background: transparent;
 }
 
@@ -396,11 +399,29 @@
   text-transform: capitalize;
 }
 
+/* On the home sidebar the balance is plain text; the row is the container. */
 .code-editor-scope .me-sidebar-account-row .credits-trigger {
-  height: 25px;
-  padding: 0 8px;
-  font-size: 12px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
   font-weight: 600;
+}
+
+.code-editor-scope .me-sidebar-account-row .credits-trigger svg {
+  display: none;
+}
+
+.code-editor-scope .me-sidebar-account-row .credits-trigger.is-low svg {
+  display: block;
+}
+
+.code-editor-scope .me-sidebar-account-row .credits-trigger:hover,
+.code-editor-scope
+  .me-sidebar-account-row
+  .credits-trigger[aria-expanded="true"] {
+  background: none;
+  color: var(--sl-text);
 }
 
 .code-editor-scope .me-sidebar-profile {
@@ -1270,6 +1291,16 @@
   color: var(--sl-text);
   font-size: 11px;
   font-weight: 600;
+}
+
+.code-editor-scope .export-action,
+.code-editor-scope .export-action:hover:not(:disabled) {
+  background: var(--sl-brand-cobalt);
+  color: #ffffff;
+}
+
+.code-editor-scope .export-action:hover:not(:disabled) {
+  background: var(--sl-brand-cobalt-hover);
 }
 
 .code-editor-scope .export-action {

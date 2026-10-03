@@ -1,6 +1,6 @@
 <div align="center">
   <h1>
-    <img src="public/logo.svg" alt="Motify Logo" width="48" height="48" valign="middle">
+    <img src="public/favicon.svg" alt="Motify Logo" width="48" height="48" valign="middle">
     <span valign="middle">Motify</span>
   </h1>
 
