@@ -19,6 +19,18 @@ const json = (body: unknown, status = 200) =>
 const session = () =>
   json({ data: { user: { id: "user" }, csrfToken: "csrf-token" } });
 
+/** The backend runs a message as a job; this one has finished by the first look. */
+const finishedJob = (result: Record<string, unknown>) =>
+  json({
+    data: {
+      id: "job-1",
+      projectId: "project-1",
+      status: "succeeded",
+      createdAt: "2026-10-04T00:00:00.000Z",
+      result,
+    },
+  });
+
 /** The follow-up reads that turn a saved generation into a film. */
 const savedFilm = () => [
   json({
@@ -49,14 +61,12 @@ describe("credits around a backend generation", () => {
 
   it("shows the balance the server reported with the result, and what the request cost", async () => {
     fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
-      json({
-        data: {
-          type: "generation",
-          response: "Built the launch film.",
-          projectId: "project-1",
-          revision: 2,
-          credits: { charged: 3.4, remaining: 46.6 },
-        },
+      finishedJob({
+        type: "generation",
+        response: "Built the launch film.",
+        projectId: "project-1",
+        revision: 2,
+        credits: { charged: 3.4, remaining: 46.6 },
       }),
     );
     for (const response of savedFilm())
@@ -73,13 +83,11 @@ describe("credits around a backend generation", () => {
 
   it("leaves the balance alone when the server is not charging", async () => {
     fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
-      json({
-        data: {
-          type: "generation",
-          response: "Built the launch film.",
-          projectId: "project-1",
-          revision: 2,
-        },
+      finishedJob({
+        type: "generation",
+        response: "Built the launch film.",
+        projectId: "project-1",
+        revision: 2,
       }),
     );
     for (const response of savedFilm())
@@ -95,14 +103,12 @@ describe("credits around a backend generation", () => {
 
   it("does not trust a nonsense balance in a response", async () => {
     fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
-      json({
-        data: {
-          type: "generation",
-          response: "Built the launch film.",
-          projectId: "project-1",
-          revision: 2,
-          credits: { charged: -5, remaining: 1e9 * -1 },
-        },
+      finishedJob({
+        type: "generation",
+        response: "Built the launch film.",
+        projectId: "project-1",
+        revision: 2,
+        credits: { charged: -5, remaining: 1e9 * -1 },
       }),
     );
     for (const response of savedFilm())
