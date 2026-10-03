@@ -1,3 +1,28 @@
+/* SF Pro Display: the face of the editor and the Brand DNA page. */
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYREGULAR.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYMEDIUM.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("/fonts/sf-pro-display/SFPRODISPLAYBOLD.OTF") format("opentype");
+  font-style: normal;
+  font-weight: 700 800;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Space Grotesk";
   src: url("/fonts/space-grotesk-latin.woff2") format("woff2");
@@ -95,37 +120,6 @@ button {
 .actions {
   gap: 8px;
 }
-.account-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  max-width: 190px;
-  overflow: hidden;
-  color: #aab5bf;
-  font-size: 12px;
-  font-weight: 650;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.account-status > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.account-status__dot {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #73e6bd;
-  box-shadow: 0 0 10px rgba(115, 230, 189, 0.8);
-}
-.account-status--signed-out {
-  color: #d6dbe1;
-}
-.account-status--signed-out .account-status__dot {
-  background: #8995a3;
-  box-shadow: none;
-}
 .file-input {
   display: none;
 }
@@ -144,15 +138,15 @@ button {
   background: linear-gradient(
     135deg,
     rgba(138, 180, 255, 0.16),
-    rgba(124, 247, 197, 0.09)
+    rgba(199, 199, 204, 0.09)
   );
   color: #f5f8f7;
 }
 .btn-primary,
 .btn-primary:hover {
   border-color: rgba(255, 255, 255, 0.18);
-  background: linear-gradient(135deg, #8ab4ff, #7cf7c5);
-  color: #fff;
+  background: #c7c7cc;
+  color: #111113;
 }
 .export-action {
   min-width: 98px;
@@ -284,10 +278,10 @@ button {
   left: 50%;
   z-index: 500;
   padding: 10px 14px;
-  border: 1px solid rgba(124, 247, 197, 0.32);
+  border: 1px solid rgba(199, 199, 204, 0.3);
   border-radius: 8px;
   background: #17191cee;
-  color: #dffbf0;
+  color: #ededf0;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
   font-size: 12px;
   transform: translateX(-50%);

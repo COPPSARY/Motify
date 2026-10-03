@@ -11,6 +11,10 @@ import {
   blankProjectFiles,
   blankScenes,
 } from "../../src/ui/blank-project";
+import {
+  foundationFiles,
+  foundationScenes,
+} from "../../src/ai/generation-foundation";
 
 const blankComposition = {
   id: BLANK_COMPOSITION_ID,
@@ -37,6 +41,18 @@ describe("a fresh editor generates a film instead of editing a preset", () => {
     expect(basis.files["composition.html"]).not.toContain(
       blankProjectFiles["composition.html"],
     );
+  });
+
+  it("still treats the technical foundation as a new film after a reload", () => {
+    const basis = resolveGenerationBasis(
+      { ...foundationFiles, "styles.css": "", "index.ts": "" },
+      {
+        id: "dynamic-comp-foundation",
+        duration: 20,
+        scenes: foundationScenes,
+      },
+    );
+    expect(basis.generationProfile).toBe("claude-foundation-v1");
   });
 
   it("never sends preset source when the user has not opened a preset", async () => {

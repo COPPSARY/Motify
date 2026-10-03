@@ -127,6 +127,12 @@ export interface GeneratedComposition {
   compositionHtml: string;
   timelineJs: string;
   reply: string;
+  /**
+   * Some project transports persist only source and scene metadata. When
+   * false, the quality gate must judge executable handoffs without claiming
+   * the model omitted seam declarations that the transport discarded.
+   */
+  qualityMetadataAvailable?: boolean;
   /** What the quality gate concluded about the pass that actually shipped. */
   quality?: MotionQualityReport;
 }
@@ -194,7 +200,11 @@ const INTENT_EXPANSIONS: ReadonlyArray<readonly string[]> = [
  * metric card, which is why every generation came back as a dashboard.
  */
 export type { FilmShape, ReferenceRole } from "./film-shape";
-export { selectFilmShape } from "./film-shape";
+export {
+  inferFilmDuration,
+  isSimpleTextAnimation,
+  selectFilmShape,
+} from "./film-shape";
 
 /** The product-demo role set, kept as the name older callers import. */
 export const REFERENCE_ROLES: readonly ReferenceRole[] = FILM_SHAPES.task.roles;
@@ -1305,13 +1315,16 @@ export function analyzeMotionQuality(
    * check, and both sets are never reported at once, because the repair prompt
    * keeps the first eight issues and duplicates would crowd out real ones.
    */
-  const seamReport = analyzeSeamPlan({
-    seams: seams,
-    scenes: seamScenes,
-    html,
-    timelineJs: timeline,
-    duration: Number(result.duration) || 0,
-  });
+  const seamReport =
+    result.qualityMetadataAvailable === false
+      ? { planned: false, issues: [], blocking: [], strengths: [] }
+      : analyzeSeamPlan({
+          seams: seams,
+          scenes: seamScenes,
+          html,
+          timelineJs: timeline,
+          duration: Number(result.duration) || 0,
+        });
   for (const issue of seamReport.issues) {
     if (seamReport.blocking.includes(issue)) fail(issue);
     else warn(issue);

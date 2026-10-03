@@ -29,7 +29,7 @@
 
 .code-editor-scope .me-timeline-resizer:hover span,
 .code-editor-scope .me-timeline-resizer:focus-visible span {
-  background: #70ddb8;
+  background: #c7c7cc;
 }
 
 .code-editor-scope .me-timeline-toolbar {
@@ -221,7 +221,7 @@
 
 .code-editor-scope .me-timeline-row.me-selected .me-track-label {
   color: #f1f2f4;
-  box-shadow: inset 2px 0 #70ddb8;
+  box-shadow: inset 2px 0 #c7c7cc;
 }
 
 .code-editor-scope .me-track-label {
@@ -404,10 +404,10 @@
   top: 0;
   bottom: -1px;
   width: 3px;
-  background: #70ddb8;
+  background: #c7c7cc;
   transform: translateX(-50%);
   pointer-events: none;
-  box-shadow: 0 0 8px rgba(112, 221, 184, 0.42);
+  box-shadow: 0 0 8px rgba(199, 199, 204, 0.38);
 }
 
 .code-editor-scope .me-drop-indicator::before {
@@ -417,14 +417,14 @@
   left: 50%;
   width: 0;
   height: 0;
-  border-top: 8px solid #70ddb8;
+  border-top: 8px solid #c7c7cc;
   border-right: 7px solid transparent;
   border-left: 7px solid transparent;
   transform: translateX(-50%);
 }
 
 .code-editor-scope .me-timeline-scroll.me-drop-target {
-  background: rgba(112, 221, 184, 0.05);
+  background: rgba(199, 199, 204, 0.05);
 }
 
 /* Timeline Clip Styles */
@@ -433,8 +433,8 @@
 }
 
 .code-editor-scope .me-timeline-clip {
-  border: 2px solid #70ddb8;
-  background: rgba(112, 221, 184, 0.1);
+  border: 2px solid #c7c7cc;
+  background: rgba(199, 199, 204, 0.1);
 }
 
 .code-editor-scope .me-clip-trim-label {
@@ -454,7 +454,7 @@
 
 .code-editor-scope .me-timeline-clip.me-selected-clip {
   border-color: #f1f2f4;
-  box-shadow: 0 0 0 1px #70ddb8;
+  box-shadow: 0 0 0 1px #c7c7cc;
 }
 
 .code-editor-scope .me-transition-cut {
@@ -479,7 +479,7 @@
 }
 
 .code-editor-scope .me-transition-cut.me-has-transition {
-  border-color: #70ddb8;
+  border-color: #c7c7cc;
   background: #24594a;
   color: #effff9;
   box-shadow: 0 0 0 2px rgba(13, 14, 16, 0.85);
@@ -489,17 +489,17 @@
   width: 22px;
   height: 22px;
   top: 7px;
-  border-color: #70ddb8;
+  border-color: #c7c7cc;
   background: #244b40;
   color: #fff;
-  box-shadow: 0 0 12px rgba(112, 221, 184, 0.45);
+  box-shadow: 0 0 12px rgba(199, 199, 204, 0.4);
 }
 
 .code-editor-scope .me-transition-cut.me-selected-transition {
   border-color: #fff;
   box-shadow:
-    0 0 0 2px #70ddb8,
-    0 0 12px rgba(112, 221, 184, 0.4);
+    0 0 0 2px #c7c7cc,
+    0 0 12px rgba(199, 199, 204, 0.36);
 }
 
 .code-editor-scope .me-clip-delete {
@@ -606,21 +606,21 @@
   bottom: 7px;
   min-width: 16px;
   padding: 0;
-  border: 1px solid rgba(112, 221, 184, 0.62);
+  border: 1px solid rgba(199, 199, 204, 0.58);
   border-radius: 4px;
   background: repeating-linear-gradient(
     -45deg,
-    rgba(112, 221, 184, 0.25),
-    rgba(112, 221, 184, 0.25) 3px,
-    rgba(112, 221, 184, 0.06) 3px,
-    rgba(112, 221, 184, 0.06) 6px
+    rgba(199, 199, 204, 0.25),
+    rgba(199, 199, 204, 0.25) 3px,
+    rgba(199, 199, 204, 0.06) 3px,
+    rgba(199, 199, 204, 0.06) 6px
   );
   cursor: pointer;
 }
 
 .code-editor-scope .me-project-handoff:hover {
-  border-color: #91e8ca;
-  box-shadow: 0 0 10px rgba(112, 221, 184, 0.24);
+  border-color: #dedee2;
+  box-shadow: 0 0 10px rgba(199, 199, 204, 0.22);
 }
 
 .code-editor-scope .me-clip-duration {
@@ -661,7 +661,7 @@
   align-items: center;
   justify-content: center;
   background: #1d2225;
-  color: #70ddb8;
+  color: #c7c7cc;
 }
 
 .code-editor-scope .me-clip-color {
@@ -697,9 +697,9 @@
   z-index: 3;
   top: 6px;
   height: 27px;
-  border: 1px dashed #70ddb8;
+  border: 1px dashed #c7c7cc;
   border-radius: 3px;
-  background: rgba(112, 221, 184, 0.12);
+  background: rgba(199, 199, 204, 0.12);
   pointer-events: none;
 }
 .code-editor-scope .me-clip-ghost.me-invalid {
@@ -738,12 +738,12 @@
 }
 
 .code-editor-scope .me-element-clip:hover {
-  border-color: #91e8ca;
+  border-color: #dedee2;
   background: #3d4548;
 }
 
 .code-editor-scope .me-element-clip.me-selected-clip {
-  border-color: #70ddb8;
+  border-color: #c7c7cc;
   background: #26473d;
 }
 
@@ -820,7 +820,7 @@
 }
 
 .code-editor-scope .me-toggle-row input {
-  accent-color: #70ddb8;
+  accent-color: #c7c7cc;
 }
 
 .code-editor-scope .me-keyframe-marker {
@@ -921,14 +921,14 @@
   color: #ff9da5;
 }
 
-/* Timeline-local palette: neutral tracks with mint interaction feedback. */
+/* Timeline-local palette: neutral tracks with silver interaction feedback. */
 .code-editor-scope .me-timeline-panel .me-timeline-snap-guide {
-  background: #70ddb8;
-  box-shadow: 0 0 8px rgba(112, 221, 184, 0.32);
+  background: #c7c7cc;
+  box-shadow: 0 0 8px rgba(199, 199, 204, 0.28);
 }
 
 .code-editor-scope .me-timeline-panel .me-icon-btn.me-active {
-  border-color: rgba(112, 221, 184, 0.38);
-  background: rgba(112, 221, 184, 0.12);
-  color: #91e8ca;
+  border-color: rgba(199, 199, 204, 0.38);
+  background: rgba(199, 199, 204, 0.12);
+  color: #dedee2;
 }

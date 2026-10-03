@@ -42,7 +42,11 @@ export function resolveGenerationBasis(
   composition: BasisComposition,
 ): GenerationBasis {
   const currentSource = files["composition.html"] ?? "";
+  const isTechnicalFoundation = currentSource.includes(
+    "motionly-foundation-stage",
+  );
   const needsFoundation =
+    isTechnicalFoundation ||
     currentSource.length < AUTHORED_COMPOSITION_MIN_LENGTH ||
     (composition.id.startsWith("dynamic-comp-") &&
       !currentSource.includes(GENERATION_FOUNDATION_PROFILE));

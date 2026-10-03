@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LogIn, UserPlus } from "lucide-svelte";
+  import { Eye, EyeOff } from "lucide-svelte";
   import {
     AuthError,
     motionlyLoginUrl,
@@ -12,17 +12,24 @@
   /** Which credential flow the form is showing. Bindable so a host can open
    * straight onto "Create account" when that is what it asked the user for. */
   export let mode: "signin" | "signup" = "signin";
+  /** Replaces the default heading, e.g. when a prompt is waiting on sign-in. */
+  export let title = "";
+  /** A line under the heading explaining why an account is needed here. */
+  export let subtitle = "";
   export let onauthenticated: (
     user: MotionlyUser,
   ) => void | Promise<void> = () => {};
 
   let email = "";
   let password = "";
+  let showPassword = false;
   let busy = false;
   let errorMessage = "";
   let verificationSentTo = "";
 
   $: isSignUp = mode === "signup";
+  $: heading =
+    title || (isSignUp ? "Create your account" : "Log in to your account");
 
   function switchMode(next: "signin" | "signup"): void {
     mode = next;
@@ -63,13 +70,13 @@
       }
     } catch (error) {
       // An address that already has an account is a wrong-form mistake, not a
-      // failure: send the user to the sign-in tab with the email kept.
+      // failure: send the user to sign in with the email kept.
       if (
         error instanceof AuthError &&
         error.code === "ACCOUNT_ALREADY_EXISTS"
       ) {
         mode = "signin";
-        errorMessage = "That account already exists. Sign in instead.";
+        errorMessage = "That account already exists. Log in instead.";
       } else {
         errorMessage = readableError(error);
       }
@@ -80,39 +87,77 @@
 </script>
 
 <div class="auth-panel" data-ph-no-autocapture>
+  <span class="auth-panel__mark" aria-hidden="true">
+    <img src="/logo.svg" alt="" width="30" height="30" />
+  </span>
+
   {#if verificationSentTo}
-    <div class="auth-panel__sent" role="status">
-      <h3>Check your inbox</h3>
+    <header class="auth-panel__head" role="status">
+      <h2>Check your inbox</h2>
       <p>
         We sent a verification link to <strong>{verificationSentTo}</strong>.
-        Open it to finish setting up your account — you will land back here
-        signed in.
+        Open it to finish setting up your account — you'll land back here signed
+        in.
       </p>
-      <button
-        class="auth-panel__ghost"
-        type="button"
-        on:click={() => switchMode("signin")}>Back to sign in</button
-      >
-    </div>
+    </header>
+    <button
+      class="auth-panel__submit"
+      type="button"
+      on:click={() => switchMode("signin")}>Back to log in</button
+    >
   {:else}
-    <div class="auth-panel__tabs" role="tablist" aria-label="Account">
-      <button
-        class="auth-panel__tab"
-        class:auth-panel__tab--active={!isSignUp}
-        type="button"
-        role="tab"
-        aria-selected={!isSignUp}
-        on:click={() => switchMode("signin")}>Sign in</button
-      >
-      <button
-        class="auth-panel__tab"
-        class:auth-panel__tab--active={isSignUp}
-        type="button"
-        role="tab"
-        aria-selected={isSignUp}
-        on:click={() => switchMode("signup")}>Create account</button
-      >
-    </div>
+    <header class="auth-panel__head">
+      <small>{isSignUp ? "Welcome to Motify" : "Welcome back"}</small>
+      <h2 id="auth-panel-title">{heading}</h2>
+      {#if subtitle}<p>{subtitle}</p>{/if}
+    </header>
+
+    <form class="auth-panel__form" on:submit={submit}>
+      <label class="auth-panel__field">
+        <span>Email</span>
+        <input
+          bind:value={email}
+          type="email"
+          autocomplete="email"
+          placeholder="you@studio.com"
+          required
+        />
+      </label>
+      <label class="auth-panel__field">
+        <span>Password</span>
+        <span class="auth-panel__password">
+          <input
+            bind:value={password}
+            type={showPassword ? "text" : "password"}
+            autocomplete={isSignUp ? "new-password" : "current-password"}
+            placeholder={isSignUp ? "At least 8 characters" : "Your password"}
+            minlength="8"
+            required
+          />
+          <button
+            type="button"
+            class="auth-panel__reveal"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            on:click={() => (showPassword = !showPassword)}
+          >
+            {#if showPassword}<EyeOff size={17} />{:else}<Eye size={17} />{/if}
+          </button>
+        </span>
+      </label>
+      {#if errorMessage}
+        <p class="auth-panel__error" role="alert">{errorMessage}</p>
+      {/if}
+      <button class="auth-panel__submit" type="submit" disabled={busy}>
+        {#if isSignUp}
+          {busy ? "Creating account…" : "Create account"}
+        {:else}
+          {busy ? "Logging in…" : "Log in"}
+        {/if}
+      </button>
+    </form>
+
+    <div class="auth-panel__divider"><span>Or</span></div>
 
     <a class="auth-panel__google" href={motionlyLoginUrl()}>
       <svg
@@ -137,45 +182,21 @@
           d="M12 5.96c1.47 0 2.79.51 3.83 1.51l2.87-2.87C16.96 2.96 14.7 2 12 2a9.98 9.98 0 0 0-8.94 5.5l3.33 2.59C7.18 7.72 9.39 5.96 12 5.96Z"
         />
       </svg>
-      Continue with Google
+      {isSignUp ? "Sign up with Google" : "Log in with Google"}
     </a>
 
-    <div class="auth-panel__divider"><span>or</span></div>
-
-    <form class="auth-panel__form" on:submit={submit}>
-      <label class="auth-panel__field">
-        <span>Email</span>
-        <input
-          bind:value={email}
-          type="email"
-          autocomplete="email"
-          placeholder="you@studio.com"
-          required
-        />
-      </label>
-      <label class="auth-panel__field">
-        <span>Password</span>
-        <input
-          bind:value={password}
-          type="password"
-          autocomplete={isSignUp ? "new-password" : "current-password"}
-          placeholder={isSignUp ? "At least 8 characters" : "Your password"}
-          minlength="8"
-          required
-        />
-      </label>
-      {#if errorMessage}
-        <p class="auth-panel__error" role="alert">{errorMessage}</p>
+    <p class="auth-panel__switch">
+      {#if isSignUp}
+        Already have an account?
+        <button type="button" on:click={() => switchMode("signin")}
+          >Log in</button
+        >
+      {:else}
+        Don't have an account?
+        <button type="button" on:click={() => switchMode("signup")}
+          >Create account</button
+        >
       {/if}
-      <button class="auth-panel__submit" type="submit" disabled={busy}>
-        {#if isSignUp}
-          <UserPlus size={16} />
-          {busy ? "Creating account…" : "Create account"}
-        {:else}
-          <LogIn size={16} />
-          {busy ? "Signing in…" : "Sign in"}
-        {/if}
-      </button>
-    </form>
+    </p>
   {/if}
 </div>

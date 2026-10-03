@@ -6,9 +6,9 @@
 
   export let open = false;
   export let mode: "signin" | "signup" = "signin";
-  export let title = "Sign in to keep creating";
-  export let subtitle =
-    "Tiffy builds your film in your workspace, so a Motify account is needed before the first prompt runs.";
+  /** Empty keeps the panel's own "Log in to your account" heading. */
+  export let title = "";
+  export let subtitle = "";
   export let onauthenticated: (
     user: MotionlyUser,
   ) => void | Promise<void> = () => {};
@@ -47,17 +47,18 @@
       class="auth-dialog"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="auth-dialog-title"
+      aria-labelledby="auth-panel-title"
       tabindex="-1"
     >
       <button class="auth-dialog__close" on:click={close} aria-label="Close">
         <X size={17} />
       </button>
-      <header class="auth-dialog__head">
-        <h2 id="auth-dialog-title">{title}</h2>
-        <p>{subtitle}</p>
-      </header>
-      <AuthPanel bind:mode onauthenticated={handleAuthenticated} />
+      <AuthPanel
+        bind:mode
+        {title}
+        {subtitle}
+        onauthenticated={handleAuthenticated}
+      />
     </div>
   </div>
 {/if}

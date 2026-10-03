@@ -151,6 +151,34 @@ function fallbackFields(element: HTMLElement): EditorFieldDefinition[] {
       },
     ];
   }
+  const headingOrTextChild = element.querySelectorAll<HTMLElement>(
+    "h1, h2, h3, h4, h5, h6, p, .editorial-thought, .motionly-text-motion-layer",
+  );
+  if (headingOrTextChild.length === 1 && headingOrTextChild[0]) {
+    return [
+      {
+        id: "content",
+        label: "Content",
+        type: "text",
+        binding: "text",
+        target: headingOrTextChild[0],
+      },
+    ];
+  }
+  if (
+    !element.querySelector("div, section, article, table, ul, ol, img, svg") &&
+    Boolean(element.textContent?.trim())
+  ) {
+    return [
+      {
+        id: "content",
+        label: "Content",
+        type: "text",
+        binding: "text",
+        target: element,
+      },
+    ];
+  }
   return [];
 }
 
@@ -175,10 +203,33 @@ export function readEditorGroup(
     explicit,
     fields: explicit ? declared : fallbackFields(element),
     allowTransform: element.dataset["editTransform"] !== "false",
-    allowAppearance: explicit
-      ? element.dataset["editAppearance"] === "true"
-      : true,
+    // Appearance is a core editor capability, not an advanced field that
+    // generated markup must remember to opt into. Authors can still suppress
+    // it deliberately for non-visual control groups.
+    allowAppearance: element.dataset["editAppearance"] !== "false",
   };
+}
+
+/**
+ * Returns the one DOM node that visually owns a text-only editor group.
+ * Generated compositions commonly register a positioning wrapper while the
+ * declared Content field sits one level inside it. Typography belongs on that
+ * field target; transforms still belong on the registered wrapper.
+ */
+export function editorGroupTextTarget(
+  group: EditorGroupDefinition,
+): HTMLElement | null {
+  const textFields = group.fields.filter((field) => field.binding === "text");
+  const target = textFields[0]?.target;
+  if (!target || textFields.some((field) => field.target !== target))
+    return null;
+  const hasDifferentVisualTarget = group.fields.some(
+    (field) =>
+      field.target !== target &&
+      field.binding !== "css-variable" &&
+      field.type !== "toggle",
+  );
+  return hasDifferentVisualTarget ? null : target;
 }
 
 export function editorFieldValue(field: EditorFieldDefinition): string {

@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generateWithDirectAi } from "../../src/ai/direct-ai";
+import {
+  buildCloudProjectMessage,
+  generateWithDirectAi,
+} from "../../src/ai/direct-ai";
 import { MOTIONLY_SYSTEM_PROMPT } from "../../src/ai/prompt";
 import generateHandler from "../../api/ai/generate";
 import {
@@ -7,14 +11,20 @@ import {
   foundationTimeline,
 } from "../../src/ai/generation-foundation";
 
+const soundHtml = readFileSync("tests/fixtures/strong-generation.html", "utf8");
+const soundTimeline = readFileSync(
+  "tests/fixtures/strong-generation.timeline.js",
+  "utf8",
+);
+
 /** A film that clears every blocking check: the shape a good pass returns. */
 function soundComposition(reply: string) {
   return {
     title: "Launch film",
     duration: 20,
     skills: ["write-motionly"],
-    compositionHtml: foundationHtml,
-    timelineJs: foundationTimeline,
+    compositionHtml: soundHtml,
+    timelineJs: soundTimeline,
     reply,
   };
 }
@@ -755,5 +765,24 @@ describe("directed generation with self-repair", () => {
     );
 
     expect(observe).not.toHaveBeenCalled();
+  });
+
+  it("marks a foundation-backed cloud project as a from-scratch build", () => {
+    const message = buildCloudProjectMessage(
+      'make an animation saying "Hi"',
+      "claude-foundation-v1",
+    );
+
+    expect(message).toContain("CREATE A NEW COMPOSITION FROM SCRATCH");
+    expect(message).toContain("disposable technical scaffold");
+    expect(message).toContain("Requested film shape: editorial");
+    expect(message).toContain("Target duration: 5 seconds");
+    expect(message).toContain('make an animation saying "Hi"');
+  });
+
+  it("leaves follow-up cloud messages untouched", () => {
+    expect(buildCloudProjectMessage("make the ending slower", "existing")).toBe(
+      "make the ending slower",
+    );
   });
 });

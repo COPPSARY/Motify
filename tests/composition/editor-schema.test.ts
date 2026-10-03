@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEditorField,
+  editorGroupTextTarget,
   editorFieldValue,
   readEditorGroup,
 } from "../../src/composition/editor-schema";
@@ -24,6 +25,21 @@ describe("editor schema", () => {
       "image",
     ]);
     expect(schema.allowTransform).toBe(true);
+    expect(schema.allowAppearance).toBe(true);
+  });
+
+  it("keeps appearance controls available for generated explicit fields", () => {
+    const title = document.createElement("h1");
+    title.dataset.edit = "hero-title";
+    title.dataset.field = "content";
+    title.dataset.fieldType = "text";
+    title.dataset.fieldBinding = "text";
+    title.textContent = "Build what matters";
+
+    expect(readEditorGroup("hero-title", title).allowAppearance).toBe(true);
+
+    title.dataset.editAppearance = "false";
+    expect(readEditorGroup("hero-title", title).allowAppearance).toBe(false);
   });
 
   it("updates the declared binding without touching sibling content", () => {
@@ -39,6 +55,20 @@ describe("editor schema", () => {
     applyEditorField(field, "$59.99");
     expect(editorFieldValue(field)).toBe("$59.99");
     expect(group.querySelector(".feature")?.textContent).toBe("100% recycled");
+  });
+
+  it("identifies the nested content node as a text-only group's style target", () => {
+    const group = document.createElement("div");
+    group.dataset.edit = "greetingText";
+    group.dataset.editAppearance = "true";
+    group.innerHTML =
+      '<span data-field="content" data-field-type="text">Hi.</span>';
+
+    const schema = readEditorGroup("greetingText", group);
+
+    expect(editorGroupTextTarget(schema)).toBe(
+      group.querySelector('[data-field="content"]'),
+    );
   });
 
   it("falls back conservatively for legacy image elements", () => {

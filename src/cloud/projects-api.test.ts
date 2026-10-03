@@ -24,6 +24,26 @@ afterEach(() => {
 });
 
 describe("ProjectsApi", () => {
+  it("lists reusable workspace assets", async () => {
+    const asset = { id: "asset-1", fileName: "hero.png" };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(200, { data: [asset], totalItems: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").listWorkspaceAssets(
+        "workspace 1",
+      ),
+    ).resolves.toEqual([asset]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        "http://localhost:4000/v1/workspaces/workspace%201/assets?pageSize=100",
+      ),
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
   it("loads the active subscription for a workspace", async () => {
     const subscription = {
       status: "active",

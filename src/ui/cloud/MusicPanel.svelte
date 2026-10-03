@@ -533,7 +533,17 @@
         >
       </p>
     {:else if $musicStatus === "loading" && $musicTracks.length === 0}
-      <p class="panel-copy">Loading your music…</p>
+      <div class="music-skeleton" aria-busy="true" aria-label="Loading music">
+        {#each [0, 1, 2, 3] as row (row)}
+          <div class="music-skeleton__row" aria-hidden="true">
+            <span class="me-skeleton music-skeleton__play"></span>
+            <span class="asset-skeleton-copy"
+              ><span class="me-skeleton"></span><span class="me-skeleton"
+              ></span></span
+            >
+          </div>
+        {/each}
+      </div>
     {:else if $musicTracks.length === 0}
       <p class="panel-copy">
         {#if $musicFilter.query}

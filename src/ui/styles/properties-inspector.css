@@ -10,8 +10,7 @@
 }
 
 .code-editor-scope .me-primary-properties,
-.code-editor-scope .me-property-group,
-.code-editor-scope .me-animation-editor {
+.code-editor-scope .me-property-group {
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -150,17 +149,6 @@
   margin-bottom: 8px;
 }
 
-.code-editor-scope .me-property-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.code-editor-scope .me-property-label-row .me-property-label {
-  margin-bottom: 0;
-}
-
 /* Derived value shown beside a label, e.g. the decibel equivalent of a gain. */
 .code-editor-scope .me-property-readout {
   font-size: 11px;
@@ -257,69 +245,6 @@
   text-decoration: underline;
 }
 
-.code-editor-scope .me-animation-editor {
-  display: grid;
-  gap: 10px;
-}
-
-.code-editor-scope .me-property-label-row output {
-  color: #9ca3af;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-}
-
-.code-editor-scope .me-ease-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.code-editor-scope .me-ease-preset {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 7px;
-  border: 1px solid #2b3037;
-  border-radius: 6px;
-  background: #141619;
-  color: #9298a1;
-  font-size: 9px;
-  cursor: pointer;
-}
-
-.code-editor-scope .me-ease-preset:hover,
-.code-editor-scope .me-ease-preset.me-active {
-  border-color: rgba(112, 221, 184, 0.55);
-  background: rgba(112, 221, 184, 0.09);
-  color: #dffaf1;
-}
-
-.code-editor-scope .me-ease-preset svg {
-  width: 100%;
-  height: 32px;
-  overflow: visible;
-}
-
-.code-editor-scope .me-ease-axis {
-  fill: none;
-  stroke: #343941;
-  stroke-width: 1;
-}
-
-.code-editor-scope .me-ease-curve {
-  fill: none;
-  stroke: #70ddb8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.code-editor-scope .me-animation-help {
-  color: #666d76;
-  font-size: 9px;
-  line-height: 1.4;
-}
-
 .code-editor-scope .me-layer-visibility {
   width: 100%;
   min-height: 34px;
@@ -343,8 +268,8 @@
 }
 
 .code-editor-scope .me-layer-visibility.me-restore {
-  border-color: rgba(112, 221, 184, 0.45);
-  background: rgba(112, 221, 184, 0.09);
+  border-color: rgba(199, 199, 204, 0.45);
+  background: rgba(199, 199, 204, 0.09);
   color: #9aebd0;
 }
 
@@ -734,12 +659,6 @@
   box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.12);
 }
 
-.code-editor-scope .me-appearance-title {
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid #24262a;
-}
-
 .code-editor-scope .me-color-control {
   min-height: 36px;
   display: flex;
@@ -823,6 +742,46 @@
     -4px 0px;
   background-color: #16181d;
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.code-editor-scope .me-color-clear {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #7d8590;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-color-clear:hover {
+  background: #25282e;
+  color: #f0f6fc;
+}
+
+.code-editor-scope .me-add-bg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px dashed #2a2d33;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.code-editor-scope .me-add-bg-btn:hover {
+  border-color: #0a84ff;
+  background: rgba(10, 132, 255, 0.08);
+  color: #e4e6ea;
 }
 
 /* Preset Cards */

@@ -8,6 +8,39 @@
     <title>Motify</title>
   </head>
   <body>
+    <!-- Shown until the app's code arrives; main.ts removes it on mount. -->
+    <div id="boot-screen" aria-busy="true" aria-label="Loading Motify">
+      <img src="%BASE_URL%logo.svg" alt="" width="44" height="44" />
+    </div>
+    <style>
+      body {
+        margin: 0;
+        background: #0a0a0a;
+      }
+      #boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        background: #0a0a0a;
+      }
+      #boot-screen img {
+        border-radius: 11px;
+        animation: boot-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-pulse {
+        50% {
+          opacity: 0.45;
+          transform: scale(0.96);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-screen img {
+          animation: none;
+        }
+      }
+    </style>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

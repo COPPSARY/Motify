@@ -15,13 +15,13 @@ import {
   parseDirectionResponse,
   type FilmDirection,
 } from "./direction-pass";
+import { inferFilmDuration, selectFilmShape } from "./film-shape";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 import { buildQualityRepairPrompt, targetedIssues } from "./repair-prompt";
 import {
   MAX_EVIDENCE_FRAMES,
   NO_OBSERVATION,
   type FilmObservation,
-  type FrameEvidence,
 } from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
 import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
@@ -285,15 +285,29 @@ async function requestBackend(
   return parseAiResponseText(body.rawText ?? JSON.stringify(body));
 }
 
+export function buildCloudProjectMessage(
+  userPrompt: string,
+  generationProfile: GenerationFiles["generationProfile"],
+): string {
+  if (generationProfile !== "claude-foundation-v1") return userPrompt;
+  const shape = selectFilmShape(userPrompt);
+  const duration = inferFilmDuration(userPrompt);
+  return [
+    "CREATE A NEW COMPOSITION FROM SCRATCH.",
+    "The current project source is a disposable technical scaffold, not an existing film and not creative reference material. Replace it completely. Preserve only the data-motionly-generation-profile marker required by the runtime.",
+    "Do not inherit its scene count, layout, colors, ids, timeline, or lack of content. Do not invent a product, application interface, dashboard, brand, metrics, or extra scenes unless the user explicitly asks for them.",
+    `Requested film shape: ${shape}. Target duration: ${duration} seconds.`,
+    `USER REQUEST\n${userPrompt}`,
+  ].join("\n\n");
+}
+
 async function requestBackendProject(
   projectId: string,
   userPrompt: string,
-  assets: GenerationFiles["assets"],
-  frames: readonly FrameEvidence[] = [],
-  audioTrackIds: GenerationFiles["audioTrackIds"] = [],
+  currentFiles: GenerationFiles,
 ): Promise<DirectAiResult> {
   const api = new ProjectsApi();
-  const uploadedAssets = (assets ?? []).flatMap((asset) =>
+  const uploadedAssets = (currentFiles.assets ?? []).flatMap((asset) =>
     asset.uploadId
       ? [
           {
@@ -310,19 +324,26 @@ async function requestBackendProject(
   let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
   try {
     result = await api.sendMotionMessage(projectId, {
-      message: userPrompt,
+      message: buildCloudProjectMessage(
+        userPrompt,
+        currentFiles.generationProfile,
+      ),
       ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
-      ...(frames.length > 0
+      ...((currentFiles.evidenceFrames ?? []).length > 0
         ? {
-            frames: frames.map((frame) => ({
+            frames: (currentFiles.evidenceFrames ?? []).map((frame) => ({
               capturedAtSeconds: frame.time,
               mediaType: frame.mimeType as "image/jpeg",
               dataBase64: frame.dataBase64,
             })),
           }
         : {}),
-      ...(audioTrackIds.length > 0
-        ? { audio: audioTrackIds.map((trackId) => ({ trackId })) }
+      ...((currentFiles.audioTrackIds ?? []).length > 0
+        ? {
+            audio: (currentFiles.audioTrackIds ?? []).map((trackId) => ({
+              trackId,
+            })),
+          }
         : {}),
     });
   } catch (error) {
@@ -355,6 +376,7 @@ async function requestBackendProject(
     compositionHtml: files["composition.html"],
     timelineJs: files["timeline.js"],
     reply: result.response,
+    qualityMetadataAvailable: false,
     backendProjectId: project.id,
   };
 }
@@ -374,6 +396,7 @@ async function requestDirection(
   const message = buildDirectionUserMessage({
     userPrompt,
     conversation: currentFiles.conversation,
+    duration: inferFilmDuration(userPrompt),
     assetNames: (currentFiles.assets ?? []).map((asset) => asset.name),
   });
   const rawText = settings.apiKey
@@ -533,13 +556,7 @@ export async function generateWithDirectAi(
   const backendProjectId = currentFiles.backendProjectId;
   const request = backendProjectId
     ? (prompt: string, files: GenerationFiles) =>
-        requestBackendProject(
-          backendProjectId,
-          prompt,
-          currentFiles.assets,
-          files.evidenceFrames,
-          currentFiles.audioTrackIds,
-        )
+        requestBackendProject(backendProjectId, prompt, files)
     : settings.apiKey
       ? (prompt: string, files: GenerationFiles, repair: boolean) =>
           requestClientProvider(settings, prompt, files, repair)

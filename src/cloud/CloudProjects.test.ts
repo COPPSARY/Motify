@@ -137,12 +137,11 @@ describe("CloudProjectGallery", () => {
       });
       expect(document.querySelector(".cloud-source-editor")).toBeNull();
       expect(document.body.textContent).not.toContain("composition.html");
+      // Videos come from a prompt or a template, never from a blank card.
+      expect(document.body.textContent).not.toContain("Create new project");
 
-      const newProjectButton = Array.from(
-        document.querySelectorAll("button"),
-      ).find((button) => button.textContent?.includes("Create new project"));
-      expect(newProjectButton).toBeDefined();
-      newProjectButton?.click();
+      // Saving work that has no project yet asks for its name.
+      await component.saveActive();
       await tick();
 
       const nameInput = document.querySelector<HTMLInputElement>(
@@ -155,7 +154,7 @@ describe("CloudProjectGallery", () => {
       await tick();
 
       const createButton = Array.from(document.querySelectorAll("button")).find(
-        (button) => button.textContent?.includes("Create project"),
+        (button) => button.textContent?.includes("Save video"),
       );
       expect(createButton).toBeDefined();
       createButton?.click();

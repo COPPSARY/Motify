@@ -1,6 +1,7 @@
 import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
+import type { BrandAssetRole, BrandDna, BrandResource } from "./brand-dna";
 
 export const PROJECT_SOURCE_PATHS = [
   "composition.html",
@@ -85,6 +86,23 @@ export interface ProjectAssetSummary {
   contentType: string;
   role: "reference" | "asset";
   token: string | null;
+}
+
+export interface WorkspaceAsset {
+  id: string;
+  workspaceId: string;
+  state: "PENDING" | "READY" | "FAILED" | "DELETED";
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  checksum: string;
+  label: string | null;
+  tags: string[];
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  createdAt: string;
+  downloadUrl: string | null;
 }
 
 /** A song in the music library: the user's own upload or a built-in track. */
@@ -251,6 +269,14 @@ export class ProjectsApi {
     );
   }
 
+  listWorkspaceAssets(workspaceId: string, query = "") {
+    const params = new URLSearchParams({ pageSize: "100" });
+    if (query.trim()) params.set("q", query.trim());
+    return this.request<WorkspaceAsset[]>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/assets?${params}`,
+    );
+  }
+
   async attachProjectAsset(
     projectId: string,
     assetId: string,
@@ -261,6 +287,14 @@ export class ProjectsApi {
       `/v1/projects/${encodeURIComponent(projectId)}/assets`,
       { method: "POST", body: { assetId, role } },
     );
+  }
+
+  /** Deletes an asset and its file. Refused while a project, song or brand uses it. */
+  async deleteAsset(assetId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(`/v1/assets/${encodeURIComponent(assetId)}`, {
+      method: "DELETE",
+    });
   }
 
   async detachProjectAsset(projectId: string, assetId: string) {
@@ -332,6 +366,54 @@ export class ProjectsApi {
     await this.ensureCsrfToken();
     return this.request<void>(
       `/v1/projects/${encodeURIComponent(projectId)}/audio/${encodeURIComponent(trackId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  /**
+   * The signed-in person's Brand DNA. A brand belongs to the person, not to a
+   * workspace, and every film they generate is made with it.
+   */
+  getBrand() {
+    return this.request<BrandResource>("/v1/brand");
+  }
+
+  /** Replaces the brand document against the revision it was read at. */
+  async saveBrand(revision: number, dna: BrandDna) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>("/v1/brand", {
+      method: "PUT",
+      body: { revision, dna },
+    });
+  }
+
+  async addBrandAsset(input: {
+    assetId: string;
+    role: BrandAssetRole;
+    label?: string | null;
+  }) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>("/v1/brand/assets", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async updateBrandAsset(
+    assetId: string,
+    input: { role?: BrandAssetRole; label?: string | null },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>(
+      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async removeBrandAsset(assetId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
       { method: "DELETE" },
     );
   }
