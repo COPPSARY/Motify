@@ -70,18 +70,29 @@
     <div class="brand-slot__meta">
       <span class="brand-slot__name">{describe(asset)}</span>
       <div class="brand-slot__actions">
-        <button type="button" class="brand-btn" on:click={pick} {disabled}>
+        <button
+          type="button"
+          class="brand-btn"
+          aria-label="Replace"
+          title="Replace"
+          on:click={pick}
+          {disabled}
+        >
           {#if uploading}<LoaderCircle
               class="brand-spin"
               size={14}
             />{:else}<RefreshCcw size={14} />{/if}
-          Replace
+          <span class="brand-btn__label">Replace</span>
         </button>
         <button
           type="button"
           class="brand-btn brand-btn--danger"
+          aria-label="Remove"
+          title="Remove"
           on:click={() => onremove(asset.assetId)}
-          {disabled}><Trash2 size={14} /> Remove</button
+          {disabled}
+          ><Trash2 size={14} />
+          <span class="brand-btn__label">Remove</span></button
         >
       </div>
     </div>
