@@ -91,6 +91,7 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
+  import { waitForSavedGeneration } from "./background-generation";
   import {
     combineCompositionSource,
     splitCompositionSource,
@@ -2665,17 +2666,35 @@
    * new one, until the user reloaded. When the saved revision moved past the
    * one on screen, mount what was saved. The conversation is kept.
    */
-  async function recoverSavedGeneration(): Promise<boolean> {
+  /** Polls for a save the backend finished after the connection dropped. */
+  async function waitForBackgroundGeneration(): Promise<boolean> {
     const projectId = cloudProject?.id ?? backendGenerationProjectId;
     if (!projectId) return false;
     const shownRevision = cloudProject?.revision ?? 0;
+    generationStore.update((state) => ({
+      ...state,
+      message:
+        "Still finishing your video — this one is taking a little longer…",
+    }));
+    const recovered = await waitForSavedGeneration({
+      check: () => recoverSavedGeneration(shownRevision),
+      stillCurrent: () =>
+        (cloudProject?.id ?? backendGenerationProjectId) === projectId,
+    });
+    if (recovered) void refreshCredits();
+    return recovered;
+  }
+
+  async function recoverSavedGeneration(
+    shownRevision = cloudProject?.revision ?? 0,
+  ): Promise<boolean> {
+    const projectId = cloudProject?.id ?? backendGenerationProjectId;
+    if (!projectId) return false;
     try {
       const api = new ProjectsApi();
-      const [latestProject, source] = await Promise.all([
-        api.getProject(projectId),
-        api.getSource(projectId),
-      ]);
+      const latestProject = await api.getProject(projectId);
       if (latestProject.revision <= shownRevision) return false;
+      const source = await api.getSource(projectId);
       const files = splitCompositionSource(
         source["composition.html"],
         source["timeline.js"],
@@ -2791,7 +2810,10 @@
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
-      if (await recoverSavedGeneration()) {
+      const recovered = mayStillBeRunning(err)
+        ? await waitForBackgroundGeneration()
+        : await recoverSavedGeneration();
+      if (recovered) {
         const recoveredMessage =
           "Your change was saved. I loaded the latest version into the preview.";
         generationStore.set({
@@ -2901,7 +2923,7 @@
   // The server does not charge a request that fails (see direct-ai.ts), so a
   // dropped connection or server fault is safe to retry as-is.
   const RETRY_NOTICE =
-    "Sorry, we ran into a problem and couldn't finish this. Please retry — failed requests aren't charged, so no credits were used.";
+    "Sorry, we ran into a problem and couldn't finish this video. Please retry — you're only charged for videos that finish, so this one cost nothing.";
 
   function isTransientFailure(error: unknown): boolean {
     if (error instanceof CloudApiError) {
@@ -2911,6 +2933,19 @@
     return /failed to fetch|networkerror|network error|network request failed|load failed|timed? ?out|aborted|502|503|504/i.test(
       text,
     );
+  }
+
+  /**
+   * The connection was lost rather than answered: a network drop, or a
+   * gateway error page with no backend error code. The backend may still be
+   * running, so it is worth waiting for its save. A backend that answered
+   * with its own error has already stopped (and released the credits).
+   */
+  function mayStillBeRunning(error: unknown): boolean {
+    if (error instanceof CloudApiError) {
+      return error.code === "REQUEST_FAILED" && error.status >= 502;
+    }
+    return isTransientFailure(error);
   }
 
   function failureMessage(error: unknown, fallback: string): string {
@@ -2979,6 +3014,17 @@
       showNotice(withCreditCost("Tiffy repaired the composition."));
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
+      if (mayStillBeRunning(err) && (await waitForBackgroundGeneration())) {
+        generationStore.set({
+          isActive: false,
+          status: "COMPLETED",
+          stage: "COMPLETED",
+          progress: 100,
+          message: "Your change was saved. I loaded the latest version.",
+        });
+        showNotice("Tiffy repaired the composition.");
+        return;
+      }
       generationStore.set({
         isActive: false,
         status: "FAILED",
