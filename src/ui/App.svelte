@@ -297,6 +297,7 @@
   let timelineOpen = false;
   let sceneBarScrubbing = false;
   let exporting = false;
+  let removeWatermark = false;
   let notice = "";
   let assistantDraft = "";
   let composerInput: HTMLTextAreaElement;
@@ -321,6 +322,8 @@
   let promptHeldForAuth = "";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
+  $: if (!activePlan) removeWatermark = false;
+  $: syncPreviewWatermark(runtime, !removeWatermark || !activePlan);
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -608,6 +611,34 @@
     editorRevision += 1;
     // Whatever was just mounted is what the project holds.
     sourceDirty = false;
+  }
+
+  function syncPreviewWatermark(
+    mountedRuntime: CompositionRuntime | null,
+    visible: boolean,
+  ): void {
+    if (!mountedRuntime) return;
+    const existing = mountedRuntime.root.querySelector(
+      "[data-motify-watermark]",
+    );
+    if (!visible) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+
+    const { width, height } = mountedRuntime.definition;
+    const image = document.createElement("img");
+    image.src = "/motify-watermark-smoke.png";
+    image.alt = "";
+    image.style.cssText = `display:block;width:${Math.round(width * 0.21)}px;height:auto`;
+
+    const watermark = document.createElement("div");
+    watermark.dataset["motifyWatermark"] = "";
+    watermark.setAttribute("aria-hidden", "true");
+    watermark.style.cssText = `position:absolute;right:${Math.round(width * -0.008)}px;bottom:${Math.round(height * -0.007)}px;opacity:.8;z-index:2147483647;pointer-events:none`;
+    watermark.append(image);
+    mountedRuntime.root.append(watermark);
   }
 
   function scheduleDraftSave(): void {
@@ -3212,9 +3243,14 @@
   async function exportFullVideo(): Promise<void> {
     if (!hasEditorProject || !runtime || exporting) return;
     exporting = true;
-    exportStatus = "Initializing video export...";
-    showNotice("Rendering full video export (1080p)...", 20000);
     try {
+      if (removeWatermark) {
+        exportStatus = "Checking plan...";
+        await refreshActivePlan();
+      }
+      const includeWatermark = !removeWatermark || !activePlan;
+      exportStatus = "Initializing video export...";
+      showNotice("Rendering full video export (1080p)...", 20000);
       // The encoder loads on the first export, not with the editor.
       const { downloadBlob, exportVideo } =
         await import("../composition/exporter");
@@ -3224,11 +3260,13 @@
           exportStatus = statusText;
         },
         activeComposition.fps,
+        includeWatermark,
       );
-      downloadBlob(blob, `motify-${activeComposition.fps}fps.mp4`);
+      downloadBlob(blob, "motify-video.mp4");
       captureEvent("video exported", {
         fps: activeComposition.fps,
         duration_seconds: activeComposition.duration,
+        watermark: includeWatermark,
       });
       showNotice("Video export successful! Download started.");
     } catch (error) {
@@ -3895,6 +3933,20 @@
                 disabled={!hasEditorProject}
                 ><Save size={15} /><span>Save</span></button
               >
+              <label
+                class="me-watermark-option"
+                title={activePlan
+                  ? "Export without the Motify watermark"
+                  : "Upgrade to remove the Motify watermark"}
+              >
+                <input
+                  type="checkbox"
+                  aria-label="Remove watermark"
+                  bind:checked={removeWatermark}
+                  disabled={!activePlan || exporting}
+                />
+                <span>Remove watermark</span>
+              </label>
               <button
                 class="btn btn-primary export-action me-tooltip"
                 aria-label="Export video"

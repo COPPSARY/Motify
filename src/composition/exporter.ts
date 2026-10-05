@@ -15,6 +15,18 @@ async function blobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function embeddedImageDataUrl(url: string): Promise<string> {
+  let embeddedImage = embeddedImageCache.get(url);
+  if (!embeddedImage) {
+    embeddedImage = fetch(url).then(async (response) => {
+      if (!response.ok) throw new Error(`Could not embed ${url} for export.`);
+      return blobAsDataUrl(await response.blob());
+    });
+    embeddedImageCache.set(url, embeddedImage);
+  }
+  return embeddedImage;
+}
+
 async function inlineImages(source: Element, clone: Element): Promise<void> {
   const sourceImages = Array.from(source.querySelectorAll("img"));
   const cloneImages = Array.from(clone.querySelectorAll("img"));
@@ -23,18 +35,28 @@ async function inlineImages(source: Element, clone: Element): Promise<void> {
       const target = cloneImages[index];
       const url = image.currentSrc || image.src;
       if (!target || !url || url.startsWith("data:")) return;
-      let embeddedImage = embeddedImageCache.get(url);
-      if (!embeddedImage) {
-        embeddedImage = fetch(url).then(async (response) => {
-          if (!response.ok)
-            throw new Error(`Could not embed ${url} for export.`);
-          return blobAsDataUrl(await response.blob());
-        });
-        embeddedImageCache.set(url, embeddedImage);
-      }
-      target.src = await embeddedImage;
+      target.src = await embeddedImageDataUrl(url);
     }),
   );
+}
+
+async function appendWatermark(
+  root: HTMLElement,
+  width: number,
+  height: number,
+): Promise<void> {
+  if (root.querySelector("[data-motify-watermark]")) return;
+  const image = document.createElement("img");
+  image.src = await embeddedImageDataUrl("/motify-watermark-smoke.png");
+  image.alt = "";
+  image.style.cssText = `display:block;width:${Math.round(width * 0.21)}px;height:auto`;
+
+  const watermark = document.createElement("div");
+  watermark.dataset["motifyWatermark"] = "";
+  watermark.setAttribute("aria-hidden", "true");
+  watermark.style.cssText = `position:absolute;right:${Math.round(width * -0.008)}px;bottom:${Math.round(height * -0.007)}px;opacity:.8;z-index:2147483647;pointer-events:none`;
+  watermark.append(image);
+  root.append(watermark);
 }
 
 /**
@@ -82,6 +104,7 @@ async function imageFromSvg(svg: string): Promise<HTMLImageElement> {
 export async function renderCompositionFrame(
   runtime: CompositionRuntime,
   scale = 1,
+  watermark = false,
 ): Promise<HTMLCanvasElement> {
   const { width, height } = runtime.definition;
   const clone = runtime.root.cloneNode(true) as HTMLElement;
@@ -102,6 +125,7 @@ export async function renderCompositionFrame(
   clone.style.border = "0";
   clone.style.borderRadius = "0";
   clone.style.boxShadow = "none";
+  if (watermark) await appendWatermark(clone, width, height);
   const serialized = new XMLSerializer().serializeToString(clone);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${serialized}</div></foreignObject></svg>`;
   const image = await imageFromSvg(svg);
@@ -127,10 +151,49 @@ export async function exportPng(
   });
 }
 
+export async function findSupportedAvcConfig(
+  width: number,
+  height: number,
+  requestedFps: number,
+): Promise<{ config: VideoEncoderConfig; fps: number }> {
+  const frameRates = requestedFps > 30 ? [requestedFps, 30] : [requestedFps];
+  const profiles = ["4200", "4d00", "6400"];
+  const accelerations: HardwareAcceleration[] = [
+    "prefer-hardware",
+    "no-preference",
+    "prefer-software",
+  ];
+
+  for (const fps of frameRates) {
+    for (const profile of profiles) {
+      for (const hardwareAcceleration of accelerations) {
+        const config: VideoEncoderConfig = {
+          codec: `avc1.${profile}${fps > 30 ? "2a" : "28"}`,
+          width,
+          height,
+          bitrate: fps > 30 ? 20_000_000 : 12_000_000,
+          framerate: fps,
+          hardwareAcceleration,
+          latencyMode: "quality",
+        };
+        const support = await VideoEncoder.isConfigSupported(config);
+        if (support.supported) {
+          return { config: support.config ?? config, fps };
+        }
+      }
+    }
+  }
+
+  throw new Error(
+    "This browser cannot encode H.264 MP4 video at 1080p, including the 30 FPS compatibility mode.",
+  );
+}
+
 export async function exportVideo(
   runtime: CompositionRuntime,
   onProgress?: (progress: number, statusText: string) => void,
-  fps = runtime.definition.fps,
+  requestedFps = runtime.definition.fps,
+  watermark = false,
 ): Promise<Blob> {
   const { width, height, duration } = runtime.definition;
   if (
@@ -148,21 +211,11 @@ export async function exportVideo(
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("2D canvas export is unavailable.");
 
-  const config: VideoEncoderConfig = {
-    codec: fps > 30 ? "avc1.42002a" : "avc1.420028",
+  const { config, fps } = await findSupportedAvcConfig(
     width,
     height,
-    bitrate: fps > 30 ? 20_000_000 : 12_000_000,
-    framerate: fps,
-    hardwareAcceleration: "prefer-hardware",
-    latencyMode: "quality",
-  };
-  const support = await VideoEncoder.isConfigSupported(config);
-  if (!support.supported) {
-    throw new Error(
-      `This browser cannot encode H.264 MP4 video at 1080p${fps}.`,
-    );
-  }
+    requestedFps,
+  );
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
@@ -177,7 +230,7 @@ export async function exportVideo(
       encoderError = error;
     },
   });
-  encoder.configure(support.config ?? config);
+  encoder.configure(config);
 
   const initialTime = runtime.time;
   const wasPlaying = runtime.snapshot.playing;
@@ -190,7 +243,7 @@ export async function exportVideo(
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
       runtime.seek(frameIndex / fps);
 
-      const frameCanvas = await renderCompositionFrame(runtime, 1);
+      const frameCanvas = await renderCompositionFrame(runtime, 1, watermark);
       context.drawImage(frameCanvas, 0, 0);
 
       const frame = new VideoFrame(canvas, {
