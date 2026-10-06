@@ -11,6 +11,7 @@ export type MotionlyAnalyticsEvent =
   | "preset loaded"
   | "project saved"
   | "project started"
+  | "project version restored"
   | "video exported";
 
 export interface AnalyticsUser {

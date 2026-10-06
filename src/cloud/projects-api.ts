@@ -60,6 +60,24 @@ export interface ProjectSource {
   "timeline.js": string;
 }
 
+/**
+ * A saved point in a project's history. Versions are identified, not
+ * previewed: by number, how they were made, the prompt behind them and when.
+ */
+export interface ProjectVersion {
+  revision: number;
+  source: "initial" | "generation" | "manual_edit" | "restore";
+  restoredFromRevision: number | null;
+  label: string | null;
+  pinned: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  /** The start of the request behind a generation. */
+  prompt: string | null;
+  /** What the project shows now: the newest version, or one rolled back to. */
+  current: boolean;
+}
+
 export interface ProjectMutationResult {
   project: ProjectSummary;
   unchanged: boolean;
@@ -539,6 +557,41 @@ export class ProjectsApi {
       },
     );
     return { project, unchanged: project.revision === input.revision };
+  }
+
+  listVersions(projectId: string) {
+    return this.request<ProjectVersion[]>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions`,
+    );
+  }
+
+  async updateVersion(
+    projectId: string,
+    revision: number,
+    patch: { label?: string | null; pinned?: boolean },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions/${revision}`,
+      { method: "PATCH", body: patch },
+    );
+  }
+
+  /**
+   * Rolls the project back to an old version. No version is added: that one
+   * becomes current. `currentRevision` is the project revision the editor has
+   * loaded, so a stale editor gets a conflict.
+   */
+  async restoreVersion(
+    projectId: string,
+    revision: number,
+    currentRevision: number,
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<ProjectSummary>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions/${revision}/restore`,
+      { method: "POST", body: { revision: currentRevision } },
+    );
   }
 
   updateProject(

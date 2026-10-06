@@ -297,7 +297,6 @@
   let timelineOpen = false;
   let sceneBarScrubbing = false;
   let exporting = false;
-  let removeWatermark = false;
   let notice = "";
   let assistantDraft = "";
   let composerInput: HTMLTextAreaElement;
@@ -322,8 +321,8 @@
   let promptHeldForAuth = "";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
-  $: if (!activePlan) removeWatermark = false;
-  $: syncPreviewWatermark(runtime, !removeWatermark || !activePlan);
+  // Free and signed-out videos carry the Motify watermark; a subscription removes it.
+  $: syncPreviewWatermark(runtime, !activePlan);
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -2717,6 +2716,27 @@
     return recovered;
   }
 
+  /**
+   * Rolls the film back to an old version, which becomes the current one;
+   * no new version is made. Unsaved hand edits are saved first, so they
+   * become a version instead of being lost.
+   */
+  async function restoreProjectVersion(revision: number): Promise<void> {
+    if (!cloudProject || $generationStore.isActive) return;
+    if (sourceDirty) await saveSource();
+    const shownRevision = cloudProject.revision;
+    await musicApi.restoreVersion(cloudProject.id, revision, shownRevision);
+    if (!(await recoverSavedGeneration(shownRevision))) {
+      showNotice(`Restored version ${revision}. Reopen the video to see it.`);
+    }
+    assistantMessages = [
+      ...assistantMessages,
+      { role: "assistant", text: `Restored version ${revision}.` },
+    ];
+    captureEvent("project version restored", { revision });
+    scheduleDraftSave();
+  }
+
   async function recoverSavedGeneration(
     shownRevision = cloudProject?.revision ?? 0,
   ): Promise<boolean> {
@@ -3119,7 +3139,8 @@
           ? subscription.plan
           : null;
     } catch {
-      activePlan = null;
+      // Keep the last plan we read: a network blip must not watermark a
+      // subscriber's export.
     }
   }
 
@@ -3244,11 +3265,11 @@
     if (!hasEditorProject || !runtime || exporting) return;
     exporting = true;
     try {
-      if (removeWatermark) {
-        exportStatus = "Checking plan...";
-        await refreshActivePlan();
-      }
-      const includeWatermark = !removeWatermark || !activePlan;
+      // The plan is re-read here, so a subscription that just started or
+      // lapsed decides this export.
+      exportStatus = "Checking plan...";
+      await refreshActivePlan();
+      const includeWatermark = !activePlan;
       exportStatus = "Initializing video export...";
       showNotice("Rendering full video export (1080p)...", 20000);
       // The encoder loads on the first export, not with the editor.
@@ -3933,20 +3954,6 @@
                 disabled={!hasEditorProject}
                 ><Save size={15} /><span>Save</span></button
               >
-              <label
-                class="me-watermark-option"
-                title={activePlan
-                  ? "Export without the Motify watermark"
-                  : "Upgrade to remove the Motify watermark"}
-              >
-                <input
-                  type="checkbox"
-                  aria-label="Remove watermark"
-                  bind:checked={removeWatermark}
-                  disabled={!activePlan || exporting}
-                />
-                <span>Remove watermark</span>
-              </label>
               <button
                 class="btn btn-primary export-action me-tooltip"
                 aria-label="Export video"
@@ -4887,6 +4894,14 @@
     onManageBrand={openBrandKit}
     onOpenMusic={() => openPage("music")}
     onOpenAssets={() => openPage("assets")}
+    versions={mode === "cloud" && cloudProject
+      ? {
+          api: musicApi,
+          projectId: cloudProject.id,
+          revision: cloudProject.revision,
+          onRestore: restoreProjectVersion,
+        }
+      : null}
     {assistantMessages}
     bind:assistantDraft
     bind:composerInput

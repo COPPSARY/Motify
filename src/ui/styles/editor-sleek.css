@@ -1317,24 +1317,6 @@
   white-space: nowrap;
 }
 
-.code-editor-scope .me-watermark-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  color: var(--sl-text-soft);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.code-editor-scope .me-watermark-option input {
-  accent-color: var(--sl-brand-cobalt);
-}
-
-.code-editor-scope .me-watermark-option:has(input:disabled) {
-  opacity: 0.5;
-}
-
 .code-editor-scope .me-inspector-body {
   flex: 1 0 auto;
   padding: 0 0 16px;
@@ -1736,9 +1718,6 @@
     justify-content: center;
   }
 
-  .code-editor-scope .me-watermark-option span {
-    display: none;
-  }
 
   .code-editor-scope .me-view-readout:first-child,
   .code-editor-scope .me-view-readout:first-child + .me-view-divider {

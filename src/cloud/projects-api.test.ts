@@ -108,6 +108,34 @@ describe("ProjectsApi", () => {
     });
   });
 
+  it("restores a version against the revision the editor has loaded", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { data: { id: "project", revision: 8 } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const project = await new ProjectsApi(
+      "http://localhost:4000",
+    ).restoreVersion("project", 3, 7);
+
+    expect(project).toMatchObject({ revision: 8 });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/versions/3/restore"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ revision: 7 }),
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+      }),
+    );
+  });
+
   it("loads a CSRF token before saving source", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
