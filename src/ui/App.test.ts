@@ -124,11 +124,10 @@ describe("App project actions", () => {
         document.querySelector(".me-properties-panel")?.textContent,
       ).not.toContain("Animate");
       expect(document.body.textContent).not.toContain("PNG");
+      // A guest's video is watermarked, with no way to turn it off.
       expect(
-        document.querySelector<HTMLInputElement>(
-          'input[aria-label="Remove watermark"]',
-        )?.disabled,
-      ).toBe(true);
+        document.querySelector('input[aria-label="Remove watermark"]'),
+      ).toBeNull();
       expect(document.querySelector("[data-motify-watermark]")).not.toBeNull();
 
       const previewRoot = document.querySelector<HTMLElement>(
@@ -560,17 +559,13 @@ describe("App project actions", () => {
         expect(document.body.textContent).toContain("Opened cloud project");
       });
       expect(window.location.pathname).toBe("/p/project-1");
+      // A subscriber's video has no watermark, without asking.
       expect(
-        document.querySelector<HTMLInputElement>(
-          'input[aria-label="Remove watermark"]',
-        )?.disabled,
-      ).toBe(false);
-      const removeWatermark = document.querySelector<HTMLInputElement>(
-        'input[aria-label="Remove watermark"]',
-      );
-      removeWatermark?.click();
-      await tick();
-      expect(document.querySelector("[data-motify-watermark]")).toBeNull();
+        document.querySelector('input[aria-label="Remove watermark"]'),
+      ).toBeNull();
+      await vi.waitFor(() => {
+        expect(document.querySelector("[data-motify-watermark]")).toBeNull();
+      });
     } finally {
       await unmount(component);
     }

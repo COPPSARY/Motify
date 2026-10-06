@@ -4,6 +4,7 @@
     ArrowUp,
     Coins,
     Dna,
+    History,
     Image as ImageIcon,
     Images,
     Music,
@@ -14,7 +15,8 @@
     X,
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
-  import type { AudioTrack } from "../../cloud/projects-api";
+  import VersionsPanel from "./VersionsPanel.svelte";
+  import type { AudioTrack, ProjectsApi } from "../../cloud/projects-api";
   import { estimateMessageCredits, formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
@@ -87,6 +89,19 @@
   /** Library pickers offered from the composer's add menu. */
   export let onOpenMusic: (() => void) | null = null;
   export let onOpenAssets: (() => void) | null = null;
+  /**
+   * The open cloud video's history. Null for a local or unsaved video, which
+   * has none; the header then shows no versions button.
+   */
+  export let versions: {
+    api: Pick<ProjectsApi, "listVersions" | "updateVersion">;
+    projectId: string;
+    revision: number;
+    onRestore: (revision: number) => Promise<void>;
+  } | null = null;
+
+  let versionsOpen = false;
+  $: if (!versions) versionsOpen = false;
 
   let dragDepth = 0;
   let addMenuOpen = false;
@@ -180,7 +195,7 @@
   {#if variant === "hero"}
     <h1 class="ai-hero-title">What are we making today?</h1>
   {:else}
-    <header class="ai-chat-header">
+    <header class="ai-chat-header" class:has-history={Boolean(versions)}>
       {#if onBack}
         <button
           type="button"
@@ -199,6 +214,18 @@
         <strong>{title || "Tiffy"}</strong>
         <small>Tiffy · changes preview live</small>
       </span>
+      {#if versions}
+        <button
+          type="button"
+          class="ai-chat-history"
+          class:is-open={versionsOpen}
+          aria-label={versionsOpen ? "Back to chat" : "Versions"}
+          aria-pressed={versionsOpen}
+          title="Versions"
+          on:click={() => (versionsOpen = !versionsOpen)}
+          ><History size={16} /></button
+        >
+      {/if}
       <span
         class="ai-chat-state"
         class:is-busy={$generationStore.isActive}
@@ -213,7 +240,19 @@
       </span>
     </header>
   {/if}
-  {#if variant === "panel"}
+  {#if variant === "panel" && versionsOpen && versions}
+    <VersionsPanel
+      api={versions.api}
+      projectId={versions.projectId}
+      revision={versions.revision}
+      busy={$generationStore.isActive}
+      onRestore={async (revision) => {
+        await versions?.onRestore(revision);
+        versionsOpen = false;
+      }}
+      onClose={() => (versionsOpen = false)}
+    />
+  {:else if variant === "panel"}
     <div class="ai-chat-messages" aria-live="polite">
       {#if assistantMessages.length === 0}
         <div class="ai-chat-message assistant">
