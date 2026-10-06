@@ -1,12 +1,1 @@
-<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="220" height="220" rx="52" fill="#080B12"/>
-  <rect x="2" y="2" width="216" height="216" rx="50" stroke="white" stroke-opacity="0.14" stroke-width="4"/>
-  <path d="M55 154V66C55 57.2 65.9 53.1 71.8 59.7L110 102.5L148.2 59.7C154.1 53.1 165 57.2 165 66V154" stroke="url(#paint0_linear)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M80 154V105L105.8 133.4C108 135.8 112 135.8 114.2 133.4L140 105V154" stroke="white" stroke-opacity="0.72" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <defs>
-    <linearGradient id="paint0_linear" x1="55" y1="62" x2="170" y2="160" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8AB4FF"/>
-      <stop offset="1" stop-color="#7CF7C5"/>
-    </linearGradient>
-  </defs>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="24 24 72 72" width="512" height="512"><path d="M24 24L58 58H24Z" fill="#fff"/><path d="M96 24V58H62Z" fill="#fff"/><path d="M24 62H58V96H24Z" fill="#fff"/><path d="M62 62H96V96A34 34 0 0 1 62 62Z" fill="#fff"/></svg>

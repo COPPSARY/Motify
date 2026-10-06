@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CloudApiError,
+  GenerationJobLostError,
   ProjectsApi,
   type ProjectSourceFiles,
 } from "./projects-api";
@@ -279,6 +280,167 @@ describe("ProjectsApi", () => {
       new URL("http://localhost:4000/v1/projects/project/source"),
       expect.objectContaining({ method: "GET", credentials: "include" }),
     );
+  });
+});
+
+describe("ProjectsApi background message jobs", () => {
+  const session = () =>
+    response(200, { data: { user: { id: "user" }, csrfToken: "csrf-token" } });
+  const job = (status: string, extra: Record<string, unknown> = {}) =>
+    response(status === "running" && !extra["id"] ? 202 : 200, {
+      data: { id: "job-1", projectId: "project", status, ...extra },
+    });
+  const noSleep = { sleep: async () => {}, pollMs: 0 };
+
+  it("starts a job and polls until the film is ready", async () => {
+    const result = { type: "generation", response: "Ready.", revision: 2 };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(job("running"))
+      .mockResolvedValueOnce(job("running"))
+      .mockResolvedValueOnce(job("succeeded", { result }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Make a launch film" },
+        noSleep,
+      ),
+    ).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      new URL("http://localhost:4000/v1/projects/project/message-jobs"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({ message: "Make a launch film" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/message-jobs/job-1"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("raises the job's own error, as the blocking endpoint would", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(job("running"))
+      .mockResolvedValueOnce(
+        job("failed", {
+          error: {
+            status: 402,
+            code: "INSUFFICIENT_CREDITS",
+            message: "Not enough credits.",
+            details: { balance: 1 },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Hi" },
+        noSleep,
+      ),
+    ).rejects.toMatchObject({
+      name: "CloudApiError",
+      status: 402,
+      code: "INSUFFICIENT_CREDITS",
+      details: { balance: 1 },
+    });
+  });
+
+  it("falls back to the blocking request on a backend without job routes", async () => {
+    const result = { type: "chat", response: "Plan only." };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(
+        response(404, {
+          error: { code: "NOT_FOUND", message: "Route not found." },
+        }),
+      )
+      .mockResolvedValueOnce(response(200, { data: result }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Hi" },
+        noSleep,
+      ),
+    ).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/messages"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("reports a job the backend lost so the editor can look for its save", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(job("running"))
+      .mockResolvedValueOnce(
+        response(404, {
+          error: {
+            code: "JOB_NOT_FOUND",
+            message: "Generation job not found.",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Hi" },
+        noSleep,
+      ),
+    ).rejects.toBeInstanceOf(GenerationJobLostError);
+  });
+
+  it("rides out a brief network drop while polling", async () => {
+    const result = { type: "chat", response: "Done." };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(job("running"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(job("succeeded", { result }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Hi" },
+        noSleep,
+      ),
+    ).resolves.toEqual(result);
+  });
+
+  it("gives up polling after a sustained outage and surfaces the network error", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(session())
+      .mockResolvedValueOnce(job("running"))
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").runMotionMessage(
+        "project",
+        { message: "Hi" },
+        { ...noSleep, maxPollFailures: 3 },
+      ),
+    ).rejects.toThrow("Failed to fetch");
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });
 

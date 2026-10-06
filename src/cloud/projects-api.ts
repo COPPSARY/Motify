@@ -147,6 +147,53 @@ interface ApiErrorEnvelope {
   };
 }
 
+export interface MotionMessageInput {
+  message: string;
+  revision?: number;
+  runtimeError?: string;
+  assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
+  audio?: Array<{ trackId: string }>;
+  /**
+   * Frames this editor rendered from the candidate the message is
+   * repairing. They travel inline, for this request only: the backend
+   * validates source without ever executing it, so what a composition
+   * puts on screen can reach the model no other way.
+   */
+  frames?: Array<{
+    capturedAtSeconds: number;
+    mediaType: "image/jpeg" | "image/png" | "image/webp";
+    dataBase64: string;
+  }>;
+}
+
+/** A project message the backend runs in the background. */
+export interface MotionMessageJob {
+  id: string;
+  projectId: string;
+  status: "running" | "succeeded" | "failed";
+  createdAt: string;
+  finishedAt?: string;
+  result?: MotionMessageResult;
+  error?: {
+    status: number;
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+}
+
+/**
+ * The backend no longer knows a job it was running, usually because it
+ * restarted. The run may still have saved its film, so the caller should look
+ * for that instead of reporting a failure.
+ */
+export class GenerationJobLostError extends Error {
+  constructor() {
+    super("The generation was interrupted before its result could be read.");
+    this.name = "GenerationJobLostError";
+  }
+}
+
 export class CloudApiError extends Error {
   constructor(
     readonly status: number,
@@ -235,32 +282,84 @@ export class ProjectsApi {
     );
   }
 
-  async sendMotionMessage(
-    projectId: string,
-    input: {
-      message: string;
-      revision?: number;
-      runtimeError?: string;
-      assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
-      audio?: Array<{ trackId: string }>;
-      /**
-       * Frames this editor rendered from the candidate the message is
-       * repairing. They travel inline, for this request only: the backend
-       * validates source without ever executing it, so what a composition
-       * puts on screen can reach the model no other way.
-       */
-      frames?: Array<{
-        capturedAtSeconds: number;
-        mediaType: "image/jpeg" | "image/png" | "image/webp";
-        dataBase64: string;
-      }>;
-    },
-  ) {
+  async sendMotionMessage(projectId: string, input: MotionMessageInput) {
     await this.ensureCsrfToken();
     return this.request<MotionMessageResult>(
       `/v1/projects/${encodeURIComponent(projectId)}/messages`,
       { method: "POST", body: input },
     );
+  }
+
+  async startMotionMessageJob(projectId: string, input: MotionMessageInput) {
+    await this.ensureCsrfToken();
+    return this.request<MotionMessageJob>(
+      `/v1/projects/${encodeURIComponent(projectId)}/message-jobs`,
+      { method: "POST", body: input },
+    );
+  }
+
+  getMotionMessageJob(projectId: string, jobId: string) {
+    return this.request<MotionMessageJob>(
+      `/v1/projects/${encodeURIComponent(projectId)}/message-jobs/${encodeURIComponent(jobId)}`,
+    );
+  }
+
+  /**
+   * Sends a project message and waits for its outcome, however long the run
+   * takes. The backend runs it as a job and this polls it, so no request has
+   * to stay open longer than the hosting gateway allows (a new film can).
+   *
+   * A backend without job routes gets the old blocking request. A job the
+   * backend no longer knows (it restarted) throws `GenerationJobLostError`,
+   * and losing the connection for longer than `maxPollFailures` polls throws
+   * the network error; either way the editor then looks for a saved result.
+   */
+  async runMotionMessage(
+    projectId: string,
+    input: MotionMessageInput,
+    {
+      pollMs = 3000,
+      maxPollFailures = 20,
+      sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+    }: {
+      pollMs?: number;
+      maxPollFailures?: number;
+      sleep?: (ms: number) => Promise<void>;
+    } = {},
+  ): Promise<MotionMessageResult> {
+    let job: MotionMessageJob;
+    try {
+      job = await this.startMotionMessageJob(projectId, input);
+    } catch (error) {
+      if (error instanceof CloudApiError && error.code === "NOT_FOUND") {
+        return this.sendMotionMessage(projectId, input);
+      }
+      throw error;
+    }
+    let failures = 0;
+    for (;;) {
+      if (job.status === "succeeded" && job.result) return job.result;
+      if (job.status === "failed") {
+        const failure = job.error;
+        throw new CloudApiError(
+          failure?.status ?? 500,
+          failure?.code ?? "INTERNAL_ERROR",
+          failure?.message ?? "The generation failed.",
+          failure?.details,
+        );
+      }
+      await sleep(pollMs);
+      try {
+        job = await this.getMotionMessageJob(projectId, job.id);
+        failures = 0;
+      } catch (error) {
+        if (error instanceof CloudApiError && error.code === "JOB_NOT_FOUND") {
+          throw new GenerationJobLostError();
+        }
+        failures += 1;
+        if (failures >= maxPollFailures) throw error;
+      }
+    }
   }
 
   listProjectAssets(projectId: string) {

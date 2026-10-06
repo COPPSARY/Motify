@@ -1,30 +1,48 @@
 /* Credits: the balance pill in the sidebar and settings, its activity
    popover, and the pre-send cost hint above the Tiffy composer. */
+/* In the toolbar the popover hangs from the pill itself, right-aligned. */
+.code-editor-scope .actions .credits-badge {
+  position: relative;
+  margin-right: 4px;
+}
+
+.code-editor-scope .actions .credits-popover {
+  top: calc(100% + 8px);
+  left: auto;
+  right: 0;
+  width: 300px;
+}
+
 /* Static, so the popover positions against the sticky header and spans the panel. */
 .code-editor-scope .credits-badge {
   flex: none;
   position: static;
 }
 
+/* Same footprint as the toolbar's Export button: 32px, 8px corners. */
 .code-editor-scope .credits-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 9px 0 7px;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px 0 10px;
   border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
-  border-radius: 999px;
+  border-radius: var(--sl-radius, 8px);
   background: var(--sl-surface, #1a1a1a);
-  color: var(--sl-text-soft, #b4b4b4);
+  color: var(--sl-text, #ededed);
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
     background-color 0.15s ease,
     color 0.15s ease,
     border-color 0.15s ease;
+}
+
+.code-editor-scope .credits-trigger svg {
+  color: var(--sl-text-soft, #b4b4b4);
 }
 
 .code-editor-scope .credits-trigger:hover,
@@ -43,6 +61,10 @@
 .code-editor-scope .credits-trigger.is-low {
   border-color: rgba(245, 176, 65, 0.45);
   color: #f5b041;
+}
+
+.code-editor-scope .credits-trigger.is-low svg {
+  color: inherit;
 }
 
 .code-editor-scope .credits-trigger.is-unknown {

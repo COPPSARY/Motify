@@ -99,8 +99,8 @@
     title="Credits"
     on:click={toggle}
   >
-    {#if low}<TriangleAlert size={13} aria-hidden="true" />{:else}<Coins
-        size={13}
+    {#if low}<TriangleAlert size={14} aria-hidden="true" />{:else}<Coins
+        size={14}
         aria-hidden="true"
       />{/if}
     <span class="credits-amount"

@@ -124,6 +124,12 @@ describe("App project actions", () => {
         document.querySelector(".me-properties-panel")?.textContent,
       ).not.toContain("Animate");
       expect(document.body.textContent).not.toContain("PNG");
+      expect(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Remove watermark"]',
+        )?.disabled,
+      ).toBe(true);
+      expect(document.querySelector("[data-motify-watermark]")).not.toBeNull();
 
       const previewRoot = document.querySelector<HTMLElement>(
         ".composition-canvas",
@@ -554,6 +560,17 @@ describe("App project actions", () => {
         expect(document.body.textContent).toContain("Opened cloud project");
       });
       expect(window.location.pathname).toBe("/p/project-1");
+      expect(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Remove watermark"]',
+        )?.disabled,
+      ).toBe(false);
+      const removeWatermark = document.querySelector<HTMLInputElement>(
+        'input[aria-label="Remove watermark"]',
+      );
+      removeWatermark?.click();
+      await tick();
+      expect(document.querySelector("[data-motify-watermark]")).toBeNull();
     } finally {
       await unmount(component);
     }

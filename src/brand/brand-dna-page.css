@@ -323,7 +323,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 150px;
   gap: 16px;
-  align-items: end;
+  align-items: start;
 }
 .bd-marks__favicon {
   display: flex;
@@ -1223,6 +1223,7 @@
   height: 140px;
 }
 .brand-slot__frame {
+  position: relative;
   display: grid;
   place-items: center;
   flex: none;
@@ -1235,16 +1236,23 @@
   color: var(--bd-muted);
   overflow: hidden;
 }
+/* Pinned to the frame (a grid cell cannot resolve height: 100%) and
+   border-box, so a large mark scales down whole instead of cropping. */
 .brand-slot__frame img {
-  max-width: 100%;
-  max-height: 100%;
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  padding: 14px;
+  padding: 16px;
 }
 .brand-slot.is-small {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
+  /* Stacked preview + actions; a fixed height let them spill onto Save. */
+  height: auto;
 }
 .brand-slot.is-small .brand-slot__frame {
   width: 100%;
@@ -1271,10 +1279,17 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.brand-slot.is-small .brand-slot__actions {
+  flex-wrap: nowrap;
+}
 .brand-slot.is-small .brand-slot__actions .brand-btn {
   flex: 1;
   justify-content: center;
   padding: 0 8px;
+}
+/* The narrow favicon slot keeps icon-only actions on one row. */
+.brand-slot.is-small .brand-btn__label {
+  display: none;
 }
 
 /* Narrow screens ---------------------------------------------------------- */
@@ -1344,6 +1359,9 @@
   .brand-slot__frame {
     width: 100%;
     height: 140px;
+  }
+  .brand-slot.is-small .brand-btn__label {
+    display: inline;
   }
 }
 @media (min-width: 761px) and (max-width: 1000px) {

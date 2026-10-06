@@ -192,10 +192,16 @@ describe("directed generation with self-repair", () => {
         new Response(
           JSON.stringify({
             data: {
-              type: "generation",
-              response: "Built the launch film.",
+              id: "job-1",
               projectId: "project-1",
-              revision: 2,
+              status: "succeeded",
+              createdAt: "2026-10-04T00:00:00.000Z",
+              result: {
+                type: "generation",
+                response: "Built the launch film.",
+                projectId: "project-1",
+                revision: 2,
+              },
             },
           }),
           { status: 200 },
@@ -236,7 +242,7 @@ describe("directed generation with self-repair", () => {
     expect(result.reply).toContain("Built the launch film.");
     expect(result.duration).toBe(12);
     expect((fetchMock.mock.calls[1]?.[0] as URL).pathname).toBe(
-      "/v1/projects/project-1/messages",
+      "/v1/projects/project-1/message-jobs",
     );
     expect(
       JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)),
@@ -268,10 +274,16 @@ describe("directed generation with self-repair", () => {
         new Response(
           JSON.stringify({
             data: {
-              type: "generation",
-              response: "Built the launch film.",
+              id: "job-1",
               projectId: "project-1",
-              revision: 2,
+              status: "succeeded",
+              createdAt: "2026-10-04T00:00:00.000Z",
+              result: {
+                type: "generation",
+                response: "Built the launch film.",
+                projectId: "project-1",
+                revision: 2,
+              },
             },
           }),
           { status: 200 },
@@ -330,7 +342,8 @@ describe("directed generation with self-repair", () => {
      */
     const messagePosts = fetchMock.mock.calls.filter(
       (call) =>
-        String((call[0] as URL).pathname) === "/v1/projects/project-1/messages",
+        String((call[0] as URL).pathname) ===
+        "/v1/projects/project-1/message-jobs",
     );
     expect(messagePosts).toHaveLength(1);
   });

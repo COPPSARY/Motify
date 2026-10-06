@@ -9,6 +9,7 @@ import type {
   TweenOverride,
 } from "./types";
 import { editorGroupTextTarget, readEditorGroup } from "./editor-schema";
+import { primeDeferredOpeningStates } from "./opening-state";
 
 export type RuntimeListener = (snapshot: RuntimeSnapshot) => void;
 
@@ -93,6 +94,9 @@ export class CompositionRuntime {
           return (first as HTMLElement) || root;
         },
       });
+      // Entrances authored with `immediateRender: false` would otherwise show
+      // their element at its final CSS state until they start.
+      primeDeferredOpeningStates(this.timeline);
       if (this.timeline.duration() < definition.duration) {
         this.timeline.to(
           {},

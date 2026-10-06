@@ -323,7 +323,7 @@ async function requestBackendProject(
   clearLastCharge();
   let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
   try {
-    result = await api.sendMotionMessage(projectId, {
+    result = await api.runMotionMessage(projectId, {
       message: buildCloudProjectMessage(
         userPrompt,
         currentFiles.generationProfile,

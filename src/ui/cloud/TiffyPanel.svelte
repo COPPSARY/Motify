@@ -10,6 +10,7 @@
     Plus,
     Upload,
     Wand2,
+    RotateCcw,
     X,
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
@@ -50,6 +51,9 @@
   export let uploadName: string;
   export let isErrorMessage: (text: string) => boolean;
   export let handleFixError: (message: string) => Promise<void>;
+  /** A transient failure: offer to resend the same request instead of Fix. */
+  export let isRetryMessage: (text: string) => boolean = () => false;
+  export let retryLastPrompt: () => Promise<void> = async () => {};
   export let classifyStagedAsset: (
     asset: LocalAssetReference,
     intent: AssetIntent,
@@ -222,7 +226,7 @@
           class:assistant={message.role === "assistant"}
           class:user={message.role === "user"}
           class:is-error={message.role === "assistant" &&
-            isErrorMessage(message.text)}
+            (isErrorMessage(message.text) || isRetryMessage(message.text))}
           class="ai-chat-message"
         >
           {#if message.attachments?.length}
@@ -266,6 +270,16 @@
             >
               <Wand2 size={12} />
               Fix
+            </button>
+          {/if}
+          {#if message.role === "assistant" && isRetryMessage(message.text)}
+            <button
+              class="ai-fix-btn"
+              disabled={$generationStore.isActive}
+              on:click={() => retryLastPrompt()}
+            >
+              <RotateCcw size={12} />
+              Retry
             </button>
           {/if}
         </div>

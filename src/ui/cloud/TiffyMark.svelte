@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Tiffy's mark: a soft tile with two eyes and an ease-in-out smile, so the
+  // Tiffy's mark: a soft cobalt tile with two eyes and an ease-in-out smile, so the
   // assistant reads as a friendly motion character rather than a generic spark.
   export let size = 24;
   export let title = "";
@@ -26,10 +26,9 @@
       y2="30"
       gradientUnits="userSpaceOnUse"
     >
-      <stop offset="0" stop-color="#8f9096" />
-      <stop offset="0.55" stop-color="#5f6066" />
-      <stop offset="0.86" stop-color="#38393e" />
-      <stop offset="1" stop-color="#5fa98d" />
+      <stop offset="0" stop-color="#3b65d8" />
+      <stop offset="0.55" stop-color="#1f45b0" />
+      <stop offset="1" stop-color="#17368f" />
     </linearGradient>
   </defs>
   <rect
