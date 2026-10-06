@@ -1,6 +1,7 @@
 import gsap from "gsap";
 import * as presets from "./presets";
 import { mountSceneKit } from "./scene-kit";
+import { scopeFilmStyles } from "./scope-css";
 import type {
   CompositionContext,
   CompositionDefinition,
@@ -132,6 +133,11 @@ export function createDynamicComposition(
           context.root.innerHTML = compositionHtml;
         }
       }
+
+      // The film's <style> tags are now in the page, where a bare rule such as
+      // `section { position: absolute; inset: 0 }` would restyle the editor's own
+      // elements too. Confine them to this root before anything renders.
+      scopeFilmStyles(context.root);
 
       // The scene kit rides inside the root so export sees it too. Mounted
       // after the markup and before registration: it carries no data-edit ids,
