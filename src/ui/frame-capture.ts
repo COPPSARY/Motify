@@ -1,5 +1,5 @@
 import { createDynamicComposition } from "../composition/dynamic-compiler";
-import { renderCompositionFrame } from "../composition/exporter";
+import { renderCompositionFrame } from "../composition/frame-render";
 import { CompositionRuntime } from "../composition/runtime";
 import type { SceneDefinition } from "../composition/types";
 import {
@@ -66,6 +66,9 @@ export async function observeCandidateFilm(options: {
   title?: string;
   duration: number;
   scenes?: readonly SceneDefinition[];
+  /** Authored canvas; defaults to 1920x1080. */
+  width?: number;
+  height?: number;
   complaints: readonly string[];
 }): Promise<FilmObservation> {
   const composition = createDynamicComposition(
@@ -74,12 +77,13 @@ export async function observeCandidateFilm(options: {
     {
       title: options.title,
       duration: options.duration,
+      width: options.width ?? 1920,
+      height: options.height ?? 1080,
       ...(options.scenes?.length ? { scenes: options.scenes } : {}),
     },
   );
   const root = document.createElement("div");
-  root.style.cssText =
-    "position:fixed;left:-100000px;top:-100000px;width:1920px;height:1080px";
+  root.style.cssText = `position:fixed;left:-100000px;top:-100000px;width:${composition.width}px;height:${composition.height}px`;
   document.body.append(root);
   let runtime: CompositionRuntime | null = null;
   const frames: FrameEvidence[] = [];

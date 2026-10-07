@@ -51,6 +51,15 @@ export type DirectAiResult = GeneratedComposition & {
   backendProjectId?: string;
 };
 
+function validDimension(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 16 &&
+    value <= 8192
+  );
+}
+
 export class BackendConversationResponse extends Error {
   constructor(
     readonly type: "chat" | "plan",
@@ -199,6 +208,9 @@ export function parseAiResponseText(rawText: string): DirectAiResult {
     direction: parsed.direction,
     seams: parsed.seams,
     techniques: parsed.techniques,
+    ...(validDimension(parsed.width) && validDimension(parsed.height)
+      ? { width: parsed.width, height: parsed.height }
+      : {}),
     compositionHtml: parsed.compositionHtml,
     timelineJs: parsed.timelineJs,
     reply: parsed.reply ?? "I updated your composition.",
@@ -373,6 +385,9 @@ async function requestBackendProject(
     title: project.name,
     duration: project.duration,
     scenes: project.scenes,
+    // The agent may re-lay the film out for another canvas when it saves.
+    width: project.width,
+    height: project.height,
     compositionHtml: files["composition.html"],
     timelineJs: files["timeline.js"],
     reply: result.response,

@@ -124,6 +124,9 @@ export interface GeneratedComposition {
    */
   seams?: readonly SeamDirection[];
   techniques?: readonly GenerationTechnique[];
+  /** Canvas the film was authored for; absent means the current size. */
+  width?: number;
+  height?: number;
   compositionHtml: string;
   timelineJs: string;
   reply: string;

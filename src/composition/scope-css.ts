@@ -19,7 +19,15 @@
  */
 
 /** At-rules whose blocks hold style rules that need scoping. */
-const GROUPING_AT_RULES = new Set(["media", "supports", "container", "layer", "scope", "document", "starting-style"]);
+const GROUPING_AT_RULES = new Set([
+  "media",
+  "supports",
+  "container",
+  "layer",
+  "scope",
+  "document",
+  "starting-style",
+]);
 
 /** `html`, `body` or `:root` at the start of a selector: they stand for the film's root. */
 const DOCUMENT_ROOT = /^(?:html|body|:root)(?![\w-])/i;
@@ -78,7 +86,9 @@ function scopeRules(css: string, scope: string): string {
     const trimmed = stripComments(prelude).trim();
     if (trimmed.startsWith("@")) {
       const name = /^@([\w-]+)/.exec(trimmed)?.[1]?.toLowerCase() ?? "";
-      output += GROUPING_AT_RULES.has(name) ? `${prelude}{${scopeRules(body, scope)}}` : css.slice(start, blockEnd);
+      output += GROUPING_AT_RULES.has(name)
+        ? `${prelude}{${scopeRules(body, scope)}}`
+        : css.slice(start, blockEnd);
     } else if (trimmed === "") {
       output += css.slice(start, blockEnd);
     } else {
@@ -91,7 +101,9 @@ function scopeRules(css: string, scope: string): string {
 }
 
 function scopeSelectorList(list: string, scope: string): string {
-  return splitTopLevel(list, ",").map((selector) => scopeSelector(selector.trim(), scope)).join(", ");
+  return splitTopLevel(list, ",")
+    .map((selector) => scopeSelector(selector.trim(), scope))
+    .join(", ");
 }
 
 function scopeSelector(selector: string, scope: string): string {
@@ -100,7 +112,11 @@ function scopeSelector(selector: string, scope: string): string {
   let isRoot = false;
   let compound = false;
   // `html body .card` and `:root` all start at the film's root.
-  for (let match = DOCUMENT_ROOT.exec(rest); match; match = DOCUMENT_ROOT.exec(rest)) {
+  for (
+    let match = DOCUMENT_ROOT.exec(rest);
+    match;
+    match = DOCUMENT_ROOT.exec(rest)
+  ) {
     isRoot = true;
     rest = rest.slice(match[0].length);
     // `body.dark` qualifies the root itself; `body .card` or `body > .card` are inside it.

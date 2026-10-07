@@ -17,6 +17,17 @@ export interface DynamicCompositionOptions {
   fps?: number;
   duration?: number;
   scenes?: readonly SceneDefinition[];
+  /** Overrides the `data-adaptive` marker read from the markup. */
+  adaptive?: boolean;
+}
+
+/**
+ * A film opts into laying itself out for any canvas by marking its template:
+ * `<template data-adaptive>`. It travels with the source, so saved projects,
+ * versions and exports need no extra field.
+ */
+export function declaresAdaptiveLayout(compositionHtml: string): boolean {
+  return /<template\b[^>]*\bdata-adaptive\b/i.test(compositionHtml);
 }
 
 /**
@@ -115,6 +126,7 @@ export function createDynamicComposition(
     fps,
     duration,
     scenes,
+    adaptive: options.adaptive ?? declaresAdaptiveLayout(compositionHtml),
     sourcePreview: compositionHtml,
     build(context: CompositionContext) {
       // 1. Mount the HTML source into context.root
