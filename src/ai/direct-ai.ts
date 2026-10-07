@@ -566,9 +566,9 @@ export async function generateWithDirectAi(
     [currentFiles.previousPlan?.subject, userPrompt].filter(Boolean).join("\n");
   const qualityContext = {
     prompt: directionPrompt,
-    requiredAssetTokens: (currentFiles.assets ?? []).map(
-      (asset) => asset.token,
-    ),
+    requiredAssetTokens: (currentFiles.assets ?? [])
+      .filter((asset) => asset.intent !== "reference")
+      .map((asset) => asset.token),
     // The bundled foundation's layers are scaffolding meant to be replaced, so
     // nothing on screen is worth protecting until the user's own film exists.
     protectedEditIds:

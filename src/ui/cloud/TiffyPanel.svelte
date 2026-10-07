@@ -345,7 +345,7 @@
       {/if}
       <div class="ai-intent-body">
         <strong class="ai-intent-question"
-          >Is this a reference or an asset?</strong
+          >Optional: choose how to use this image</strong
         >
         <span class="ai-intent-name">{asset.name}</span>
         <div class="ai-intent-actions">
@@ -536,7 +536,6 @@
         disabled={!assistantDraft.trim() ||
           $generationStore.isActive ||
           uploadingMedia ||
-          pendingAssets.length > 0 ||
           insufficientCredits}
         type="submit"
       >

@@ -542,6 +542,34 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
+  it("does not require a separate click to classify a pasted image", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        assistantDraft: "Use this product image in the video",
+        pendingAssets: [
+          {
+            id: "image-1",
+            name: "product.png",
+            mimeType: "image/png",
+            token: "motionly-asset://image-1",
+          },
+        ],
+      }),
+    });
+
+    try {
+      expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
+      expect(must<HTMLElement>(".ai-intent-question").textContent).toContain(
+        "Optional",
+      );
+    } finally {
+      await unmount(component);
+    }
+  });
+
   it("blocks sending and explains why once the balance is below what a request needs", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 0.2,
