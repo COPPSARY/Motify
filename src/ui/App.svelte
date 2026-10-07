@@ -144,6 +144,7 @@
     type LocalAssetReference,
     type AssetIntent,
   } from "../stores/local-assets";
+  import { appliesToAllImages, resolveAssetIntent } from "../ai/asset-intent";
   import { loadProjectDraft, saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
@@ -2803,8 +2804,19 @@
     page = null;
 
     const sentAudio = $selectedAudio;
+    // A user can explain an image's purpose in the prompt instead of stopping
+    // to classify it. Clear wording can also change a saved role; otherwise a
+    // chip choice is preserved and an ambiguous new paste is placed so it
+    // cannot be silently ignored.
+    const imageIntentPrompt =
+      stagedAssets.length <= 1 || appliesToAllImages(prompt) ? prompt : "";
+    const resolvedAssets = stagedAssets.map((asset) => ({
+      ...asset,
+      intent: resolveAssetIntent(imageIntentPrompt, asset.intent),
+    }));
+    stagedAssets = resolvedAssets;
     const sentAttachments: MessageAttachment[] = [
-      ...stagedAssets.map((asset) => ({
+      ...resolvedAssets.map((asset) => ({
         id: asset.id,
         name: asset.name,
         ...(stagedPreviews[asset.id]
@@ -2828,7 +2840,7 @@
     ];
     scheduleDraftSave();
     if (!scoped) assistantDraft = "";
-    assetsInFlight = stagedAssets.length ? [...stagedAssets] : null;
+    assetsInFlight = resolvedAssets.length ? [...resolvedAssets] : null;
     stagedAssets = [];
     audioInFlight = sentAudio.length ? [...sentAudio] : null;
     selectedAudio.set([]);
