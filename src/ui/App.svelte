@@ -92,6 +92,28 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
+  import ExportDialog from "./ExportDialog.svelte";
+  import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
+  import {
+    CANVAS_ASPECTS,
+    DEFAULT_CANVAS,
+    canvasSize,
+    frameLayout,
+    frameTransform,
+    isCanvasAspect,
+    isCanvasFraming,
+    type CanvasSettings,
+    type FrameLayout,
+  } from "../composition/canvas-frame";
+  import { analyzeReframe } from "../composition/auto-reframe";
+  import {
+    FREE_MAX_HEIGHT,
+    exportFileBase,
+    outputSize,
+    type ExportHistoryItem,
+    resolveRange,
+    type ExportSettings,
+  } from "../composition/export-options";
   import { waitForSavedGeneration } from "./background-generation";
   import {
     combineCompositionSource,
@@ -265,6 +287,16 @@
   let selectedId = "";
   let zoom = 1;
   let fitScale = 0.5;
+  /** The output canvas: the aspect ratio the film is shown and exported at. */
+  let canvasState: CanvasSettings = { ...DEFAULT_CANVAS };
+  // Read from the runtime on every snapshot: a smart camera moves with time.
+  $: canvasView = computeCanvasView(
+    runtime,
+    activeComposition,
+    canvasState,
+    snapshot,
+  );
+  $: refitForCanvas(canvasView.width, canvasView.height);
   /**
    * The page shown in the center column instead of the editor. Null means
    * "the default": the editor while a video is open, the create page before.
@@ -322,8 +354,9 @@
   let promptHeldForAuth = "";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
-  // Free and signed-out videos carry the Motify watermark; a subscription removes it.
-  $: syncPreviewWatermark(runtime, !activePlan);
+  // Free and signed-out videos carry the Motify watermark; a subscription
+  // removes it. The preview shows it on the canvas, where the export puts it.
+  $: showPreviewWatermark = Boolean(runtime) && !activePlan;
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -566,6 +599,9 @@
       cancelAnimationFrame(playbackFrame);
       if (activityTimer) clearInterval(activityTimer);
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      if (backdropTimer) clearTimeout(backdropTimer);
+      if (reframeTimer) clearTimeout(reframeTimer);
+      reframeAbort?.abort();
       window.removeEventListener("pointermove", updateSelectionDrag);
       window.removeEventListener("pointerup", endSelectionDrag);
       window.removeEventListener("pointermove", watchCanvasDrag);
@@ -579,6 +615,19 @@
     };
   });
 
+  function canvasFromState(
+    state?: Partial<RuntimeEditorState>,
+  ): CanvasSettings | undefined {
+    const saved = state?.canvas;
+    if (!saved || !isCanvasAspect(saved.aspect)) return undefined;
+    return {
+      aspect: saved.aspect,
+      framing: isCanvasFraming(saved.framing)
+        ? saved.framing
+        : DEFAULT_CANVAS.framing,
+    };
+  }
+
   function mountComposition(
     composition: CompositionDefinition,
     editorState?: Partial<RuntimeEditorState>,
@@ -591,7 +640,9 @@
     selectedId = "";
     selectedEditorGroup = null;
     selectedSceneId = composition.scenes[0]?.id ?? "";
-    runtime = new CompositionRuntime(composition, previewRoot);
+    runtime = new CompositionRuntime(composition, previewRoot, {
+      canvas: canvasFromState(editorState),
+    });
     audioSync = new AudioSync(previewRoot);
     runtime.importEditorState(editorState);
     if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
@@ -600,6 +651,13 @@
     }
     runtimeUnsubscribe = runtime.subscribe((value) => {
       snapshot = value;
+      const nextCanvas = runtime?.canvas;
+      if (
+        nextCanvas &&
+        (nextCanvas.aspect !== canvasState.aspect ||
+          nextCanvas.framing !== canvasState.framing)
+      )
+        canvasState = nextCanvas;
       // An export steps the playhead frame by frame; it must stay silent.
       if (!exporting) audioSync?.sync(value);
       // In scene mode the user has opened one beat to edit it. Following the
@@ -611,34 +669,6 @@
     editorRevision += 1;
     // Whatever was just mounted is what the project holds.
     sourceDirty = false;
-  }
-
-  function syncPreviewWatermark(
-    mountedRuntime: CompositionRuntime | null,
-    visible: boolean,
-  ): void {
-    if (!mountedRuntime) return;
-    const existing = mountedRuntime.root.querySelector(
-      "[data-motify-watermark]",
-    );
-    if (!visible) {
-      existing?.remove();
-      return;
-    }
-    if (existing) return;
-
-    const { width, height } = mountedRuntime.definition;
-    const image = document.createElement("img");
-    image.src = "/motify-watermark-smoke.png";
-    image.alt = "";
-    image.style.cssText = `display:block;width:${Math.round(width * 0.21)}px;height:auto`;
-
-    const watermark = document.createElement("div");
-    watermark.dataset["motifyWatermark"] = "";
-    watermark.setAttribute("aria-hidden", "true");
-    watermark.style.cssText = `position:absolute;right:${Math.round(width * -0.008)}px;bottom:${Math.round(height * -0.007)}px;opacity:.8;z-index:2147483647;pointer-events:none`;
-    watermark.append(image);
-    mountedRuntime.root.append(watermark);
   }
 
   function scheduleDraftSave(): void {
@@ -986,11 +1016,255 @@
     if (!previewStage) return;
     const width = Math.max(1, previewStage.clientWidth - 40);
     const height = Math.max(1, previewStage.clientHeight - 40);
-    fitScale = Math.min(
-      width / activeComposition.width,
-      height / activeComposition.height,
-    );
+    fitScale = Math.min(width / canvasView.width, height / canvasView.height);
     zoom = 1;
+  }
+
+  function computeCanvasView(
+    mounted: CompositionRuntime | null,
+    composition: CompositionDefinition,
+    settings: CanvasSettings,
+    ..._changed: unknown[]
+  ): {
+    width: number;
+    height: number;
+    /** The size the film's root is mounted at, before it is placed. */
+    film: { width: number; height: number };
+    layout: FrameLayout;
+  } {
+    if (mounted) {
+      return {
+        ...mounted.canvasDimensions,
+        film: mounted.mountedSize,
+        layout: mounted.frame,
+      };
+    }
+    const { width, height } = canvasSize(
+      composition.width,
+      composition.height,
+      settings.aspect,
+    );
+    return {
+      width,
+      height,
+      film: { width: composition.width, height: composition.height },
+      layout: frameLayout(
+        composition.width,
+        composition.height,
+        width,
+        height,
+        settings.framing,
+      ),
+    };
+  }
+
+  /**
+   * A film fitted into a canvas of another shape sits on a blurred, enlarged
+   * copy of itself. The copy is a rasterized frame, which costs a DOM
+   * snapshot, so it follows the playhead at a few frames a second while
+   * playing and catches up right away when paused.
+   */
+  let backdropCanvas: HTMLCanvasElement | undefined;
+  let backdropTimer: ReturnType<typeof setTimeout> | undefined;
+  let backdropBusy = false;
+  let backdropPending = false;
+  let backdropDrawnAt = 0;
+  const BACKDROP_PLAYING_INTERVAL_MS = 900;
+  const BACKDROP_RESOLUTION = 1 / 10;
+
+  // Smart framing may not cover the canvas either, e.g. on a wide shot.
+  $: showBackdrop =
+    !canvasView.layout.identity && canvasState.framing !== "fill";
+  $: if (showBackdrop) scheduleBackdrop(snapshot, editorRevision, canvasView);
+
+  function scheduleBackdrop(..._changed: unknown[]): void {
+    if (backdropTimer) return;
+    const wait = snapshot.playing
+      ? Math.max(
+          0,
+          BACKDROP_PLAYING_INTERVAL_MS - (performance.now() - backdropDrawnAt),
+        )
+      : 60;
+    backdropTimer = setTimeout(() => {
+      backdropTimer = undefined;
+      void drawBackdrop();
+    }, wait);
+  }
+
+  async function drawBackdrop(): Promise<void> {
+    // An export steps the playhead itself; the backdrop catches up after.
+    if (!runtime || !backdropCanvas || !showBackdrop || exporting) return;
+    if (backdropBusy) {
+      backdropPending = true;
+      return;
+    }
+    backdropBusy = true;
+    try {
+      const frame = await renderAuthoredFrame(runtime, BACKDROP_RESOLUTION);
+      const target = backdropCanvas;
+      const context = target?.getContext("2d");
+      if (!target || !context) return;
+      target.width = Math.max(
+        2,
+        Math.round(canvasView.width * BACKDROP_RESOLUTION),
+      );
+      target.height = Math.max(
+        2,
+        Math.round(canvasView.height * BACKDROP_RESOLUTION),
+      );
+      drawCover(context, frame, target.width, target.height);
+      backdropDrawnAt = performance.now();
+    } catch {
+      // A frame that cannot be rasterized keeps the last backdrop.
+    } finally {
+      backdropBusy = false;
+      if (backdropPending) {
+        backdropPending = false;
+        scheduleBackdrop();
+      }
+    }
+  }
+
+  let fittedCanvas = "";
+
+  /** Refits only when the canvas changes size, not on every camera move. */
+  function refitForCanvas(canvasWidth: number, canvasHeight: number): void {
+    const key = `${canvasWidth}x${canvasHeight}`;
+    if (key === fittedCanvas || canvasWidth <= 0 || canvasHeight <= 0) return;
+    fittedCanvas = key;
+    fitPreview();
+  }
+
+  /**
+   * Smart framing's camera path is measured on a hidden copy of the film. It
+   * is remeasured, after a pause, whenever the film, its edits or the canvas
+   * shape change; the previous path keeps steering the preview meanwhile.
+   */
+  let reframeAbort: AbortController | undefined;
+  let reframeTimer: ReturnType<typeof setTimeout> | undefined;
+  let reframing: Promise<void> | null = null;
+  let reframeKey = "";
+  const REFRAME_DEBOUNCE_MS = 500;
+
+  /** The canvas is another shape than the film, which does not adapt itself. */
+  $: canvasReshapes =
+    !activeComposition.adaptive &&
+    (canvasView.width !== activeComposition.width ||
+      canvasView.height !== activeComposition.height);
+  $: wantsReframe =
+    Boolean(runtime) && canvasState.framing === "smart" && canvasReshapes;
+  // Read through `snapshot`: setting a track emits, the runtime object stays.
+  $: framingPending = wantsReframe && !(snapshot && runtime?.hasReframeTrack);
+  $: scheduleReframe(wantsReframe, runtime, canvasState.aspect, editorRevision);
+
+  function scheduleReframe(wanted: boolean, ..._changed: unknown[]): void {
+    const key = wanted
+      ? `${activeComposition.id}:${canvasState.aspect}:${editorRevision}`
+      : "";
+    if (key === reframeKey) return;
+    reframeKey = key;
+    if (reframeTimer) clearTimeout(reframeTimer);
+    reframeAbort?.abort();
+    reframing = null;
+    if (!wanted) return;
+    reframeTimer = setTimeout(() => {
+      reframeTimer = undefined;
+      void runReframe();
+    }, REFRAME_DEBOUNCE_MS);
+  }
+
+  function runReframe(): Promise<void> {
+    const mounted = runtime;
+    if (!mounted) return Promise.resolve();
+    const abort = new AbortController();
+    reframeAbort = abort;
+    const job = analyzeReframe({
+      definition: activeComposition,
+      editorState: mounted.exportEditorState(),
+      canvas: mounted.canvasDimensions,
+      signal: abort.signal,
+    })
+      .then((track) => {
+        // Only for the film and canvas it was measured on.
+        if (abort.signal.aborted || runtime !== mounted) return;
+        mounted.setReframeTrack(track);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        console.warn("Smart framing could not measure this film.", error);
+      })
+      .finally(() => {
+        if (reframing === job) reframing = null;
+      });
+    reframing = job;
+    return job;
+  }
+
+  /** An export must not start on the fallback framing while a path is due. */
+  async function ensureReframe(): Promise<void> {
+    if (!wantsReframe || !runtime || runtime.hasReframeTrack) return;
+    if (reframeTimer) {
+      clearTimeout(reframeTimer);
+      reframeTimer = undefined;
+      await runReframe();
+      return;
+    }
+    await (reframing ?? runReframe());
+  }
+
+  /** The canvas a "Re-layout with AI" request is rebuilding the film for. */
+  let relayoutTarget: { width: number; height: number } | null = null;
+
+  /**
+   * Films are authored at fixed pixel positions, so another aspect can only
+   * be fitted or cropped. This asks Tiffy to rebuild the layout for the chosen
+   * canvas and save the film at that size; afterwards the canvas is the film.
+   */
+  async function relayoutForCanvas(): Promise<void> {
+    if (!runtime || $generationStore.isActive || canvasView.layout.identity)
+      return;
+    const { width, height } = canvasView;
+    const aspect = canvasState.aspect;
+    const orientation =
+      width === height ? "square" : width > height ? "landscape" : "vertical";
+    relayoutTarget = { width, height };
+    try {
+      await submitAssistant(new SubmitEvent("submit"), {
+        text: `Re-layout for ${aspect}`,
+        prompt: [
+          `Re-lay out this film for a ${width}x${height} (${aspect}, ${orientation}) canvas, and save it with width ${width} and height ${height}.`,
+          `Keep every scene, line of copy, image, colour, timing, transition and the overall story exactly as they are. Only change layout: reposition and resize elements, re-stack side-by-side groups vertically where they no longer fit, and adjust camera moves and any coordinates in the timeline so each beat is composed for the new frame.`,
+          `Nothing may be cropped or fall outside the frame, and text must stay readable at the new width.`,
+        ].join("\n\n"),
+      });
+    } finally {
+      relayoutTarget = null;
+    }
+  }
+
+  function setCanvasSettings(settings: Partial<CanvasSettings>): void {
+    if (!runtime) return;
+    // An adaptive film lays itself out for its canvas when it is built, so a
+    // new shape is a rebuild at that size, not a transform.
+    if (
+      activeComposition.adaptive &&
+      settings.aspect &&
+      settings.aspect !== runtime.canvas.aspect
+    ) {
+      const time = runtime.time;
+      const wasPlaying = runtime.snapshot.playing;
+      mountComposition(activeComposition, {
+        ...runtime.exportEditorState(),
+        canvas: { ...runtime.canvas, ...settings },
+      });
+      runtime?.seek(time);
+      if (wasPlaying) runtime?.play();
+      return;
+    }
+    runtime.setCanvas(settings);
+    // The selection box is measured against the old layout.
+    void tick().then(updateSelectionRect);
   }
 
   function updateSelectionRect(): void {
@@ -1021,7 +1295,7 @@
         if (textRect.width > 0 && textRect.height > 0) elRect = textRect;
       }
     }
-    const scale = rootRect.width / activeComposition.width;
+    const scale = rootRect.width / canvasView.film.width;
     if (scale <= 0 || elRect.width <= 0 || elRect.height <= 0) {
       selectionRect = { visible: false, left: 0, top: 0, width: 0, height: 0 };
       return;
@@ -1227,7 +1501,7 @@
       return;
     }
     const rootRect = previewRoot.getBoundingClientRect();
-    const previewScale = rootRect.width / activeComposition.width || 1;
+    const previewScale = rootRect.width / canvasView.film.width || 1;
     const dx = (event.clientX - selectionDrag.startX) / previewScale;
     const dy = (event.clientY - selectionDrag.startY) / previewScale;
     const patch: ElementOverride =
@@ -2396,6 +2670,14 @@
      * Successful validations are kept, keyed by the source they came from, so
      * the pass that ships is not mounted a second time.
      */
+    // A re-layout asks for a new canvas. The backend reports what the agent
+    // saved; a direct generation may not say, so the request decides.
+    const filmSize = (candidate: DirectAiResult) => ({
+      width:
+        candidate.width ?? relayoutTarget?.width ?? activeComposition.width,
+      height:
+        candidate.height ?? relayoutTarget?.height ?? activeComposition.height,
+    });
     const validations = new Map<string, ValidatedGeneration>();
     const renderKey = (candidate: DirectAiResult): string =>
       `${candidate.compositionHtml}\u0000${candidate.timelineJs}`;
@@ -2407,19 +2689,22 @@
         hydratePresetAssets(candidate.compositionHtml),
       );
       try {
-        return ai.validateGeneratedComposition(candidate, {
-          prompt,
-          previousHtml: currentHtml,
-          previousDuration: basis.duration,
-          previousScenes: basis.scenes,
-          requiredAssetTokens: generationAssets
-            .filter((asset) => asset.intent === "asset")
-            .map((asset) => asset.token),
-          renderedHtml: rendered.source,
-          generationProfile: basis.generationProfile,
-          userEditedIds: ai.userEditedIds(basis.editorState),
-          lenient,
-        });
+        return ai.validateGeneratedComposition(
+          { ...candidate, ...filmSize(candidate) },
+          {
+            prompt,
+            previousHtml: currentHtml,
+            previousDuration: basis.duration,
+            previousScenes: basis.scenes,
+            requiredAssetTokens: generationAssets
+              .filter((asset) => asset.intent === "asset")
+              .map((asset) => asset.token),
+            renderedHtml: rendered.source,
+            generationProfile: basis.generationProfile,
+            userEditedIds: ai.userEditedIds(basis.editorState),
+            lenient,
+          },
+        );
       } finally {
         rendered.objectUrls.forEach((url) => URL.revokeObjectURL(url));
       }
@@ -2485,6 +2770,7 @@
             renderedHtml: rendered.source,
             timelineJs: candidate.timelineJs,
             title: candidate.title,
+            ...filmSize(candidate),
             duration: Number(candidate.duration) || basis.duration,
             scenes: candidate.scenes,
             complaints,
@@ -2509,13 +2795,13 @@
       validations.get(renderKey(result)) ??
       (await validateCandidate(result, true));
     const title = result.title || "AI Generated Video";
+    const resultSize = filmSize(result);
     const adapter = createGeneratedAdapterSource({
       id: activeComposition.id,
       title,
       duration: validated.duration,
       scenes: validated.scenes,
-      width: activeComposition.width,
-      height: activeComposition.height,
+      ...resultSize,
       fps: activeComposition.fps,
     });
     cloudFiles = splitCompositionSource(
@@ -2547,6 +2833,8 @@
         duration: validated.duration,
         title,
         scenes: validated.scenes,
+        ...resultSize,
+        fps: activeComposition.fps,
       },
     );
     mountComposition(
@@ -3272,44 +3560,165 @@
   }
 
   let exportStatus = "";
+  let exportDialogOpen = false;
+  let exportProgress = 0;
+  let exportEta: number | undefined;
+  let exportResult: ExportHistoryItem | null = null;
+  let exportHistory: ExportHistoryItem[] = [];
+  let exportAbort: AbortController | undefined;
+  let exportPreviewCanvas: HTMLCanvasElement | null = null;
+  let exportSupport: { video: boolean; mp4: boolean; webm: boolean } | null =
+    null;
+  let exportHistoryId = 0;
+  const EXPORT_HISTORY_LIMIT = 3;
 
-  async function exportFullVideo(): Promise<void> {
+  $: exportScene =
+    activeComposition.scenes.find((scene) => scene.id === snapshot.sceneId) ??
+    null;
+
+  async function openExportDialog(): Promise<void> {
+    if (!hasEditorProject || !runtime) return;
+    exportResult = null;
+    exportDialogOpen = true;
+    // The plan decides the options on offer, so read it before they render.
+    void refreshActivePlan();
+    if (!exportSupport) {
+      const { detectExportSupport } = await import("../composition/exporter");
+      exportSupport = await detectExportSupport();
+    }
+  }
+
+  function closeExportDialog(): void {
+    if (exporting) return;
+    exportDialogOpen = false;
+    exportResult = null;
+  }
+
+  function cancelExport(): void {
+    exportAbort?.abort();
+  }
+
+  function downloadExportItem(item: ExportHistoryItem): void {
+    const anchor = document.createElement("a");
+    anchor.href = item.url;
+    anchor.download = item.name;
+    anchor.click();
+  }
+
+  function recordExport(
+    blob: Blob,
+    extension: string,
+    detail: string,
+    filename: string,
+  ): ExportHistoryItem {
+    const item: ExportHistoryItem = {
+      id: ++exportHistoryId,
+      name: `${exportFileBase(filename, activeComposition.title)}.${extension}`,
+      url: URL.createObjectURL(blob),
+      bytes: blob.size,
+      detail,
+    };
+    const kept = [item, ...exportHistory];
+    for (const dropped of kept.slice(EXPORT_HISTORY_LIMIT))
+      URL.revokeObjectURL(dropped.url);
+    exportHistory = kept.slice(0, EXPORT_HISTORY_LIMIT);
+    return item;
+  }
+
+  function drawExportPreview(frame: HTMLCanvasElement): void {
+    const target = exportPreviewCanvas;
+    const context = target?.getContext("2d");
+    if (target && context)
+      context.drawImage(frame, 0, 0, target.width, target.height);
+  }
+
+  async function startExport(settings: ExportSettings): Promise<void> {
     if (!hasEditorProject || !runtime || exporting) return;
     exporting = true;
+    exportProgress = 0;
+    exportEta = undefined;
+    exportAbort = new AbortController();
     try {
       // The plan is re-read here, so a subscription that just started or
       // lapsed decides this export.
       exportStatus = "Checking plan...";
       await refreshActivePlan();
+      if (wantsReframe && !runtime.hasReframeTrack) {
+        exportStatus = "Framing for the canvas...";
+        await ensureReframe();
+      }
       const includeWatermark = !activePlan;
-      exportStatus = "Initializing video export...";
-      showNotice("Rendering full video export (1080p)...", 20000);
+      const height = Math.min(
+        settings.height,
+        includeWatermark ? FREE_MAX_HEIGHT : settings.height,
+      );
+      exportStatus = "Initializing export...";
       // The encoder loads on the first export, not with the editor.
-      const { downloadBlob, exportVideo } =
+      const { exportPng, exportVideo } =
         await import("../composition/exporter");
-      const blob = await exportVideo(
-        runtime,
-        (_progress, statusText) => {
-          exportStatus = statusText;
-        },
-        activeComposition.fps,
-        includeWatermark,
-      );
-      downloadBlob(blob, "motify-video.mp4");
-      captureEvent("video exported", {
-        fps: activeComposition.fps,
-        duration_seconds: activeComposition.duration,
-        watermark: includeWatermark,
-      });
-      showNotice("Video export successful! Download started.");
+      const size = outputSize(canvasView.width, canvasView.height, height);
+      let item: ExportHistoryItem;
+      if (settings.format === "png") {
+        const blob = await exportPng(runtime, size.scale, includeWatermark);
+        item = recordExport(
+          blob,
+          "png",
+          `${size.width}×${size.height} PNG`,
+          settings.filename,
+        );
+      } else {
+        const range = resolveRange(
+          settings,
+          activeComposition.duration,
+          exportScene ?? undefined,
+        );
+        const result = await exportVideo(runtime, {
+          format: settings.format,
+          height,
+          quality: settings.quality,
+          fps: settings.fps,
+          speed: settings.speed,
+          watermark: includeWatermark,
+          range,
+          signal: exportAbort.signal,
+          onFrame: drawExportPreview,
+          onProgress: (progress, statusText, eta) => {
+            exportProgress = progress;
+            exportStatus = statusText;
+            exportEta = eta;
+          },
+        });
+        item = recordExport(
+          result.blob,
+          result.extension,
+          `${result.width}×${result.height} ${result.extension.toUpperCase()} at ${result.fps} FPS`,
+          settings.filename,
+        );
+        captureEvent("video exported", {
+          fps: result.fps,
+          format: result.extension,
+          height: result.height,
+          quality: settings.quality,
+          duration_seconds: range.end - range.start,
+          watermark: includeWatermark,
+        });
+      }
+      exportResult = item;
+      downloadExportItem(item);
+      showNotice("Export successful! Download started.");
     } catch (error) {
-      console.error("Video export failed:", error);
-      showNotice(
-        error instanceof Error ? error.message : "Video export failed.",
-      );
+      if (error instanceof Error && error.name === "ExportCancelledError") {
+        showNotice("Export cancelled.");
+      } else {
+        console.error("Video export failed:", error);
+        showNotice(
+          error instanceof Error ? error.message : "Video export failed.",
+        );
+      }
     } finally {
       exporting = false;
       exportStatus = "";
+      exportAbort = undefined;
     }
   }
 
@@ -3928,8 +4337,32 @@
               aria-label="Canvas view"
             >
               <span class="me-view-readout"
-                >{activeComposition.width} × {activeComposition.height}</span
+                >{canvasView.width} × {canvasView.height}{framingPending
+                  ? " · framing…"
+                  : ""}</span
               >
+              <span class="me-view-divider" aria-hidden="true"></span>
+              {#each CANVAS_ASPECTS as aspect (aspect)}
+                <button
+                  class="me-view-btn me-view-text-btn me-tooltip"
+                  class:is-active={canvasState.aspect === aspect}
+                  aria-pressed={canvasState.aspect === aspect}
+                  aria-label={`Canvas ${aspect}`}
+                  data-tooltip={`${aspect} canvas`}
+                  disabled={!hasEditorProject}
+                  on:click={() => setCanvasSettings({ aspect })}
+                  >{aspect}</button
+                >
+              {/each}
+              {#if mode === "cloud" && hasEditorProject && !canvasView.layout.identity}
+                <button
+                  class="me-view-btn me-view-text-btn me-view-relayout me-tooltip"
+                  data-tooltip={`Rebuild the layout for ${canvasState.aspect} with Tiffy`}
+                  disabled={$generationStore.isActive}
+                  on:click={relayoutForCanvas}
+                  ><Sparkles size={13} /> Re-layout</button
+                >
+              {/if}
               <span class="me-view-divider" aria-hidden="true"></span>
               <button
                 class="me-view-btn me-tooltip"
@@ -3969,8 +4402,8 @@
               <button
                 class="btn btn-primary export-action me-tooltip"
                 aria-label="Export video"
-                data-tooltip="Render and download 1080p video"
-                on:click={exportFullVideo}
+                data-tooltip="Choose format, resolution and quality"
+                on:click={openExportDialog}
                 disabled={!hasEditorProject || exporting}
               >
                 <Download size={15} /><span
@@ -3995,99 +4428,142 @@
             >
               <div
                 class="me-canvas-shell"
-                style:width={`${activeComposition.width}px`}
-                style:height={`${activeComposition.height}px`}
+                style:width={`${canvasView.width}px`}
+                style:height={`${canvasView.height}px`}
                 style:transform={`scale(${fitScale * zoom})`}
               >
-                <div
-                  class="composition-canvas"
-                  style:width={`${activeComposition.width}px`}
-                  style:height={`${activeComposition.height}px`}
-                  bind:this={previewRoot}
-                ></div>
+                <div class="me-canvas-clip">
+                  {#if showBackdrop}
+                    <canvas
+                      class="me-canvas-backdrop"
+                      aria-hidden="true"
+                      bind:this={backdropCanvas}
+                    ></canvas>
+                  {/if}
+                  <div
+                    class="me-canvas-frame"
+                    style:width={`${canvasView.film.width}px`}
+                    style:height={`${canvasView.film.height}px`}
+                    style:transform={frameTransform(canvasView.layout)}
+                  >
+                    <div
+                      class="composition-canvas"
+                      style:width={`${canvasView.film.width}px`}
+                      style:height={`${canvasView.film.height}px`}
+                      bind:this={previewRoot}
+                    ></div>
+                  </div>
+                  {#if showPreviewWatermark}
+                    <img
+                      class="me-canvas-watermark"
+                      data-motify-watermark
+                      src="/motify-watermark-smoke.png"
+                      alt=""
+                      aria-hidden="true"
+                      style:width={`${Math.round(canvasView.width * 0.21)}px`}
+                      style:right={`${Math.round(canvasView.width * -0.008)}px`}
+                      style:bottom={`${Math.round(canvasView.height * -0.007)}px`}
+                    />
+                  {/if}
+                </div>
                 {#if selectionRect.visible && selectedId}
                   <div
-                    class="me-selection-overlay"
-                    style:left={`${selectionRect.left}px`}
-                    style:top={`${selectionRect.top}px`}
-                    style:width={`${selectionRect.width}px`}
-                    style:height={`${selectionRect.height}px`}
-                    style:--me-selection-ui-scale={String(
-                      1 / Math.max(0.05, fitScale * zoom),
-                    )}
+                    class="me-canvas-frame me-canvas-overlay"
+                    style:width={`${canvasView.film.width}px`}
+                    style:height={`${canvasView.film.height}px`}
+                    style:transform={frameTransform(canvasView.layout)}
                   >
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
-                      class="me-selection-outline"
-                      on:pointerdown={(event) =>
-                        beginSelectionDrag(event, "move")}
-                    ></div>
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="me-selection-handle handle-tl"
-                      on:pointerdown={(event) =>
-                        beginSelectionDrag(event, "scale")}
-                    ></div>
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="me-selection-handle handle-tr"
-                      on:pointerdown={(event) =>
-                        beginSelectionDrag(event, "scale")}
-                    ></div>
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="me-selection-handle handle-bl"
-                      on:pointerdown={(event) =>
-                        beginSelectionDrag(event, "scale")}
-                    ></div>
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="me-selection-handle handle-br"
-                      on:pointerdown={(event) =>
-                        beginSelectionDrag(event, "scale")}
-                    ></div>
-                    {#if mode === "cloud" && !selectionDrag}
+                      class="me-selection-overlay"
+                      style:left={`${selectionRect.left}px`}
+                      style:top={`${selectionRect.top}px`}
+                      style:width={`${selectionRect.width}px`}
+                      style:height={`${selectionRect.height}px`}
+                      style:--me-selection-ui-scale={String(
+                        1 /
+                          Math.max(
+                            0.05,
+                            fitScale * zoom * canvasView.layout.scale,
+                          ),
+                      )}
+                    >
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
                       <div
-                        class="me-selection-ai"
-                        class:me-below={selectionRect.top <
-                          56 / Math.max(0.05, fitScale * zoom)}
-                        class:me-open={elementPromptOpen}
-                      >
-                        {#if elementPromptOpen}
-                          <form
-                            class="me-selection-ai__form"
-                            on:submit={submitElementPrompt}
-                          >
-                            <Sparkles size={14} />
-                            <input
-                              bind:this={elementPromptInput}
-                              bind:value={elementPromptDraft}
-                              aria-label="Describe a change to this element"
-                              placeholder={`Edit ${selectedEditorGroup?.label ?? "this element"}…`}
-                              disabled={$generationStore.isActive}
-                              on:keydown={elementPromptKeydown}
-                            />
-                            <button
-                              type="submit"
-                              aria-label="Send edit to Tiffy"
-                              disabled={!elementPromptDraft.trim() ||
-                                $generationStore.isActive}
-                              ><ArrowUp size={14} /></button
+                        class="me-selection-outline"
+                        on:pointerdown={(event) =>
+                          beginSelectionDrag(event, "move")}
+                      ></div>
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div
+                        class="me-selection-handle handle-tl"
+                        on:pointerdown={(event) =>
+                          beginSelectionDrag(event, "scale")}
+                      ></div>
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div
+                        class="me-selection-handle handle-tr"
+                        on:pointerdown={(event) =>
+                          beginSelectionDrag(event, "scale")}
+                      ></div>
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div
+                        class="me-selection-handle handle-bl"
+                        on:pointerdown={(event) =>
+                          beginSelectionDrag(event, "scale")}
+                      ></div>
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div
+                        class="me-selection-handle handle-br"
+                        on:pointerdown={(event) =>
+                          beginSelectionDrag(event, "scale")}
+                      ></div>
+                      {#if mode === "cloud" && !selectionDrag}
+                        <div
+                          class="me-selection-ai"
+                          class:me-below={selectionRect.top <
+                            56 /
+                              Math.max(
+                                0.05,
+                                fitScale * zoom * canvasView.layout.scale,
+                              )}
+                          class:me-open={elementPromptOpen}
+                        >
+                          {#if elementPromptOpen}
+                            <form
+                              class="me-selection-ai__form"
+                              on:submit={submitElementPrompt}
                             >
-                          </form>
-                        {:else}
-                          <button
-                            type="button"
-                            class="me-selection-ai__trigger"
-                            aria-label="Edit this element with AI"
-                            title="Edit with AI"
-                            disabled={$generationStore.isActive}
-                            on:click={toggleElementPrompt}
-                            ><Sparkles size={14} /></button
-                          >
-                        {/if}
-                      </div>
-                    {/if}
+                              <Sparkles size={14} />
+                              <input
+                                bind:this={elementPromptInput}
+                                bind:value={elementPromptDraft}
+                                aria-label="Describe a change to this element"
+                                placeholder={`Edit ${selectedEditorGroup?.label ?? "this element"}…`}
+                                disabled={$generationStore.isActive}
+                                on:keydown={elementPromptKeydown}
+                              />
+                              <button
+                                type="submit"
+                                aria-label="Send edit to Tiffy"
+                                disabled={!elementPromptDraft.trim() ||
+                                  $generationStore.isActive}
+                                ><ArrowUp size={14} /></button
+                              >
+                            </form>
+                          {:else}
+                            <button
+                              type="button"
+                              class="me-selection-ai__trigger"
+                              aria-label="Edit this element with AI"
+                              title="Edit with AI"
+                              disabled={$generationStore.isActive}
+                              on:click={toggleElementPrompt}
+                              ><Sparkles size={14} /></button
+                            >
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
                   </div>
                 {/if}
               </div>
@@ -4859,6 +5335,33 @@
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
+  {#if exportDialogOpen}
+    <ExportDialog
+      width={canvasView.width}
+      height={canvasView.height}
+      aspect={canvasState.aspect}
+      framing={canvasState.framing}
+      onCanvasChange={setCanvasSettings}
+      framingApplies={canvasReshapes}
+      fps={activeComposition.fps}
+      duration={activeComposition.duration}
+      currentScene={exportScene}
+      defaultName={activeComposition.title}
+      paid={Boolean(activePlan)}
+      {exporting}
+      progress={exportProgress}
+      statusText={exportStatus}
+      etaSeconds={exportEta}
+      history={exportHistory}
+      result={exportResult}
+      support={exportSupport}
+      onStart={startExport}
+      onCancel={cancelExport}
+      onClose={closeExportDialog}
+      onDownload={downloadExportItem}
+      onPreviewCanvas={(canvas) => (exportPreviewCanvas = canvas)}
+    />
+  {/if}
   {#if mode === "cloud"}
     <EarlyNoticeCard />
     <AuthDialog

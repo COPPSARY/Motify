@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { observeCandidateFilm } from "../../src/ui/frame-capture";
-import { renderCompositionFrame } from "../../src/composition/exporter";
+import { renderCompositionFrame } from "../../src/composition/frame-render";
 
-vi.mock("../../src/composition/exporter", () => ({
+vi.mock("../../src/composition/frame-render", () => ({
   renderCompositionFrame: vi.fn(async () => document.createElement("canvas")),
 }));
 

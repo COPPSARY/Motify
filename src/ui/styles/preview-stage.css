@@ -411,3 +411,62 @@
 }
 
 /* Properties Panel Controls */
+
+/* The canvas can be a different aspect from the authored frame: the film is
+   scaled into it, and what it does not cover stays black. */
+.code-editor-scope .me-canvas-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 30px 90px rgba(0, 0, 0, 0.6);
+}
+
+.code-editor-scope .me-canvas-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.code-editor-scope .me-canvas-overlay {
+  pointer-events: none;
+}
+
+.code-editor-scope .me-canvas-overlay > * {
+  pointer-events: auto;
+}
+
+.code-editor-scope .me-view-btn.is-active {
+  background: var(--sl-accent-soft, rgba(199, 199, 204, 0.12));
+  color: var(--sl-text, #ededed);
+}
+
+/* A fitted film's surroundings: a blurred, enlarged copy of the frame. The
+   export draws the same backdrop (frame-render.ts). */
+.code-editor-scope .me-canvas-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: blur(28px) brightness(0.65);
+  transform: scale(1.1);
+  pointer-events: none;
+}
+
+.code-editor-scope .me-canvas-watermark {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  height: auto;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.code-editor-scope .me-view-btn.me-view-relayout {
+  gap: 5px;
+  color: #fff;
+}

@@ -10,6 +10,30 @@ import type {
 } from "./types";
 import { editorGroupTextTarget, readEditorGroup } from "./editor-schema";
 import { primeDeferredOpeningStates } from "./opening-state";
+import {
+  DEFAULT_CANVAS,
+  IDENTITY_LAYOUT,
+  canvasOrientation,
+  canvasSize,
+  frameLayout,
+  isCanvasAspect,
+  isCanvasFraming,
+  type CanvasSettings,
+  type FrameLayout,
+} from "./canvas-frame";
+
+/** A measured camera path for smart framing (see auto-reframe.ts). */
+export interface ReframeTrack {
+  at(time: number): FrameLayout;
+}
+
+export interface RuntimeOptions {
+  /**
+   * The canvas to start on. An adaptive film is built at this canvas's size,
+   * so it must be known before `build()` runs.
+   */
+  canvas?: CanvasSettings;
+}
 
 export type RuntimeListener = (snapshot: RuntimeSnapshot) => void;
 
@@ -36,6 +60,13 @@ export class CompositionRuntime {
     }
   >();
   private playing = false;
+  private canvasSettings: CanvasSettings = { ...DEFAULT_CANVAS };
+  private reframeTrack: ReframeTrack | null = null;
+  /**
+   * The size the film's root is mounted at: its authored size, or for an
+   * adaptive film the canvas it was built for.
+   */
+  readonly mountedSize: { width: number; height: number };
   /** Whether the mounted film sits on the scene kit's living ground. */
   private hasKitGround: boolean | undefined;
   private groundProgress = "";
@@ -44,15 +75,34 @@ export class CompositionRuntime {
   constructor(
     readonly definition: CompositionDefinition,
     readonly root: HTMLElement,
+    options: RuntimeOptions = {},
   ) {
+    if (options.canvas) this.canvasSettings = { ...options.canvas };
+    this.mountedSize = definition.adaptive
+      ? canvasSize(
+          definition.width,
+          definition.height,
+          this.canvasSettings.aspect,
+        )
+      : { width: definition.width, height: definition.height };
     // Editor playback follows wall-clock time. Deterministic export and scrubbing
     // use explicit seeks, so silently slowing the live timeline after a heavy
     // render frame only makes the preview feel disconnected from its playhead.
     gsap.ticker.lagSmoothing(0);
     root.replaceChildren();
     root.classList.add("composition-root");
-    root.style.width = `${definition.width}px`;
-    root.style.height = `${definition.height}px`;
+    const { width: mountedWidth, height: mountedHeight } = this.mountedSize;
+    const orientation = canvasOrientation(mountedWidth, mountedHeight);
+    root.style.width = `${mountedWidth}px`;
+    root.style.height = `${mountedHeight}px`;
+    if (definition.adaptive) {
+      // What an adaptive film's CSS lays itself out against: container units
+      // (cqw, cqh, cqmin), `@container (aspect-ratio < 1)`, and these hooks.
+      root.style.containerType = "size";
+      root.style.setProperty("--canvas-w", `${mountedWidth}px`);
+      root.style.setProperty("--canvas-h", `${mountedHeight}px`);
+      root.dataset["orientation"] = orientation;
+    }
     this.timeline = gsap.timeline({
       paused: true,
       smoothChildTiming: true,
@@ -71,6 +121,9 @@ export class CompositionRuntime {
         element: root,
         container: root,
         timeline: this.timeline,
+        width: mountedWidth,
+        height: mountedHeight,
+        orientation,
         register: (first: unknown, second?: unknown) => {
           const targetId: string =
             typeof first === "string"
@@ -276,8 +329,68 @@ export class CompositionRuntime {
     this.seek(this.time);
   }
 
+  get canvas(): CanvasSettings {
+    return { ...this.canvasSettings };
+  }
+
+  /** The canvas the film is shown and exported on. */
+  get canvasDimensions(): { width: number; height: number } {
+    // An adaptive film is the canvas it was built for. A different aspect
+    // needs a rebuild (the editor remounts it), not a transform.
+    if (this.definition.adaptive) return { ...this.mountedSize };
+    return canvasSize(
+      this.definition.width,
+      this.definition.height,
+      this.canvasSettings.aspect,
+    );
+  }
+
+  /** Where the authored frame sits inside the canvas, at the current time. */
+  get frame(): FrameLayout {
+    return this.frameAt(this.time);
+  }
+
+  frameAt(time: number): FrameLayout {
+    if (this.definition.adaptive) return IDENTITY_LAYOUT;
+    const { width, height } = this.canvasDimensions;
+    if (width === this.definition.width && height === this.definition.height)
+      return IDENTITY_LAYOUT;
+    if (this.canvasSettings.framing === "smart" && this.reframeTrack)
+      return this.reframeTrack.at(time);
+    return frameLayout(
+      this.definition.width,
+      this.definition.height,
+      width,
+      height,
+      this.canvasSettings.framing,
+    );
+  }
+
+  setCanvas(settings: Partial<CanvasSettings>): void {
+    const previous = this.canvasSettings;
+    this.canvasSettings = { ...this.canvasSettings, ...settings };
+    // A camera path is measured for one canvas shape.
+    if (previous.aspect !== this.canvasSettings.aspect)
+      this.reframeTrack = null;
+    this.emit();
+  }
+
+  get hasReframeTrack(): boolean {
+    return this.reframeTrack !== null;
+  }
+
+  /** The smart-framing camera path for the current canvas, or null for fit. */
+  setReframeTrack(track: ReframeTrack | null): void {
+    this.reframeTrack = track;
+    this.emit();
+  }
+
   exportEditorState(): RuntimeEditorState {
+    const isDefaultCanvas =
+      this.canvasSettings.aspect === DEFAULT_CANVAS.aspect &&
+      this.canvasSettings.framing === DEFAULT_CANVAS.framing;
     return {
+      ...(isDefaultCanvas ? {} : { canvas: { ...this.canvasSettings } }),
       elements: Object.fromEntries(
         [...this.overrides].map(([id, value]) => [id, { ...value }]),
       ),
@@ -292,6 +405,14 @@ export class CompositionRuntime {
 
   importEditorState(state?: Partial<RuntimeEditorState>): void {
     if (!state) return;
+    if (state.canvas && isCanvasAspect(state.canvas.aspect)) {
+      this.canvasSettings = {
+        aspect: state.canvas.aspect,
+        framing: isCanvasFraming(state.canvas.framing)
+          ? state.canvas.framing
+          : DEFAULT_CANVAS.framing,
+      };
+    }
     for (const [id, override] of Object.entries(state.elements ?? {})) {
       this.overrides.set(id, { ...override });
     }

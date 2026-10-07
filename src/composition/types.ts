@@ -23,6 +23,14 @@ export interface CompositionContext {
   element: HTMLElement;
   container: HTMLElement;
   timeline: gsap.core.Timeline;
+  /**
+   * The size the film is mounted at. For a fixed film this is its authored
+   * size; for an adaptive one it is the output canvas, so a timeline can
+   * compute positions from it instead of assuming 1920x1080.
+   */
+  width: number;
+  height: number;
+  orientation: "landscape" | "square" | "portrait";
   register(id: string, element: HTMLElement): HTMLElement;
 }
 
@@ -36,6 +44,13 @@ export interface CompositionDefinition {
   duration: number;
   scenes: readonly SceneDefinition[];
   sourcePreview: string;
+  /**
+   * The film lays itself out for any canvas (relative units, container
+   * queries, timeline positions from `context.width/height`). It is mounted
+   * at the canvas size and rebuilt when the aspect changes, instead of being
+   * scaled or cropped into it.
+   */
+  adaptive?: boolean;
   build(context: CompositionContext): void;
 }
 
@@ -108,6 +123,8 @@ export interface TweenOverride {
 }
 
 export interface RuntimeEditorState {
+  /** Output canvas; omitted for the authored 16:9 canvas. */
+  canvas?: { aspect: string; framing: string };
   elements: Record<string, ElementOverride>;
   animations: Record<string, Pick<AnimationOverride, "speed" | "ease">>;
   tweens: Record<string, TweenOverride>;
