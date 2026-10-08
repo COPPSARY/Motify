@@ -44,7 +44,6 @@
   export let assistantDraft: string;
   export let composerInput: HTMLTextAreaElement;
   export let activityVerb: string;
-  export let pendingAssets: LocalAssetReference[];
   export let classifiedAssets: LocalAssetReference[];
   export let stagedPreviews: Record<string, string>;
   export let uploadingMedia: boolean;
@@ -56,10 +55,6 @@
   /** A transient failure: offer to resend the same request instead of Fix. */
   export let isRetryMessage: (text: string) => boolean = () => false;
   export let retryLastPrompt: () => Promise<void> = async () => {};
-  export let classifyStagedAsset: (
-    asset: LocalAssetReference,
-    intent: AssetIntent,
-  ) => void;
   export let removeStagedAsset: (asset: LocalAssetReference) => void;
   export let submitAssistant: (event: SubmitEvent) => Promise<void>;
   export let resizeComposer: () => void;
@@ -330,55 +325,13 @@
       {/if}
     </div>
   {/if}
-  {#each pendingAssets as asset (asset.id)}
-    <div class="ai-attachment-intent">
-      {#if stagedPreviews[asset.id]}
-        <img
-          class="ai-intent-thumb"
-          src={stagedPreviews[asset.id]}
-          alt={asset.name}
-        />
-      {:else}
-        <span class="ai-intent-thumb ai-attachment-fallback"
-          ><ImageIcon size={16} /></span
-        >
-      {/if}
-      <div class="ai-intent-body">
-        <strong class="ai-intent-question"
-          >Optional: choose how to use this image</strong
-        >
-        <span class="ai-intent-name">{asset.name}</span>
-        <div class="ai-intent-actions">
-          <button
-            type="button"
-            class="ai-intent-choice"
-            on:click={() => classifyStagedAsset(asset, "reference")}
-            >Reference<small>Match what it shows</small></button
-          >
-          <button
-            type="button"
-            class="ai-intent-choice"
-            on:click={() => classifyStagedAsset(asset, "asset")}
-            >Asset<small>Put it in the video</small></button
-          >
-        </div>
-      </div>
-      <button
-        class="ai-attachment-remove"
-        type="button"
-        aria-label={`Discard ${asset.name}`}
-        disabled={$generationStore.isActive}
-        on:click={() => removeStagedAsset(asset)}><X size={11} /></button
-      >
-    </div>
-  {/each}
   {#if classifiedAssets.length > 0}
     <div class="ai-chat-attachments" aria-label="Attached images">
       {#each classifiedAssets as asset (asset.id)}
         <span
           class="ai-attachment"
           class:is-reference={asset.intent === "reference"}
-          title={`${asset.name} — ${asset.intent === "reference" ? "reference" : "project media"}`}
+          title={`${asset.name} — ${asset.intent === "reference" ? "reference" : asset.intent === "asset" ? "project media" : "intent inferred from your prompt"}`}
         >
           {#if stagedPreviews[asset.id]}
             <img
@@ -393,7 +346,11 @@
           {/if}
           <span class="ai-attachment-name">{asset.name}</span>
           <span class="ai-attachment-intent-tag"
-            >{asset.intent === "reference" ? "reference" : "media"}</span
+            >{asset.intent === "reference"
+              ? "reference"
+              : asset.intent === "asset"
+                ? "media"
+                : "auto"}</span
           >
           <button
             class="ai-attachment-remove"

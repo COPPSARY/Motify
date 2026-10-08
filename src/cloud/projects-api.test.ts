@@ -45,6 +45,42 @@ describe("ProjectsApi", () => {
     );
   });
 
+  it("generates a nine-scene storyboard with the authenticated endpoint", async () => {
+    const asset = { id: "generated-1", fileName: "generated.png" };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(response(201, { data: asset }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").generateStoryboard(
+        "workspace 1",
+        {
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        },
+      ),
+    ).resolves.toEqual(asset);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/workspaces/workspace%201/storyboards"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        }),
+      }),
+    );
+  });
+
   it("loads the active subscription for a workspace", async () => {
     const subscription = {
       status: "active",

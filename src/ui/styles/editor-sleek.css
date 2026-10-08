@@ -81,6 +81,8 @@
   display: flex;
   flex-direction: column;
   background: var(--sl-bg);
+  container-name: editor-center;
+  container-type: inline-size;
 }
 
 /* ------------------------------------------------------------ left panel */
@@ -301,6 +303,10 @@
   color: var(--sl-accent-hover);
 }
 
+.code-editor-scope .me-sidebar-link.me-storyboard-link.me-active svg {
+  color: var(--sl-text);
+}
+
 .code-editor-scope .me-sidebar-link:disabled {
   opacity: 0.45;
   cursor: default;
@@ -326,6 +332,25 @@
 .code-editor-scope .me-sidebar-recent-list {
   min-height: 0;
   overflow-y: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-width: thin;
+}
+
+.code-editor-scope .me-sidebar-recent-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.code-editor-scope .me-sidebar-recent-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-editor-scope .me-sidebar-recent-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.code-editor-scope .me-sidebar-recent-list:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .code-editor-scope .me-sidebar-recent-list p {
@@ -1703,6 +1728,34 @@
 
 /* ----------------------------------------------------------- narrow view */
 
+@container editor-center (max-width: 760px) {
+  .code-editor-scope .me-center-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .code-editor-scope .me-center-toolbar .file-info,
+  .code-editor-scope .me-view-readout:first-child,
+  .code-editor-scope .me-view-readout:first-child + .me-view-divider {
+    display: none;
+  }
+
+  .code-editor-scope .me-view-controls {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .code-editor-scope .actions .credits-trigger {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .code-editor-scope .actions .credits-amount {
+    display: none;
+  }
+}
+
 @media (max-width: 1180px) {
   .code-editor-scope .me-workbench {
     grid-template-columns: 280px minmax(0, 1fr) 260px;
@@ -1717,7 +1770,6 @@
     padding: 0;
     justify-content: center;
   }
-
 
   .code-editor-scope .me-view-readout:first-child,
   .code-editor-scope .me-view-readout:first-child + .me-view-divider {

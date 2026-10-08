@@ -549,7 +549,7 @@ describe("TiffyPanel credit estimate", () => {
       target,
       props: panelProps({
         assistantDraft: "Use this product image in the video",
-        pendingAssets: [
+        classifiedAssets: [
           {
             id: "image-1",
             name: "product.png",
@@ -562,9 +562,10 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
-      expect(must<HTMLElement>(".ai-intent-question").textContent).toContain(
-        "Optional",
-      );
+      expect(document.querySelector(".ai-intent-question")).toBeNull();
+      expect(
+        must<HTMLElement>(".ai-attachment-intent-tag").textContent,
+      ).toContain("auto");
     } finally {
       await unmount(component);
     }

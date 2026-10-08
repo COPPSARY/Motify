@@ -1,0 +1,267 @@
+.code-editor-scope .asset-generator {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(340px, 1.18fr);
+  gap: 16px;
+}
+
+.code-editor-scope .asset-generator-form,
+.code-editor-scope .asset-generator-result {
+  min-width: 0;
+  border: 1px solid var(--sl-border);
+  border-radius: 16px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .asset-generator-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+
+.code-editor-scope .asset-generator-prompt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 12px;
+  background: var(--sl-surface);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .asset-generator-prompt textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .asset-generator-prompt textarea::placeholder {
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .asset-generator-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.code-editor-scope .asset-generator-controls fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.code-editor-scope .asset-generator-controls legend,
+.code-editor-scope .asset-generator-size > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--sl-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.code-editor-scope .asset-generator-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.code-editor-scope .asset-generator-options button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--sl-border);
+  border-radius: 9px;
+  background: var(--sl-surface);
+  color: var(--sl-text-soft);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.code-editor-scope .asset-generator-options button.is-selected {
+  border-color: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .asset-generator-options small {
+  color: var(--sl-muted);
+  font-size: 10px;
+}
+
+.code-editor-scope .asset-generator-size select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--sl-border);
+  border-radius: 9px;
+  background: var(--sl-surface);
+  color: var(--sl-text);
+  font: inherit;
+}
+
+.code-editor-scope .asset-generator-submit,
+.code-editor-scope .asset-generator-result-bar button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--sl-text);
+  color: var(--sl-bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.code-editor-scope .asset-generator-submit:disabled,
+.code-editor-scope .asset-generator-options button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.code-editor-scope .asset-generator-result {
+  min-height: 440px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 35% 25%,
+      rgba(255, 255, 255, 0.06),
+      transparent 40%
+    ),
+    var(--sl-panel);
+}
+
+.code-editor-scope .asset-generator-result.has-result {
+  position: relative;
+  display: block;
+}
+
+.code-editor-scope .asset-generator-result > img {
+  width: 100%;
+  height: 100%;
+  min-height: 440px;
+  display: block;
+  object-fit: contain;
+  background: #08090c;
+}
+
+.code-editor-scope .asset-generator-result-bar {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 11px 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 11px;
+  background: rgba(12, 14, 19, 0.86);
+  color: #fff;
+  backdrop-filter: blur(14px);
+}
+
+.code-editor-scope .asset-generator-result-bar div,
+.code-editor-scope .asset-generator-empty,
+.code-editor-scope .asset-generator-wait {
+  display: flex;
+  flex-direction: column;
+}
+
+.code-editor-scope .asset-generator-result-bar small,
+.code-editor-scope .asset-generator-empty span,
+.code-editor-scope .asset-generator-wait span {
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+.code-editor-scope .asset-generator-empty,
+.code-editor-scope .asset-generator-wait {
+  align-items: center;
+  gap: 8px;
+  padding: 30px;
+  color: var(--sl-text-soft);
+  text-align: center;
+}
+
+.code-editor-scope .asset-generator-empty > svg,
+.code-editor-scope .asset-generator-wait > svg {
+  margin-bottom: 4px;
+  color: var(--sl-text);
+}
+
+.code-editor-scope .asset-generator-hint,
+.code-editor-scope .asset-generator-error {
+  margin: -7px 0 0;
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+.code-editor-scope .asset-generator-error {
+  color: #f0a3a3;
+}
+
+.code-editor-scope .asset-generator-spin {
+  animation: asset-generator-spin 0.85s linear infinite;
+}
+
+@keyframes asset-generator-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .asset-generator-spin {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .code-editor-scope .asset-generator {
+    grid-template-columns: 1fr;
+  }
+
+  .code-editor-scope .asset-generator-result {
+    min-height: 360px;
+  }
+}
+
+.code-editor-scope .asset-generator-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.code-editor-scope .asset-generator-credit-hint {
+  margin: -7px 0 0;
+  color: #f0a3a3;
+  font-size: 12px;
+}
