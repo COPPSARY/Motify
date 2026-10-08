@@ -33,6 +33,7 @@
     FileText,
     FolderOpen,
     Gift,
+    Grid3X3,
     Image as ImageIcon,
     LayoutGrid,
     Layers3,
@@ -144,6 +145,7 @@
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
   import MusicPanel from "./cloud/MusicPanel.svelte";
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
+  import AssetGeneratorPanel from "./cloud/AssetGeneratorPanel.svelte";
   import { generationStore } from "../stores/generation";
   import { hydrateCloudAssetTokens, uploadAsset } from "../api/assets";
   import { AUDIO_ACCEPT, addTrackToLibrary, isAudioFile } from "../api/audio";
@@ -2310,7 +2312,7 @@
     void cloudProjects?.openProjectById(projectId);
   }
 
-  function useLibraryAsset(asset: WorkspaceAsset): void {
+  function stageLibraryAsset(asset: WorkspaceAsset, intent: AssetIntent): void {
     if (stagedAssets.some((candidate) => candidate.uploadId === asset.id)) {
       showNotice(
         `${asset.label || asset.fileName} is already in the next prompt.`,
@@ -2326,11 +2328,21 @@
         name: asset.label || asset.fileName,
         mimeType: asset.contentType,
         token: `motify-asset://${asset.id}`,
-        intent: "asset",
+        intent,
       },
     ];
     openPage("create");
-    showNotice(`${asset.label || asset.fileName} added to the next prompt.`);
+    showNotice(
+      `${asset.label || asset.fileName} added to the next prompt${intent === "reference" ? " as a visual reference" : ""}.`,
+    );
+  }
+
+  function useLibraryAsset(asset: WorkspaceAsset): void {
+    stageLibraryAsset(asset, "asset");
+  }
+
+  function useStoryboardReference(asset: WorkspaceAsset): void {
+    stageLibraryAsset(asset, "reference");
   }
 
   function openLocalPanel(tab: "presets" | "source" | "assets"): void {
@@ -2505,41 +2517,15 @@
     };
   }
 
-  /**
-   * An image the user has not yet told us the purpose of. The prompt is held
-   * until they do, because a screenshot used as a reference and a logo used as
-   * an asset produce opposite instructions to the model.
-   */
+  /** Images already attached to the open project remain available on follow-ups. */
   $: openProjectId = cloudProject?.id ?? (backendGenerationProjectId || "");
   $: if (mode === "cloud") {
     void refreshProjectAudio(musicApi, openProjectId || null);
   }
 
-  $: pendingAssets = stagedAssets.filter((asset) => !asset.intent);
-  $: classifiedAssets = stagedAssets.filter((asset) => asset.intent);
-
-  async function classifyStagedAsset(
-    asset: LocalAssetReference,
-    intent: AssetIntent,
-  ): Promise<void> {
-    if (cloudProject && asset.uploadId) {
-      await new ProjectsApi().attachProjectAsset(
-        cloudProject.id,
-        asset.uploadId,
-        intent,
-      );
-    }
-    stagedAssets = stagedAssets.map((item) =>
-      item.id === asset.id ? { ...item, intent } : item,
-    );
-    captureEvent("asset intent chosen", { intent });
-    showNotice(
-      intent === "reference"
-        ? `${asset.name} kept as a reference — it will be matched, not placed on screen.`
-        : `${asset.name} moved into project media — it will appear in the film.`,
-    );
-    scheduleDraftSave();
-  }
+  // Attachment meaning comes from the message: e.g. “match this style” is a
+  // reference, while “use this as the background” is placeable media.
+  $: classifiedAssets = stagedAssets;
 
   async function removeStagedAsset(asset: LocalAssetReference): Promise<void> {
     if (cloudProject && asset.uploadId) {
@@ -3092,10 +3078,9 @@
     page = null;
 
     const sentAudio = $selectedAudio;
-    // A user can explain an image's purpose in the prompt instead of stopping
-    // to classify it. Clear wording can also change a saved role; otherwise a
-    // chip choice is preserved and an ambiguous new paste is placed so it
-    // cannot be silently ignored.
+    // The prompt decides how each image is used. Clear wording can also change
+    // a saved role; otherwise the saved role is preserved and an ambiguous new
+    // paste is placed so it cannot be silently ignored.
     const imageIntentPrompt =
       stagedAssets.length <= 1 || appliesToAllImages(prompt) ? prompt : "";
     const resolvedAssets = stagedAssets.map((asset) => ({
@@ -3812,6 +3797,16 @@
                     <ImageIcon size={16} /><span>Assets</span>
                   </button>
                   <button
+                    class="me-sidebar-link me-storyboard-link"
+                    class:me-active={centerPage === "storyboard"}
+                    aria-current={centerPage === "storyboard"
+                      ? "page"
+                      : undefined}
+                    on:click={() => openPage("storyboard")}
+                  >
+                    <Grid3X3 size={16} /><span>Storyboard Generation</span>
+                  </button>
+                  <button
                     class="me-sidebar-link"
                     class:me-active={centerPage === "music"}
                     aria-current={centerPage === "music" ? "page" : undefined}
@@ -4187,6 +4182,26 @@
                       onNotice={(message) => showNotice(message)}
                     />
                   </div>
+                </section>
+              {:else if centerPage === "storyboard"}
+                <section
+                  class="me-page-body"
+                  aria-labelledby="storyboard-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="storyboard-title">Storyboard Generation</h1>
+                    <p>
+                      Create and approve a branded nine-scene story with Nano
+                      Banana, then add it to your next video prompt as a visual
+                      reference.
+                    </p>
+                  </header>
+                  <AssetGeneratorPanel
+                    api={musicApi}
+                    {workspaceId}
+                    onUseReference={useStoryboardReference}
+                    onNotice={(message) => showNotice(message)}
+                  />
                 </section>
               {:else if centerPage === "videos"}
                 <section
@@ -5421,7 +5436,6 @@
     bind:assistantDraft
     bind:composerInput
     {activityVerb}
-    {pendingAssets}
     {classifiedAssets}
     {stagedPreviews}
     {uploadingMedia}
@@ -5432,7 +5446,6 @@
     {handleFixError}
     {isRetryMessage}
     {retryLastPrompt}
-    {classifyStagedAsset}
     {removeStagedAsset}
     {submitAssistant}
     {resizeComposer}
