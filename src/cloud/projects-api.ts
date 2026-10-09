@@ -184,6 +184,10 @@ interface ApiErrorEnvelope {
   };
 }
 
+export interface ApiCapabilities {
+  storyboardGeneration: boolean;
+}
+
 export interface MotionMessageInput {
   message: string;
   revision?: number;
@@ -258,6 +262,10 @@ export class ProjectsApi {
 
   listWorkspaces() {
     return this.request<WorkspaceSummary[]>("/v1/workspaces");
+  }
+
+  getCapabilities() {
+    return this.request<ApiCapabilities>("/v1/capabilities");
   }
 
   getSubscription(workspaceId: string) {
@@ -417,6 +425,20 @@ export class ProjectsApi {
     workspaceId: string,
     input: GenerateStoryboardInput,
   ) {
+    let capabilities: ApiCapabilities;
+    try {
+      capabilities = await this.getCapabilities();
+    } catch (error) {
+      if (
+        error instanceof CloudApiError &&
+        error.status === 404 &&
+        error.code === "NOT_FOUND"
+      ) {
+        throw storyboardUnavailable();
+      }
+      throw error;
+    }
+    if (!capabilities.storyboardGeneration) throw storyboardUnavailable();
     await this.ensureCsrfToken();
     return this.request<WorkspaceAsset>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/storyboards`,
@@ -698,4 +720,12 @@ export class ProjectsApi {
   private async ensureCsrfToken(): Promise<void> {
     if (!this.csrfToken) await this.getSession();
   }
+}
+
+function storyboardUnavailable(): CloudApiError {
+  return new CloudApiError(
+    503,
+    "STORYBOARD_UNAVAILABLE",
+    "Storyboard generation is temporarily unavailable while the service updates. Try again shortly.",
+  );
 }
