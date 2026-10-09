@@ -50,6 +50,9 @@ describe("ProjectsApi", () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
+        response(200, { data: { storyboardGeneration: true } }),
+      )
+      .mockResolvedValueOnce(
         response(200, {
           data: { user: { id: "user" }, csrfToken: "csrf-token" },
         }),
@@ -78,6 +81,36 @@ describe("ProjectsApi", () => {
           imageSize: "2K",
         }),
       }),
+    );
+  });
+
+  it("explains backend deployment skew instead of posting to a missing storyboard route", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      response(404, {
+        error: { code: "NOT_FOUND", message: "Route not found." },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").generateStoryboard(
+        "workspace-1",
+        {
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "STORYBOARD_UNAVAILABLE",
+      message:
+        "Storyboard generation is temporarily unavailable while the service updates. Try again shortly.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://localhost:4000/v1/capabilities"),
+      expect.objectContaining({ method: "GET" }),
     );
   });
 
