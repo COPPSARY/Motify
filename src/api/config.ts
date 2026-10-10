@@ -19,3 +19,10 @@ export const MOTIFY_SITE_URL = (
 ).replace(/\/+$/, "");
 
 export const PRICING_URL = `${MOTIFY_SITE_URL}/pricing`;
+
+/** Resolve admin-authored site paths away from the editor subdomain. */
+export function motifySiteHref(href: string): string {
+  const value = href.trim();
+  if (/^https:\/\//i.test(value)) return value;
+  return `${MOTIFY_SITE_URL}${value.startsWith("/") ? value : `/${value}`}`;
+}

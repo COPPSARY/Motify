@@ -13,7 +13,7 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
-  import { PRICING_URL } from "../api/config";
+  import { motifySiteHref, PRICING_URL } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -79,6 +79,7 @@
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
+    type PromotionBanner as PromotionBannerData,
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
@@ -93,6 +94,7 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
+  import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import {
@@ -356,9 +358,22 @@
   let promptHeldForAuth = "";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
-  // Free and signed-out videos carry the Motify watermark; a subscription
-  // removes it. The preview shows it on the canvas, where the export puts it.
-  $: showPreviewWatermark = Boolean(runtime) && !activePlan;
+  let exportWithoutWatermark = false;
+  let subscriptionChecked = mode === "local";
+  let maxExportHeight = FREE_MAX_HEIGHT;
+  let promotionBanner: PromotionBannerData | null = null;
+  // The backend owns export entitlements. The preview shows the same result
+  // the exporter will produce, rather than inferring policy from a plan name.
+  $: showPreviewWatermark =
+    Boolean(runtime) && subscriptionChecked && !exportWithoutWatermark;
+  $: promotionHref = promotionBanner
+    ? ((promotionBanner.ctaUrl
+        ? motifySiteHref(promotionBanner.ctaUrl)
+        : null) ??
+      (promotionBanner.plan
+        ? `${PRICING_URL}?plan=${encodeURIComponent(promotionBanner.plan.id)}`
+        : null))
+    : null;
   let pendingLandingPrompt = "";
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -525,6 +540,7 @@
       window.history.replaceState({}, "", url);
     }
     if (mode === "cloud") {
+      void refreshPromotionBanner();
       void currentMotionlyUser().then((user) => {
         currentUser = user;
         authChecked = true;
@@ -536,7 +552,10 @@
         }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
-        else if (pendingLandingPrompt) openAuthDialog("signup");
+        else {
+          subscriptionChecked = true;
+          if (pendingLandingPrompt) openAuthDialog("signup");
+        }
       });
     }
     mountComposition(activeComposition);
@@ -551,6 +570,7 @@
       void loadBrand();
       void refreshActivePlan();
       void refreshCredits();
+      void refreshPromotionBanner();
     };
     if (mode === "cloud") {
       // Fetch the generation pipeline once the page is idle, so the first
@@ -2925,10 +2945,12 @@
   async function handleAuthenticated(user: MotionlyUser): Promise<void> {
     currentUser = user;
     authChecked = true;
+    subscriptionChecked = false;
     identifyAnalyticsUser(user);
     void refreshCredits();
     await cloudProjects?.refreshSession();
     void refreshActivePlan();
+    void refreshPromotionBanner();
     void loadBrand();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
@@ -2955,12 +2977,16 @@
     }
     currentUser = null;
     activePlan = null;
+    exportWithoutWatermark = false;
+    subscriptionChecked = true;
+    maxExportHeight = FREE_MAX_HEIGHT;
     brand = null;
     profileMenuOpen = false;
     if (!hasEditorProject) openPage("create");
     else page = null;
     resetCredits();
     await cloudProjects?.refreshSession();
+    void refreshPromotionBanner();
     showNotice("Signed out of Motify.");
   }
 
@@ -3407,6 +3433,7 @@
 
   function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
     workspaceId = event.detail.workspaceId;
+    if (currentUser) subscriptionChecked = false;
     void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
@@ -3415,6 +3442,9 @@
   async function refreshActivePlan(): Promise<void> {
     if (!currentUser || !workspaceId) {
       activePlan = null;
+      exportWithoutWatermark = false;
+      maxExportHeight = FREE_MAX_HEIGHT;
+      if (authChecked && !currentUser) subscriptionChecked = true;
       return;
     }
     try {
@@ -3423,10 +3453,40 @@
         subscription.status === "active" && subscription.plan
           ? subscription.plan
           : null;
+      exportWithoutWatermark =
+        subscription.entitlements?.exportWithoutWatermark ??
+        subscription.status === "active";
+      maxExportHeight =
+        subscription.entitlements?.maxExportHeight ?? FREE_MAX_HEIGHT;
+      subscriptionChecked = true;
     } catch {
       // Keep the last plan we read: a network blip must not watermark a
       // subscriber's export.
+      subscriptionChecked = true;
     }
+  }
+
+  async function refreshPromotionBanner(): Promise<void> {
+    try {
+      const banner = await musicApi.getPromotionBanner();
+      promotionBanner =
+        banner &&
+        sessionStorage.getItem(`motify_promotion_dismissed:${banner.id}`) !==
+          "true"
+          ? banner
+          : null;
+    } catch {
+      // Promotions are optional and must never block the editor shell.
+    }
+  }
+
+  function dismissPromotion(): void {
+    if (!promotionBanner) return;
+    sessionStorage.setItem(
+      `motify_promotion_dismissed:${promotionBanner.id}`,
+      "true",
+    );
+    promotionBanner = null;
   }
 
   async function saveSource(): Promise<void> {
@@ -3632,11 +3692,8 @@
         exportStatus = "Framing for the canvas...";
         await ensureReframe();
       }
-      const includeWatermark = !activePlan;
-      const height = Math.min(
-        settings.height,
-        includeWatermark ? FREE_MAX_HEIGHT : settings.height,
-      );
+      const includeWatermark = !exportWithoutWatermark;
+      const height = Math.min(settings.height, maxExportHeight);
       exportStatus = "Initializing export...";
       // The encoder loads on the first export, not with the editor.
       const { exportPng, exportVideo } =
@@ -5362,7 +5419,7 @@
       duration={activeComposition.duration}
       currentScene={exportScene}
       defaultName={activeComposition.title}
-      paid={Boolean(activePlan)}
+      paid={exportWithoutWatermark}
       {exporting}
       progress={exportProgress}
       statusText={exportStatus}
@@ -5378,6 +5435,13 @@
     />
   {/if}
   {#if mode === "cloud"}
+    {#if promotionBanner && !hasEditorProject}
+      <PromotionBanner
+        banner={promotionBanner}
+        href={promotionHref}
+        onDismiss={dismissPromotion}
+      />
+    {/if}
     <EarlyNoticeCard />
     <AuthDialog
       bind:open={authDialogOpen}

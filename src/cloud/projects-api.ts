@@ -28,13 +28,33 @@ export interface WorkspaceSummary {
   role: "owner" | "editor" | "viewer";
 }
 
-export type BillingPlanId = "starter" | "pro" | "studio";
+/** Plan ids come from the backend billing catalog and are not a fixed enum. */
+export type BillingPlanId = string;
+
+export interface WorkspaceEntitlements {
+  exportWithoutWatermark: boolean;
+  maxExportHeight: number;
+}
 
 export interface WorkspaceSubscription {
   status: "none" | "active" | "expired";
   plan: BillingPlanId | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  /** Optional only for rolling deploy compatibility with older API nodes. */
+  entitlements?: WorkspaceEntitlements;
+}
+
+export interface PromotionBanner {
+  id: string;
+  title: string;
+  message: string;
+  plan: { id: BillingPlanId; name: string } | null;
+  audience: "all" | "free" | "paid";
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  startsAt: string;
+  endsAt: string;
 }
 
 export interface ProjectSummary {
@@ -272,6 +292,10 @@ export class ProjectsApi {
     return this.request<WorkspaceSubscription>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/billing/subscription`,
     );
+  }
+
+  getPromotionBanner() {
+    return this.request<PromotionBanner | null>("/v1/promotions/banner");
   }
 
   listProjects(workspaceId: string) {

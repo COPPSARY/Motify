@@ -137,6 +137,32 @@ describe("ProjectsApi", () => {
     );
   });
 
+  it("loads the currently scheduled promotion banner", async () => {
+    const banner = {
+      id: "banner-1",
+      title: "Starter week",
+      message: "Starter is only $2/month for one week.",
+      plan: { id: "starter", name: "Starter" },
+      audience: "free",
+      ctaLabel: "View offer",
+      ctaUrl: null,
+      startsAt: "2026-10-10T00:00:00.000Z",
+      endsAt: "2026-10-17T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(200, { data: banner }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").getPromotionBanner(),
+    ).resolves.toEqual(banner);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://localhost:4000/v1/promotions/banner"),
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
   it("keeps the session CSRF token and sends it on project mutations", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
