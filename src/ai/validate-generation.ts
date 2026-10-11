@@ -1,5 +1,12 @@
 import { createDynamicComposition } from "../composition/dynamic-compiler";
 import { CompositionRuntime } from "../composition/runtime";
+import {
+  frameSubjects,
+  isAtmosphere,
+  isPainted,
+  isVisiblyRendered,
+  visibleElements,
+} from "../composition/frame-subjects";
 import type { SceneDefinition } from "../composition/types";
 import { seamsFromResult, type SeamDirection } from "./seam-plan";
 import type { DirectAiResult } from "./direct-ai";
@@ -21,85 +28,6 @@ const MAX_COMPOSITION_SECONDS = 300;
 /** Executable carrier handoffs. Opacity is not one of them. */
 const PHYSICAL_HANDOFF =
   /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|particleReassemble)\s*\(/g;
-
-function isVisiblyRendered(element: HTMLElement, root: HTMLElement): boolean {
-  for (
-    let current: HTMLElement | null = element;
-    current && current !== root;
-    current = current.parentElement
-  ) {
-    const style = getComputedStyle(current);
-    if (
-      style.display === "none" ||
-      style.visibility === "hidden" ||
-      Number(style.opacity || "1") <= 0.02
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Atmosphere: the lit ground a beat sits in, rather than anything in it.
- *
- * This is how blank beats were shipping. Every emptiness check asked whether
- * *something* was on screen, and a single decorative bloom answered yes — it
- * carries a `data-edit` id, it is painted, and it covers plenty of the canvas,
- * so a frame holding nothing but a blurred purple glow passed "renders no
- * visible foreground", "holds a blank frame" and the subject floor at once.
- *
- * Identified conservatively. A heavy blur or an explicit background role is
- * unambiguous; the id keywords are limited to words that only ever name
- * atmosphere. Nothing here catches a sharp gradient sphere or a colour field
- * used as an actual subject, because those are real shots in the catalogue.
- */
-function isAtmosphere(element: HTMLElement): boolean {
-  if (element.dataset["backgroundRole"]) return true;
-  if ((element.textContent ?? "").trim().length > 0) return false;
-  if (element.querySelector("img, svg, video, canvas")) return false;
-  const id = element.dataset["edit"]?.toLowerCase() ?? "";
-  if (
-    /(?:^|-)(?:glow|bloom|aura|halo|vignette|grain|noise|backdrop|ambient)(?:-|$)/.test(
-      id,
-    )
-  ) {
-    return true;
-  }
-  const blur = /blur\(([\d.]+)px\)/.exec(
-    getComputedStyle(element).filter ?? "",
-  );
-  return blur ? Number(blur[1]) >= 12 : false;
-}
-
-function hasMeaningfulContent(element: HTMLElement): boolean {
-  if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName)) return true;
-  if ((element.textContent ?? "").trim().length >= 2) return true;
-  if (isAtmosphere(element)) return false;
-  const id = element.dataset["edit"]?.toLowerCase() ?? "";
-  return Boolean(id && !/^(stage|camera-world|world|background)$/.test(id));
-}
-
-function visibleElements(
-  root: HTMLElement,
-  rootRect: DOMRect,
-  hasLayout: boolean,
-): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>("*"))
-    .filter((element) => hasMeaningfulContent(element))
-    .filter((element) => isVisiblyRendered(element, root))
-    .filter((element) => {
-      if (!hasLayout) return true;
-      const rect = element.getBoundingClientRect();
-      if (rect.width < 4 || rect.height < 4) return false;
-      return (
-        rect.right > rootRect.left &&
-        rect.left < rootRect.right &&
-        rect.bottom > rootRect.top &&
-        rect.top < rootRect.bottom
-      );
-    });
-}
 
 /** Leaf elements that own their own visible text run. */
 function textLeaves(elements: readonly HTMLElement[]): HTMLElement[] {
@@ -169,15 +97,6 @@ function assertTextFitsItsCarrier(
   }
 }
 
-/** Whether an element paints its own surface rather than just holding others. */
-function isPainted(style: CSSStyleDeclaration): boolean {
-  if (style.backgroundImage && style.backgroundImage !== "none") return true;
-  const background = style.backgroundColor || "";
-  const alpha = /rgba?\([^)]*?,\s*([\d.]+)\s*\)/.exec(background);
-  if (alpha) return Number(alpha[1]) > 0.06;
-  return Boolean(background) && background !== "transparent";
-}
-
 /** Something a viewer can actually read or recognise inside this element. */
 function holdsVisibleContent(element: HTMLElement, root: HTMLElement): boolean {
   for (const child of element.querySelectorAll<HTMLElement>("*")) {
@@ -197,33 +116,6 @@ function holdsVisibleContent(element: HTMLElement, root: HTMLElement): boolean {
       node.nodeType === Node.TEXT_NODE &&
       (node.textContent ?? "").trim().length > 0,
   );
-}
-
-/**
- * The elements a viewer reads as objects in the frame: something painted, or
- * carrying its own text, or an image. Bare wrappers do not count, so a
- * full-width invisible container cannot stand in for a subject, and grounds are
- * excluded by the upper bound.
- */
-function frameSubjects(
-  elements: readonly HTMLElement[],
-  canvasArea: number,
-): HTMLElement[] {
-  return elements.filter((element) => {
-    const rect = element.getBoundingClientRect();
-    const share = (rect.width * rect.height) / canvasArea;
-    if (share < 0.004 || share > 0.6) return false;
-    if (["IMG", "SVG", "VIDEO", "CANVAS"].includes(element.tagName))
-      return true;
-    // The ground a beat sits in is not one of the beat's subjects.
-    if (isAtmosphere(element)) return false;
-    if (isPainted(getComputedStyle(element))) return true;
-    return Array.from(element.childNodes).some(
-      (node) =>
-        node.nodeType === Node.TEXT_NODE &&
-        (node.textContent ?? "").trim().length > 0,
-    );
-  });
 }
 
 /**
@@ -1890,11 +1782,16 @@ export function validateGeneratedComposition(
   const composition = createDynamicComposition(
     options.renderedHtml ?? result.compositionHtml,
     result.timelineJs,
-    { title: result.title, duration, scenes },
+    {
+      title: result.title,
+      duration,
+      scenes,
+      width: result.width ?? 1920,
+      height: result.height ?? 1080,
+    },
   );
   const root = document.createElement("div");
-  root.style.cssText =
-    "position:fixed;left:-100000px;top:-100000px;width:1920px;height:1080px";
+  root.style.cssText = `position:fixed;left:-100000px;top:-100000px;width:${composition.width}px;height:${composition.height}px`;
   document.body.append(root);
   let runtime: CompositionRuntime | null = null;
   try {

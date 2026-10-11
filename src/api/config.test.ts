@@ -22,3 +22,22 @@ describe("backend API URL", () => {
     expect(MOTIFY_API_URL).toBe(window.location.origin);
   });
 });
+
+describe("Motify site URLs", () => {
+  it("resolves promotion paths against the marketing site", async () => {
+    vi.stubEnv("VITE_MOTIFY_SITE_URL", "https://motify.video/");
+    vi.resetModules();
+
+    const { motifySiteHref } = await import("./config");
+    expect(motifySiteHref("/pricing?plan=starter")).toBe(
+      "https://motify.video/pricing?plan=starter",
+    );
+  });
+
+  it("preserves an explicit HTTPS destination", async () => {
+    const { motifySiteHref } = await import("./config");
+    expect(motifySiteHref("https://partner.example/offer")).toBe(
+      "https://partner.example/offer",
+    );
+  });
+});

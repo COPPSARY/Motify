@@ -45,6 +45,75 @@ describe("ProjectsApi", () => {
     );
   });
 
+  it("generates a nine-scene storyboard with the authenticated endpoint", async () => {
+    const asset = { id: "generated-1", fileName: "generated.png" };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, { data: { storyboardGeneration: true } }),
+      )
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(response(201, { data: asset }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").generateStoryboard(
+        "workspace 1",
+        {
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        },
+      ),
+    ).resolves.toEqual(asset);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/workspaces/workspace%201/storyboards"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+        body: JSON.stringify({
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        }),
+      }),
+    );
+  });
+
+  it("explains backend deployment skew instead of posting to a missing storyboard route", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      response(404, {
+        error: { code: "NOT_FOUND", message: "Route not found." },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").generateStoryboard(
+        "workspace-1",
+        {
+          prompt: "A wide cobalt cloudscape",
+          aspectRatio: "16:9",
+          imageSize: "2K",
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "STORYBOARD_UNAVAILABLE",
+      message:
+        "Storyboard generation is temporarily unavailable while the service updates. Try again shortly.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://localhost:4000/v1/capabilities"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("loads the active subscription for a workspace", async () => {
     const subscription = {
       status: "active",
@@ -64,6 +133,32 @@ describe("ProjectsApi", () => {
       new URL(
         "http://localhost:4000/v1/workspaces/workspace%201/billing/subscription",
       ),
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
+  it("loads the currently scheduled promotion banner", async () => {
+    const banner = {
+      id: "banner-1",
+      title: "Starter week",
+      message: "Starter is only $2/month for one week.",
+      plan: { id: "starter", name: "Starter" },
+      audience: "free",
+      ctaLabel: "View offer",
+      ctaUrl: null,
+      startsAt: "2026-10-10T00:00:00.000Z",
+      endsAt: "2026-10-17T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(200, { data: banner }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").getPromotionBanner(),
+    ).resolves.toEqual(banner);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://localhost:4000/v1/promotions/banner"),
       expect.objectContaining({ method: "GET", credentials: "include" }),
     );
   });
@@ -106,6 +201,34 @@ describe("ProjectsApi", () => {
       compositionHtml: expect.stringContaining("<template>"),
       timelineJs: files["timeline.js"],
     });
+  });
+
+  it("restores a version against the revision the editor has loaded", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { data: { id: "project", revision: 8 } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const project = await new ProjectsApi(
+      "http://localhost:4000",
+    ).restoreVersion("project", 3, 7);
+
+    expect(project).toMatchObject({ revision: 8 });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/versions/3/restore"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ revision: 7 }),
+        headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
+      }),
+    );
   });
 
   it("loads a CSRF token before saving source", async () => {

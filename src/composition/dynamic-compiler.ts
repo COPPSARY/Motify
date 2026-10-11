@@ -1,6 +1,7 @@
 import gsap from "gsap";
 import * as presets from "./presets";
 import { mountSceneKit } from "./scene-kit";
+import { scopeFilmStyles } from "./scope-css";
 import type {
   CompositionContext,
   CompositionDefinition,
@@ -16,6 +17,17 @@ export interface DynamicCompositionOptions {
   fps?: number;
   duration?: number;
   scenes?: readonly SceneDefinition[];
+  /** Overrides the `data-adaptive` marker read from the markup. */
+  adaptive?: boolean;
+}
+
+/**
+ * A film opts into laying itself out for any canvas by marking its template:
+ * `<template data-adaptive>`. It travels with the source, so saved projects,
+ * versions and exports need no extra field.
+ */
+export function declaresAdaptiveLayout(compositionHtml: string): boolean {
+  return /<template\b[^>]*\bdata-adaptive\b/i.test(compositionHtml);
 }
 
 /**
@@ -114,6 +126,7 @@ export function createDynamicComposition(
     fps,
     duration,
     scenes,
+    adaptive: options.adaptive ?? declaresAdaptiveLayout(compositionHtml),
     sourcePreview: compositionHtml,
     build(context: CompositionContext) {
       // 1. Mount the HTML source into context.root
@@ -132,6 +145,11 @@ export function createDynamicComposition(
           context.root.innerHTML = compositionHtml;
         }
       }
+
+      // The film's <style> tags are now in the page, where a bare rule such as
+      // `section { position: absolute; inset: 0 }` would restyle the editor's own
+      // elements too. Confine them to this root before anything renders.
+      scopeFilmStyles(context.root);
 
       // The scene kit rides inside the root so export sees it too. Mounted
       // after the markup and before registration: it carries no data-edit ids,

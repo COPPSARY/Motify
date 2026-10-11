@@ -14,6 +14,7 @@ export const HOME_PAGES = [
   "templates",
   "music",
   "assets",
+  "storyboard",
   "settings",
   "support",
 ] as const;

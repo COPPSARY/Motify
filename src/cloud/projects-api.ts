@@ -28,13 +28,33 @@ export interface WorkspaceSummary {
   role: "owner" | "editor" | "viewer";
 }
 
-export type BillingPlanId = "starter" | "pro" | "studio";
+/** Plan ids come from the backend billing catalog and are not a fixed enum. */
+export type BillingPlanId = string;
+
+export interface WorkspaceEntitlements {
+  exportWithoutWatermark: boolean;
+  maxExportHeight: number;
+}
 
 export interface WorkspaceSubscription {
   status: "none" | "active" | "expired";
   plan: BillingPlanId | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  /** Optional only for rolling deploy compatibility with older API nodes. */
+  entitlements?: WorkspaceEntitlements;
+}
+
+export interface PromotionBanner {
+  id: string;
+  title: string;
+  message: string;
+  plan: { id: BillingPlanId; name: string } | null;
+  audience: "all" | "free" | "paid";
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  startsAt: string;
+  endsAt: string;
 }
 
 export interface ProjectSummary {
@@ -58,6 +78,24 @@ export interface ProjectSummary {
 export interface ProjectSource {
   "composition.html": string;
   "timeline.js": string;
+}
+
+/**
+ * A saved point in a project's history. Versions are identified, not
+ * previewed: by number, how they were made, the prompt behind them and when.
+ */
+export interface ProjectVersion {
+  revision: number;
+  source: "initial" | "generation" | "manual_edit" | "restore";
+  restoredFromRevision: number | null;
+  label: string | null;
+  pinned: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  /** The start of the request behind a generation. */
+  prompt: string | null;
+  /** What the project shows now: the newest version, or one rolled back to. */
+  current: boolean;
 }
 
 export interface ProjectMutationResult {
@@ -103,7 +141,26 @@ export interface WorkspaceAsset {
   durationMs: number | null;
   createdAt: string;
   downloadUrl: string | null;
+  credits?: {
+    charged: number;
+    remaining: number;
+  };
 }
+
+export interface GenerateStoryboardInput {
+  prompt: string;
+  aspectRatio: "1:1" | "3:2" | "4:3" | "4:5" | "9:16" | "16:9" | "21:9";
+  imageSize: "1K" | "2K" | "4K";
+}
+
+export const RESOLUTION_CREDIT_COSTS: Record<
+  GenerateStoryboardInput["imageSize"],
+  number
+> = {
+  "1K": 5,
+  "2K": 10,
+  "4K": 15,
+};
 
 /** A song in the music library: the user's own upload or a built-in track. */
 export interface AudioTrack {
@@ -145,6 +202,10 @@ interface ApiErrorEnvelope {
     message?: string;
     details?: Record<string, unknown>;
   };
+}
+
+export interface ApiCapabilities {
+  storyboardGeneration: boolean;
 }
 
 export interface MotionMessageInput {
@@ -223,10 +284,18 @@ export class ProjectsApi {
     return this.request<WorkspaceSummary[]>("/v1/workspaces");
   }
 
+  getCapabilities() {
+    return this.request<ApiCapabilities>("/v1/capabilities");
+  }
+
   getSubscription(workspaceId: string) {
     return this.request<WorkspaceSubscription>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/billing/subscription`,
     );
+  }
+
+  getPromotionBanner() {
+    return this.request<PromotionBanner | null>("/v1/promotions/banner");
   }
 
   listProjects(workspaceId: string) {
@@ -373,6 +442,31 @@ export class ProjectsApi {
     if (query.trim()) params.set("q", query.trim());
     return this.request<WorkspaceAsset[]>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/assets?${params}`,
+    );
+  }
+
+  async generateStoryboard(
+    workspaceId: string,
+    input: GenerateStoryboardInput,
+  ) {
+    let capabilities: ApiCapabilities;
+    try {
+      capabilities = await this.getCapabilities();
+    } catch (error) {
+      if (
+        error instanceof CloudApiError &&
+        error.status === 404 &&
+        error.code === "NOT_FOUND"
+      ) {
+        throw storyboardUnavailable();
+      }
+      throw error;
+    }
+    if (!capabilities.storyboardGeneration) throw storyboardUnavailable();
+    await this.ensureCsrfToken();
+    return this.request<WorkspaceAsset>(
+      `/v1/workspaces/${encodeURIComponent(workspaceId)}/storyboards`,
+      { method: "POST", body: input },
     );
   }
 
@@ -541,6 +635,41 @@ export class ProjectsApi {
     return { project, unchanged: project.revision === input.revision };
   }
 
+  listVersions(projectId: string) {
+    return this.request<ProjectVersion[]>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions`,
+    );
+  }
+
+  async updateVersion(
+    projectId: string,
+    revision: number,
+    patch: { label?: string | null; pinned?: boolean },
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions/${revision}`,
+      { method: "PATCH", body: patch },
+    );
+  }
+
+  /**
+   * Rolls the project back to an old version. No version is added: that one
+   * becomes current. `currentRevision` is the project revision the editor has
+   * loaded, so a stale editor gets a conflict.
+   */
+  async restoreVersion(
+    projectId: string,
+    revision: number,
+    currentRevision: number,
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<ProjectSummary>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions/${revision}/restore`,
+      { method: "POST", body: { revision: currentRevision } },
+    );
+  }
+
   updateProject(
     projectId: string,
     input: {
@@ -615,4 +744,12 @@ export class ProjectsApi {
   private async ensureCsrfToken(): Promise<void> {
     if (!this.csrfToken) await this.getSession();
   }
+}
+
+function storyboardUnavailable(): CloudApiError {
+  return new CloudApiError(
+    503,
+    "STORYBOARD_UNAVAILABLE",
+    "Storyboard generation is temporarily unavailable while the service updates. Try again shortly.",
+  );
 }

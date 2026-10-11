@@ -3,15 +3,15 @@ import type { GenerationAsset } from "../ai/generation-guidance";
 /**
  * What a pasted or uploaded image is *for*. An image can inform how the film
  * should look without ever being placed in it, and the two cases produce
- * opposite instructions, so the intent is asked for once and then carried
- * with the reference everywhere it goes.
+ * opposite instructions. The message text decides the intent when the image
+ * is sent, and that decision is then carried with the reference.
  *
  * - `reference`: a screenshot, storyboard or style reference. The model must
  *   read it and match what it shows; it must never appear in the composition.
  * - `asset`: a logo, product shot or texture that belongs on screen. Its
  *   token must appear in the authored HTML.
  *
- * `undefined` means the user has not answered yet, and the prompt is held.
+ * `undefined` means intent will be inferred from the next prompt.
  */
 export type AssetIntent = "reference" | "asset";
 
