@@ -173,6 +173,7 @@
   import { appliesToAllImages, resolveAssetIntent } from "../ai/asset-intent";
   import { loadProjectDraft, saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
+  import { clearDatadogUser, identifyDatadogUser } from "../datadog-rum";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import {
     editableElementAtPoint,
@@ -545,6 +546,7 @@
         currentUser = user;
         authChecked = true;
         if (user) {
+          identifyDatadogUser(user);
           identifyAnalyticsUser(user);
           void refreshCredits();
           void refreshActivePlan();
@@ -2946,6 +2948,7 @@
     currentUser = user;
     authChecked = true;
     subscriptionChecked = false;
+    identifyDatadogUser(user);
     identifyAnalyticsUser(user);
     void refreshCredits();
     await cloudProjects?.refreshSession();
@@ -2975,6 +2978,7 @@
       // A revoked or expired session is already signed out as far as the
       // editor is concerned.
     }
+    clearDatadogUser();
     currentUser = null;
     activePlan = null;
     exportWithoutWatermark = false;
