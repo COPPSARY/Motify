@@ -16,6 +16,7 @@ import {
   type SeamDirection,
 } from "./seam-plan";
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
+import type { CanvasAspect } from "../composition/canvas-frame";
 import type { RegistryItemSummary } from "../registry/types";
 
 export interface GenerationFiles {
@@ -24,6 +25,8 @@ export interface GenerationFiles {
    * browser-held provider key. The backend persists the authoritative source.
    */
   backendProjectId?: string;
+  /** Initial canvas chosen in the prompt composer. */
+  aspectRatio?: CanvasAspect;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;

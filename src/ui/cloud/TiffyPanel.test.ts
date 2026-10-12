@@ -93,6 +93,13 @@ describe("TiffyPanel uploads", () => {
       expect(
         document.querySelector(".ai-brand-chip")?.textContent?.trim(),
       ).toBe("Set up brand");
+      const aspect = document.querySelector<HTMLSelectElement>(
+        '[aria-label="Video aspect ratio"]',
+      );
+      expect(aspect?.value).toBe("16:9");
+      expect(
+        Array.from(aspect?.options ?? []).map((option) => option.value),
+      ).toEqual(["16:9", "1:1", "4:5", "9:16"]);
     } finally {
       await unmount(component);
     }

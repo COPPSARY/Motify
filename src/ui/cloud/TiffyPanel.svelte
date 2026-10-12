@@ -2,6 +2,7 @@
   import {
     ArrowLeft,
     ArrowUp,
+    ChevronDown,
     Coins,
     Dna,
     History,
@@ -12,6 +13,9 @@
     Upload,
     Wand2,
     RotateCcw,
+    RectangleHorizontal,
+    RectangleVertical,
+    Square,
     X,
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
@@ -24,6 +28,7 @@
     AssetIntent,
     LocalAssetReference,
   } from "../../stores/local-assets";
+  import type { CanvasAspect } from "../../composition/canvas-frame";
 
   interface MessageAttachment {
     id: string;
@@ -71,6 +76,8 @@
    * before a video exists; `panel` is the chat that sits beside an open video.
    */
   export let variant: "panel" | "hero" = "panel";
+  /** Canvas for the first generation; existing videos keep their saved size. */
+  export let generationAspect: CanvasAspect = "16:9";
   /** The open video's name, shown in the panel header. */
   export let title = "";
   /** Leaves the video for the home page; the header shows a back button when set. */
@@ -123,6 +130,13 @@
   // With something to send, the button says what it will cost; only a
   // balance too low to pay for it needs a line of its own.
   $: showCost = $creditEstimate !== null && draftLength > 0;
+
+  const aspectOptions: readonly { value: CanvasAspect; label: string }[] = [
+    { value: "16:9", label: "16:9 · Landscape" },
+    { value: "1:1", label: "1:1 · Square" },
+    { value: "4:5", label: "4:5 · Portrait" },
+    { value: "9:16", label: "9:16 · Vertical" },
+  ];
 
   function carriesFiles(event: DragEvent): boolean {
     return Boolean(event.dataTransfer?.types.includes("Files"));
@@ -470,6 +484,30 @@
           </div>
         {/if}
       </div>
+      {#if variant === "hero"}
+        <label
+          class="ai-aspect-picker"
+          title="Choose the canvas before Tiffy creates your video"
+        >
+          {#if generationAspect === "16:9"}
+            <RectangleHorizontal size={15} aria-hidden="true" />
+          {:else if generationAspect === "1:1"}
+            <Square size={15} aria-hidden="true" />
+          {:else}
+            <RectangleVertical size={15} aria-hidden="true" />
+          {/if}
+          <select
+            aria-label="Video aspect ratio"
+            bind:value={generationAspect}
+            disabled={$generationStore.isActive}
+          >
+            {#each aspectOptions as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+          <ChevronDown size={13} aria-hidden="true" />
+        </label>
+      {/if}
       <button
         type="button"
         class="ai-brand-chip"
