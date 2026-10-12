@@ -1,6 +1,7 @@
 import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
+import type { CanvasAspect } from "../composition/canvas-frame";
 import type { BrandAssetRole, BrandDna, BrandResource } from "./brand-dna";
 
 export const PROJECT_SOURCE_PATHS = [
@@ -210,6 +211,8 @@ export interface ApiCapabilities {
 
 export interface MotionMessageInput {
   message: string;
+  /** The canvas chosen in the new-video composer before generation starts. */
+  aspectRatio?: CanvasAspect;
   revision?: number;
   runtimeError?: string;
   assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
