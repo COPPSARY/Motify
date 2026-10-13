@@ -2,7 +2,12 @@ import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
 import type { CanvasAspect } from "../composition/canvas-frame";
-import type { BrandAssetRole, BrandDna, BrandResource } from "./brand-dna";
+import type {
+  BrandAssetRole,
+  BrandDna,
+  BrandProfileList,
+  BrandResource,
+} from "./brand-dna";
 
 export const PROJECT_SOURCE_PATHS = [
   "composition.html",
@@ -60,6 +65,7 @@ export interface PromotionBanner {
 
 export interface ProjectSummary {
   id: string;
+  brandSelection?: string;
   workspaceId: string;
   name: string;
   slug: string;
@@ -211,6 +217,7 @@ export interface ApiCapabilities {
 
 export interface MotionMessageInput {
   message: string;
+  brandId?: string | null;
   /** The canvas chosen in the new-video composer before generation starts. */
   aspectRatio?: CanvasAspect;
   revision?: number;
@@ -311,6 +318,7 @@ export class ProjectsApi {
     workspaceId: string,
     input: {
       name: string;
+      brandSelection?: string;
       width: number;
       height: number;
       fps: number;
@@ -325,6 +333,9 @@ export class ProjectsApi {
         method: "POST",
         body: {
           name: input.name,
+          ...(input.brandSelection
+            ? { brandSelection: input.brandSelection }
+            : {}),
           width: input.width,
           height: input.height,
           fps: input.fps,
@@ -570,46 +581,78 @@ export class ProjectsApi {
    * The signed-in person's Brand DNA. A brand belongs to the person, not to a
    * workspace, and every film they generate is made with it.
    */
-  getBrand() {
-    return this.request<BrandResource>("/v1/brand");
+  listBrands() {
+    return this.request<BrandProfileList>("/v1/brand/profiles");
+  }
+
+  async createBrand(name: string) {
+    await this.ensureCsrfToken();
+    return this.request<BrandResource>("/v1/brand/profiles", {
+      method: "POST",
+      body: { name },
+    });
+  }
+
+  async deleteBrand(brandId: string) {
+    await this.ensureCsrfToken();
+    return this.request<void>(
+      `/v1/brand/profiles/${encodeURIComponent(brandId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  getBrand(brandId?: string) {
+    return this.request<BrandResource>(
+      `/v1/brand${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
+    );
   }
 
   /** Replaces the brand document against the revision it was read at. */
-  async saveBrand(revision: number, dna: BrandDna) {
+  async saveBrand(revision: number, dna: BrandDna, brandId?: string) {
     await this.ensureCsrfToken();
-    return this.request<BrandResource>("/v1/brand", {
-      method: "PUT",
-      body: { revision, dna },
-    });
+    return this.request<BrandResource>(
+      `/v1/brand${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
+      {
+        method: "PUT",
+        body: { revision, dna },
+      },
+    );
   }
 
-  async addBrandAsset(input: {
-    assetId: string;
-    role: BrandAssetRole;
-    label?: string | null;
-  }) {
+  async addBrandAsset(
+    input: {
+      assetId: string;
+      role: BrandAssetRole;
+      label?: string | null;
+    },
+    brandId?: string,
+  ) {
     await this.ensureCsrfToken();
-    return this.request<BrandResource>("/v1/brand/assets", {
-      method: "POST",
-      body: input,
-    });
+    return this.request<BrandResource>(
+      `/v1/brand/assets${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
+      {
+        method: "POST",
+        body: input,
+      },
+    );
   }
 
   async updateBrandAsset(
     assetId: string,
     input: { role?: BrandAssetRole; label?: string | null },
+    brandId?: string,
   ) {
     await this.ensureCsrfToken();
     return this.request<BrandResource>(
-      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
+      `/v1/brand/assets/${encodeURIComponent(assetId)}${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
       { method: "PATCH", body: input },
     );
   }
 
-  async removeBrandAsset(assetId: string) {
+  async removeBrandAsset(assetId: string, brandId?: string) {
     await this.ensureCsrfToken();
     return this.request<void>(
-      `/v1/brand/assets/${encodeURIComponent(assetId)}`,
+      `/v1/brand/assets/${encodeURIComponent(assetId)}${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
       { method: "DELETE" },
     );
   }
@@ -678,6 +721,7 @@ export class ProjectsApi {
     input: {
       revision: number;
       name?: string;
+      brandSelection?: string;
       width?: number;
       height?: number;
       fps?: number;

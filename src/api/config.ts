@@ -2,12 +2,32 @@ const configuredApiUrl = (
   import.meta.env["VITE_MOTIFY_API_URL"] as string | undefined
 )?.trim();
 
-// A deployment can also serve the API through its own origin.
-export const MOTIFY_API_URL = configuredApiUrl
-  ? configuredApiUrl.replace(/\/+$/, "")
-  : typeof window !== "undefined"
-    ? window.location.origin
-    : "";
+export function resolveMotifyApiUrl(
+  configured: string | undefined,
+  browserUrl: URL | undefined,
+  development: boolean,
+): string {
+  if (configured?.trim()) return configured.trim().replace(/\/+$/, "");
+
+  // Vite serves the editor on 5173, while the local auth API runs on 3000.
+  // Without VITE_MOTIFY_API_URL, posting credentials to Vite returns the SPA.
+  if (
+    development &&
+    browserUrl?.hostname === "localhost" &&
+    browserUrl.port === "5173"
+  ) {
+    return "http://localhost:3000";
+  }
+
+  // A deployed editor may serve the API through its own origin.
+  return browserUrl?.origin ?? "";
+}
+
+export const MOTIFY_API_URL = resolveMotifyApiUrl(
+  configuredApiUrl,
+  typeof window === "undefined" ? undefined : new URL(window.location.href),
+  import.meta.env.DEV,
+);
 
 const configuredSiteUrl = (
   import.meta.env["VITE_MOTIFY_SITE_URL"] as string | undefined

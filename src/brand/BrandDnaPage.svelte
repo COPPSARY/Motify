@@ -33,6 +33,7 @@
     type BrandAssetRole,
     type BrandDna,
     type BrandResource,
+    type BrandProfileSummary,
   } from "../cloud/brand-dna";
   import AuthDialog from "../ui/auth/AuthDialog.svelte";
   import TiffyMark from "../ui/cloud/TiffyMark.svelte";
@@ -84,6 +85,12 @@
   let authOpen = false;
   let authMode: "signin" | "signup" = "signin";
   let resource: BrandResource | null = null;
+  let profiles: BrandProfileSummary[] = [];
+  let maxProfiles = 1;
+  let selectedBrandId: string | undefined =
+    new URLSearchParams(window.location.search).get("brandId") ?? undefined;
+  let newBrandName = "";
+  let creatingBrand = false;
   let saved: BrandDna = emptyBrandDna();
   let draft: BrandDna = emptyBrandDna();
   let saving = false;
@@ -168,7 +175,15 @@
   }
 
   async function loadBrand() {
-    applyResource(await api.getBrand());
+    const listed = await api.listBrands();
+    profiles = listed.profiles;
+    maxProfiles = listed.maxProfiles;
+    if (
+      selectedBrandId &&
+      !profiles.some((profile) => profile.id === selectedBrandId)
+    )
+      selectedBrandId = undefined;
+    applyResource(await api.getBrand(selectedBrandId));
     conflict = false;
     saveError = "";
   }
@@ -184,7 +199,10 @@
     saving = true;
     saveError = "";
     try {
-      applyResource(await api.saveBrand(resource.revision, draft));
+      applyResource(
+        await api.saveBrand(resource.revision, draft, selectedBrandId),
+      );
+      profiles = (await api.listBrands()).profiles;
       return true;
     } catch (error) {
       if (
@@ -200,6 +218,57 @@
       return false;
     } finally {
       saving = false;
+    }
+  }
+
+  async function selectProfile(brandId?: string) {
+    if (selectedBrandId === brandId) return;
+    if (dirty && !(await save())) return;
+    selectedBrandId = brandId;
+    history.replaceState(
+      null,
+      "",
+      brandId
+        ? `${window.location.pathname}?brandId=${encodeURIComponent(brandId)}`
+        : window.location.pathname,
+    );
+    await loadBrand();
+    mode = resource && resource.revision > 0 ? "review" : "chat";
+  }
+
+  async function createProfile() {
+    const name = newBrandName.trim();
+    if (!name || creatingBrand) return;
+    if (dirty && !(await save())) return;
+    creatingBrand = true;
+    try {
+      const created = await api.createBrand(name);
+      newBrandName = "";
+      if (profiles.length === 0) await loadBrand();
+      else await selectProfile(created.id ?? undefined);
+    } catch (error) {
+      showToast(messageOf(error, "Could not create Brand DNA."));
+    } finally {
+      creatingBrand = false;
+    }
+  }
+
+  async function deleteProfile() {
+    if (
+      !selectedBrandId ||
+      !window.confirm(
+        "Delete this Brand DNA profile? Videos using it will no longer use a brand.",
+      )
+    )
+      return;
+    try {
+      await api.deleteBrand(selectedBrandId);
+      selectedBrandId = undefined;
+      history.replaceState(null, "", window.location.pathname);
+      await loadBrand();
+      showToast("Brand DNA deleted.");
+    } catch (error) {
+      showToast(messageOf(error, "Could not delete Brand DNA."));
     }
   }
 
@@ -315,7 +384,7 @@
 
   async function linkFile(file: File, role: BrandAssetRole): Promise<string> {
     const assetId = await uploadAsset(workspaceId, file);
-    const next = await api.addBrandAsset({ assetId, role });
+    const next = await api.addBrandAsset({ assetId, role }, selectedBrandId);
     if (resource) resource = { ...resource, assets: next.assets };
     return assetId;
   }
@@ -339,7 +408,7 @@
   async function removeAsset(assetId: string) {
     if (!resource) return;
     try {
-      await api.removeBrandAsset(assetId);
+      await api.removeBrandAsset(assetId, selectedBrandId);
       resource = {
         ...resource,
         assets: resource.assets.filter((asset) => asset.assetId !== assetId),
@@ -632,6 +701,52 @@
       <span></span>
     {/if}
   </header>
+
+  {#if state === "ready"}
+    <div class="bd-profiles" aria-label="Brand DNA profiles">
+      <label for="bd-profile-select">Brand</label>
+      <select
+        id="bd-profile-select"
+        value={selectedBrandId ?? "default"}
+        on:change={(event) =>
+          void selectProfile(
+            event.currentTarget.value === "default"
+              ? undefined
+              : event.currentTarget.value,
+          )}
+      >
+        <option value="default"
+          >{profiles.find((profile) => profile.isDefault)?.name ??
+            "Your first brand"}</option
+        >
+        {#each profiles.filter((profile) => !profile.isDefault) as profile (profile.id)}
+          <option value={profile.id}>{profile.name}</option>
+        {/each}
+      </select>
+      {#if profiles.length < maxProfiles}
+        <form on:submit|preventDefault={createProfile}>
+          <input
+            aria-label="New brand name"
+            placeholder="New brand name"
+            maxlength="100"
+            bind:value={newBrandName}
+          />
+          <button type="submit" disabled={!newBrandName.trim() || creatingBrand}
+            ><Plus size={14} /> Add brand</button
+          >
+        </form>
+      {:else if maxProfiles === 1}
+        <span class="bd-profiles__limit"
+          >Your plan includes one brand. Upgrade for more.</span
+        >
+      {/if}
+      {#if selectedBrandId}<button
+          type="button"
+          class="bd-profiles__delete"
+          on:click={deleteProfile}><Trash2 size={14} /> Delete</button
+        >{/if}
+    </div>
+  {/if}
 
   {#if state === "loading"}
     <div class="bd-state">

@@ -100,6 +100,7 @@ export interface BrandAsset {
 }
 
 export interface BrandResource {
+  id?: string | null;
   workspaceId: string;
   revision: number;
   schemaVersion: number;
@@ -107,6 +108,18 @@ export interface BrandResource {
   provenance: Record<string, BrandFieldProvenance>;
   assets: BrandAsset[];
   updatedAt: string | null;
+}
+
+export interface BrandProfileSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+  isDefault: boolean;
+}
+
+export interface BrandProfileList {
+  maxProfiles: number;
+  profiles: BrandProfileSummary[];
 }
 
 /**

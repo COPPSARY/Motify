@@ -21,6 +21,25 @@ describe("backend API URL", () => {
     const { MOTIFY_API_URL } = await import("./config");
     expect(MOTIFY_API_URL).toBe(window.location.origin);
   });
+
+  it("targets the local API when the editor runs on Vite without browser configuration", async () => {
+    const { resolveMotifyApiUrl } = await import("./config");
+
+    expect(
+      resolveMotifyApiUrl(
+        undefined,
+        new URL("http://localhost:5173/editor"),
+        true,
+      ),
+    ).toBe("http://localhost:3000");
+    expect(
+      resolveMotifyApiUrl(
+        undefined,
+        new URL("https://app.motify.video/editor"),
+        false,
+      ),
+    ).toBe("https://app.motify.video");
+  });
 });
 
 describe("Motify site URLs", () => {

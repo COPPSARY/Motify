@@ -12,6 +12,14 @@ interface AuthResponse {
   readonly data: { readonly user: MotionlyUser; readonly csrfToken: string };
 }
 
+interface SignUpResponse {
+  readonly data: {
+    readonly verificationRequired: boolean;
+    readonly user?: MotionlyUser;
+    readonly csrfToken?: string;
+  };
+}
+
 interface AuthErrorEnvelope {
   readonly error?: { readonly code?: string; readonly message?: string };
 }
@@ -86,15 +94,12 @@ export async function signInWithPassword(
   return session.user;
 }
 
-/**
- * Creates the account. The backend answers 202 and mails a verification link,
- * so there is no session to return: the user is signed in by following it.
- */
+/** Returns the signed-in user when email confirmation is disabled. */
 export async function signUpWithPassword(
   email: string,
   password: string,
-): Promise<void> {
-  await authFetch("/v1/auth/sign-up", {
+): Promise<MotionlyUser | null> {
+  const response = await authFetch("/v1/auth/sign-up", {
     method: "POST",
     body: JSON.stringify({
       email: email.trim().toLowerCase(),
@@ -102,6 +107,16 @@ export async function signUpWithPassword(
       returnTo: returnToUrl(),
     }),
   });
+  const {
+    verificationRequired,
+    user,
+    csrfToken: sessionCsrfToken,
+  } = ((await response.json()) as SignUpResponse).data;
+  if (verificationRequired) return null;
+  if (!user || !sessionCsrfToken)
+    throw new Error("Sign-up did not return a session.");
+  csrfToken = sessionCsrfToken;
+  return user;
 }
 
 export async function signOut(): Promise<void> {
