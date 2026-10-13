@@ -15,7 +15,7 @@ import {
   parseDirectionResponse,
   type FilmDirection,
 } from "./direction-pass";
-import { inferFilmDuration, selectFilmShape } from "./film-shape";
+import { inferFilmDuration } from "./film-shape";
 import { MOTIONLY_SYSTEM_PROMPT } from "./prompt";
 import { buildQualityRepairPrompt, targetedIssues } from "./repair-prompt";
 import {
@@ -299,18 +299,11 @@ async function requestBackend(
 
 export function buildCloudProjectMessage(
   userPrompt: string,
-  generationProfile: GenerationFiles["generationProfile"],
+  _generationProfile: GenerationFiles["generationProfile"],
 ): string {
-  if (generationProfile !== "claude-foundation-v1") return userPrompt;
-  const shape = selectFilmShape(userPrompt);
-  const duration = inferFilmDuration(userPrompt);
-  return [
-    "CREATE A NEW COMPOSITION FROM SCRATCH.",
-    "The current project source is a disposable technical scaffold, not an existing film and not creative reference material. Replace it completely. Preserve only the data-motionly-generation-profile marker required by the runtime.",
-    "Do not inherit its scene count, layout, colors, ids, timeline, or lack of content. Do not invent a product, application interface, dashboard, brand, metrics, or extra scenes unless the user explicitly asks for them.",
-    `Requested film shape: ${shape}. Target duration: ${duration} seconds.`,
-    `USER REQUEST\n${userPrompt}`,
-  ].join("\n\n");
+  // The backend agent owns the chat-versus-generation decision. Supplying a
+  // composition command here turns even a greeting into a generation request.
+  return userPrompt;
 }
 
 async function requestBackendProject(
@@ -584,7 +577,7 @@ export async function generateWithDirectAi(
     [currentFiles.previousPlan?.subject, userPrompt].filter(Boolean).join("\n");
   const qualityContext = {
     prompt: directionPrompt,
-    requiredAssetTokens: (currentFiles.assets ?? [])
+    requiredAssetTokens: (backendProjectId ? [] : (currentFiles.assets ?? []))
       .filter((asset) => asset.intent !== "reference")
       .map((asset) => asset.token),
     // The bundled foundation's layers are scaffolding meant to be replaced, so

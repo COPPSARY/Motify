@@ -83,7 +83,7 @@
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
-  import { brandGenerationBrief, type BrandResource } from "../cloud/brand-dna";
+  import type { BrandResource } from "../cloud/brand-dna";
   import type { GenerationPlanMemory } from "../ai/generation-guidance";
   import type { GenerationBasis } from "../ai/generation-basis";
   import {
@@ -2662,14 +2662,7 @@
     aspectRatio?: CanvasAspect,
   ): Promise<string> {
     projectStarted = true;
-    // Read fresh so an edit made on the Brand DNA page is used right away. A
-    // brand that cannot be read must not block generation; the copy loaded
-    // earlier is still useful when there is one.
-    const [ai, loadedBrand] = await Promise.all([
-      loadGenerationPipeline(),
-      loadBrand(),
-    ]);
-    const generationBrand = loadedBrand ?? brand;
+    const ai = await loadGenerationPipeline();
     const basis = assistantGenerationBasis(ai);
     const requestedCanvas = aspectRatio
       ? canvasSize(
@@ -2742,7 +2735,7 @@
             previousHtml: currentHtml,
             previousDuration: basis.duration,
             previousScenes: basis.scenes,
-            requiredAssetTokens: generationAssets
+            requiredAssetTokens: (cloudGeneration ? [] : generationAssets)
               .filter((asset) => asset.intent === "asset")
               .map((asset) => asset.token),
             renderedHtml: rendered.source,
@@ -2756,24 +2749,8 @@
       }
     };
 
-    const generationContext = [
-      generationBrand && generationBrand.revision > 0
-        ? brandGenerationBrief(generationBrand)
-        : "",
-      aspectRatio && requestedCanvas
-        ? [
-            "OUTPUT FORMAT (selected in the prompt composer)",
-            `Aspect ratio: ${aspectRatio}. Canvas: ${requestedCanvas.width}x${requestedCanvas.height}.`,
-            "Author every scene for this canvas from the start. Return exactly these width and height values; do not compose at 16:9 and crop or reframe afterward.",
-          ].join("\n")
-        : "",
-    ].filter(Boolean);
-    const generationPrompt =
-      generationContext.length > 0
-        ? `${generationContext.join("\n\n")}\n\nUSER REQUEST:\n${prompt}`
-        : prompt;
     const result = await ai.generateWithDirectAi(
-      generationPrompt,
+      prompt,
       {
         backendProjectId:
           cloudProject?.id ?? (backendGenerationProjectId || undefined),
