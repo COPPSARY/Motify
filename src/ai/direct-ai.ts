@@ -340,6 +340,9 @@ async function requestBackendProject(
         userPrompt,
         currentFiles.generationProfile,
       ),
+      ...(currentFiles.aspectRatio
+        ? { aspectRatio: currentFiles.aspectRatio }
+        : {}),
       ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
       ...((currentFiles.evidenceFrames ?? []).length > 0
         ? {

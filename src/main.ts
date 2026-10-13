@@ -2,6 +2,7 @@ import "@fontsource-variable/inter";
 import { mount } from "svelte";
 import { inject as injectVercelAnalytics } from "@vercel/analytics";
 import "./styles.css";
+import { initDatadogRum } from "./datadog-rum";
 import { initPostHog } from "./posthog";
 import { readAppMode } from "./app/mode";
 import { isBrandRoute } from "./app/routes";
@@ -9,6 +10,7 @@ import { isBrandRoute } from "./app/routes";
 const mode = readAppMode(document);
 const removeBootScreen = () => document.getElementById("boot-screen")?.remove();
 if (mode === "cloud") {
+  initDatadogRum();
   initPostHog();
   // Only the cloud build is hosted on Vercel; the local editor has no
   // /_vercel/insights endpoint to report to.

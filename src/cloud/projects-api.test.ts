@@ -659,7 +659,7 @@ describe("ProjectsApi music library", () => {
     );
   });
 
-  it("sends chosen songs with a generation message", async () => {
+  it("sends the chosen canvas and songs with a generation message", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(session())
@@ -671,6 +671,7 @@ describe("ProjectsApi music library", () => {
 
     await api.sendMotionMessage("project", {
       message: "Score it to this song.",
+      aspectRatio: "4:5",
       audio: [{ trackId: "track-1" }],
     });
 
@@ -679,6 +680,7 @@ describe("ProjectsApi music library", () => {
       expect.objectContaining({
         body: JSON.stringify({
           message: "Score it to this song.",
+          aspectRatio: "4:5",
           audio: [{ trackId: "track-1" }],
         }),
       }),

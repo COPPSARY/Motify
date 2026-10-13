@@ -10,7 +10,7 @@
  * A film that declares itself adaptive is mounted at the canvas size instead
  * and lays itself out for it, so framing does not apply to it.
  */
-export type CanvasAspect = "16:9" | "1:1" | "9:16";
+export type CanvasAspect = "16:9" | "1:1" | "4:5" | "9:16";
 export type CanvasFraming = "smart" | "fit" | "fill";
 export type CanvasOrientation = "landscape" | "square" | "portrait";
 
@@ -50,11 +50,17 @@ export const IDENTITY_LAYOUT: FrameLayout = {
   identity: true,
 };
 
-export const CANVAS_ASPECTS: readonly CanvasAspect[] = ["16:9", "1:1", "9:16"];
+export const CANVAS_ASPECTS: readonly CanvasAspect[] = [
+  "16:9",
+  "1:1",
+  "4:5",
+  "9:16",
+];
 
 const RATIOS: Record<CanvasAspect, number> = {
   "16:9": 16 / 9,
   "1:1": 1,
+  "4:5": 4 / 5,
   "9:16": 9 / 16,
 };
 
@@ -62,6 +68,18 @@ const even = (value: number): number => Math.max(2, Math.round(value / 2) * 2);
 
 export function isCanvasAspect(value: unknown): value is CanvasAspect {
   return CANVAS_ASPECTS.includes(value as CanvasAspect);
+}
+
+/** Recognizes an authored canvas so a reopened vertical film stays vertical. */
+export function canvasAspectForSize(
+  width: number,
+  height: number,
+): CanvasAspect | undefined {
+  if (width <= 0 || height <= 0) return undefined;
+  const ratio = width / height;
+  return CANVAS_ASPECTS.find(
+    (aspect) => Math.abs(RATIOS[aspect] - ratio) < 0.001,
+  );
 }
 
 /** The short side stays the authored short side, so 1080p films stay 1080p. */

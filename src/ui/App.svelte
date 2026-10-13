@@ -100,11 +100,13 @@
   import {
     CANVAS_ASPECTS,
     DEFAULT_CANVAS,
+    canvasAspectForSize,
     canvasSize,
     frameLayout,
     frameTransform,
     isCanvasAspect,
     isCanvasFraming,
+    type CanvasAspect,
     type CanvasSettings,
     type FrameLayout,
   } from "../composition/canvas-frame";
@@ -173,6 +175,7 @@
   import { appliesToAllImages, resolveAssetIntent } from "../ai/asset-intent";
   import { loadProjectDraft, saveProjectDraft } from "../stores/project-drafts";
   import { loadLocalProject, saveLocalProject } from "./local-project";
+  import { clearDatadogUser, identifyDatadogUser } from "../datadog-rum";
   import { captureEvent, identifyAnalyticsUser } from "../posthog";
   import {
     editableElementAtPoint,
@@ -293,6 +296,8 @@
   let fitScale = 0.5;
   /** The output canvas: the aspect ratio the film is shown and exported at. */
   let canvasState: CanvasSettings = { ...DEFAULT_CANVAS };
+  /** Canvas chosen beside the initial prompt; existing videos own their size. */
+  let generationAspect: CanvasAspect = DEFAULT_CANVAS.aspect;
   // Read from the runtime on every snapshot: a smart camera moves with time.
   $: canvasView = computeCanvasView(
     runtime,
@@ -356,6 +361,7 @@
   let authDialogOpen = false;
   let authDialogMode: "signin" | "signup" = "signin";
   let promptHeldForAuth = "";
+  const PENDING_ASPECT_KEY = "motionly_pending_aspect";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
   let exportWithoutWatermark = false;
@@ -418,7 +424,11 @@
   let elementPromptDraft = "";
   let elementPromptInput: HTMLInputElement;
   // What the last send actually asked Tiffy, so Retry repeats it exactly.
-  let lastSentPrompt: { text: string; prompt: string } | null = null;
+  let lastSentPrompt: {
+    text: string;
+    prompt: string;
+    aspectRatio?: CanvasAspect;
+  } | null = null;
 
   let lastGenState = "";
 
@@ -526,6 +536,8 @@
 
   onMount(() => {
     const url = new URL(window.location.href);
+    const storedAspect = sessionStorage.getItem(PENDING_ASPECT_KEY);
+    if (isCanvasAspect(storedAspect)) generationAspect = storedAspect;
     const promptFromUrl =
       mode === "cloud" ? (url.searchParams.get("prompt")?.trim() ?? "") : "";
     pendingLandingPrompt =
@@ -536,6 +548,7 @@
         : "";
     if (pendingLandingPrompt) {
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
+      sessionStorage.setItem(PENDING_ASPECT_KEY, generationAspect);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
     }
@@ -545,6 +558,7 @@
         currentUser = user;
         authChecked = true;
         if (user) {
+          identifyDatadogUser(user);
           identifyAnalyticsUser(user);
           void refreshCredits();
           void refreshActivePlan();
@@ -662,8 +676,17 @@
     selectedId = "";
     selectedEditorGroup = null;
     selectedSceneId = composition.scenes[0]?.id ?? "";
+    const savedCanvas = canvasFromState(editorState);
+    const authoredAspect = canvasAspectForSize(
+      composition.width,
+      composition.height,
+    );
     runtime = new CompositionRuntime(composition, previewRoot, {
-      canvas: canvasFromState(editorState),
+      canvas:
+        savedCanvas ??
+        (authoredAspect
+          ? { aspect: authoredAspect, framing: DEFAULT_CANVAS.framing }
+          : undefined),
     });
     audioSync = new AudioSync(previewRoot);
     runtime.importEditorState(editorState);
@@ -818,6 +841,7 @@
     cloudProject = null;
     localProjectName = "";
     backendGenerationProjectId = "";
+    generationAspect = DEFAULT_CANVAS.aspect;
     cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
     timelineMode = "project";
@@ -2633,7 +2657,10 @@
     return { ...basis, editorState: runtime?.exportEditorState() };
   }
 
-  async function generateAndApplyAssistant(prompt: string): Promise<string> {
+  async function generateAndApplyAssistant(
+    prompt: string,
+    aspectRatio?: CanvasAspect,
+  ): Promise<string> {
     projectStarted = true;
     // Read fresh so an edit made on the Brand DNA page is used right away. A
     // brand that cannot be read must not block generation; the copy loaded
@@ -2644,11 +2671,18 @@
     ]);
     const generationBrand = loadedBrand ?? brand;
     const basis = assistantGenerationBasis(ai);
+    const requestedCanvas = aspectRatio
+      ? canvasSize(
+          activeComposition.width,
+          activeComposition.height,
+          aspectRatio,
+        )
+      : null;
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
         name: "Untitled Motionly Project",
-        width: activeComposition.width,
-        height: activeComposition.height,
+        width: requestedCanvas?.width ?? activeComposition.width,
+        height: requestedCanvas?.height ?? activeComposition.height,
         fps: activeComposition.fps,
         duration: basis.duration,
         files: basis.files,
@@ -2680,9 +2714,15 @@
     // saved; a direct generation may not say, so the request decides.
     const filmSize = (candidate: DirectAiResult) => ({
       width:
-        candidate.width ?? relayoutTarget?.width ?? activeComposition.width,
+        candidate.width ??
+        relayoutTarget?.width ??
+        requestedCanvas?.width ??
+        activeComposition.width,
       height:
-        candidate.height ?? relayoutTarget?.height ?? activeComposition.height,
+        candidate.height ??
+        relayoutTarget?.height ??
+        requestedCanvas?.height ??
+        activeComposition.height,
     });
     const validations = new Map<string, ValidatedGeneration>();
     const renderKey = (candidate: DirectAiResult): string =>
@@ -2716,15 +2756,28 @@
       }
     };
 
-    const generationPrompt =
+    const generationContext = [
       generationBrand && generationBrand.revision > 0
-        ? `${brandGenerationBrief(generationBrand)}\n\nUSER REQUEST:\n${prompt}`
+        ? brandGenerationBrief(generationBrand)
+        : "",
+      aspectRatio && requestedCanvas
+        ? [
+            "OUTPUT FORMAT (selected in the prompt composer)",
+            `Aspect ratio: ${aspectRatio}. Canvas: ${requestedCanvas.width}x${requestedCanvas.height}.`,
+            "Author every scene for this canvas from the start. Return exactly these width and height values; do not compose at 16:9 and crop or reframe afterward.",
+          ].join("\n")
+        : "",
+    ].filter(Boolean);
+    const generationPrompt =
+      generationContext.length > 0
+        ? `${generationContext.join("\n\n")}\n\nUSER REQUEST:\n${prompt}`
         : prompt;
     const result = await ai.generateWithDirectAi(
       generationPrompt,
       {
         backendProjectId:
           cloudProject?.id ?? (backendGenerationProjectId || undefined),
+        ...(aspectRatio ? { aspectRatio } : {}),
         compositionHtml: currentHtml,
         timelineJs: currentJs,
         stylesCss: basis.files["styles.css"],
@@ -2843,14 +2896,22 @@
         fps: activeComposition.fps,
       },
     );
-    mountComposition(
-      dynamicComp,
-      carryEditorState(
-        basis.editorState,
-        { html: currentHtml, timelineJs: currentJs },
-        { html: result.compositionHtml, timelineJs: result.timelineJs },
-      ),
+    const carriedEditorState = carryEditorState(
+      basis.editorState,
+      { html: currentHtml, timelineJs: currentJs },
+      { html: result.compositionHtml, timelineJs: result.timelineJs },
     );
+    mountComposition(dynamicComp, {
+      ...carriedEditorState,
+      ...(aspectRatio
+        ? {
+            canvas: {
+              aspect: aspectRatio,
+              framing: DEFAULT_CANVAS.framing,
+            },
+          }
+        : {}),
+    });
     assetObjectUrls = hydrated.objectUrls;
     previousObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     generationPlan = {
@@ -2882,9 +2943,12 @@
    * here as a thrown `BackendConversationResponse` rather than a return value
    * — unwrap that into the reply text instead of treating it as a failure.
    */
-  async function generateOrBackendReply(prompt: string): Promise<string> {
+  async function generateOrBackendReply(
+    prompt: string,
+    aspectRatio?: CanvasAspect,
+  ): Promise<string> {
     try {
-      return await generateAndApplyAssistant(prompt);
+      return await generateAndApplyAssistant(prompt, aspectRatio);
     } catch (error: unknown) {
       const { BackendConversationResponse } = await loadGenerationPipeline();
       if (error instanceof BackendConversationResponse) {
@@ -2926,12 +2990,13 @@
    * guest is held rather than dropped: the composer keeps its text, the sign-in
    * dialog opens, and the same prompt is sent the moment the session exists.
    */
-  function requireAccount(prompt: string): boolean {
+  function requireAccount(prompt: string, aspectRatio?: CanvasAspect): boolean {
     if (mode !== "cloud" || currentUser) return true;
     promptHeldForAuth = prompt;
     // Signing in with Google leaves the page, so the held prompt is parked
     // where a landing prompt already waits and is picked up on the way back.
     sessionStorage.setItem("motionly_pending_prompt", prompt);
+    if (aspectRatio) sessionStorage.setItem(PENDING_ASPECT_KEY, aspectRatio);
     authDialogMode = "signin";
     authDialogOpen = true;
     return false;
@@ -2946,6 +3011,7 @@
     currentUser = user;
     authChecked = true;
     subscriptionChecked = false;
+    identifyDatadogUser(user);
     identifyAnalyticsUser(user);
     void refreshCredits();
     await cloudProjects?.refreshSession();
@@ -2956,6 +3022,7 @@
     promptHeldForAuth = "";
     if (held) {
       sessionStorage.removeItem("motionly_pending_prompt");
+      sessionStorage.removeItem(PENDING_ASPECT_KEY);
       pendingLandingPrompt = "";
       assistantDraft = held;
       await tick();
@@ -2964,7 +3031,10 @@
   }
 
   function cancelAuthDialog(): void {
-    if (promptHeldForAuth) sessionStorage.removeItem("motionly_pending_prompt");
+    if (promptHeldForAuth) {
+      sessionStorage.removeItem("motionly_pending_prompt");
+      sessionStorage.removeItem(PENDING_ASPECT_KEY);
+    }
     promptHeldForAuth = "";
   }
 
@@ -2975,6 +3045,7 @@
       // A revoked or expired session is already signed out as far as the
       // editor is concerned.
     }
+    clearDatadogUser();
     currentUser = null;
     activePlan = null;
     exportWithoutWatermark = false;
@@ -3091,14 +3162,23 @@
    */
   async function submitAssistant(
     event: SubmitEvent,
-    scoped?: { text: string; prompt: string },
+    scoped?: { text: string; prompt: string; aspectRatio?: CanvasAspect },
   ): Promise<void> {
     event.preventDefault();
     const shownText = (scoped?.text ?? assistantDraft).trim();
     const prompt = (scoped?.prompt ?? assistantDraft).trim();
+    const aspectRatio =
+      scoped?.aspectRatio ??
+      (!cloudProject && !backendGenerationProjectId
+        ? generationAspect
+        : undefined);
     if (!prompt || $generationStore.isActive) return;
-    if (!requireAccount(prompt)) return;
-    lastSentPrompt = { text: shownText, prompt };
+    if (!requireAccount(prompt, aspectRatio)) return;
+    lastSentPrompt = {
+      text: shownText,
+      prompt,
+      ...(aspectRatio ? { aspectRatio } : {}),
+    };
     // The first prompt turns the create page into this video's chat.
     projectStarted = true;
     page = null;
@@ -3157,7 +3237,7 @@
     });
 
     try {
-      const reply = await generateOrBackendReply(prompt);
+      const reply = await generateOrBackendReply(prompt, aspectRatio);
       generationStore.set({
         isActive: false,
         status: "COMPLETED",
@@ -3427,6 +3507,7 @@
     assistantDraft = pendingLandingPrompt;
     pendingLandingPrompt = "";
     sessionStorage.removeItem("motionly_pending_prompt");
+    sessionStorage.removeItem(PENDING_ASPECT_KEY);
     await submitAssistant(new SubmitEvent("submit"));
     scheduleDraftSave();
   }
@@ -5482,6 +5563,7 @@
 {#snippet tiffy(variant: "panel" | "hero")}
   <TiffyPanel
     {variant}
+    bind:generationAspect
     title={projectTitle}
     onBack={variant === "panel" ? () => void returnHome() : null}
     {brandName}
