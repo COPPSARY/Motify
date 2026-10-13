@@ -780,17 +780,13 @@ describe("directed generation with self-repair", () => {
     expect(observe).not.toHaveBeenCalled();
   });
 
-  it("marks a foundation-backed cloud project as a from-scratch build", () => {
-    const message = buildCloudProjectMessage(
-      'make an animation saying "Hi"',
-      "claude-foundation-v1",
-    );
-
-    expect(message).toContain("CREATE A NEW COMPOSITION FROM SCRATCH");
-    expect(message).toContain("disposable technical scaffold");
-    expect(message).toContain("Requested film shape: editorial");
-    expect(message).toContain("Target duration: 5 seconds");
-    expect(message).toContain('make an animation saying "Hi"');
+  it("leaves a foundation-backed cloud message for the agent to decide", () => {
+    expect(
+      buildCloudProjectMessage(
+        'make an animation saying "Hi"',
+        "claude-foundation-v1",
+      ),
+    ).toBe('make an animation saying "Hi"');
   });
 
   it("leaves follow-up cloud messages untouched", () => {
