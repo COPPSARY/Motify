@@ -60,9 +60,10 @@
     errorMessage = "";
     try {
       if (isSignUp) {
-        await signUpWithPassword(address, password);
-        verificationSentTo = address;
+        const user = await signUpWithPassword(address, password);
         password = "";
+        if (user) await onauthenticated(user);
+        else verificationSentTo = address;
       } else {
         const user = await signInWithPassword(address, password);
         password = "";
