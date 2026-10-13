@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import {
     ArrowLeft,
     ArrowUp,
@@ -108,6 +109,10 @@
   let dragDepth = 0;
   let addMenuOpen = false;
   let addMenu: HTMLDivElement;
+  let aspectMenuOpen = false;
+  let aspectPicker: HTMLDivElement;
+  let aspectButton: HTMLButtonElement;
+  let aspectOptionButtons: HTMLButtonElement[] = [];
   $: hasLibraries = Boolean(onOpenMusic || onOpenAssets);
   $: accepting = !$generationStore.isActive && !uploadingMedia;
   $: dragOver = accepting && dragDepth > 0;
@@ -137,6 +142,9 @@
     { value: "4:5", label: "4:5 · Portrait" },
     { value: "9:16", label: "9:16 · Vertical" },
   ];
+  $: selectedAspect = aspectOptions.find(
+    (option) => option.value === generationAspect,
+  ) ?? { value: "16:9", label: "16:9 · Landscape" };
 
   function carriesFiles(event: DragEvent): boolean {
     return Boolean(event.dataTransfer?.types.includes("Files"));
@@ -170,8 +178,10 @@
   }
 
   function addClicked(): void {
-    if (hasLibraries) addMenuOpen = !addMenuOpen;
-    else onAttach();
+    if (hasLibraries) {
+      addMenuOpen = !addMenuOpen;
+      aspectMenuOpen = false;
+    } else onAttach();
   }
 
   function pickFromMenu(action: (() => void) | null): void {
@@ -179,14 +189,70 @@
     action?.();
   }
 
-  function closeAddMenu(event: PointerEvent): void {
+  async function openAspectMenu(focusIndex?: number): Promise<void> {
+    if ($generationStore.isActive) return;
+    aspectMenuOpen = true;
+    addMenuOpen = false;
+    if (focusIndex === undefined) return;
+    await tick();
+    aspectOptionButtons[focusIndex]?.focus();
+  }
+
+  function toggleAspectMenu(): void {
+    if (aspectMenuOpen) aspectMenuOpen = false;
+    else void openAspectMenu();
+  }
+
+  function selectAspect(value: CanvasAspect): void {
+    generationAspect = value;
+    aspectMenuOpen = false;
+    aspectButton?.focus();
+  }
+
+  function aspectButtonKeydown(event: KeyboardEvent): void {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const selectedIndex = aspectOptions.findIndex(
+        (option) => option.value === generationAspect,
+      );
+      void openAspectMenu(selectedIndex < 0 ? 0 : selectedIndex);
+    }
+  }
+
+  function aspectOptionKeydown(event: KeyboardEvent, index: number): void {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown") {
+      nextIndex = (index + 1) % aspectOptions.length;
+    } else if (event.key === "ArrowUp") {
+      nextIndex = (index - 1 + aspectOptions.length) % aspectOptions.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = aspectOptions.length - 1;
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      aspectMenuOpen = false;
+      aspectButton?.focus();
+      return;
+    }
+
+    if (nextIndex !== null) {
+      event.preventDefault();
+      aspectOptionButtons[nextIndex]?.focus();
+    }
+  }
+
+  function closeMenus(event: PointerEvent): void {
     if (addMenuOpen && !addMenu?.contains(event.target as Node)) {
       addMenuOpen = false;
+    }
+    if (aspectMenuOpen && !aspectPicker?.contains(event.target as Node)) {
+      aspectMenuOpen = false;
     }
   }
 </script>
 
-<svelte:window on:pointerdown={closeAddMenu} />
+<svelte:window on:pointerdown={closeMenus} />
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <section
@@ -485,28 +551,62 @@
         {/if}
       </div>
       {#if variant === "hero"}
-        <label
-          class="ai-aspect-picker"
-          title="Choose the canvas before Tiffy creates your video"
-        >
-          {#if generationAspect === "16:9"}
-            <RectangleHorizontal size={15} aria-hidden="true" />
-          {:else if generationAspect === "1:1"}
-            <Square size={15} aria-hidden="true" />
-          {:else}
-            <RectangleVertical size={15} aria-hidden="true" />
-          {/if}
-          <select
-            aria-label="Video aspect ratio"
-            bind:value={generationAspect}
+        <div class="ai-aspect-picker-wrap" bind:this={aspectPicker}>
+          <button
+            class="ai-aspect-picker"
+            class:is-open={aspectMenuOpen}
+            type="button"
+            aria-label={`Video aspect ratio: ${selectedAspect.label}`}
+            aria-haspopup="listbox"
+            aria-expanded={aspectMenuOpen}
+            aria-controls="ai-aspect-options"
+            title="Choose the canvas before Tiffy creates your video"
             disabled={$generationStore.isActive}
+            bind:this={aspectButton}
+            on:click={toggleAspectMenu}
+            on:keydown={aspectButtonKeydown}
           >
-            {#each aspectOptions as option (option.value)}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
-          <ChevronDown size={13} aria-hidden="true" />
-        </label>
+            {#if generationAspect === "16:9"}
+              <RectangleHorizontal size={15} aria-hidden="true" />
+            {:else if generationAspect === "1:1"}
+              <Square size={15} aria-hidden="true" />
+            {:else}
+              <RectangleVertical size={15} aria-hidden="true" />
+            {/if}
+            <span>{selectedAspect.label}</span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          {#if aspectMenuOpen}
+            <div
+              class="ai-aspect-menu"
+              id="ai-aspect-options"
+              role="listbox"
+              aria-label="Video aspect ratio"
+            >
+              {#each aspectOptions as option, index (option.value)}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={generationAspect === option.value}
+                  class:is-selected={generationAspect === option.value}
+                  bind:this={aspectOptionButtons[index]}
+                  on:click={() => selectAspect(option.value)}
+                  on:keydown={(event) => aspectOptionKeydown(event, index)}
+                >
+                  {#if option.value === "16:9"}
+                    <RectangleHorizontal size={16} aria-hidden="true" />
+                  {:else if option.value === "1:1"}
+                    <Square size={16} aria-hidden="true" />
+                  {:else}
+                    <RectangleVertical size={16} aria-hidden="true" />
+                  {/if}
+                  <span>{option.label}</span>
+                  <i aria-hidden="true"></i>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/if}
       <button
         type="button"

@@ -93,13 +93,26 @@ describe("TiffyPanel uploads", () => {
       expect(
         document.querySelector(".ai-brand-chip")?.textContent?.trim(),
       ).toBe("Set up brand");
-      const aspect = document.querySelector<HTMLSelectElement>(
-        '[aria-label="Video aspect ratio"]',
+      const aspect = document.querySelector<HTMLButtonElement>(
+        '.ai-aspect-picker[aria-haspopup="listbox"]',
       );
-      expect(aspect?.value).toBe("16:9");
-      expect(
-        Array.from(aspect?.options ?? []).map((option) => option.value),
-      ).toEqual(["16:9", "1:1", "4:5", "9:16"]);
+      expect(aspect?.getAttribute("aria-label")).toContain("16:9");
+      aspect?.click();
+      await tick();
+      const options = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+      );
+      expect(options.map((option) => option.textContent?.trim())).toEqual([
+        "16:9 · Landscape",
+        "1:1 · Square",
+        "4:5 · Portrait",
+        "9:16 · Vertical",
+      ]);
+      expect(options.every((option) => option.querySelector("svg"))).toBe(true);
+      options[3]?.click();
+      await tick();
+      expect(aspect?.getAttribute("aria-label")).toContain("9:16");
+      expect(document.querySelector('[role="listbox"]')).toBeNull();
     } finally {
       await unmount(component);
     }
