@@ -105,6 +105,26 @@ describe("Brand DNA helpers", () => {
 });
 
 describe("ProjectsApi Brand DNA", () => {
+  it("reads a selected profile and lists the account limit", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(200, { data: { id: "brand-2" } }))
+      .mockResolvedValueOnce(
+        response(200, { data: { maxProfiles: 20, profiles: [] } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+    await expect(api.getBrand("brand-2")).resolves.toMatchObject({
+      id: "brand-2",
+    });
+    await expect(api.listBrands()).resolves.toMatchObject({ maxProfiles: 20 });
+    expect(fetchMock.mock.calls[0]?.[0]).toEqual(
+      new URL("http://localhost:4000/v1/brand?brandId=brand-2"),
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toEqual(
+      new URL("http://localhost:4000/v1/brand/profiles"),
+    );
+  });
   it("saves the document against its revision with the CSRF token", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

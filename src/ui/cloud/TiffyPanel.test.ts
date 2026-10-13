@@ -15,8 +15,9 @@ afterEach(() => {
 });
 
 describe("TiffyPanel uploads", () => {
-  it("shows the person's Brand DNA and opens it from the composer", async () => {
+  it("lets the composer choose a Brand DNA or turn it off", async () => {
     const manageBrand = vi.fn();
+    const selectBrand = vi.fn();
     const target = document.createElement("div");
     document.body.append(target);
     const component = mount(TiffyPanel, {
@@ -43,14 +44,36 @@ describe("TiffyPanel uploads", () => {
         handlePaste: async () => undefined,
         onAttach: () => undefined,
         brandName: "Acme",
+        brandProfiles: [
+          { id: "brand-1", name: "Acme", isDefault: true, updatedAt: "" },
+          { id: "brand-2", name: "Other", isDefault: false, updatedAt: "" },
+        ],
+        onSelectBrand: selectBrand,
         onManageBrand: manageBrand,
       } as never,
     });
 
     try {
       const chip = document.querySelector<HTMLButtonElement>(".ai-brand-chip");
-      expect(chip?.textContent?.trim()).toBe("Acme");
+      expect(chip?.textContent).toContain("Acme");
       chip?.click();
+      await tick();
+      const options = document.querySelectorAll<HTMLButtonElement>(
+        ".ai-brand-menu button",
+      );
+      options[0]?.click();
+      expect(selectBrand).toHaveBeenCalledWith(null);
+      chip?.click();
+      await tick();
+      document
+        .querySelectorAll<HTMLButtonElement>(".ai-brand-menu button")[2]
+        ?.click();
+      expect(selectBrand).toHaveBeenCalledWith("brand-2");
+      chip?.click();
+      await tick();
+      document
+        .querySelectorAll<HTMLButtonElement>(".ai-brand-menu button")[3]
+        ?.click();
       expect(manageBrand).toHaveBeenCalledOnce();
     } finally {
       await unmount(component);

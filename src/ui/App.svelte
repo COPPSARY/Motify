@@ -83,7 +83,10 @@
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
-  import type { BrandResource } from "../cloud/brand-dna";
+  import {
+    type BrandProfileSummary,
+    type BrandResource,
+  } from "../cloud/brand-dna";
   import type { GenerationPlanMemory } from "../ai/generation-guidance";
   import type { GenerationBasis } from "../ai/generation-basis";
   import {
@@ -329,8 +332,10 @@
   let openingTemplate: TemplateId | null = null;
   let templateCategory: TemplateCategory | "All" = "All";
   let sidebarProjects: ProjectSummary[] = [];
-  /** The signed-in person's Brand DNA. Every video they make is made with it. */
+  /** The Brand DNA used by the next generation. Null selection means off. */
   let brand: BrandResource | null = null;
+  let brandProfiles: BrandProfileSummary[] = [];
+  let selectedBrand: string | null = "default";
   let localPanelOpen = false;
   let localPanelView: "presets" | "source" | "assets" = "presets";
   let localAssets: string[] = [];
@@ -506,7 +511,7 @@
     projectStarted ||
     Boolean(cloudProject || backendGenerationProjectId);
   $: brandName =
-    brand && brand.revision > 0
+    selectedBrand !== null && brand && brand.revision > 0
       ? brand.dna.identity.name.trim() || "Your brand"
       : null;
   $: centerPage =
@@ -841,6 +846,8 @@
     cloudProject = null;
     localProjectName = "";
     backendGenerationProjectId = "";
+    selectedBrand = "default";
+    void loadBrand();
     generationAspect = DEFAULT_CANVAS.aspect;
     cloudFiles = { ...blankProjectFiles };
     cloudProjects?.startUnsaved(cloudFiles);
@@ -2336,20 +2343,61 @@
     recentsLoaded = true;
   }
 
-  /** Reads the person's Brand DNA; null for a guest or when it cannot be read. */
+  /** Refreshes the available profiles and the currently selected Brand DNA. */
   async function loadBrand(): Promise<BrandResource | null> {
     if (mode !== "cloud" || !currentUser) return null;
     try {
-      brand = await new ProjectsApi().getBrand();
+      const api = new ProjectsApi();
+      const listed = await api.listBrands();
+      brandProfiles = listed.profiles;
+      if (
+        selectedBrand &&
+        selectedBrand !== "default" &&
+        !listed.profiles.some((profile) => profile.id === selectedBrand)
+      ) {
+        selectedBrand = null;
+      }
+      brand =
+        selectedBrand === null
+          ? null
+          : await api.getBrand(
+              selectedBrand === "default" ? undefined : selectedBrand,
+            );
       return brand;
     } catch {
       return null;
     }
   }
 
+  async function selectBrand(next: string | null): Promise<void> {
+    if (next === selectedBrand || $generationStore.isActive) return;
+    const prior = selectedBrand;
+    selectedBrand = next;
+    try {
+      if (next && cloudProject) {
+        const updated = await new ProjectsApi().updateProject(cloudProject.id, {
+          revision: cloudProject.revision,
+          brandSelection: next,
+        });
+        cloudProject = updated;
+        await cloudProjects?.registerActiveProject(updated);
+      }
+      await loadBrand();
+    } catch (error) {
+      selectedBrand = prior;
+      showNotice(
+        error instanceof Error ? error.message : "Could not select Brand DNA.",
+      );
+    }
+  }
+
   /** Brand DNA belongs to the person, so its page takes no workspace. */
   function openBrandKit(): void {
-    window.open(BRAND_ROUTE, "_blank", "noopener,noreferrer");
+    const route =
+      selectedBrand && selectedBrand !== "default"
+        ? `${BRAND_ROUTE}?brandId=${encodeURIComponent(selectedBrand)}`
+        : BRAND_ROUTE;
+    window.open(route, "_blank", "noopener,noreferrer");
   }
 
   function openRecentProject(projectId: string): void {
@@ -2662,7 +2710,15 @@
     aspectRatio?: CanvasAspect,
   ): Promise<string> {
     projectStarted = true;
-    const ai = await loadGenerationPipeline();
+    // Read fresh so an edit made on the Brand DNA page is used right away. A
+    // brand that cannot be read must not block generation; the copy loaded
+    // earlier is still useful when there is one.
+    const [ai, loadedBrand] = await Promise.all([
+      loadGenerationPipeline(),
+      loadBrand(),
+    ]);
+    const generationBrand =
+      selectedBrand === null ? null : (loadedBrand ?? brand);
     const basis = assistantGenerationBasis(ai);
     const requestedCanvas = aspectRatio
       ? canvasSize(
@@ -2674,6 +2730,7 @@
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
         name: "Untitled Motionly Project",
+        ...(selectedBrand ? { brandSelection: selectedBrand } : {}),
         width: requestedCanvas?.width ?? activeComposition.width,
         height: requestedCanvas?.height ?? activeComposition.height,
         fps: activeComposition.fps,
@@ -2754,6 +2811,8 @@
       {
         backendProjectId:
           cloudProject?.id ?? (backendGenerationProjectId || undefined),
+        brandId:
+          selectedBrand === null ? null : (generationBrand?.id ?? undefined),
         ...(aspectRatio ? { aspectRatio } : {}),
         compositionHtml: currentHtml,
         timelineJs: currentJs,
@@ -3029,6 +3088,8 @@
     subscriptionChecked = true;
     maxExportHeight = FREE_MAX_HEIGHT;
     brand = null;
+    brandProfiles = [];
+    selectedBrand = "default";
     profileMenuOpen = false;
     if (!hasEditorProject) openPage("create");
     else page = null;
@@ -3642,6 +3703,11 @@
     }>,
   ): Promise<void> {
     cloudProject = event.detail.project;
+    selectedBrand =
+      cloudProject?.brandSelection === "none"
+        ? null
+        : (cloudProject?.brandSelection ?? "default");
+    void loadBrand();
     backendGenerationProjectId = cloudProject?.id ?? "";
     cloudFiles = event.detail.files;
     if (cloudProject) {
@@ -5544,6 +5610,9 @@
     title={projectTitle}
     onBack={variant === "panel" ? () => void returnHome() : null}
     {brandName}
+    {brandProfiles}
+    {selectedBrand}
+    onSelectBrand={selectBrand}
     onManageBrand={openBrandKit}
     onOpenMusic={() => openPage("music")}
     onOpenAssets={() => openPage("assets")}

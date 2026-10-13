@@ -25,6 +25,8 @@ export interface GenerationFiles {
    * browser-held provider key. The backend persists the authoritative source.
    */
   backendProjectId?: string;
+  /** Explicit null disables Brand DNA for this request. */
+  brandId?: string | null;
   /** Initial canvas chosen in the prompt composer. */
   aspectRatio?: CanvasAspect;
   compositionHtml?: string;

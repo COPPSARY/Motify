@@ -428,7 +428,7 @@ describe("ProjectsApi background message jobs", () => {
     await expect(
       new ProjectsApi("http://localhost:4000").runMotionMessage(
         "project",
-        { message: "Make a launch film" },
+        { message: "Make a launch film", brandId: null },
         noSleep,
       ),
     ).resolves.toEqual(result);
@@ -438,7 +438,7 @@ describe("ProjectsApi background message jobs", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
-        body: JSON.stringify({ message: "Make a launch film" }),
+        body: JSON.stringify({ message: "Make a launch film", brandId: null }),
       }),
     );
     expect(fetchMock).toHaveBeenLastCalledWith(

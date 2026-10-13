@@ -305,6 +305,55 @@
   font-weight: 500;
 }
 
+.code-editor-scope .ai-brand-picker {
+  position: relative;
+}
+.code-editor-scope .ai-brand-menu {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: max(210px, 100%);
+  max-width: min(320px, 85vw);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: #1d1d20;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.code-editor-scope .ai-brand-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #eee;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.code-editor-scope .ai-brand-menu button:hover,
+.code-editor-scope .ai-brand-menu button:focus-visible {
+  background: rgba(255, 255, 255, 0.09);
+}
+.code-editor-scope .ai-brand-menu button[aria-checked="true"] {
+  color: #7cf7c5;
+}
+.code-editor-scope .ai-brand-menu button span {
+  margin-left: auto;
+  color: #898993;
+  font-size: 11px;
+}
+.code-editor-scope .ai-brand-menu button:last-child {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  color: #c9c9d1;
+}
 .code-editor-scope .ai-brand-chip {
   min-width: 0;
   max-width: 190px;

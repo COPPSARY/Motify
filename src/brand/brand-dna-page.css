@@ -45,6 +45,58 @@
 }
 
 /* Top bar ----------------------------------------------------------------- */
+.bd-profiles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bd-border);
+  color: var(--bd-muted);
+  font-size: 12px;
+}
+.bd-profiles select,
+.bd-profiles input {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--bd-border-strong);
+  border-radius: 8px;
+  background: var(--bd-field);
+  color: var(--bd-text);
+  font: inherit;
+}
+.bd-profiles select {
+  min-width: 160px;
+}
+.bd-profiles form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bd-profiles button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--bd-border-strong);
+  border-radius: 8px;
+  background: var(--bd-surface);
+  color: var(--bd-text);
+  font: inherit;
+  cursor: pointer;
+}
+.bd-profiles button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.bd-profiles__limit {
+  color: var(--bd-muted);
+}
+.bd-profiles .bd-profiles__delete {
+  margin-left: auto;
+  color: var(--bd-danger);
+}
 .bd-top {
   display: grid;
   grid-template-columns: 1fr auto auto 1fr;

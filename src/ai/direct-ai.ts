@@ -329,6 +329,9 @@ async function requestBackendProject(
   let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
   try {
     result = await api.runMotionMessage(projectId, {
+      ...(currentFiles.brandId !== undefined
+        ? { brandId: currentFiles.brandId }
+        : {}),
       message: buildCloudProjectMessage(
         userPrompt,
         currentFiles.generationProfile,
