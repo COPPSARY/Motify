@@ -784,6 +784,23 @@
     padding-inline: 14px;
   }
 
+  .cloud-login-layout {
+    display: block;
+    padding: 24px 16px max(32px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  .cloud-login-copy {
+    display: none;
+  }
+
+  .cloud-login-form {
+    width: min(100%, 380px);
+    margin: 0 auto;
+    padding: 22px 18px;
+    border-radius: 14px;
+  }
+
   .cloud-project-details {
     top: 72px;
     width: 100%;

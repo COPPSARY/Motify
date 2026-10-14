@@ -40,6 +40,7 @@
     LifeBuoy,
     LogOut,
     Mail,
+    Menu,
     Maximize2,
     Minus,
     Music2,
@@ -320,6 +321,9 @@
   /** Where the My Videos page draws the project gallery. */
   let videosHost: HTMLElement | null = null;
   let profileMenuOpen = false;
+  let mobileSidebarOpen = false;
+  let mobileSidebarTrigger: HTMLButtonElement;
+  let mobileSidebarClose: HTMLButtonElement;
   let supportEmailCopied = false;
   let profileMenu: HTMLDivElement;
   let templateQuery = "";
@@ -2304,10 +2308,28 @@
 
   function openPage(next: HomePage): void {
     profileMenuOpen = false;
+    mobileSidebarOpen = false;
     // With no video open the create page is the default view.
     page = next === "create" ? null : next;
     // Inside a video a page is a picker over it, and the URL stays the video's.
     if (mode === "cloud" && !hasEditorProject) navigate(homePagePath(page));
+  }
+
+  function openMobileSidebar(): void {
+    profileMenuOpen = false;
+    mobileSidebarOpen = true;
+    void tick().then(() => {
+      window.setTimeout(() => mobileSidebarClose?.focus(), 0);
+    });
+  }
+
+  function closeMobileSidebar(): void {
+    mobileSidebarOpen = false;
+    void tick().then(() => mobileSidebarTrigger?.focus());
+  }
+
+  function handleShellKeydown(event: KeyboardEvent): void {
+    if (event.key === "Escape" && mobileSidebarOpen) closeMobileSidebar();
   }
 
   // The gallery is one instance (it also holds the open project), drawn into
@@ -2401,6 +2423,7 @@
   }
 
   function openRecentProject(projectId: string): void {
+    mobileSidebarOpen = false;
     void cloudProjects?.openProjectById(projectId);
   }
 
@@ -3904,7 +3927,10 @@
   }
 </script>
 
-<svelte:window on:pointerdown={closeProfileMenu} />
+<svelte:window
+  on:pointerdown={closeProfileMenu}
+  on:keydown={handleShellKeydown}
+/>
 
 <div
   class="app"
@@ -3930,14 +3956,33 @@
     <div class="me-motion-editor" style="--timeline-height: 218px;">
       <div class="me-workbench" class:me-no-inspector={!showInspector}>
         {#if mode === "cloud"}
-          <aside class="me-left-panel">
+          <aside
+            class="me-left-panel"
+            class:me-home-sidebar={!hasEditorProject}
+            class:me-mobile-sidebar-open={mobileSidebarOpen}
+          >
             {#if hasEditorProject}
               {@render tiffy("panel")}
             {:else}
-              <nav class="me-sidebar-home" aria-label="Motify navigation">
+              <nav
+                id="motify-navigation"
+                class="me-sidebar-home"
+                aria-label="Motify navigation"
+              >
                 <div class="me-sidebar-brand">
-                  <img src="/logo.svg" alt="" width="22" height="22" />
-                  <span>Motify</span>
+                  <span class="me-sidebar-brand-lockup">
+                    <img src="/logo.svg" alt="" width="22" height="22" />
+                    <span>Motify</span>
+                  </span>
+                  <button
+                    bind:this={mobileSidebarClose}
+                    type="button"
+                    class="me-sidebar-close"
+                    aria-label="Close navigation"
+                    on:click={() => closeMobileSidebar()}
+                  >
+                    <X size={19} />
+                  </button>
                 </div>
                 <div class="me-sidebar-primary">
                   <button
@@ -4112,6 +4157,16 @@
               </nav>
             {/if}
           </aside>
+          {#if !hasEditorProject}
+            <button
+              type="button"
+              class="me-mobile-sidebar-backdrop"
+              class:me-mobile-sidebar-open={mobileSidebarOpen}
+              aria-label="Close navigation"
+              tabindex={mobileSidebarOpen ? 0 : -1}
+              on:click={() => closeMobileSidebar()}
+            ></button>
+          {/if}
         {:else if localPanelOpen}
           <aside class="me-left-panel">
             <div class="me-brand-row">
@@ -4233,6 +4288,21 @@
           class="me-center-column"
           class:me-center-paged={centerPage !== null}
         >
+          {#if mode === "cloud" && !hasEditorProject}
+            <header class="me-mobile-header">
+              <button
+                bind:this={mobileSidebarTrigger}
+                type="button"
+                aria-label="Open navigation"
+                aria-controls="motify-navigation"
+                aria-expanded={mobileSidebarOpen}
+                on:click={openMobileSidebar}
+              >
+                <Menu size={21} />
+              </button>
+              <span>Motify</span>
+            </header>
+          {/if}
           {#if centerPage}
             <div
               class="me-page"
