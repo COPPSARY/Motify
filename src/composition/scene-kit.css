@@ -16,19 +16,21 @@
 /* ---------------------------------------------------------------- stage */
 
 .mk-stage {
-  --mk-accent: #7c6cff;
-  --mk-accent-2: #4f8cff;
+  /* Neutral placeholders: a film sets its own ground, ink, accent and font.
+     A violet default made every unbranded film the same "AI" film. */
+  --mk-accent: #a3a3a3;
+  --mk-accent-2: #737373;
   --mk-accent-ink: #ffffff;
-  --mk-glow: rgba(124, 108, 255, 0.45);
+  --mk-glow: rgba(255, 255, 255, 0.14);
   --mk-ink: rgba(255, 255, 255, 0.96);
-  --mk-ink-2: rgba(226, 232, 255, 0.68);
-  --mk-ink-3: rgba(226, 232, 255, 0.42);
+  --mk-ink-2: rgba(255, 255, 255, 0.66);
+  --mk-ink-3: rgba(255, 255, 255, 0.42);
   --mk-line: rgba(255, 255, 255, 0.1);
   --mk-line-strong: rgba(255, 255, 255, 0.18);
   --mk-fill: rgba(255, 255, 255, 0.05);
   --mk-fill-2: rgba(255, 255, 255, 0.09);
-  --mk-surface: linear-gradient(180deg, #14172e 0%, #0e1024 100%);
-  --mk-surface-flat: #111329;
+  --mk-surface: linear-gradient(180deg, #1d1d1d 0%, #171717 100%);
+  --mk-surface-flat: #1a1a1a;
   --mk-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.75);
   --mk-shadow-sm: 0 14px 40px -14px rgba(0, 0, 0, 0.6);
   --mk-success: #34d399;
@@ -39,17 +41,10 @@
   height: 1080px;
   overflow: hidden;
   isolation: isolate;
-  font-family:
-    "Inter Variable",
-    "Inter",
-    "SF Pro Display",
-    -apple-system,
-    system-ui,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--mk-font, "Inter", system-ui, sans-serif);
   color: var(--mk-ink);
   -webkit-font-smoothing: antialiased;
-  background: #070817;
+  background: #141414;
 }
 
 .mk-stage *,
@@ -210,8 +205,12 @@
  *
  * Kept to broad fields and slow travel. A visible circle parked in the frame
  * reads as a stray blob, not as light.
+ *
+ * Opt-in with `data-ambient` on the stage: the same drifting light in every
+ * film made every film look alike. Stages on a legacy `mk-theme-*` keep it, so
+ * saved projects render as they did.
  */
-.mk-stage::before {
+.mk-stage:is([data-ambient], [class*="mk-theme-"])::before {
   content: "";
   position: absolute;
   inset: -30%;
@@ -236,7 +235,7 @@
 }
 
 /* A slow band of light crossing the frame once over the film. */
-.mk-stage::after {
+.mk-stage:is([data-ambient], [class*="mk-theme-"])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1136,12 +1135,10 @@
   letter-spacing: -0.015em;
   color: var(--mk-ink);
   background:
-    linear-gradient(#0b0c1c, #0b0c1c) padding-box,
-    linear-gradient(95deg, #5b8cff, #a855f7 55%, #ec4899) border-box;
+    linear-gradient(var(--mk-surface-flat), var(--mk-surface-flat)) padding-box,
+    linear-gradient(95deg, var(--mk-accent-2), var(--mk-accent)) border-box;
   border: 2px solid transparent;
-  box-shadow:
-    0 0 50px -6px rgba(124, 108, 255, 0.55),
-    0 0 140px -10px rgba(168, 85, 247, 0.35);
+  box-shadow: var(--mk-shadow-sm);
 }
 
 .mk-theme-sky .mk-input,

@@ -1,4 +1,9 @@
-import interLatinUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import {
+  FILM_FONTS,
+  filmFontFaceCss,
+  filmFontsUsedIn,
+  type FilmFont,
+} from "./film-fonts";
 import type { FrameLayout } from "./canvas-frame";
 import type { CompositionRuntime } from "./runtime";
 
@@ -9,7 +14,7 @@ import type { CompositionRuntime } from "./runtime";
  */
 
 const embeddedImageCache = new Map<string, Promise<string>>();
-let embeddedFontCss: Promise<string> | undefined;
+const embeddedFontCss = new Map<string, Promise<string>>();
 let watermarkImage: Promise<HTMLImageElement> | undefined;
 
 const WATERMARK_URL = "/motify-watermark-smoke.png";
@@ -49,35 +54,66 @@ async function inlineImages(source: Element, clone: Element): Promise<void> {
 }
 
 /**
- * The editor's typeface, embedded for export.
+ * The bundled faces a film names, embedded for export.
  *
  * A frame is rasterized as an SVG image, and an SVG image cannot reach the
- * page's loaded fonts or fetch any of its own. The editor shows Inter because
- * `main.ts` loads it; every exported frame silently fell back to a system face
- * with different widths, so a headline that wrapped in preview sat on one line
- * in the video and the whole layout shifted. Inlining the Latin variable face
- * (48KB) as a data URL is the one form the image is allowed to use.
+ * page's loaded fonts or fetch any of its own, so every exported frame fell
+ * back to a system face with different widths: a headline that wrapped in
+ * preview sat on one line in the video. Inlining the face as a data URL is the
+ * one form the image is allowed to use. Inter is always included, as the
+ * editor's typeface and the kit's default.
  */
-function exportFontCss(): Promise<string> {
-  embeddedFontCss ??= fetch(interLatinUrl)
-    .then((response) => {
-      if (!response.ok) throw new Error("Inter could not be embedded.");
-      return response.blob();
-    })
-    .then(blobAsDataUrl)
-    // Registered under both names: fontsource calls the face "Inter Variable",
-    // while generated films routinely ask for plain "Inter".
-    .then((url) =>
-      ["Inter Variable", "Inter"]
-        .map(
-          (family) =>
-            `@font-face{font-family:"${family}";font-style:normal;font-display:block;font-weight:100 900;src:url(${url}) format("woff2");}`,
-        )
-        .join(""),
-    )
-    // A missing face degrades to the system font, exactly as before.
-    .catch(() => "");
-  return embeddedFontCss;
+function embeddedFilmFont(font: FilmFont): Promise<string> {
+  let css = embeddedFontCss.get(font.family);
+  if (!css) {
+    css = embeddedImageDataUrl(font.url)
+      .then((url) => filmFontFaceCss([font], () => url))
+      // A missing face degrades to the system font, exactly as before.
+      .catch(() => "");
+    embeddedFontCss.set(font.family, css);
+  }
+  return css;
+}
+
+export async function exportFontCss(source: string): Promise<string> {
+  const used = filmFontsUsedIn(source);
+  const fonts = used.some((font) => font.family === "Inter")
+    ? used
+    : [FILM_FONTS[0]!, ...used];
+  return (await Promise.all(fonts.map(embeddedFilmFont))).join("");
+}
+
+const BUNDLED_FONT_URLS = new Set(FILM_FONTS.map((font) => font.url));
+
+/**
+ * A brand's own `@font-face` files, inlined into the clone's styles. Like the
+ * bundled faces, a url() the SVG image would have to fetch never loads.
+ */
+export async function inlineFontFaces(clone: Element): Promise<void> {
+  await Promise.all(
+    Array.from(clone.querySelectorAll("style")).map(async (style) => {
+      const css = style.textContent ?? "";
+      if (!css.includes("@font-face")) return;
+      const urls = new Set<string>();
+      for (const face of css.match(/@font-face\s*{[^}]*}/g) ?? []) {
+        for (const match of face.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)) {
+          const url = match[2]!;
+          if (!url.startsWith("data:") && !BUNDLED_FONT_URLS.has(url))
+            urls.add(url);
+        }
+      }
+      if (urls.size === 0) return;
+      let inlined = css;
+      for (const url of urls) {
+        try {
+          inlined = inlined.split(url).join(await embeddedImageDataUrl(url));
+        } catch {
+          // An unreachable font file degrades to the fallback family.
+        }
+      }
+      style.textContent = inlined;
+    }),
+  );
 }
 
 async function imageFromSvg(svg: string): Promise<HTMLImageElement> {
@@ -119,7 +155,8 @@ export async function renderAuthoredFrame(
   clone
     .querySelectorAll("[data-motify-watermark]")
     .forEach((node) => node.remove());
-  const fontCss = await exportFontCss();
+  await inlineFontFaces(clone);
+  const fontCss = await exportFontCss(clone.outerHTML);
   if (fontCss) {
     const fontStyle = document.createElement("style");
     fontStyle.textContent = fontCss;

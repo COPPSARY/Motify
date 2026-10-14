@@ -121,7 +121,9 @@ describe("scene kit", () => {
       runtime.destroy();
       root.remove();
     }
-    expect(SCENE_KIT_CSS).toMatch(/\.mk-stage::before \{[^}]*var\(--mk-t/);
+    expect(SCENE_KIT_CSS).toMatch(
+      /\.mk-stage:is\(\[data-ambient\], \[class\*="mk-theme-"\]\)::before \{[^}]*var\(--mk-t/,
+    );
   });
 
   /**

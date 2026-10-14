@@ -1,4 +1,4 @@
-import interLatinUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import { FILM_FONTS, filmFontFaceCss } from "./film-fonts";
 import SCENE_KIT_CSS from "./scene-kit.css?raw";
 
 /**
@@ -113,12 +113,10 @@ export function mountSceneKit(root: HTMLElement): void {
   const style = document.createElement("style");
   style.dataset["motionlyKit"] = "";
   style.style.display = "none";
-  // Generated films routinely ask for plain "Inter", which fontsource never
-  // registers — it names the face "Inter Variable" — so that request fell
-  // through to Arial. The exporter embeds its own copy under both names.
-  style.textContent =
-    `@font-face{font-family:"Inter";font-style:normal;font-display:block;font-weight:100 900;src:url(${interLatinUrl}) format("woff2");}` +
-    SCENE_KIT_CSS;
+  // Every bundled family, under its plain name and fontsource's "<Name>
+  // Variable". A face is only downloaded once something uses it. The exporter
+  // embeds its own copies of the faces a film names.
+  style.textContent = filmFontFaceCss(FILM_FONTS) + SCENE_KIT_CSS;
   const holder = document.createElement("div");
   holder.innerHTML = SCENE_KIT_SPRITE;
   const sprite = holder.firstElementChild;
