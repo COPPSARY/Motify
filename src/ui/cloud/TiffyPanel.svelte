@@ -21,7 +21,11 @@
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
   import VersionsPanel from "./VersionsPanel.svelte";
-  import type { AudioTrack, ProjectsApi } from "../../cloud/projects-api";
+  import type {
+    AudioTrack,
+    GenerationEffort,
+    ProjectsApi,
+  } from "../../cloud/projects-api";
   import { estimateMessageCredits, formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
@@ -80,6 +84,10 @@
   export let variant: "panel" | "hero" = "panel";
   /** Canvas for the first generation; existing videos keep their saved size. */
   export let generationAspect: CanvasAspect = "16:9";
+  /** Reasoning depth sent with every cloud generation. */
+  export let generationEffort: GenerationEffort = "medium";
+  /** Long prompts get a time expectation while the run is active. */
+  export let longGeneration = false;
   /** The open video's name, shown in the panel header. */
   export let title = "";
   /** Leaves the video for the home page; the header shows a back button when set. */
@@ -112,11 +120,14 @@
   let addMenuOpen = false;
   let addMenu: HTMLDivElement;
   let aspectMenuOpen = false;
+  let effortMenuOpen = false;
   let brandMenuOpen = false;
   let brandPicker: HTMLDivElement;
   let brandButton: HTMLButtonElement;
   let aspectPicker: HTMLDivElement;
   let aspectButton: HTMLButtonElement;
+  let effortPicker: HTMLDivElement;
+  let effortButton: HTMLButtonElement;
   let aspectOptionButtons: HTMLButtonElement[] = [];
   $: hasLibraries = Boolean(onOpenMusic || onOpenAssets);
   $: accepting = !$generationStore.isActive && !uploadingMedia;
@@ -147,6 +158,36 @@
     { value: "4:5", label: "4:5 · Portrait" },
     { value: "9:16", label: "9:16 · Vertical" },
   ];
+  const mediumEffortOption: {
+    value: GenerationEffort;
+    label: string;
+    description: string;
+  } = {
+    value: "medium",
+    label: "Medium",
+    description: "Balanced quality and wait time",
+  };
+  const effortOptions: readonly (typeof mediumEffortOption)[] = [
+    mediumEffortOption,
+    {
+      value: "high",
+      label: "High",
+      description: "More thorough and usually slower",
+    },
+  ];
+  const activitySteps = [
+    "Reading your brief",
+    "Planning the scene flow",
+    "Building the motion",
+    "Checking the result",
+  ] as const;
+  $: activityStepIndex = Math.max(
+    0,
+    activitySteps.findIndex((step) => step === activityVerb),
+  );
+  $: selectedEffort =
+    effortOptions.find((option) => option.value === generationEffort) ??
+    mediumEffortOption;
   $: selectedAspect = aspectOptions.find(
     (option) => option.value === generationAspect,
   ) ?? { value: "16:9", label: "16:9 · Landscape" };
@@ -186,6 +227,7 @@
     if (hasLibraries) {
       addMenuOpen = !addMenuOpen;
       aspectMenuOpen = false;
+      effortMenuOpen = false;
     } else onAttach();
   }
 
@@ -198,6 +240,7 @@
     if ($generationStore.isActive) return;
     aspectMenuOpen = true;
     addMenuOpen = false;
+    effortMenuOpen = false;
     if (focusIndex === undefined) return;
     await tick();
     aspectOptionButtons[focusIndex]?.focus();
@@ -212,6 +255,12 @@
     generationAspect = value;
     aspectMenuOpen = false;
     aspectButton?.focus();
+  }
+
+  function selectEffort(value: GenerationEffort): void {
+    generationEffort = value;
+    effortMenuOpen = false;
+    effortButton?.focus();
   }
 
   function aspectButtonKeydown(event: KeyboardEvent): void {
@@ -253,6 +302,9 @@
     }
     if (aspectMenuOpen && !aspectPicker?.contains(event.target as Node)) {
       aspectMenuOpen = false;
+    }
+    if (effortMenuOpen && !effortPicker?.contains(event.target as Node)) {
+      effortMenuOpen = false;
     }
     if (brandMenuOpen && !brandPicker?.contains(event.target as Node))
       brandMenuOpen = false;
@@ -310,18 +362,6 @@
           ><History size={16} /></button
         >
       {/if}
-      <span
-        class="ai-chat-state"
-        class:is-busy={$generationStore.isActive}
-        aria-label={$generationStore.isActive
-          ? "Tiffy is working"
-          : "Tiffy is ready"}
-        title={$generationStore.isActive ? "Working" : "Ready"}
-      >
-        <span class="sr-only"
-          >{$generationStore.isActive ? "Working" : "Ready"}</span
-        >
-      </span>
     </header>
   {/if}
   {#if variant === "panel" && versionsOpen && versions}
@@ -408,9 +448,28 @@
         </div>
       {/each}
       {#if $generationStore.isActive}
-        <div class="ai-chat-activity" aria-live="polite">
-          <span class="ai-chat-activity-dot"></span>{activityVerb}…
-        </div>
+        <details class="ai-chat-activity" open>
+          <summary aria-live="polite">
+            <span class="ai-chat-activity-spinner" aria-hidden="true"></span>
+            <span>{activityVerb}…</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </summary>
+          {#if longGeneration}
+            <p>
+              This may take a few minutes. You can check back when it’s done.
+            </p>
+          {/if}
+          <ol aria-label="Generation progress">
+            {#each activitySteps as step, index}
+              <li
+                class:is-complete={index < activityStepIndex}
+                class:is-active={index === activityStepIndex}
+              >
+                <span aria-hidden="true"></span>{step}
+              </li>
+            {/each}
+          </ol>
+        </details>
       {/if}
     </div>
   {/if}
@@ -619,6 +678,49 @@
           {/if}
         </div>
       {/if}
+      <div class="ai-effort-picker-wrap" bind:this={effortPicker}>
+        <button
+          class="ai-effort-picker"
+          class:is-open={effortMenuOpen}
+          type="button"
+          aria-label={`Reasoning effort: ${selectedEffort.label}`}
+          aria-haspopup="menu"
+          aria-expanded={effortMenuOpen}
+          title="Choose how thoroughly Tiffy reasons before building"
+          disabled={$generationStore.isActive}
+          bind:this={effortButton}
+          on:click={() => {
+            effortMenuOpen = !effortMenuOpen;
+            aspectMenuOpen = false;
+            brandMenuOpen = false;
+            addMenuOpen = false;
+          }}
+          on:keydown={(event) => {
+            if (event.key === "Escape") effortMenuOpen = false;
+          }}
+        >
+          <span>Effort: {selectedEffort.label}</span>
+          <ChevronDown size={12} aria-hidden="true" />
+        </button>
+        {#if effortMenuOpen}
+          <div class="ai-effort-menu" role="menu" aria-label="Reasoning effort">
+            {#each effortOptions as option (option.value)}
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={generationEffort === option.value}
+                on:click={() => selectEffort(option.value)}
+              >
+                <span
+                  ><strong>{option.label}</strong><small
+                    >{option.description}</small
+                  ></span
+                >
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       <div class="ai-brand-picker" bind:this={brandPicker}>
         <button
           type="button"
@@ -633,6 +735,7 @@
           on:click={() => {
             brandMenuOpen = !brandMenuOpen;
             aspectMenuOpen = false;
+            effortMenuOpen = false;
             addMenuOpen = false;
           }}
           on:keydown={(event) => {
@@ -719,10 +822,12 @@
       </div>
       <button
         class="ai-composer-send"
-        class:is-generate={showCost}
+        class:has-cost={showCost}
         aria-label={insufficientCredits
           ? "Send message to Tiffy (not enough credits)"
-          : "Send message to Tiffy"}
+          : showCost
+            ? `Send message to Tiffy, about ${formatCredits(estimatedCredits)} credits`
+            : "Send message to Tiffy"}
         title={showCost
           ? `Uses about ${formatCredits(estimatedCredits)} credits`
           : undefined}
@@ -733,15 +838,10 @@
         type="submit"
       >
         {#if showCost}
-          <span>Generate</span>
-          <span class="ai-send-cost"
-            ><Coins size={13} aria-hidden="true" />{formatCredits(
-              estimatedCredits,
-            )}</span
-          >
-        {:else}
-          <ArrowUp size={17} />
+          <Coins size={12} aria-hidden="true" />
+          <span class="ai-send-cost">{formatCredits(estimatedCredits)}</span>
         {/if}
+        <ArrowUp size={17} aria-hidden="true" />
       </button>
     </div>
   </form>

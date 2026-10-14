@@ -8,10 +8,76 @@ vi.mock("../../api/credits", async (importOriginal) => ({
 }));
 
 import { refreshCredits, resetCredits } from "../../stores/credits";
+import { generationStore } from "../../stores/generation";
 import TiffyPanel from "./TiffyPanel.svelte";
 
 afterEach(() => {
   document.body.replaceChildren();
+  generationStore.set({
+    isActive: false,
+    status: "IDLE",
+    stage: "IDLE",
+    progress: 0,
+    message: "",
+  });
+});
+
+describe("TiffyPanel generation controls", () => {
+  it("defaults effort to Medium and lets the user choose High", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps(),
+    });
+
+    try {
+      const trigger = must<HTMLButtonElement>(".ai-effort-picker");
+      expect(trigger.textContent).toContain("Effort: Medium");
+      trigger.click();
+      await tick();
+      document
+        .querySelectorAll<HTMLButtonElement>(".ai-effort-menu button")[1]
+        ?.click();
+      await tick();
+      expect(trigger.textContent).toContain("Effort: High");
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("shows progress only in the temporary run card", async () => {
+    generationStore.set({
+      isActive: true,
+      status: "GENERATING",
+      stage: "GENERATING",
+      progress: 20,
+      message: "Tiffy is reading your prompt...",
+    });
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        activityVerb: "Reading your brief",
+        longGeneration: true,
+        assistantMessages: [{ role: "user", text: "Make a film" }],
+      }),
+    });
+
+    try {
+      expect(document.querySelector(".ai-chat-activity")).not.toBeNull();
+      expect(document.body.textContent).toContain(
+        "This may take a few minutes",
+      );
+      expect(document.body.textContent).not.toContain(
+        "Tiffy is reading your prompt",
+      );
+      expect(document.querySelector(".ai-chat-state")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
 });
 
 describe("TiffyPanel uploads", () => {
@@ -506,7 +572,7 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("turns send into Generate with what the message typically costs", async () => {
+  it("shows the cost compactly inside the arrow send button", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -522,7 +588,7 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       const send = must<HTMLButtonElement>(".ai-composer-send");
-      expect(send.textContent?.replace(/\s+/g, " ").trim()).toBe("Generate 5");
+      expect(send.textContent?.trim()).toBe("5");
       expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
       expect(send.disabled).toBe(false);

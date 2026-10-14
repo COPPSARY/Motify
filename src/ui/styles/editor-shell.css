@@ -157,28 +157,104 @@
 }
 
 .code-editor-scope .ai-chat-activity {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  align-self: flex-start;
-  color: #8fa8d8;
-  font-size: 11px;
-  line-height: 1.4;
+  align-self: stretch;
+  overflow: hidden;
+  border: 1px solid #30333a;
+  border-radius: 10px;
+  background: #17191d;
+  color: #aeb4bf;
+  font-size: 12px;
 }
 
-.code-editor-scope .ai-chat-activity-dot {
+.code-editor-scope .ai-chat-activity summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 11px;
+  color: #e6e8ec;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.code-editor-scope .ai-chat-activity summary::-webkit-details-marker {
+  display: none;
+}
+
+.code-editor-scope .ai-chat-activity summary > svg {
+  transition: transform 160ms ease;
+}
+
+.code-editor-scope .ai-chat-activity[open] summary > svg {
+  transform: rotate(180deg);
+}
+
+.code-editor-scope .ai-chat-activity-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #39414c;
+  border-top-color: #78a8ff;
+  border-radius: 50%;
+  animation: ai-chat-activity-spin 800ms linear infinite;
+}
+
+.code-editor-scope .ai-chat-activity p {
+  margin: 0;
+  padding: 0 11px 9px 31px;
+  color: #858c98;
+  line-height: 1.45;
+}
+
+.code-editor-scope .ai-chat-activity ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 11px 12px 31px;
+  list-style: none;
+}
+
+.code-editor-scope .ai-chat-activity li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #686f79;
+}
+
+.code-editor-scope .ai-chat-activity li > span {
   width: 6px;
   height: 6px;
+  border: 1px solid currentColor;
   border-radius: 50%;
-  background: #78a8ff;
-  box-shadow: 0 0 0 4px rgba(120, 168, 255, 0.12);
-  animation: ai-chat-activity-pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes ai-chat-activity-pulse {
-  50% {
-    opacity: 0.35;
-    transform: scale(0.72);
+.code-editor-scope .ai-chat-activity li.is-complete {
+  color: #9098a4;
+}
+
+.code-editor-scope .ai-chat-activity li.is-complete > span {
+  border-color: #78a8ff;
+  background: #78a8ff;
+}
+
+.code-editor-scope .ai-chat-activity li.is-active {
+  color: #e6e8ec;
+}
+
+.code-editor-scope .ai-chat-activity li.is-active > span {
+  border-color: #78a8ff;
+  box-shadow: 0 0 0 3px rgba(120, 168, 255, 0.13);
+}
+
+@keyframes ai-chat-activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .ai-chat-activity-spinner {
+    animation: none;
   }
 }
 

@@ -9,6 +9,12 @@ import {
   type ExportQuality,
   type ExportRange,
 } from "./export-options";
+import {
+  encodeExportAudio,
+  exportAudioTracks,
+  mixExportAudio,
+  type EncodedExportAudio,
+} from "./export-audio";
 import { renderCompositionFrame } from "./frame-render";
 import type { CompositionRuntime } from "./runtime";
 
@@ -242,19 +248,72 @@ export async function exportVideo(
       };
   }
 
+  // The film's sound, mixed and encoded before the muxer exists, since the
+  // muxer is told its tracks up front. A film with no sound, or a browser that
+  // cannot encode audio, exports video alone.
+  options.onProgress?.(0, "Preparing audio...", undefined);
+  let audio: EncodedExportAudio | null = null;
+  try {
+    const mix = await mixExportAudio(
+      exportAudioTracks(runtime.root),
+      range,
+      speed,
+    );
+    if (mix) audio = await encodeExportAudio(mix, format);
+  } catch (error) {
+    console.warn("Export continues without audio.", error);
+    audio = null;
+  }
+  if (signal?.aborted) throw new ExportCancelledError();
+
   let addChunk: (
     chunk: EncodedVideoChunk,
     metadata?: EncodedVideoChunkMetadata,
   ) => void;
   let finalize: () => Blob;
+  // Audio goes in alongside the video, never ahead of it, so each muxer sees
+  // both tracks in time order.
+  const pendingAudio = audio ? [...audio.chunks] : [];
+  const addAudioUpTo = (
+    timestamp: number,
+    add: (
+      chunk: EncodedAudioChunk,
+      metadata?: EncodedAudioChunkMetadata,
+    ) => void,
+  ) => {
+    while (
+      pendingAudio.length > 0 &&
+      pendingAudio[0]!.chunk.timestamp <= timestamp
+    ) {
+      const next = pendingAudio.shift()!;
+      add(next.chunk, next.metadata);
+    }
+  };
   if (format === "webm") {
     const target = new WebmArrayBufferTarget();
     const muxer = new WebmMuxer({
       target,
       video: { codec: webmCodec, width, height, frameRate: fps },
+      ...(audio
+        ? {
+            audio: {
+              codec: audio.muxerCodec,
+              numberOfChannels: audio.numberOfChannels,
+              sampleRate: audio.sampleRate,
+            },
+          }
+        : {}),
     });
-    addChunk = (chunk, metadata) => muxer.addVideoChunk(chunk, metadata);
+    const addAudio = (
+      chunk: EncodedAudioChunk,
+      metadata?: EncodedAudioChunkMetadata,
+    ) => muxer.addAudioChunk(chunk, metadata);
+    addChunk = (chunk, metadata) => {
+      addAudioUpTo(chunk.timestamp, addAudio);
+      muxer.addVideoChunk(chunk, metadata);
+    };
     finalize = () => {
+      addAudioUpTo(Number.POSITIVE_INFINITY, addAudio);
       muxer.finalize();
       return new Blob([target.buffer], { type: "video/webm" });
     };
@@ -263,10 +322,27 @@ export async function exportVideo(
     const muxer = new Muxer({
       target,
       video: { codec: "avc", width, height, frameRate: fps },
+      ...(audio
+        ? {
+            audio: {
+              codec: audio.muxerCodec as "aac" | "opus",
+              numberOfChannels: audio.numberOfChannels,
+              sampleRate: audio.sampleRate,
+            },
+          }
+        : {}),
       fastStart: "in-memory",
     });
-    addChunk = (chunk, metadata) => muxer.addVideoChunk(chunk, metadata);
+    const addAudio = (
+      chunk: EncodedAudioChunk,
+      metadata?: EncodedAudioChunkMetadata,
+    ) => muxer.addAudioChunk(chunk, metadata);
+    addChunk = (chunk, metadata) => {
+      addAudioUpTo(chunk.timestamp, addAudio);
+      muxer.addVideoChunk(chunk, metadata);
+    };
     finalize = () => {
+      addAudioUpTo(Number.POSITIVE_INFINITY, addAudio);
       muxer.finalize();
       return new Blob([target.buffer], { type: "video/mp4" });
     };

@@ -1,5 +1,11 @@
-import interLatinUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import {
+  FILM_FONTS,
+  filmFontFaceCss,
+  filmFontsUsedIn,
+  type FilmFont,
+} from "./film-fonts";
 import type { FrameLayout } from "./canvas-frame";
+import { rawFilmDocument } from "./raw-film";
 import type { CompositionRuntime } from "./runtime";
 
 /**
@@ -9,19 +15,19 @@ import type { CompositionRuntime } from "./runtime";
  */
 
 const embeddedImageCache = new Map<string, Promise<string>>();
-let embeddedFontCss: Promise<string> | undefined;
+const embeddedFontCss = new Map<string, Promise<string>>();
 let watermarkImage: Promise<HTMLImageElement> | undefined;
 
 const WATERMARK_URL = "/motify-watermark-smoke.png";
 
 async function blobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("Could not embed an image."));
-    reader.readAsDataURL(blob);
-  });
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
 }
 function embeddedImageDataUrl(url: string): Promise<string> {
   let embeddedImage = embeddedImageCache.get(url);
@@ -49,35 +55,66 @@ async function inlineImages(source: Element, clone: Element): Promise<void> {
 }
 
 /**
- * The editor's typeface, embedded for export.
+ * The bundled faces a film names, embedded for export.
  *
  * A frame is rasterized as an SVG image, and an SVG image cannot reach the
- * page's loaded fonts or fetch any of its own. The editor shows Inter because
- * `main.ts` loads it; every exported frame silently fell back to a system face
- * with different widths, so a headline that wrapped in preview sat on one line
- * in the video and the whole layout shifted. Inlining the Latin variable face
- * (48KB) as a data URL is the one form the image is allowed to use.
+ * page's loaded fonts or fetch any of its own, so every exported frame fell
+ * back to a system face with different widths: a headline that wrapped in
+ * preview sat on one line in the video. Inlining the face as a data URL is the
+ * one form the image is allowed to use. Inter is always included, as the
+ * editor's typeface and the kit's default.
  */
-function exportFontCss(): Promise<string> {
-  embeddedFontCss ??= fetch(interLatinUrl)
-    .then((response) => {
-      if (!response.ok) throw new Error("Inter could not be embedded.");
-      return response.blob();
-    })
-    .then(blobAsDataUrl)
-    // Registered under both names: fontsource calls the face "Inter Variable",
-    // while generated films routinely ask for plain "Inter".
-    .then((url) =>
-      ["Inter Variable", "Inter"]
-        .map(
-          (family) =>
-            `@font-face{font-family:"${family}";font-style:normal;font-display:block;font-weight:100 900;src:url(${url}) format("woff2");}`,
-        )
-        .join(""),
-    )
-    // A missing face degrades to the system font, exactly as before.
-    .catch(() => "");
-  return embeddedFontCss;
+function embeddedFilmFont(font: FilmFont): Promise<string> {
+  let css = embeddedFontCss.get(font.family);
+  if (!css) {
+    css = embeddedImageDataUrl(font.url)
+      .then((url) => filmFontFaceCss([font], () => url))
+      // A missing face degrades to the system font, exactly as before.
+      .catch(() => "");
+    embeddedFontCss.set(font.family, css);
+  }
+  return css;
+}
+
+export async function exportFontCss(source: string): Promise<string> {
+  const used = filmFontsUsedIn(source);
+  const fonts = used.some((font) => font.family === "Inter")
+    ? used
+    : [FILM_FONTS[0]!, ...used];
+  return (await Promise.all(fonts.map(embeddedFilmFont))).join("");
+}
+
+const BUNDLED_FONT_URLS = new Set(FILM_FONTS.map((font) => font.url));
+
+/**
+ * A brand's own `@font-face` files, inlined into the clone's styles. Like the
+ * bundled faces, a url() the SVG image would have to fetch never loads.
+ */
+export async function inlineFontFaces(clone: Element): Promise<void> {
+  await Promise.all(
+    Array.from(clone.querySelectorAll("style")).map(async (style) => {
+      const css = style.textContent ?? "";
+      if (!css.includes("@font-face")) return;
+      const urls = new Set<string>();
+      for (const face of css.match(/@font-face\s*{[^}]*}/g) ?? []) {
+        for (const match of face.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)) {
+          const url = match[2]!;
+          if (!url.startsWith("data:") && !BUNDLED_FONT_URLS.has(url))
+            urls.add(url);
+        }
+      }
+      if (urls.size === 0) return;
+      let inlined = css;
+      for (const url of urls) {
+        try {
+          inlined = inlined.split(url).join(await embeddedImageDataUrl(url));
+        } catch {
+          // An unreachable font file degrades to the fallback family.
+        }
+      }
+      style.textContent = inlined;
+    }),
+  );
 }
 
 async function imageFromSvg(svg: string): Promise<HTMLImageElement> {
@@ -106,6 +143,72 @@ function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return context;
 }
 
+/**
+ * Each <canvas> in `clone` replaced by an image of its counterpart in
+ * `source` as drawn right now. A cloned canvas is blank, and an SVG image
+ * cannot draw one anyway, so without this every canvas exports empty. A
+ * WebGL canvas only keeps its pixels with `preserveDrawingBuffer`.
+ */
+export function snapshotCanvases(source: ParentNode, clone: ParentNode): void {
+  const sources = Array.from(source.querySelectorAll("canvas"));
+  const targets = Array.from(clone.querySelectorAll("canvas"));
+  sources.forEach((canvas, index) => {
+    const target = targets[index];
+    if (!target) return;
+    let url: string;
+    try {
+      url = canvas.toDataURL("image/png");
+    } catch {
+      // A canvas tainted by a cross-origin image cannot be read; leave it.
+      return;
+    }
+    const image = target.ownerDocument.createElement("img");
+    for (const attribute of Array.from(target.attributes))
+      image.setAttribute(attribute.name, attribute.value);
+    image.setAttribute("src", url);
+    // The laid-out size, not the backing store's pixel size.
+    image.style.width = `${canvas.clientWidth || canvas.width}px`;
+    image.style.height = `${canvas.clientHeight || canvas.height}px`;
+    target.replaceWith(image);
+  });
+}
+
+/**
+ * A raw film's frame: its whole document, as the iframe shows it now, drawn
+ * through the same SVG image as any other film, so it exports what preview
+ * shows. Scripts and audio are left out; images, canvases and fonts are inlined.
+ */
+async function renderRawFrame(
+  doc: Document,
+  width: number,
+  height: number,
+  scale: number,
+): Promise<HTMLCanvasElement> {
+  const live = doc.documentElement;
+  const clone = live.cloneNode(true) as HTMLElement;
+  // Images pair up by position, so they are inlined before canvases become images.
+  await inlineImages(live, clone);
+  snapshotCanvases(live, clone);
+  clone
+    .querySelectorAll("script, audio, noscript, style[data-motify-fonts]")
+    .forEach((node) => node.remove());
+  await inlineFontFaces(clone);
+  const fontCss = await exportFontCss(live.outerHTML);
+  if (fontCss) {
+    const fontStyle = doc.createElement("style");
+    fontStyle.textContent = fontCss;
+    (clone.querySelector("head") ?? clone).append(fontStyle);
+  }
+  const serialized = new XMLSerializer().serializeToString(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+  const image = await imageFromSvg(svg);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  context2d(canvas).drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 /** The film exactly as authored, at `scale` times its authored size. */
 export async function renderAuthoredFrame(
   runtime: CompositionRuntime,
@@ -113,13 +216,18 @@ export async function renderAuthoredFrame(
 ): Promise<HTMLCanvasElement> {
   // An adaptive film is mounted at the canvas size rather than its authored one.
   const { width, height } = runtime.mountedSize;
+  const rawDocument = rawFilmDocument(runtime.root);
+  if (rawDocument) return renderRawFrame(rawDocument, width, height, scale);
   const clone = runtime.root.cloneNode(true) as HTMLElement;
+  // Images pair up by position, so they are inlined before canvases become images.
   await inlineImages(runtime.root, clone);
+  snapshotCanvases(runtime.root, clone);
   // The preview's watermark sits on the canvas, not in the film.
   clone
     .querySelectorAll("[data-motify-watermark]")
     .forEach((node) => node.remove());
-  const fontCss = await exportFontCss();
+  await inlineFontFaces(clone);
+  const fontCss = await exportFontCss(clone.outerHTML);
   if (fontCss) {
     const fontStyle = document.createElement("style");
     fontStyle.textContent = fontCss;

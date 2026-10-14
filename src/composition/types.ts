@@ -51,6 +51,11 @@ export interface CompositionDefinition {
    * scaled or cropped into it.
    */
   adaptive?: boolean;
+  /**
+   * One HTML document drawn by its own `window.seek` (see raw-film.ts). It has
+   * no editable layers, so the editor shows no Design panel for it.
+   */
+  rawFilm?: boolean;
   build(context: CompositionContext): void;
 }
 

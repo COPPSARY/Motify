@@ -7,6 +7,7 @@ import {
   isVisiblyRendered,
   visibleElements,
 } from "../composition/frame-subjects";
+import { isRawFilm } from "../composition/raw-film-marker";
 import type { SceneDefinition } from "../composition/types";
 import { seamsFromResult, type SeamDirection } from "./seam-plan";
 import type { DirectAiResult } from "./direct-ai";
@@ -1660,6 +1661,23 @@ export function validateGeneratedComposition(
     lenient?: boolean;
   },
 ): ValidatedGeneration {
+  // A raw film has no layers or tweens to judge here: the backend checked it and
+  // rendered its frames before saving, so it mounts as it came.
+  if (isRawFilm(result.timelineJs)) {
+    const duration = result.duration ?? options.previousDuration;
+    const scenes: SceneDefinition[] = result.scenes?.length
+      ? result.scenes.map((scene) => ({ ...scene }))
+      : [
+          {
+            id: "scene-01",
+            label: "Film",
+            start: 0,
+            duration,
+            accent: "#6366f1",
+          },
+        ];
+    return { result, duration, scenes, warnings: [] };
+  }
   const allowStructuralChange =
     options.generationProfile === "claude-foundation-v1" ||
     STRUCTURAL_REQUEST.test(options.prompt);
