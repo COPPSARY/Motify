@@ -2,7 +2,7 @@ import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
-import { PRICING_URL } from "../api/config";
+import { PRICING_URL, TEMPLATES_URL } from "../api/config";
 import { saveProjectDraft } from "../stores/project-drafts";
 
 function json(data: unknown) {
@@ -99,11 +99,14 @@ describe("App project actions", () => {
         document.querySelector(".me-sidebar-upgrade")?.getAttribute("href"),
       ).toBe(PRICING_URL);
 
-      const nav = (label: string) =>
+      expect(
         Array.from(
-          document.querySelectorAll<HTMLButtonElement>(".me-sidebar-link"),
-        ).find((button) => button.textContent?.trim() === label);
-      nav("Templates")?.click();
+          document.querySelectorAll<HTMLAnchorElement>(".me-sidebar-link"),
+        ).find((link) => link.textContent?.trim() === "Templates")?.href,
+      ).toBe(TEMPLATES_URL);
+
+      window.history.pushState({}, "", "/templates");
+      window.dispatchEvent(new PopStateEvent("popstate"));
       await tick();
       expect(document.querySelector(".me-template-grid")).not.toBeNull();
       expect(window.location.pathname).toBe("/templates");

@@ -13,7 +13,12 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
-  import { MOTIFY_SITE_URL, motifySiteHref, PRICING_URL } from "../api/config";
+  import {
+    MOTIFY_SITE_URL,
+    motifySiteHref,
+    PRICING_URL,
+    TEMPLATES_URL,
+  } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -4056,16 +4061,9 @@
                   >
                     <LayoutGrid size={16} /><span>My Videos</span>
                   </button>
-                  <button
-                    class="me-sidebar-link"
-                    class:me-active={centerPage === "templates"}
-                    aria-current={centerPage === "templates"
-                      ? "page"
-                      : undefined}
-                    on:click={() => openPage("templates")}
-                  >
+                  <a class="me-sidebar-link" href={TEMPLATES_URL}>
                     <FolderOpen size={16} /><span>Templates</span>
-                  </button>
+                  </a>
                   <a class="me-sidebar-link" href={BRAND_ROUTE}>
                     <Dna size={16} /><span>Brand Kit</span>
                   </a>
