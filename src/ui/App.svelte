@@ -13,7 +13,7 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
-  import { motifySiteHref, PRICING_URL } from "../api/config";
+  import { MOTIFY_SITE_URL, motifySiteHref, PRICING_URL } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -107,6 +107,8 @@
     saveTour,
     startingTour,
     stepsFor,
+    isNewAccountLanding,
+    welcomeUrl,
     type TourState,
   } from "../onboarding/tour";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
@@ -566,6 +568,15 @@
           sessionStorage.getItem("motionly_pending_prompt") ||
           ""
         : "";
+    // A brand-new account goes through the site's onboarding first, before
+    // anything here starts (including a held prompt, which travels along).
+    if (mode === "cloud" && isNewAccountLanding(url.searchParams)) {
+      sessionStorage.removeItem("motionly_pending_prompt");
+      window.location.replace(
+        welcomeUrl(pendingLandingPrompt, MOTIFY_SITE_URL),
+      );
+      return;
+    }
     if (pendingLandingPrompt) {
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
       sessionStorage.setItem(PENDING_ASPECT_KEY, generationAspect);

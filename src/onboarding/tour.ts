@@ -164,3 +164,20 @@ export function startingTour(
   saveTour(storage, state);
   return state;
 }
+
+/**
+ * Onboarding lives on the site's /welcome. A sign-up that started in the app
+ * (flagged by the API with `newAccount`) is sent there first, keeping any
+ * prompt they had typed; /welcome then hands them back with the tour.
+ */
+export function isNewAccountLanding(params: URLSearchParams): boolean {
+  return params.get("newAccount") === "1";
+}
+
+export function welcomeUrl(pendingPrompt: string, siteUrl: string): string {
+  const prompt = pendingPrompt.trim();
+  const returnUrl = prompt
+    ? `/editor?prompt=${encodeURIComponent(prompt)}`
+    : "/editor";
+  return `${siteUrl.replace(/\/+$/, "")}/welcome?returnUrl=${encodeURIComponent(returnUrl)}`;
+}

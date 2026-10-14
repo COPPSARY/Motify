@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import TourCoach from "./TourCoach.svelte";
 import {
   clearTour,
+  isNewAccountLanding,
+  welcomeUrl,
   loadTour,
   readHandoff,
   saveTour,
@@ -88,10 +90,37 @@ describe("first-run tour state", () => {
   });
 });
 
+describe("new accounts that sign up in the app", () => {
+  it("are recognised only by the API's newAccount flag", () => {
+    expect(
+      isNewAccountLanding(new URLSearchParams("newAccount=1&verified=true")),
+    ).toBe(true);
+    expect(isNewAccountLanding(new URLSearchParams("verified=true"))).toBe(
+      false,
+    );
+  });
+
+  it("go to the site's /welcome, keeping a held prompt", () => {
+    expect(welcomeUrl("", "http://localhost:4200/")).toBe(
+      "http://localhost:4200/welcome?returnUrl=%2Feditor",
+    );
+    const url = new URL(
+      welcomeUrl("Launch video & more", "https://motify.video"),
+    );
+    expect(url.pathname).toBe("/welcome");
+    expect(
+      new URL(
+        url.searchParams.get("returnUrl")!,
+        "https://x.test",
+      ).searchParams.get("prompt"),
+    ).toBe("Launch video & more");
+  });
+});
+
 describe("TourCoach", () => {
   function target(name: string) {
     const element = document.createElement("button");
-    element.dataset.tour = name;
+    element.dataset["tour"] = name;
     element.getBoundingClientRect = () => ({
       top: 10,
       left: 10,

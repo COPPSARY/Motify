@@ -2,6 +2,7 @@ import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
+import { PRICING_URL } from "../api/config";
 import { saveProjectDraft } from "../stores/project-drafts";
 
 function json(data: unknown) {
@@ -96,7 +97,7 @@ describe("App project actions", () => {
       ).not.toBeNull();
       expect(
         document.querySelector(".me-sidebar-upgrade")?.getAttribute("href"),
-      ).toBe("https://motify.video/pricing");
+      ).toBe(PRICING_URL);
 
       const nav = (label: string) =>
         Array.from(

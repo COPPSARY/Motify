@@ -17,6 +17,8 @@ interface SignUpResponse {
     readonly verificationRequired: boolean;
     readonly user?: MotionlyUser;
     readonly csrfToken?: string;
+    /** True when this sign-up created the account; onboarding follows. */
+    readonly newAccount?: boolean;
   };
 }
 
@@ -94,11 +96,11 @@ export async function signInWithPassword(
   return session.user;
 }
 
-/** Returns the signed-in user when email confirmation is disabled. */
+/** Returns the signed-in user when email confirmation is disabled; null while a verification mail is pending. */
 export async function signUpWithPassword(
   email: string,
   password: string,
-): Promise<MotionlyUser | null> {
+): Promise<{ user: MotionlyUser; newAccount: boolean } | null> {
   const response = await authFetch("/v1/auth/sign-up", {
     method: "POST",
     body: JSON.stringify({
@@ -111,12 +113,13 @@ export async function signUpWithPassword(
     verificationRequired,
     user,
     csrfToken: sessionCsrfToken,
+    newAccount,
   } = ((await response.json()) as SignUpResponse).data;
   if (verificationRequired) return null;
   if (!user || !sessionCsrfToken)
     throw new Error("Sign-up did not return a session.");
   csrfToken = sessionCsrfToken;
-  return user;
+  return { user, newAccount: newAccount === true };
 }
 
 export async function signOut(): Promise<void> {
