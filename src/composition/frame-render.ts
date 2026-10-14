@@ -21,13 +21,13 @@ let watermarkImage: Promise<HTMLImageElement> | undefined;
 const WATERMARK_URL = "/motify-watermark-smoke.png";
 
 async function blobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("Could not embed an image."));
-    reader.readAsDataURL(blob);
-  });
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
 }
 function embeddedImageDataUrl(url: string): Promise<string> {
   let embeddedImage = embeddedImageCache.get(url);
