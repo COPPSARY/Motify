@@ -5,7 +5,12 @@ import * as presets from "../../src/composition/presets";
 describe("GSAP-first motion presets", () => {
   it("ships a focused professional preset surface", () => {
     expect(Object.keys(presets).sort()).toEqual([
+      "DrawSVGPlugin",
       "EASE",
+      "Flip",
+      "MorphSVGPlugin",
+      "MotionPathPlugin",
+      "SplitText",
       "ambientBreathing",
       "ambientFloat",
       "ambientWaves",
@@ -39,7 +44,9 @@ describe("GSAP-first motion presets", () => {
       "rotateReveal",
       "scalePop",
       "sceneHandoff",
+      "sharedElementHandoff",
       "slide",
+      "splitReveal",
       "splitText",
       "spring",
       "squashAndStretch",

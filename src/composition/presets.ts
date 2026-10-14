@@ -1,7 +1,27 @@
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
+import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
+import { Flip } from "gsap/Flip";
+import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+import { SplitText } from "gsap/SplitText";
 
-gsap.registerPlugin(CustomEase);
+gsap.registerPlugin(
+  CustomEase,
+  DrawSVGPlugin,
+  Flip,
+  MorphSVGPlugin,
+  MotionPathPlugin,
+  SplitText,
+);
+
+/**
+ * GSAP's plugins (free since 3.13), in every timeline's scope by name. Each
+ * writes only inline styles, attributes or DOM that the foreignObject export
+ * serializes, so a frame exports as it previews: `drawSVG` and `morphSVG` on
+ * SVG, `motionPath` as transforms, SplitText as spans, Flip as transforms.
+ */
+export { DrawSVGPlugin, Flip, MorphSVGPlugin, MotionPathPlugin, SplitText };
 
 /**
  * The film's ease vocabulary.
@@ -1933,5 +1953,97 @@ export function kineticAnchor(
       at + index * (options.stagger ?? 0.07),
     );
   });
+  return pieces;
+}
+
+export interface HandoffBox {
+  left: number;
+  top: number;
+  width?: number;
+  rotation?: number;
+}
+
+export interface SharedElementHandoffOptions extends MotionOptions {
+  /** Where the element is authored: its CSS left/top/width in stage px. */
+  from: HandoffBox;
+  /** Where it belongs in the next scene, in the same stage px. */
+  to: HandoffBox;
+}
+
+/**
+ * One object outside the sections travels from its place in one scene to its
+ * place in the next, across the cut. Both boxes are the coordinates the film
+ * authored, so the move is plain arithmetic and seeks deterministically.
+ * Scale is the ratio of the widths when both are given.
+ */
+export function sharedElementHandoff(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | SVGElement | null | undefined,
+  options: SharedElementHandoffOptions,
+): gsap.core.Timeline {
+  if (!element) return timeline;
+  const { from, to } = options;
+  const scale =
+    from.width && to.width && from.width > 0 ? to.width / from.width : 1;
+  timeline.set(element, { transformOrigin: "0 0" }, 0);
+  return timeline.fromTo(
+    element,
+    { x: 0, y: 0, scale: 1, rotation: from.rotation ?? 0 },
+    {
+      x: to.left - from.left,
+      y: to.top - from.top,
+      scale,
+      rotation: to.rotation ?? 0,
+      duration: options.duration ?? 0.9,
+      ease: options.ease ?? EASE.travel,
+      immediateRender: false,
+    },
+    options.at,
+  );
+}
+
+export interface SplitRevealOptions extends MotionOptions {
+  by?: "lines" | "words" | "chars";
+  /** Each piece rises from behind its own clip (the default), or fades in without one. */
+  mask?: boolean;
+  stagger?: number;
+  /** How far each piece starts below its place, in % of its own height. */
+  distance?: number;
+}
+
+/**
+ * Text that rises into place piece by piece, each from behind its own mask.
+ * Lines are measured once, when the film mounts.
+ */
+export function splitReveal(
+  timeline: gsap.core.Timeline,
+  element: HTMLElement | null | undefined,
+  options: SplitRevealOptions = {},
+): HTMLElement[] {
+  if (!element) return [];
+  const by = options.by ?? "words";
+  const masked = options.mask !== false;
+  const split = SplitText.create(element, {
+    type: by === "chars" ? "words,chars" : by,
+    ...(masked ? { mask: by } : {}),
+  });
+  const pieces = (
+    by === "lines" ? split.lines : by === "chars" ? split.chars : split.words
+  ) as HTMLElement[];
+  const from = { yPercent: options.distance ?? 110, autoAlpha: masked ? 1 : 0 };
+  timeline.set(pieces, from, 0);
+  timeline.fromTo(
+    pieces,
+    from,
+    {
+      yPercent: 0,
+      autoAlpha: 1,
+      duration: options.duration ?? 0.6,
+      stagger: options.stagger ?? (by === "chars" ? 0.03 : 0.07),
+      ease: options.ease ?? EASE.arrive,
+      immediateRender: false,
+    },
+    options.at,
+  );
   return pieces;
 }

@@ -32,6 +32,8 @@
     "build": "npm run prompt:build && node scripts/build-registry-source.mjs && tsc && vite build",
     "prompt:build": "node scripts/build-ai-prompt.mjs",
     "prompt:check": "node scripts/build-ai-prompt.mjs --check",
+    "render-kit:build": "node scripts/build-render-kit.mjs",
+    "export:parity": "node scripts/build-render-kit.mjs && node scripts/check-export-parity.mjs",
     "preview": "vite preview",
     "type-check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest",
