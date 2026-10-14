@@ -19,7 +19,12 @@ describe("manual sign-up", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: { verificationRequired: false, user, csrfToken: "csrf-token" },
+          data: {
+            verificationRequired: false,
+            user,
+            csrfToken: "csrf-token",
+            newAccount: true,
+          },
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
       ),
@@ -27,9 +32,10 @@ describe("manual sign-up", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { signUpWithPassword, currentCsrfToken } = await import("./auth");
 
-    await expect(signUpWithPassword(user.email, "secret123")).resolves.toEqual(
+    await expect(signUpWithPassword(user.email, "secret123")).resolves.toEqual({
       user,
-    );
+      newAccount: true,
+    });
     expect(currentCsrfToken()).toBe("csrf-token");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:3000/v1/auth/sign-up",
