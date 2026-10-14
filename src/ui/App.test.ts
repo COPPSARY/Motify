@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
 import { PRICING_URL, TEMPLATES_URL } from "../api/config";
+import { generationStore } from "../stores/generation";
 import { saveProjectDraft } from "../stores/project-drafts";
 
 function json(data: unknown) {
@@ -17,6 +18,13 @@ afterEach(() => {
   sessionStorage.clear();
   localStorage.clear();
   window.history.replaceState({}, "", "/");
+  generationStore.set({
+    isActive: false,
+    status: "IDLE",
+    stage: "IDLE",
+    progress: 0,
+    message: "",
+  });
   vi.unstubAllGlobals();
 });
 
@@ -131,6 +139,31 @@ describe("App project actions", () => {
         document.querySelector('input[aria-label="Remove watermark"]'),
       ).toBeNull();
       expect(document.querySelector("[data-motify-watermark]")).not.toBeNull();
+
+      generationStore.set({
+        isActive: true,
+        status: "GENERATING",
+        stage: "GENERATING",
+        progress: 20,
+        message: "",
+      });
+      await tick();
+      expect(
+        document.querySelector(".me-generating--generation strong")
+          ?.textContent,
+      ).toContain("Generating your video");
+      expect(
+        document.querySelector(".me-generating--generation .me-spinner"),
+      ).not.toBeNull();
+      generationStore.set({
+        isActive: false,
+        status: "IDLE",
+        stage: "IDLE",
+        progress: 0,
+        message: "",
+      });
+      await tick();
+      expect(document.querySelector(".me-generating--generation")).toBeNull();
 
       document
         .querySelector<HTMLButtonElement>('[aria-label="Back to home"]')

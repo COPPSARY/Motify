@@ -47,6 +47,7 @@ function mount(
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("AudioSync", () => {
@@ -147,6 +148,49 @@ describe("AudioSync", () => {
     now += 600;
     sync.sync({ time: 0.7, playing: true });
     expect(audio.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("resumes Web Audio and unlocks the media element from the Play gesture", async () => {
+    const { root, audio } = mount();
+    const resume = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    const createMediaElementSource = vi.fn();
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(() => ({
+        state: "suspended",
+        destination: {},
+        resume,
+        close,
+        createMediaElementSource,
+      })),
+    );
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const sync = new AudioSync(root);
+
+    const unlocking = sync.unlock({ time: 2.5, playing: true });
+
+    // Both calls happen before unlock yields, while the click is still active.
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    await unlocking;
+    expect(audio.element.currentTime).toBe(2.5);
+    // Routing a cross-origin element through Web Audio would silence it.
+    expect(createMediaElementSource).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "[Audio] AudioContext state on play: suspended",
+    );
+  });
+
+  it("mutes and unmutes every track", () => {
+    const { root, audio } = mount();
+    const sync = new AudioSync(root);
+
+    sync.muted = true;
+    expect(sync.muted).toBe(true);
+    expect(audio.element.muted).toBe(true);
+    sync.muted = false;
+    expect(audio.element.muted).toBe(false);
   });
 
   it("silences everything on dispose", () => {

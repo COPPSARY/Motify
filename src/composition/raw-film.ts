@@ -16,6 +16,78 @@ export const RAW_FILM_FRAME_SELECTOR = "iframe[data-motify-raw]";
 
 interface RawFilmWindow extends Window {
   seek?: (time: number) => void;
+  motifySoundtrack?: (context: OfflineAudioContext) => void | Promise<void>;
+}
+
+const SOUNDTRACK_SAMPLE_RATE = 44_100;
+
+function wavFromAudioBuffer(buffer: AudioBuffer): {
+  blob: Blob;
+  peak: number;
+} {
+  const frames = buffer.length;
+  const bytes = new Uint8Array(44 + frames * 4);
+  const view = new DataView(bytes.buffer);
+  const left = buffer.getChannelData(0);
+  const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+  const text = (offset: number, value: string) => {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset + index, value.charCodeAt(index));
+    }
+  };
+  text(0, "RIFF");
+  view.setUint32(4, 36 + frames * 4, true);
+  text(8, "WAVE");
+  text(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 2, true);
+  view.setUint32(24, buffer.sampleRate, true);
+  view.setUint32(28, buffer.sampleRate * 4, true);
+  view.setUint16(32, 4, true);
+  view.setUint16(34, 16, true);
+  text(36, "data");
+  view.setUint32(40, frames * 4, true);
+
+  let peak = 0;
+  let offset = 44;
+  for (let index = 0; index < frames; index += 1) {
+    for (const channel of [left, right]) {
+      const sample = Math.max(-1, Math.min(1, channel[index] ?? 0));
+      peak = Math.max(peak, Math.abs(sample));
+      view.setInt16(
+        offset,
+        sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+        true,
+      );
+      offset += 2;
+    }
+  }
+  return { blob: new Blob([bytes], { type: "audio/wav" }), peak };
+}
+
+async function renderSoundtrack(
+  view: RawFilmWindow,
+  duration: number,
+  element: HTMLAudioElement,
+): Promise<void> {
+  if (
+    typeof view.motifySoundtrack !== "function" ||
+    typeof OfflineAudioContext === "undefined"
+  )
+    return;
+  const frames = Math.max(1, Math.ceil(duration * SOUNDTRACK_SAMPLE_RATE));
+  const context = new OfflineAudioContext(2, frames, SOUNDTRACK_SAMPLE_RATE);
+  await view.motifySoundtrack(context);
+  const buffer = await context.startRendering();
+  const { blob, peak } = wavFromAudioBuffer(buffer);
+  const objectUrl = URL.createObjectURL(blob);
+  element.dataset["motifyOwnedObjectUrl"] = objectUrl;
+  element.src = objectUrl;
+  element.load();
+  console.info(
+    `[Audio] WAV rendered (${buffer.duration.toFixed(2)}s, peak amplitude ${peak.toFixed(4)})`,
+  );
 }
 
 /**
@@ -58,9 +130,9 @@ export function prepareRawDocument(html: string): {
 
 /**
  * Mounts a raw film into the composition root and hands its clock to the
- * runtime's timeline. The document is written into the frame synchronously
- * when the root is in the page, so `seek` exists before the first frame is
- * asked for; otherwise it loads, and the latest time asked for is drawn then.
+ * runtime's timeline. The document always loads from srcdoc, inheriting the
+ * editor origin without ever navigating to the Railway API origin. Calls into
+ * seek and motifySoundtrack wait for the iframe load event.
  */
 export function mountRawFilm(
   context: CompositionContext,
@@ -70,9 +142,7 @@ export function mountRawFilm(
   const { document: source, audio } = prepareRawDocument(html);
   const frame = document.createElement("iframe");
   frame.dataset["motifyRaw"] = "";
-  // No sandbox: the editor must reach into the frame to call seek and to
-  // rasterize it, and a sandbox that allows that protects nothing. Template
-  // films run their code in the editor's page already.
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
   frame.setAttribute("scrolling", "no");
   frame.setAttribute("aria-hidden", "true");
   frame.tabIndex = -1;
@@ -89,6 +159,22 @@ export function mountRawFilm(
     context.root.append(element);
   }
 
+  // Normally Railway has already rendered motifySoundtrack into a stored WAV.
+  // If that server-side render failed, keep a local track in the same preview
+  // and export pipeline rather than leaving the deployed film silent.
+  const fallbackAudio =
+    audio.length === 0 && /\bmotifySoundtrack\b/.test(source)
+      ? document.createElement("audio")
+      : null;
+  if (fallbackAudio) {
+    fallbackAudio.dataset["motifyAudio"] = "";
+    fallbackAudio.dataset["start"] = "0";
+    fallbackAudio.dataset["volume"] = "1";
+    fallbackAudio.preload = "auto";
+    fallbackAudio.style.display = "none";
+    context.root.append(fallbackAudio);
+  }
+
   let pending = 0;
   let ready = false;
   const draw = (time: number) => {
@@ -101,23 +187,28 @@ export function mountRawFilm(
       console.error("Raw film seek failed:", error);
     }
   };
-  const doc = frame.contentDocument;
-  if (frame.isConnected && doc) {
-    doc.open();
-    doc.write(source);
-    doc.close();
-    ready = true;
-  } else {
-    frame.addEventListener(
-      "load",
-      () => {
-        ready = true;
-        draw(pending);
-      },
-      { once: true },
-    );
-    frame.srcdoc = source;
-  }
+  frame.addEventListener(
+    "load",
+    () => {
+      ready = true;
+      const view = frame.contentWindow as RawFilmWindow | null;
+      if (typeof view?.motifySoundtrack === "function") {
+        console.info("[Audio] motifySoundtrack found");
+        if (fallbackAudio) {
+          void renderSoundtrack(view, film.duration, fallbackAudio).catch(
+            (error: unknown) => {
+              console.error("[Audio] soundtrack render failed", error);
+            },
+          );
+        }
+      } else if (fallbackAudio) {
+        console.warn("[Audio] motifySoundtrack missing after iframe load");
+      }
+      draw(pending);
+    },
+    { once: true },
+  );
+  frame.srcdoc = source;
 
   const clock = { t: 0 };
   draw(0);
