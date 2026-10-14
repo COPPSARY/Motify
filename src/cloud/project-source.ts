@@ -1,3 +1,4 @@
+import { isRawFilm } from "../composition/raw-film-marker";
 import type { ProjectSourceFiles } from "./projects-api";
 
 export const BUILTIN_PREVIEW_ASSET_TOKENS = {
@@ -19,6 +20,15 @@ export function splitCompositionSource(
   timelineJs: string,
   indexTs: string,
 ): ProjectSourceFiles {
+  // A raw film is one document; its styles stay in it, where combining puts nothing back.
+  if (isRawFilm(timelineJs)) {
+    return {
+      "composition.html": compositionHtml.trim(),
+      "styles.css": "",
+      "timeline.js": timelineJs.trim(),
+      "index.ts": indexTs.trim(),
+    };
+  }
   const styles: string[] = [];
   const html = compositionHtml.replace(
     /<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/gi,
@@ -36,7 +46,8 @@ export function splitCompositionSource(
 }
 
 export function combineCompositionSource(files: ProjectSourceFiles): string {
-  if (!files["styles.css"].trim()) return files["composition.html"];
+  if (!files["styles.css"].trim() || isRawFilm(files["timeline.js"]))
+    return files["composition.html"];
   const style = `<style>\n${files["styles.css"]}\n</style>`;
   return files["composition.html"].replace(
     /(<template\b[^>]*>)/i,

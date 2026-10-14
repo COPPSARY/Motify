@@ -1,4 +1,5 @@
 import { createDynamicComposition } from "../composition/dynamic-compiler";
+import { exportVideo } from "../composition/exporter";
 import { renderCompositionFrame } from "../composition/frame-render";
 import { CompositionRuntime } from "../composition/runtime";
 import type { SceneDefinition } from "../composition/types";
@@ -33,6 +34,11 @@ export interface MountedFilm {
   seek(time: number): void;
   /** One frame through the export rasterizer, on the export's black backing. */
   exportFrame(scale: number): Promise<HTMLCanvasElement>;
+  /** The whole film through the editor's video export, sound included, as base64. */
+  exportVideo(options?: {
+    format?: "mp4" | "webm";
+    fps?: number;
+  }): Promise<{ base64: string; mimeType: string }>;
   destroy(): void;
 }
 
@@ -93,6 +99,17 @@ export function mountFilm(input: FilmInput): MountedFilm {
       if (!context) throw new Error("2D canvas capture is unavailable.");
       context.drawImage(frame, 0, 0);
       return canvas;
+    },
+    async exportVideo(options = {}) {
+      const result = await exportVideo(runtime, {
+        format: options.format ?? "mp4",
+        ...(options.fps ? { fps: options.fps } : {}),
+      });
+      const bytes = new Uint8Array(await result.blob.arrayBuffer());
+      let binary = "";
+      for (let index = 0; index < bytes.length; index += 0x8000)
+        binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      return { base64: btoa(binary), mimeType: result.mimeType };
     },
     destroy() {
       runtime.destroy();

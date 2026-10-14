@@ -1,3 +1,4 @@
+import { isRawFilm } from "../composition/raw-film-marker";
 import type { FrameEvidence } from "./frame-evidence";
 import { registryManifest } from "../registry/catalog";
 import { getComponentSource } from "../registry/component-source";
@@ -18,6 +19,7 @@ import {
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
 import type { CanvasAspect } from "../composition/canvas-frame";
 import type { RegistryItemSummary } from "../registry/types";
+import type { GenerationEffort } from "../cloud/projects-api";
 
 export interface GenerationFiles {
   /**
@@ -29,6 +31,8 @@ export interface GenerationFiles {
   brandId?: string | null;
   /** Initial canvas chosen in the prompt composer. */
   aspectRatio?: CanvasAspect;
+  /** Reasoning effort chosen in the prompt composer. */
+  effort?: GenerationEffort;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;
@@ -1041,6 +1045,18 @@ export function analyzeMotionQuality(
   result: GeneratedComposition,
   context: MotionQualityContext = {},
 ): MotionQualityReport {
+  // A raw film draws itself from window.seek; these source checks read GSAP
+  // tweens and data-edit layers it does not have. The backend checked it and
+  // rendered its frames before saving, so there is nothing here to repair.
+  if (isRawFilm(result.timelineJs)) {
+    return {
+      score: 100,
+      requiresRepair: false,
+      issues: [],
+      blockingIssues: [],
+      strengths: [],
+    };
+  }
   const html = result.compositionHtml;
   const timeline = result.timelineJs;
   const executableTimeline = executableTimelineSource(timeline);

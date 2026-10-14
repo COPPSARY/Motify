@@ -43,8 +43,6 @@
     Maximize2,
     Minus,
     Music2,
-    PanelBottomClose,
-    PanelBottomOpen,
     Pause,
     Play,
     Plus,
@@ -80,6 +78,7 @@
     type AudioTrack,
     type BillingPlanId,
     type PromotionBanner as PromotionBannerData,
+    type GenerationEffort,
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
@@ -301,6 +300,9 @@
   let canvasState: CanvasSettings = { ...DEFAULT_CANVAS };
   /** Canvas chosen beside the initial prompt; existing videos own their size. */
   let generationAspect: CanvasAspect = DEFAULT_CANVAS.aspect;
+  /** Medium is the default; people can opt into the slower High pass. */
+  let generationEffort: GenerationEffort = "medium";
+  let longGeneration = false;
   // Read from the runtime on every snapshot: a smart camera moves with time.
   $: canvasView = computeCanvasView(
     runtime,
@@ -352,13 +354,12 @@
   // restarting from a blank stage.
   let generationPlan: GenerationPlanMemory | null = null;
   const activityVerbs = [
-    "Composing",
-    "Shaping",
-    "Animating",
-    "Polishing",
-    "Rendering",
+    "Reading your brief",
+    "Planning the scene flow",
+    "Building the motion",
+    "Checking the result",
   ];
-  let activityVerb: string = activityVerbs[0] ?? "Composing";
+  let activityVerb: string = activityVerbs[0] ?? "Reading your brief";
   let activityTimer: ReturnType<typeof setInterval> | undefined;
   let editorRevision = 0;
   let currentUser: MotionlyUser | null = null;
@@ -438,22 +439,10 @@
   let lastGenState = "";
 
   $: {
-    if (
-      $generationStore.isActive &&
-      $generationStore.message !== lastGenState
-    ) {
-      lastGenState = $generationStore.message;
-      const lastMessage = assistantMessages.at(-1);
-      assistantMessages =
-        lastMessage?.role === "assistant"
-          ? [
-              ...assistantMessages.slice(0, -1),
-              { role: "assistant", text: $generationStore.message },
-            ]
-          : [
-              ...assistantMessages,
-              { role: "assistant", text: $generationStore.message },
-            ];
+    if ($generationStore.isActive && lastGenState !== "RUNNING") {
+      // In-progress copy belongs to the temporary run card, not the chat
+      // transcript. Only a finished run earns an assistant message.
+      lastGenState = "RUNNING";
     } else if (
       !$generationStore.isActive &&
       $generationStore.status === "COMPLETED" &&
@@ -516,8 +505,8 @@
       : null;
   $: centerPage =
     mode === "cloud" ? (page ?? (hasEditorProject ? null : "create")) : null;
-  $: showInspector =
-    mode === "local" || (hasEditorProject && centerPage === null);
+  // The Design panel is off: films are raw HTML documents with no editable layers.
+  const showInspector = false;
   $: projectTitle =
     (cloudProject?.name ?? localProjectName) ||
     activeComposition.title ||
@@ -629,10 +618,9 @@
       activityTimer = setInterval(() => {
         if (!$generationStore.isActive) return;
         const currentIndex = activityVerbs.indexOf(activityVerb);
-        const nextIndex = (currentIndex + 1) % activityVerbs.length;
-        activityVerb =
-          activityVerbs[nextIndex] ?? activityVerbs[0] ?? "Composing";
-      }, 1200);
+        const nextIndex = Math.min(currentIndex + 1, activityVerbs.length - 1);
+        activityVerb = activityVerbs[nextIndex] ?? "Checking the result";
+      }, 15_000);
     }
     return () => {
       runtimeUnsubscribe?.();
@@ -2814,6 +2802,7 @@
         brandId:
           selectedBrand === null ? null : (generationBrand?.id ?? undefined),
         ...(aspectRatio ? { aspectRatio } : {}),
+        effort: generationEffort,
         compositionHtml: currentHtml,
         timelineJs: currentJs,
         stylesCss: basis.files["styles.css"],
@@ -3265,13 +3254,15 @@
     resizeComposer();
 
     const generationStartedAt = performance.now();
+    longGeneration = prompt.length >= 1_000;
+    activityVerb = activityVerbs[0] ?? "Reading your brief";
     captureEvent("ai generation started", { prompt_length: prompt.length });
     generationStore.set({
       isActive: true,
       status: "GENERATING",
       stage: "GENERATING",
       progress: 20,
-      message: "Tiffy is reading your prompt...",
+      message: "",
     });
 
     try {
@@ -3928,7 +3919,11 @@
   />
   <div class="code-editor-scope">
     <div class="me-motion-editor" style="--timeline-height: 218px;">
-      <div class="me-workbench" class:me-no-inspector={!showInspector}>
+      <div
+        class="me-workbench"
+        class:me-no-inspector={!showInspector}
+        class:me-has-chat={mode === "cloud" && hasEditorProject}
+      >
         {#if mode === "cloud"}
           <aside class="me-left-panel">
             {#if hasEditorProject}
@@ -4764,14 +4759,7 @@
                 {/if}
               </div>
             </div>
-            {#if mode === "cloud" && $generationStore.isActive}
-              <div class="me-generating" role="status" aria-live="polite">
-                <span class="me-spinner me-spinner--large" aria-hidden="true"
-                ></span>
-                <strong>Generating your video…</strong>
-                <p>{$generationStore.message || "Tiffy is working on it."}</p>
-              </div>
-            {:else if openingProject}
+            {#if openingProject}
               <div class="me-generating" role="status">
                 <span class="me-spinner me-spinner--large" aria-hidden="true"
                 ></span>
@@ -4833,16 +4821,8 @@
                 aria-hidden="true"
               ></span>
             </div>
-            <button
-              class="me-timeline-toggle"
-              class:me-active={timelineOpen}
-              aria-expanded={timelineOpen}
-              on:click={() => (timelineOpen = !timelineOpen)}
-              >{#if timelineOpen}<PanelBottomClose size={14} /> Hide timeline{:else}<PanelBottomOpen
-                  size={14}
-                /> View timeline{/if}</button
-            >
           </section>
+          <!-- The timeline panel is off with its toggle: raw films have no tweens or layers to show. -->
           {#if timelineOpen && hasEditorProject}
             <section bind:this={timelinePanel} class="me-timeline-panel">
               <button class="me-timeline-resizer" aria-label="Resize timeline"
@@ -5607,6 +5587,8 @@
   <TiffyPanel
     {variant}
     bind:generationAspect
+    bind:generationEffort
+    {longGeneration}
     title={projectTitle}
     onBack={variant === "panel" ? () => void returnHome() : null}
     {brandName}

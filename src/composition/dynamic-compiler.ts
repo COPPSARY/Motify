@@ -1,5 +1,6 @@
 import gsap from "gsap";
 import * as presets from "./presets";
+import { isRawFilm, mountRawFilm } from "./raw-film";
 import { mountSceneKit } from "./scene-kit";
 import { scopeFilmStyles } from "./scope-css";
 import type {
@@ -116,6 +117,26 @@ export function createDynamicComposition(
     options.scenes && options.scenes.length > 0
       ? options.scenes
       : defaultScenes;
+
+  // A raw film draws itself from window.seek; the timeline is only its clock.
+  if (isRawFilm(timelineJs)) {
+    return {
+      id,
+      title,
+      description: options.description ?? "Raw HTML film.",
+      width,
+      height,
+      fps,
+      duration,
+      scenes,
+      adaptive: false,
+      rawFilm: true,
+      sourcePreview: compositionHtml,
+      build(context: CompositionContext) {
+        mountRawFilm(context, compositionHtml, { width, height, duration });
+      },
+    };
+  }
 
   return {
     id,

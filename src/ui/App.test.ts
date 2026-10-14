@@ -112,116 +112,21 @@ describe("App project actions", () => {
         )
         ?.click();
 
-      // A video is open: Tiffy's chat replaces the navigation, and the
-      // inspector has only its design controls.
+      // A video is open: Tiffy's chat replaces the navigation. There is no
+      // Design panel: films are raw HTML documents with no editable layers.
       await vi.waitFor(() => {
         expect(document.querySelector(".ai-chat-header")).not.toBeNull();
       });
       expect(document.querySelector(".me-sidebar-home")).toBeNull();
       expect(document.querySelector(".me-template-grid")).toBeNull();
-      expect(document.querySelector(".me-properties-panel")).not.toBeNull();
-      expect(
-        document.querySelector(".me-properties-panel")?.textContent,
-      ).not.toContain("Animate");
+      expect(document.querySelector(".me-properties-panel")).toBeNull();
+      expect(document.body.textContent).not.toContain("View timeline");
       expect(document.body.textContent).not.toContain("PNG");
       // A guest's video is watermarked, with no way to turn it off.
       expect(
         document.querySelector('input[aria-label="Remove watermark"]'),
       ).toBeNull();
       expect(document.querySelector("[data-motify-watermark]")).not.toBeNull();
-
-      const previewRoot = document.querySelector<HTMLElement>(
-        ".composition-canvas",
-      );
-      const editableText = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-motionly-id]"),
-      ).find(
-        (element) =>
-          /^(H[1-6]|P|SPAN|STRONG|EM|SMALL|BUTTON)$/.test(element.tagName) &&
-          element.children.length === 0 &&
-          Boolean(element.textContent?.trim()) &&
-          !element.matches("[data-field]") &&
-          !element.querySelector("[data-field]"),
-      );
-      expect(editableText).toBeDefined();
-      // The template opens at its authored zero state, where its first text
-      // entrance has not run in jsdom. Make that registered layer visible so
-      // this test can exercise the canvas hit-test and contextual inspector.
-      for (
-        let node: HTMLElement | null = editableText ?? null;
-        node && previewRoot?.contains(node);
-        node = node.parentElement
-      ) {
-        node.style.opacity = "1";
-        node.style.visibility = "visible";
-        if (getComputedStyle(node).display === "none")
-          node.style.display = "block";
-        if (node === previewRoot) break;
-      }
-      Object.defineProperty(document, "elementsFromPoint", {
-        configurable: true,
-        value: vi.fn(() => (editableText ? [editableText] : [])),
-      });
-      document
-        .querySelector<HTMLElement>(".me-stage")
-        ?.dispatchEvent(
-          new MouseEvent("click", { bubbles: true, clientX: 20, clientY: 20 }),
-        );
-      await tick();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Font family"]',
-        ),
-      ).not.toBeNull();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Font style"]',
-        ),
-      ).not.toBeNull();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Text fill color"]',
-        ),
-      ).not.toBeNull();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Background color"]',
-        ),
-      ).toBeNull();
-      const addBgBtn = document.querySelector<HTMLButtonElement>(
-        '.me-properties-panel [aria-label="Add background"]',
-      );
-      expect(addBgBtn).not.toBeNull();
-      addBgBtn?.click();
-      await tick();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Background color"]',
-        ),
-      ).not.toBeNull();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Corner radius"]',
-        ),
-      ).not.toBeNull();
-
-      const removeBgBtn = document.querySelector<HTMLButtonElement>(
-        '.me-properties-panel [aria-label="Remove background"]',
-      );
-      expect(removeBgBtn).not.toBeNull();
-      removeBgBtn?.click();
-      await tick();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Background color"]',
-        ),
-      ).toBeNull();
-      expect(
-        document.querySelector(
-          '.me-properties-panel [aria-label="Add background"]',
-        ),
-      ).not.toBeNull();
-      expect(document.querySelector(".me-selection-badge")).toBeNull();
 
       document
         .querySelector<HTMLButtonElement>('[aria-label="Back to home"]')
@@ -256,7 +161,7 @@ describe("App project actions", () => {
       await tick();
       expect(document.querySelector(".me-preview-container")).not.toBeNull();
       expect(document.querySelector(".me-scene-bar")).not.toBeNull();
-      expect(document.querySelector(".me-properties-panel")).not.toBeNull();
+      expect(document.querySelector(".me-properties-panel")).toBeNull();
       expect(document.querySelector(".me-left-panel")).toBeNull();
       expect(document.querySelector(".ai-chat-panel")).toBeNull();
       expect(document.querySelector(".cloud-projects-dialog")).toBeNull();

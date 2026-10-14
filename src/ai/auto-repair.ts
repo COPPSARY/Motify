@@ -1,3 +1,4 @@
+import { isRawFilm } from "../composition/raw-film-marker";
 import type { GeneratedComposition } from "./generation-guidance";
 
 /**
@@ -103,6 +104,9 @@ export interface MarkupRepair {
 export function repairGeneratedMarkup(
   result: GeneratedComposition,
 ): MarkupRepair {
+  // A raw film is one document the backend checked as written; these repairs
+  // are for template films and would only damage it.
+  if (isRawFilm(result.timelineJs)) return { result, applied: [] };
   let html = result.compositionHtml;
   const applied: string[] = [];
 

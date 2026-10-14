@@ -336,6 +336,7 @@ async function requestBackendProject(
         userPrompt,
         currentFiles.generationProfile,
       ),
+      ...(currentFiles.effort ? { effort: currentFiles.effort } : {}),
       ...(currentFiles.aspectRatio
         ? { aspectRatio: currentFiles.aspectRatio }
         : {}),

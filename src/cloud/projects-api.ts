@@ -217,6 +217,8 @@ export interface ApiCapabilities {
 
 export interface MotionMessageInput {
   message: string;
+  /** Reasoning effort selected in the prompt composer. */
+  effort?: GenerationEffort;
   brandId?: string | null;
   /** The canvas chosen in the new-video composer before generation starts. */
   aspectRatio?: CanvasAspect;
@@ -236,6 +238,8 @@ export interface MotionMessageInput {
     dataBase64: string;
   }>;
 }
+
+export type GenerationEffort = "medium" | "high";
 
 /** A project message the backend runs in the background. */
 export interface MotionMessageJob {
