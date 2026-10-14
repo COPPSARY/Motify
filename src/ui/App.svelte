@@ -100,6 +100,15 @@
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
+  import TourCoach from "../onboarding/TourCoach.svelte";
+  import {
+    clearTour,
+    HANDOFF_PARAMS,
+    saveTour,
+    startingTour,
+    stepsFor,
+    type TourState,
+  } from "../onboarding/tour";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import {
     CANVAS_ASPECTS,
@@ -390,6 +399,8 @@
         : null))
     : null;
   let pendingLandingPrompt = "";
+  /** First-run tour for new accounts, handed over by the site's /welcome. */
+  let tour: TourState | null = null;
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let assetObjectUrls: string[] = [];
@@ -560,6 +571,13 @@
       sessionStorage.setItem(PENDING_ASPECT_KEY, generationAspect);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
+    }
+    if (mode === "cloud") {
+      tour = startingTour(url.searchParams, sessionStorage);
+      if (HANDOFF_PARAMS.some((key) => url.searchParams.has(key))) {
+        for (const key of HANDOFF_PARAMS) url.searchParams.delete(key);
+        window.history.replaceState({}, "", url);
+      }
     }
     if (mode === "cloud") {
       void refreshPromotionBanner();
@@ -2304,6 +2322,37 @@
     const minutes = Math.floor(time / 60);
     const seconds = time - minutes * 60;
     return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
+  }
+
+  // The tour waits for the video view: it runs while Tiffy builds the first video.
+  $: tourSteps = tour ? stepsFor(tour.level) : [];
+  $: tourActive = Boolean(
+    tour && currentUser && hasEditorProject && tourSteps.length > 0,
+  );
+  $: if (tourActive && tour)
+    captureEvent("onboarding tour step viewed", {
+      step: tourSteps[tour.index]?.target ?? "",
+      level: tour.level,
+    });
+
+  function moveTour(by: number): void {
+    if (!tour) return;
+    tour = { ...tour, index: Math.max(0, tour.index + by) };
+    saveTour(sessionStorage, tour);
+  }
+
+  function endTour(skipped: boolean): void {
+    if (!tour) return;
+    captureEvent(
+      skipped ? "onboarding tour skipped" : "onboarding tour completed",
+      {
+        level: tour.level,
+        goal: tour.goal,
+        step: tour.index,
+      },
+    );
+    clearTour(sessionStorage);
+    tour = null;
   }
 
   function openPage(next: HomePage): void {
@@ -4326,6 +4375,12 @@
                     <h1 id="templates-title">Templates</h1>
                     <p>
                       Open a finished film, then ask Tiffy to make it yours.
+                      Rather start from a written brief? Try the
+                      <a
+                        href={motifySiteHref("/resources/prompt-templates")}
+                        target="_blank"
+                        rel="noopener">prompt templates ↗</a
+                      >.
                     </p>
                   </header>
                   <label class="me-page-search">
@@ -4599,6 +4654,7 @@
             </div>
             <div
               class="me-view-controls"
+              data-tour="format"
               role="toolbar"
               aria-label="Canvas view"
             >
@@ -4667,6 +4723,7 @@
               >
               <button
                 class="btn btn-primary export-action me-tooltip"
+                data-tour="export"
                 aria-label="Export video"
                 data-tooltip="Choose format, resolution and quality"
                 on:click={openExportDialog}
@@ -5601,6 +5658,15 @@
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
+  {#if tourActive && tour}
+    <TourCoach
+      steps={tourSteps}
+      index={tour.index}
+      onNext={() => moveTour(1)}
+      onBack={() => moveTour(-1)}
+      onDone={endTour}
+    />
+  {/if}
   {#if exportDialogOpen}
     <ExportDialog
       width={canvasView.width}
