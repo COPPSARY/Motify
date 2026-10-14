@@ -13,7 +13,7 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
-  import { motifySiteHref, PRICING_URL } from "../api/config";
+  import { MOTIFY_SITE_URL, motifySiteHref, PRICING_URL } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -40,6 +40,7 @@
     LifeBuoy,
     LogOut,
     Mail,
+    Menu,
     Maximize2,
     Minus,
     Music2,
@@ -98,6 +99,17 @@
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
+  import TourCoach from "../onboarding/TourCoach.svelte";
+  import {
+    clearTour,
+    HANDOFF_PARAMS,
+    saveTour,
+    startingTour,
+    stepsFor,
+    isNewAccountLanding,
+    welcomeUrl,
+    type TourState,
+  } from "../onboarding/tour";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import {
     CANVAS_ASPECTS,
@@ -322,6 +334,9 @@
   /** Where the My Videos page draws the project gallery. */
   let videosHost: HTMLElement | null = null;
   let profileMenuOpen = false;
+  let mobileSidebarOpen = false;
+  let mobileSidebarTrigger: HTMLButtonElement;
+  let mobileSidebarClose: HTMLButtonElement;
   let supportEmailCopied = false;
   let profileMenu: HTMLDivElement;
   let templateQuery = "";
@@ -387,6 +402,8 @@
         : null))
     : null;
   let pendingLandingPrompt = "";
+  /** First-run tour for new accounts, handed over by the site's /welcome. */
+  let tour: TourState | null = null;
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let assetObjectUrls: string[] = [];
@@ -540,11 +557,27 @@
           sessionStorage.getItem("motionly_pending_prompt") ||
           ""
         : "";
+    // A brand-new account goes through the site's onboarding first, before
+    // anything here starts (including a held prompt, which travels along).
+    if (mode === "cloud" && isNewAccountLanding(url.searchParams)) {
+      sessionStorage.removeItem("motionly_pending_prompt");
+      window.location.replace(
+        welcomeUrl(pendingLandingPrompt, MOTIFY_SITE_URL),
+      );
+      return;
+    }
     if (pendingLandingPrompt) {
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
       sessionStorage.setItem(PENDING_ASPECT_KEY, generationAspect);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
+    }
+    if (mode === "cloud") {
+      tour = startingTour(url.searchParams, sessionStorage);
+      if (HANDOFF_PARAMS.some((key) => url.searchParams.has(key))) {
+        for (const key of HANDOFF_PARAMS) url.searchParams.delete(key);
+        window.history.replaceState({}, "", url);
+      }
     }
     if (mode === "cloud") {
       void refreshPromotionBanner();
@@ -2290,12 +2323,61 @@
     return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
   }
 
+  // The tour waits for the video view: it runs while Tiffy builds the first video.
+  $: tourSteps = tour ? stepsFor(tour.level) : [];
+  $: tourActive = Boolean(
+    tour && currentUser && hasEditorProject && tourSteps.length > 0,
+  );
+  $: if (tourActive && tour)
+    captureEvent("onboarding tour step viewed", {
+      step: tourSteps[tour.index]?.target ?? "",
+      level: tour.level,
+    });
+
+  function moveTour(by: number): void {
+    if (!tour) return;
+    tour = { ...tour, index: Math.max(0, tour.index + by) };
+    saveTour(sessionStorage, tour);
+  }
+
+  function endTour(skipped: boolean): void {
+    if (!tour) return;
+    captureEvent(
+      skipped ? "onboarding tour skipped" : "onboarding tour completed",
+      {
+        level: tour.level,
+        goal: tour.goal,
+        step: tour.index,
+      },
+    );
+    clearTour(sessionStorage);
+    tour = null;
+  }
+
   function openPage(next: HomePage): void {
     profileMenuOpen = false;
+    mobileSidebarOpen = false;
     // With no video open the create page is the default view.
     page = next === "create" ? null : next;
     // Inside a video a page is a picker over it, and the URL stays the video's.
     if (mode === "cloud" && !hasEditorProject) navigate(homePagePath(page));
+  }
+
+  function openMobileSidebar(): void {
+    profileMenuOpen = false;
+    mobileSidebarOpen = true;
+    void tick().then(() => {
+      window.setTimeout(() => mobileSidebarClose?.focus(), 0);
+    });
+  }
+
+  function closeMobileSidebar(): void {
+    mobileSidebarOpen = false;
+    void tick().then(() => mobileSidebarTrigger?.focus());
+  }
+
+  function handleShellKeydown(event: KeyboardEvent): void {
+    if (event.key === "Escape" && mobileSidebarOpen) closeMobileSidebar();
   }
 
   // The gallery is one instance (it also holds the open project), drawn into
@@ -2389,6 +2471,7 @@
   }
 
   function openRecentProject(projectId: string): void {
+    mobileSidebarOpen = false;
     void cloudProjects?.openProjectById(projectId);
   }
 
@@ -3895,7 +3978,10 @@
   }
 </script>
 
-<svelte:window on:pointerdown={closeProfileMenu} />
+<svelte:window
+  on:pointerdown={closeProfileMenu}
+  on:keydown={handleShellKeydown}
+/>
 
 <div
   class="app"
@@ -3925,14 +4011,33 @@
         class:me-has-chat={mode === "cloud" && hasEditorProject}
       >
         {#if mode === "cloud"}
-          <aside class="me-left-panel">
+          <aside
+            class="me-left-panel"
+            class:me-home-sidebar={!hasEditorProject}
+            class:me-mobile-sidebar-open={mobileSidebarOpen}
+          >
             {#if hasEditorProject}
               {@render tiffy("panel")}
             {:else}
-              <nav class="me-sidebar-home" aria-label="Motify navigation">
+              <nav
+                id="motify-navigation"
+                class="me-sidebar-home"
+                aria-label="Motify navigation"
+              >
                 <div class="me-sidebar-brand">
-                  <img src="/logo.svg" alt="" width="22" height="22" />
-                  <span>Motify</span>
+                  <span class="me-sidebar-brand-lockup">
+                    <img src="/logo.svg" alt="" width="22" height="22" />
+                    <span>Motify</span>
+                  </span>
+                  <button
+                    bind:this={mobileSidebarClose}
+                    type="button"
+                    class="me-sidebar-close"
+                    aria-label="Close navigation"
+                    on:click={() => closeMobileSidebar()}
+                  >
+                    <X size={19} />
+                  </button>
                 </div>
                 <div class="me-sidebar-primary">
                   <button
@@ -4107,6 +4212,16 @@
               </nav>
             {/if}
           </aside>
+          {#if !hasEditorProject}
+            <button
+              type="button"
+              class="me-mobile-sidebar-backdrop"
+              class:me-mobile-sidebar-open={mobileSidebarOpen}
+              aria-label="Close navigation"
+              tabindex={mobileSidebarOpen ? 0 : -1}
+              on:click={() => closeMobileSidebar()}
+            ></button>
+          {/if}
         {:else if localPanelOpen}
           <aside class="me-left-panel">
             <div class="me-brand-row">
@@ -4228,6 +4343,21 @@
           class="me-center-column"
           class:me-center-paged={centerPage !== null}
         >
+          {#if mode === "cloud" && !hasEditorProject}
+            <header class="me-mobile-header">
+              <button
+                bind:this={mobileSidebarTrigger}
+                type="button"
+                aria-label="Open navigation"
+                aria-controls="motify-navigation"
+                aria-expanded={mobileSidebarOpen}
+                on:click={openMobileSidebar}
+              >
+                <Menu size={21} />
+              </button>
+              <span>Motify</span>
+            </header>
+          {/if}
           {#if centerPage}
             <div
               class="me-page"
@@ -4251,6 +4381,12 @@
                     <h1 id="templates-title">Templates</h1>
                     <p>
                       Open a finished film, then ask Tiffy to make it yours.
+                      Rather start from a written brief? Try the
+                      <a
+                        href={motifySiteHref("/resources/prompt-templates")}
+                        target="_blank"
+                        rel="noopener">prompt templates ↗</a
+                      >.
                     </p>
                   </header>
                   <label class="me-page-search">
@@ -4524,6 +4660,7 @@
             </div>
             <div
               class="me-view-controls"
+              data-tour="format"
               role="toolbar"
               aria-label="Canvas view"
             >
@@ -4592,6 +4729,7 @@
               >
               <button
                 class="btn btn-primary export-action me-tooltip"
+                data-tour="export"
                 aria-label="Export video"
                 data-tooltip="Choose format, resolution and quality"
                 on:click={openExportDialog}
@@ -5511,6 +5649,15 @@
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
+  {#if tourActive && tour}
+    <TourCoach
+      steps={tourSteps}
+      index={tour.index}
+      onNext={() => moveTour(1)}
+      onBack={() => moveTour(-1)}
+      onDone={endTour}
+    />
+  {/if}
   {#if exportDialogOpen}
     <ExportDialog
       width={canvasView.width}

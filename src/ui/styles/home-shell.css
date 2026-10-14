@@ -21,7 +21,7 @@
 
 /* A page replaces the editor without unmounting it: the preview keeps its
    runtime, and comes back where it was. */
-.code-editor-scope .me-center-paged > :not(.me-page) {
+.code-editor-scope .me-center-paged > :not(.me-page):not(.me-mobile-header) {
   display: none !important;
 }
 
@@ -129,6 +129,18 @@
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+.code-editor-scope .me-sidebar-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.code-editor-scope .me-sidebar-close,
+.code-editor-scope .me-mobile-header,
+.code-editor-scope .me-mobile-sidebar-backdrop {
+  display: none;
 }
 
 .code-editor-scope .me-sidebar-brand img {
@@ -436,11 +448,13 @@
 }
 
 .code-editor-scope .ai-aspect-picker > span {
+  flex: 1;
   min-width: 112px;
   text-align: left;
 }
 
 .code-editor-scope .ai-aspect-picker > svg:last-child {
+  margin-left: auto;
   transition: transform 0.2s ease-out;
 }
 
@@ -1252,9 +1266,213 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 767px) {
   .code-editor-scope .me-workbench.me-no-inspector {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mode-cloud .code-editor-scope .me-left-panel.me-home-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 70;
+    width: min(88vw, 320px);
+    display: flex;
+    padding-left: env(safe-area-inset-left);
+    border-right: 1px solid var(--sl-border-strong);
+    box-shadow: 18px 0 50px rgba(0, 0, 0, 0.48);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0.24s;
+  }
+
+  .mode-cloud
+    .code-editor-scope
+    .me-left-panel.me-home-sidebar.me-mobile-sidebar-open {
+    visibility: visible;
+    transform: translateX(0);
+    transition-delay: 0s;
+  }
+
+  .code-editor-scope .me-sidebar-home {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .code-editor-scope .me-sidebar-brand {
+    height: 44px;
+    justify-content: space-between;
+    padding-right: 0;
+  }
+
+  .code-editor-scope .me-sidebar-close {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--sl-text-soft);
+    cursor: pointer;
+  }
+
+  .code-editor-scope .me-sidebar-close:hover,
+  .code-editor-scope .me-sidebar-close:focus-visible {
+    background: var(--sl-surface-hover);
+    color: var(--sl-text);
+  }
+
+  .mode-cloud .code-editor-scope .me-mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.56);
+    opacity: 0;
+    visibility: hidden;
+    cursor: default;
+    transition:
+      opacity 0.2s ease-out,
+      visibility 0s linear 0.2s;
+  }
+
+  .mode-cloud
+    .code-editor-scope
+    .me-mobile-sidebar-backdrop.me-mobile-sidebar-open {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .code-editor-scope .me-mobile-header {
+    position: relative;
+    z-index: 10;
+    min-height: calc(52px + env(safe-area-inset-top));
+    display: grid;
+    flex: none;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: end;
+    padding: env(safe-area-inset-top) 10px 0;
+    border-bottom: 1px solid var(--sl-border);
+    background: var(--sl-bg);
+  }
+
+  .code-editor-scope .me-mobile-header > span {
+    align-self: center;
+    overflow: hidden;
+    color: var(--sl-text);
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .code-editor-scope .me-mobile-header button {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--sl-text-soft);
+    cursor: pointer;
+  }
+
+  .code-editor-scope .me-mobile-header button:hover,
+  .code-editor-scope .me-mobile-header button:focus-visible {
+    background: var(--sl-surface-hover);
+    color: var(--sl-text);
+  }
+
+  .code-editor-scope .me-sidebar-link,
+  .code-editor-scope .me-sidebar-recent,
+  .code-editor-scope .me-sidebar-profile,
+  .code-editor-scope .me-sidebar-signin,
+  .code-editor-scope .me-sidebar-upgrade {
+    min-height: 44px;
+  }
+
+  .code-editor-scope .me-page--create {
+    padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .code-editor-scope .me-create {
+    margin-top: -3vh;
+  }
+
+  .code-editor-scope .is-hero .ai-chat-composer {
+    padding: 12px 12px 10px;
+    border-radius: 18px;
+  }
+
+  .code-editor-scope .is-hero .ai-composer-bar {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+    grid-template-areas: "add aspect brand send";
+    gap: 8px;
+  }
+
+  .code-editor-scope .is-hero .ai-composer-add-wrap {
+    grid-area: add;
+  }
+
+  .code-editor-scope .is-hero .ai-aspect-picker-wrap {
+    min-width: 0;
+    grid-area: aspect;
+  }
+
+  .code-editor-scope .is-hero .ai-brand-picker {
+    grid-area: brand;
+  }
+
+  .code-editor-scope .is-hero .ai-composer-send {
+    grid-area: send;
+  }
+
+  .code-editor-scope .is-hero .ai-composer-add,
+  .code-editor-scope .is-hero .ai-composer-send {
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .code-editor-scope .is-hero .ai-aspect-picker,
+  .code-editor-scope .is-hero .ai-brand-chip {
+    width: 100%;
+    max-width: none;
+    height: 44px;
+  }
+
+  .code-editor-scope .is-hero .ai-brand-chip {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .code-editor-scope .is-hero .ai-aspect-picker > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .code-editor-scope .is-hero .ai-brand-chip > span,
+  .code-editor-scope .is-hero .ai-brand-chip > svg:last-child {
+    display: none;
+  }
+
+  .code-editor-scope .is-hero .ai-brand-menu {
+    right: 0;
+    left: auto;
+    width: min(210px, calc(100vw - 32px));
+    max-width: none;
   }
 
   .code-editor-scope .me-page-body {
@@ -1263,5 +1481,32 @@
 
   .code-editor-scope .ai-hero-title {
     font-size: 26px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .mode-cloud .code-editor-scope .me-workbench.me-no-inspector {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .mode-cloud
+    .code-editor-scope
+    .me-workbench.me-no-inspector
+    > .me-left-panel {
+    display: flex;
+  }
+
+  .mode-cloud
+    .code-editor-scope
+    .me-workbench.me-no-inspector
+    > .me-center-column {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-cloud .code-editor-scope .me-left-panel.me-home-sidebar,
+  .mode-cloud .code-editor-scope .me-mobile-sidebar-backdrop {
+    transition: none;
   }
 }

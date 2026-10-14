@@ -7,6 +7,8 @@
     signUpWithPassword,
     type MotionlyUser,
   } from "../../auth";
+  import { MOTIFY_SITE_URL } from "../../api/config";
+  import { welcomeUrl } from "../../onboarding/tour";
   import "./auth.css";
 
   /** Which credential flow the form is showing. Bindable so a host can open
@@ -60,9 +62,16 @@
     errorMessage = "";
     try {
       if (isSignUp) {
-        const user = await signUpWithPassword(address, password);
+        const signedUp = await signUpWithPassword(address, password);
         password = "";
-        if (user) await onauthenticated(user);
+        if (signedUp?.newAccount) {
+          // New accounts start with the site's onboarding; a held prompt travels along.
+          const held = sessionStorage.getItem("motionly_pending_prompt") ?? "";
+          sessionStorage.removeItem("motionly_pending_prompt");
+          window.location.replace(welcomeUrl(held, MOTIFY_SITE_URL));
+          return;
+        }
+        if (signedUp) await onauthenticated(signedUp.user);
         else verificationSentTo = address;
       } else {
         const user = await signInWithPassword(address, password);

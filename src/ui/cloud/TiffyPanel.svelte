@@ -320,6 +320,7 @@
   class:is-drag-over={dragOver}
   data-drop-hint="Drop images or songs to add them"
   aria-label="Tiffy"
+  data-tour={variant === "panel" ? "tiffy" : undefined}
   data-ph-no-autocapture
   on:dragenter={onDragEnter}
   on:dragover={onDragOver}
@@ -334,6 +335,7 @@
         <button
           type="button"
           class="ai-chat-back"
+          data-tour="home"
           aria-label="Back to home"
           title={$generationStore.isActive
             ? "Tiffy is still working on this video"
@@ -565,6 +567,7 @@
   <form class="ai-chat-composer" on:submit={submitAssistant}>
     <textarea
       class="ai-composer-input"
+      data-tour="prompt"
       aria-label="Assistant prompt"
       rows={variant === "hero" ? 2 : 1}
       placeholder={variant === "hero"
@@ -581,6 +584,7 @@
       <div class="ai-composer-add-wrap" bind:this={addMenu}>
         <button
           class="ai-composer-add"
+          data-tour="attach"
           type="button"
           aria-label="Attach an image or song"
           aria-haspopup={hasLibraries ? "menu" : undefined}
