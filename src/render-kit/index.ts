@@ -12,3 +12,4 @@ export {
   type RenderCheckResult,
   type RenderFault,
 } from "./render-check";
+export { measureSlop, type SlopCounts } from "./slop";
