@@ -464,8 +464,10 @@
               <li
                 class:is-complete={index < activityStepIndex}
                 class:is-active={index === activityStepIndex}
+                aria-current={index === activityStepIndex ? "step" : undefined}
               >
-                <span aria-hidden="true"></span>{step}
+                <span class="ai-chat-step-marker" aria-hidden="true"
+                ></span>{step}
               </li>
             {/each}
           </ol>

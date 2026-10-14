@@ -1176,6 +1176,25 @@
   background: #fff;
 }
 
+.code-editor-scope .me-scene-bar__sound {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sl-muted);
+  cursor: pointer;
+}
+
+.code-editor-scope .me-scene-bar__sound:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
 .code-editor-scope .me-scene-bar__time {
   min-width: 86px;
   color: var(--sl-text);

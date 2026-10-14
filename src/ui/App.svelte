@@ -61,6 +61,8 @@
     ArrowUp,
     SquarePen,
     Upload,
+    Volume2,
+    VolumeX,
     X,
   } from "lucide-svelte";
   import { createDynamicComposition } from "../composition/dynamic-compiler";
@@ -296,6 +298,7 @@
   let runtimeUnsubscribe: (() => void) | null = null;
   /** Plays the mounted film's music in step with the timeline playhead. */
   let audioSync: AudioSync | null = null;
+  let soundMuted = false;
   /** Songs sent with the message being generated, kept for its repair pass. */
   let audioInFlight: AudioTrack[] | null = null;
   const musicApi = new ProjectsApi();
@@ -720,6 +723,7 @@
           : undefined),
     });
     audioSync = new AudioSync(previewRoot);
+    audioSync.muted = soundMuted;
     runtime.importEditorState(editorState);
     if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
       selectedId = previousSelectedId;
@@ -1388,9 +1392,22 @@
     };
   }
 
-  function togglePlayback(): void {
+  async function togglePlayback(): Promise<void> {
     if (!runtime) return;
-    snapshot.playing ? runtime.pause() : runtime.play();
+    if (snapshot.playing) {
+      runtime.pause();
+      return;
+    }
+    // Start the media unlock before yielding so the browser still associates
+    // AudioContext.resume() and audio.play() with this exact Play click.
+    const unlock = audioSync?.unlock({ time: snapshot.time, playing: true });
+    runtime.play();
+    await unlock;
+  }
+
+  function toggleSound(): void {
+    soundMuted = !soundMuted;
+    if (audioSync) audioSync.muted = soundMuted;
   }
 
   // Picks the layer the user actually pointed at. The topmost painted element
@@ -4895,7 +4912,18 @@
                 {/if}
               </div>
             </div>
-            {#if openingProject}
+            {#if $generationStore.isActive}
+              <div
+                class="me-generating me-generating--generation"
+                role="status"
+                aria-live="polite"
+              >
+                <span class="me-spinner me-spinner--large" aria-hidden="true"
+                ></span>
+                <strong>Generating your video...</strong>
+                <p>{activityVerb}...</p>
+              </div>
+            {:else if openingProject}
               <div class="me-generating" role="status">
                 <span class="me-spinner me-spinner--large" aria-hidden="true"
                 ></span>
@@ -4910,6 +4938,16 @@
                 aria-label={snapshot.playing ? "Pause" : "Play"}
                 on:click={togglePlayback}
                 >{#if snapshot.playing}<Pause size={15} />{:else}<Play
+                    size={15}
+                  />{/if}</button
+              >
+              <button
+                class="me-scene-bar__sound"
+                aria-label={soundMuted ? "Sound on" : "Sound off"}
+                aria-pressed={soundMuted}
+                title={soundMuted ? "Sound on" : "Sound off"}
+                on:click={toggleSound}
+                >{#if soundMuted}<VolumeX size={15} />{:else}<Volume2
                     size={15}
                   />{/if}</button
               >

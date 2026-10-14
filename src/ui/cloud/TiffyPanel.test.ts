@@ -74,6 +74,11 @@ describe("TiffyPanel generation controls", () => {
         "Tiffy is reading your prompt",
       );
       expect(document.querySelector(".ai-chat-state")).toBeNull();
+      expect(
+        document.querySelector(
+          '.ai-chat-activity li[aria-current="step"] .ai-chat-step-marker',
+        ),
+      ).not.toBeNull();
     } finally {
       await unmount(component);
     }

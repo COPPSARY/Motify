@@ -1211,6 +1211,11 @@
   line-height: 1.5;
 }
 
+.code-editor-scope .me-generating--generation .me-spinner {
+  border-color: rgba(31, 69, 176, 0.3);
+  border-top-color: var(--sl-brand-cobalt, #1f45b0);
+}
+
 .code-editor-scope .me-spinner--large {
   width: 28px;
   height: 28px;

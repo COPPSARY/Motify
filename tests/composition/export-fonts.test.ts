@@ -10,9 +10,13 @@ afterEach(() => {
 });
 
 function stubFetch() {
+  // A string body, not a jsdom Blob: Node 20's fetch Response does not accept
+  // a Blob from another realm and rejects, which the code under test swallows.
   const fetch = vi.fn(
     async (url: string) =>
-      new Response(new Blob([`font:${url}`], { type: "font/woff2" })),
+      new Response(`font:${url}`, {
+        headers: { "content-type": "font/woff2" },
+      }),
   );
   vi.stubGlobal("fetch", fetch);
   return fetch;

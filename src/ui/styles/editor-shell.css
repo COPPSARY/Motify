@@ -193,8 +193,8 @@
 .code-editor-scope .ai-chat-activity-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid #39414c;
-  border-top-color: #78a8ff;
+  border: 2px solid rgba(31, 69, 176, 0.28);
+  border-top-color: var(--sl-brand-cobalt, #1f45b0);
   border-radius: 50%;
   animation: ai-chat-activity-spin 800ms linear infinite;
 }
@@ -221,9 +221,11 @@
   color: #686f79;
 }
 
-.code-editor-scope .ai-chat-activity li > span {
-  width: 6px;
-  height: 6px;
+.code-editor-scope .ai-chat-activity .ai-chat-step-marker {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  box-sizing: border-box;
   border: 1px solid currentColor;
   border-radius: 50%;
 }
@@ -232,18 +234,20 @@
   color: #9098a4;
 }
 
-.code-editor-scope .ai-chat-activity li.is-complete > span {
-  border-color: #78a8ff;
-  background: #78a8ff;
+.code-editor-scope .ai-chat-activity li.is-complete > .ai-chat-step-marker {
+  border-color: var(--sl-brand-cobalt, #1f45b0);
+  background: var(--sl-brand-cobalt, #1f45b0);
 }
 
 .code-editor-scope .ai-chat-activity li.is-active {
   color: #e6e8ec;
 }
 
-.code-editor-scope .ai-chat-activity li.is-active > span {
-  border-color: #78a8ff;
-  box-shadow: 0 0 0 3px rgba(120, 168, 255, 0.13);
+.code-editor-scope .ai-chat-activity li.is-active > .ai-chat-step-marker {
+  border: 2px solid rgba(31, 69, 176, 0.3);
+  border-top-color: var(--sl-brand-cobalt, #1f45b0);
+  box-shadow: 0 0 0 3px rgba(31, 69, 176, 0.12);
+  animation: ai-chat-activity-spin 800ms linear infinite;
 }
 
 @keyframes ai-chat-activity-spin {
@@ -254,6 +258,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .code-editor-scope .ai-chat-activity-spinner {
+    animation: none;
+  }
+
+  .code-editor-scope .ai-chat-activity li.is-active > .ai-chat-step-marker {
     animation: none;
   }
 }

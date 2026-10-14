@@ -26,6 +26,8 @@ const RETRY_MS = 500;
 
 export class AudioSync {
   private readonly tracks: SyncedTrack[] = [];
+  private context: AudioContext | null = null;
+  private isMuted = false;
 
   constructor(root: ParentNode) {
     for (const element of root.querySelectorAll<HTMLAudioElement>(
@@ -52,13 +54,87 @@ export class AudioSync {
     return this.tracks.length;
   }
 
+  get muted(): boolean {
+    return this.isMuted;
+  }
+
+  set muted(value: boolean) {
+    this.isMuted = value;
+    for (const { element } of this.tracks) element.muted = value;
+  }
+
   sync({ time, playing }: AudioSyncSnapshot): void {
     for (const track of this.tracks) this.syncTrack(track, time, playing);
   }
 
+  /**
+   * Opens the browser's audio gate from the Play click itself. Calling this
+   * method must be the first work done by the click handler: both resume() and
+   * element.play() are started before the first await, while transient user
+   * activation is still available on deployed HTTPS origins.
+   */
+  async unlock({ time }: AudioSyncSnapshot): Promise<void> {
+    const context = this.ensureContext();
+    console.info(
+      `[Audio] AudioContext state on play: ${context?.state ?? "unavailable"}`,
+    );
+
+    const resume =
+      context?.state === "suspended"
+        ? context.resume().catch((error: unknown) => {
+            console.warn("[Audio] AudioContext resume failed", error);
+          })
+        : Promise.resolve();
+    const playback = this.tracks.map(async (track) => {
+      this.seekTrack(track, time);
+      try {
+        await track.element.play();
+        track.retryAt = 0;
+      } catch (error) {
+        // A source can still be rendering when Play is clicked. Timeline sync
+        // retries it as soon as the source becomes ready.
+        console.warn("[Audio] audio element unlock failed", error);
+      }
+    });
+
+    await Promise.all([resume, ...playback]);
+  }
+
   dispose(): void {
-    for (const { element } of this.tracks) element.pause();
+    for (const { element } of this.tracks) {
+      element.pause();
+      const ownedUrl = element.dataset["motifyOwnedObjectUrl"];
+      if (ownedUrl) URL.revokeObjectURL(ownedUrl);
+    }
+    if (this.context && this.context.state !== "closed") {
+      void this.context.close().catch(() => undefined);
+    }
+    this.context = null;
     this.tracks.length = 0;
+  }
+
+  // The context exists only to be resumed from the Play gesture, which also
+  // unlocks Web Audio for the page. Elements are never routed through it: a
+  // MediaElementSource on a cross-origin track without CORS headers plays
+  // silence, which is exactly how a deployed film goes quiet.
+  private ensureContext(): AudioContext | null {
+    if (this.context) return this.context;
+    if (typeof AudioContext === "undefined") return null;
+    try {
+      this.context = new AudioContext();
+      return this.context;
+    } catch (error) {
+      console.warn("[Audio] AudioContext initialization failed", error);
+      this.context = null;
+      return null;
+    }
+  }
+
+  private seekTrack(track: SyncedTrack, time: number): void {
+    const local = Math.max(0, time - track.start);
+    if (Math.abs(track.element.currentTime - local) > SCRUB_EPSILON) {
+      track.element.currentTime = local;
+    }
   }
 
   private syncTrack(track: SyncedTrack, time: number, playing: boolean): void {
