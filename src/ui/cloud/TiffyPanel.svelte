@@ -648,6 +648,7 @@
         <div class="ai-aspect-picker-wrap" bind:this={aspectPicker}>
           <button
             class="ai-aspect-picker"
+            data-tour="aspect"
             class:is-open={aspectMenuOpen}
             type="button"
             aria-label={`Video aspect ratio: ${selectedAspect.label}`}
@@ -705,6 +706,7 @@
       <div class="ai-effort-picker-wrap" bind:this={effortPicker}>
         <button
           class="ai-effort-picker"
+          data-tour="effort"
           class:is-open={effortMenuOpen}
           type="button"
           aria-label={`Reasoning effort: ${selectedEffort.label}`}
@@ -749,6 +751,7 @@
         <button
           type="button"
           class="ai-brand-chip"
+          data-tour="brand"
           bind:this={brandButton}
           class:is-unset={!brandName}
           aria-label="Choose Brand DNA"

@@ -7,8 +7,7 @@
     signUpWithPassword,
     type MotionlyUser,
   } from "../../auth";
-  import { MOTIFY_SITE_URL } from "../../api/config";
-  import { welcomeUrl } from "../../onboarding/tour";
+  import { beginOnboarding } from "../../onboarding/begin";
   import "./auth.css";
 
   /** Which credential flow the form is showing. Bindable so a host can open
@@ -65,10 +64,8 @@
         const signedUp = await signUpWithPassword(address, password);
         password = "";
         if (signedUp?.newAccount) {
-          // New accounts start with the site's onboarding; a held prompt travels along.
-          const held = sessionStorage.getItem("motionly_pending_prompt") ?? "";
-          sessionStorage.removeItem("motionly_pending_prompt");
-          window.location.replace(welcomeUrl(held, MOTIFY_SITE_URL));
+          // New accounts start with Brand DNA, then the tour; a held prompt waits in the composer.
+          await beginOnboarding();
           return;
         }
         if (signedUp) await onauthenticated(signedUp.user);

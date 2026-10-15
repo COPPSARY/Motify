@@ -10,11 +10,16 @@
     LogIn,
     MessageCircle,
     Pencil,
+    Image as ImageIcon,
     Plus,
     Trash2,
     TriangleAlert,
   } from "lucide-svelte";
   import { currentMotionlyUser } from "../auth";
+  import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
+  import { PROMPTS_ROUTE } from "../app/routes";
+  import InterestPicker from "../onboarding/InterestPicker.svelte";
+  import { saveInterests } from "../onboarding/interests";
   import { loadAssetObjectUrl, uploadAsset } from "../api/assets";
   import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
   import {
@@ -45,6 +50,7 @@
     SKIPPED_REACTIONS,
     firstUnanswered,
     type BrandQuestion,
+    type QuestionId,
     type SectionId,
   } from "./brand-questions";
   import "./brand-dna-page.css";
@@ -101,6 +107,18 @@
   let previews: Record<string, string> = {};
   let uploading: Partial<Record<BrandAssetRole, number>> = {};
   let toneInput = "";
+  /** First-run: a new account lands here before the editor, then moves on to Prompt Templates. */
+  let onboarding = false;
+  let canExtract = false;
+  let extracting = false;
+  /** An overview card is being edited in a dialog over the overview, not in the Tiffy chat. */
+  let overviewEdit = false;
+  /** What Tiffy says in the chat when a website could not be read, or had nothing in it. */
+  let extractNotice = "";
+  /** After a failed read the website is kept as typed and they can retry or carry on by hand. */
+  let extractFailed = false;
+  /** After Brand DNA, a new account picks the kinds of video they want before seeing templates. */
+  let pickingInterests = false;
 
   /** Chat state. */
   let current = 0;
@@ -128,6 +146,12 @@
   $: void syncPreviews(assets.filter((asset) => asset.role !== "font"));
   $: question = QUESTIONS[current] ?? QUESTIONS[0]!;
   $: brandName = draft.identity.name.trim();
+  // A typed website swaps Send for reading it, until a read fails and they choose to go on by hand.
+  $: fillMode =
+    question.id === "website" &&
+    canExtract &&
+    !extractFailed &&
+    normalizeUrl(textValue("website", draft)) !== "";
   $: canAnswer = question.optional || question.answered(draft, assets);
   $: progress = Math.round(
     ((finished ? QUESTIONS.length : current) / QUESTIONS.length) * 100,
@@ -160,6 +184,7 @@
       }
       await loadBrand();
       state = "ready";
+      void loadOnboarding();
       // A brand that has been started opens on its overview; a new one opens
       // on Tiffy's first question.
       if (resource && resource.revision > 0) mode = "review";
@@ -281,6 +306,8 @@
   /** Tiffy "types" for a beat before each question, then focuses the answer. */
   async function ask(index: number) {
     current = index;
+    extractNotice = "";
+    extractFailed = false;
     finished = false;
     typing = !reduceMotion;
     await scrollDown();
@@ -310,6 +337,7 @@
 
     if (editingFromReview) {
       editingFromReview = false;
+      overviewEdit = false;
       mode = "review";
       showToast("Saved.");
       return;
@@ -331,7 +359,8 @@
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     if (multiline && !(event.metaKey || event.ctrlKey)) return;
     event.preventDefault();
-    void answer();
+    if (fillMode) void fillFromWebsite();
+    else void answer();
   }
 
   /** Reopens one question: from the thread it continues the chat, from review it comes back. */
@@ -568,13 +597,99 @@
     );
   }
 
+  /** Opens one answer for editing in a dialog over the overview. */
+  function edit(id: QuestionId) {
+    const index = QUESTIONS.findIndex((entry) => entry.id === id);
+    if (index < 0) return;
+    current = index;
+    editingFromReview = true;
+    overviewEdit = true;
+    reaction = "";
+    extractNotice = "";
+    extractFailed = false;
+    void tick().then(() => answerInput?.focus());
+  }
+
+  function cancelEdit() {
+    draft = cloneBrandDna(saved);
+    editingFromReview = false;
+    overviewEdit = false;
+    mode = "review";
+  }
+
   function sectionQuestions(section: SectionId) {
     return QUESTIONS.map((entry, index) => ({ entry, index })).filter(
       ({ entry }) => entry.section === section,
     );
   }
 
+  async function loadOnboarding() {
+    try {
+      const progress = await fetchOnboarding();
+      onboarding = progress.completedAt === null && progress.step === "brand";
+    } catch {
+      // The page works the same without it.
+    }
+    try {
+      canExtract = (await api.getCapabilities()).brandExtraction === true;
+    } catch {
+      canExtract = false;
+    }
+  }
+
+  function extractMessage(error: unknown): string {
+    if (error instanceof CloudApiError) {
+      if (error.status === 429)
+        return "I've read a lot of sites today. Fill it in by hand, or try again tomorrow.";
+      if (error.details?.["reason"] === "INVALID_URL")
+        return "That doesn't look like a website address. Check it and try again, or fill it in by hand.";
+    }
+    return "I can't open that website. Try again, or fill it in by hand.";
+  }
+
+  /** Reads the website into the brand, then carries on with whatever is still unanswered. */
+  async function fillFromWebsite() {
+    const url = normalizeUrl(textValue("website", draft));
+    if (!url || extracting) return;
+    extracting = true;
+    extractNotice = "";
+    extractFailed = false;
+    try {
+      setText("website", url);
+      if (!(await save())) return;
+      const result = await api.extractBrand(url);
+      applyResource(result.brand);
+      await answer();
+      reaction =
+        result.applied.length > 0
+          ? "I filled in what I could from your site."
+          : "I couldn't find anything on that site, so let's fill it in by hand.";
+    } catch (error) {
+      extractNotice = extractMessage(error);
+      extractFailed = true;
+      await scrollDown();
+    } finally {
+      extracting = false;
+    }
+  }
+
+  /** Leaves for Prompt Templates, with the picked categories (none shows everything). */
+  async function continueOnboarding(categories: string[] = []) {
+    saveInterests(localStorage, categories);
+    try {
+      await updateOnboarding({ step: "prompts" });
+    } catch {
+      // Moving on matters more than remembering where they were.
+    }
+    window.location.href = PROMPTS_ROUTE;
+  }
+
   function goBack() {
+    // Skipping goes straight on, with every template; finishing asks what they want to make first.
+    if (onboarding) {
+      void continueOnboarding();
+      return;
+    }
     if (window.opener && !window.opener.closed) {
       window.opener.focus();
       window.close();
@@ -602,6 +717,334 @@
 <svelte:head><title>Brand DNA · Motionly</title></svelte:head>
 
 <!-- An answer, the way it appears as the user's reply and on the review page. -->
+{#snippet answerBox()}
+  <div
+    class="bd-answer"
+    class:is-wide={["colors", "fonts", "features", "files"].includes(
+      question.kind,
+    )}
+  >
+    <fieldset class="bd-answer__body">
+      {#if question.kind === "text" || question.kind === "url"}
+        <input
+          bind:this={answerInput}
+          class="bd-input bd-input--big"
+          inputmode={question.kind === "url" ? "url" : "text"}
+          maxlength={question.maxLength}
+          placeholder={question.placeholder}
+          value={textValue(question.id, draft)}
+          on:input={(event) => {
+            setText(question.id, event.currentTarget.value);
+            extractNotice = "";
+            extractFailed = false;
+          }}
+          on:blur={() =>
+            question.kind === "url" &&
+            setText(question.id, normalizeUrl(textValue(question.id, draft)))}
+          on:keydown={onKey}
+        />
+      {:else if question.kind === "textarea"}
+        <textarea
+          bind:this={answerInput}
+          class="bd-input bd-textarea"
+          rows="3"
+          maxlength={question.maxLength}
+          placeholder={question.placeholder}
+          value={textValue(question.id, draft)}
+          on:input={(event) => setText(question.id, event.currentTarget.value)}
+          on:keydown={onKey}
+        ></textarea>
+      {:else if question.kind === "logo"}
+        <div class="bd-marks">
+          <div class="bd-marks__logo">
+            <span class="bd-label">Logo</span>
+            <BrandImages
+              single
+              assets={logo}
+              {previews}
+              uploading={uploading.logo ?? 0}
+              emptyLabel="Drop your logo"
+              onupload={(files) => upload("logo", files)}
+              onremove={removeAsset}
+            />
+          </div>
+          <div class="bd-marks__favicon">
+            <span class="bd-label">Favicon <small>Optional</small></span>
+            <BrandImages
+              single
+              small
+              assets={favicon}
+              {previews}
+              uploading={uploading.favicon ?? 0}
+              emptyLabel="Drop favicon"
+              onupload={(files) => upload("favicon", files)}
+              onremove={removeAsset}
+            />
+          </div>
+        </div>
+      {:else if question.kind === "colors"}
+        <div class="bd-palette">
+          {#each draft.visual.colors as color, index (color.id)}
+            <div class="bd-color">
+              <label class="bd-color__swatch" style={`background:${color.hex}`}>
+                <input
+                  type="color"
+                  value={color.hex}
+                  aria-label="Pick colour"
+                  on:input={(event) => setHex(index, event.currentTarget.value)}
+                />
+              </label>
+              <div class="bd-color__fields">
+                <input
+                  class="bd-input bd-input--bare"
+                  maxlength="40"
+                  placeholder="Name"
+                  bind:value={color.name}
+                />
+                <div class="bd-color__row">
+                  <input
+                    class="bd-input bd-input--bare bd-mono"
+                    value={color.hex}
+                    maxlength="7"
+                    aria-label="Hex value"
+                    on:change={(event) => {
+                      setHex(index, event.currentTarget.value);
+                      event.currentTarget.value = color.hex;
+                    }}
+                  />
+                  <select
+                    class="bd-input bd-input--bare bd-select"
+                    bind:value={color.role}
+                  >
+                    {#each BRAND_COLOR_ROLES as role}<option value={role}
+                        >{role}</option
+                      >{/each}
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="bd-remove"
+                aria-label="Remove colour"
+                on:click={() =>
+                  (draft.visual.colors = removeAt(draft.visual.colors, index))}
+                ><Trash2 size={13} /></button
+              >
+            </div>
+          {/each}
+          {#if draft.visual.colors.length < BRAND_LIMITS.colors}
+            <button
+              type="button"
+              class="bd-color bd-color--add"
+              on:click={addColor}
+            >
+              <Plus size={16} /> Add colour
+            </button>
+          {/if}
+        </div>
+      {:else if question.kind === "fonts"}
+        <BrandFonts
+          bind:fonts={draft.visual.fonts}
+          upload={(file) => linkFile(file, "font")}
+          onnotice={showToast}
+        />
+      {:else if question.kind === "features"}
+        <div class="bd-features">
+          {#each draft.product.features as feature, index (feature.id)}
+            <div class="bd-feature">
+              <span class="bd-feature__n">{index + 1}</span>
+              <div class="bd-feature__fields">
+                <input
+                  class="bd-input bd-input--bare bd-feature__title"
+                  maxlength="80"
+                  placeholder="Feature name"
+                  bind:value={feature.title}
+                />
+                <input
+                  class="bd-input bd-input--bare"
+                  maxlength="300"
+                  placeholder="What it does (optional)"
+                  bind:value={feature.description}
+                />
+              </div>
+              <button
+                type="button"
+                class="bd-remove"
+                aria-label="Remove feature"
+                on:click={() =>
+                  (draft.product.features = removeAt(
+                    draft.product.features,
+                    index,
+                  ))}><Trash2 size={13} /></button
+              >
+            </div>
+          {/each}
+          {#if draft.product.features.length < BRAND_LIMITS.features}
+            <button
+              type="button"
+              class="bd-feature bd-feature--add"
+              on:click={addFeature}
+            >
+              <Plus size={15} /> Add feature
+            </button>
+          {/if}
+        </div>
+      {:else if question.kind === "tone"}
+        <div class="bd-chips">
+          {#each [...new Set( [...TONE_SUGGESTIONS, ...draft.voice.tone] )] as tone}
+            <button
+              type="button"
+              class="bd-chip"
+              class:is-on={draft.voice.tone.some(
+                (entry) => entry.toLowerCase() === tone.toLowerCase(),
+              )}
+              on:click={() => toggleTone(tone)}>{tone}</button
+            >
+          {/each}
+          <form class="bd-chip-add" on:submit|preventDefault={addCustomTone}>
+            <input
+              maxlength="30"
+              placeholder="+ Your own"
+              bind:value={toneInput}
+            />
+          </form>
+        </div>
+      {:else if question.kind === "files"}
+        <div class="bd-files">
+          <div class="bd-field">
+            <span class="bd-label">Screenshots</span>
+            <BrandImages
+              compact
+              assets={screenshots}
+              {previews}
+              uploading={uploading.screenshot ?? 0}
+              emptyLabel="Drop screenshots"
+              onupload={(files) => upload("screenshot", files)}
+              onremove={removeAsset}
+            />
+          </div>
+          <div class="bd-field">
+            <span class="bd-label">Product images</span>
+            <BrandImages
+              compact
+              assets={images}
+              {previews}
+              uploading={uploading.image ?? 0}
+              emptyLabel="Drop images"
+              onupload={(files) => upload("image", files)}
+              onremove={removeAsset}
+            />
+          </div>
+          <div class="bd-field">
+            <span class="bd-label">Logos &amp; icons</span>
+            <BrandImages
+              compact
+              assets={marks}
+              {previews}
+              uploading={(uploading.logo_variant ?? 0) + (uploading.icon ?? 0)}
+              emptyLabel="Drop logos or icons"
+              onupload={(files) => upload("logo_variant", files)}
+              onremove={removeAsset}
+            />
+          </div>
+        </div>
+      {/if}
+    </fieldset>
+
+    {#if overviewEdit && extractNotice}
+      <p class="bd-answer__error" role="status">{extractNotice}</p>
+    {/if}
+
+    <div class="bd-answer__actions">
+      {#if saveError}
+        <span class="bd-answer__error">
+          <TriangleAlert size={14} />
+          {saveError}
+          {#if conflict}<button
+              type="button"
+              class="bd-link"
+              on:click={loadBrand}>Reload</button
+            >{/if}
+        </span>
+      {:else if question.kind === "text" || question.kind === "url"}
+        <span class="bd-answer__hint"
+          ><CornerDownLeft size={12} /> Enter to {editingFromReview
+            ? "save"
+            : "send"}</span
+        >
+      {:else if question.kind === "textarea"}
+        <span class="bd-answer__hint"
+          >Ctrl + Enter to {editingFromReview ? "save" : "send"}</span
+        >
+      {:else}
+        <span></span>
+      {/if}
+      <div class="bd-answer__buttons">
+        {#if question.optional && !editingFromReview}
+          <button
+            type="button"
+            class="bd-btn bd-btn--ghost"
+            on:click={() => answer(true)}
+            disabled={saving}
+          >
+            {question.id === "website" ? "No website" : "Skip"}
+          </button>
+        {/if}
+        {#if editingFromReview}
+          <button
+            type="button"
+            class="bd-btn bd-btn--ghost"
+            on:click={cancelEdit}>Cancel</button
+          >
+        {/if}
+        {#if extractFailed}
+          <button
+            type="button"
+            class="bd-btn"
+            on:click={fillFromWebsite}
+            disabled={extracting}>Try again</button
+          >
+        {/if}
+        {#if fillMode}
+          <button
+            type="button"
+            class="bd-btn bd-btn--primary"
+            on:click={fillFromWebsite}
+            disabled={extracting || saving || conflict}
+          >
+            {#if extracting}<LoaderCircle class="brand-spin" size={14} /> Reading…{:else}Fill
+              from my website{/if}
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="bd-btn bd-btn--primary"
+            on:click={() => answer()}
+            disabled={saving || conflict || !canAnswer}
+          >
+            {#if saving}<LoaderCircle class="brand-spin" size={14} />{/if}
+            {editingFromReview ? "Save" : extractFailed ? "Continue" : "Send"}
+            <ArrowRight size={15} />
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/snippet}
+
+{#snippet block(id: QuestionId, label: string)}
+  {@const text = textValue(id, draft).trim()}
+  <button
+    type="button"
+    class="bd-ov-block"
+    class:is-empty={!text}
+    on:click={() => edit(id)}
+  >
+    <small>{label}</small>
+    <span>{text || "Add"}</span>
+  </button>
+{/snippet}
+
 {#snippet answerSummary(entry: BrandQuestion)}
   {#if entry.kind === "logo"}
     {#if logo[0]}
@@ -701,6 +1144,21 @@
       <span></span>
     {/if}
   </header>
+
+  {#if pickingInterests}
+    <InterestPicker
+      onDone={(categories) => void continueOnboarding(categories)}
+    />
+  {/if}
+
+  {#if onboarding}
+    <div class="bd-welcome" role="status">
+      <span>Set up your brand.</span>
+      <button type="button" class="bd-welcome__skip" on:click={goBack}
+        >Skip for now</button
+      >
+    </div>
+  {/if}
 
   {#if state === "ready"}
     <div class="bd-profiles" aria-label="Brand DNA profiles">
@@ -846,10 +1304,19 @@
           {/each}
 
           {#if finished}
+            {#if reaction}
+              <div class="bd-msg bd-msg--tiffy">
+                <TiffyMark size={32} />
+                <div class="bd-bubble">{reaction}</div>
+              </div>
+            {/if}
             <div class="bd-msg bd-msg--tiffy">
-              <TiffyMark size={32} />
+              {#if reaction}
+                <span class="bd-avatar-space"></span>
+              {:else}
+                <TiffyMark size={32} />
+              {/if}
               <div class="bd-bubble">
-                {#if reaction}<span class="bd-reaction">{reaction}</span>{/if}
                 That's everything I need. {brandName
                   ? `${brandName}'s`
                   : "Your"} Brand DNA is saved, and every new film will use it.
@@ -857,9 +1324,11 @@
                   <button
                     type="button"
                     class="bd-btn bd-btn--primary"
-                    on:click={goBack}
+                    on:click={() =>
+                      onboarding ? (pickingInterests = true) : goBack()}
                   >
-                    Make a film <ArrowRight size={15} />
+                    {onboarding ? "Continue" : "Make a film"}
+                    <ArrowRight size={15} />
                   </button>
                   <button
                     type="button"
@@ -872,329 +1341,39 @@
               </div>
             </div>
           {:else}
+            {#if reaction && !editingFromReview && !typing}
+              <div class="bd-msg bd-msg--tiffy">
+                <TiffyMark size={32} />
+                <div class="bd-bubble">{reaction}</div>
+              </div>
+            {/if}
             <div class="bd-msg bd-msg--tiffy is-current">
-              <TiffyMark size={32} />
+              {#if reaction && !editingFromReview && !typing}
+                <span class="bd-avatar-space"></span>
+              {:else}
+                <TiffyMark size={32} />
+              {/if}
               {#if typing}
                 <div class="bd-bubble bd-typing" aria-label="Tiffy is typing">
                   <span></span><span></span><span></span>
                 </div>
               {:else}
                 <div class="bd-bubble">
-                  {#if reaction && !editingFromReview}<span class="bd-reaction"
-                      >{reaction}</span
-                    >{/if}
                   {question.ask(brandName)}
                   {#if question.hint}<small>{question.hint}</small>{/if}
                 </div>
               {/if}
             </div>
 
-            {#if !typing}
-              <div
-                class="bd-answer"
-                class:is-wide={[
-                  "colors",
-                  "fonts",
-                  "features",
-                  "files",
-                ].includes(question.kind)}
-              >
-                <fieldset class="bd-answer__body">
-                  {#if question.kind === "text" || question.kind === "url"}
-                    <input
-                      bind:this={answerInput}
-                      class="bd-input bd-input--big"
-                      inputmode={question.kind === "url" ? "url" : "text"}
-                      maxlength={question.maxLength}
-                      placeholder={question.placeholder}
-                      value={textValue(question.id, draft)}
-                      on:input={(event) =>
-                        setText(question.id, event.currentTarget.value)}
-                      on:blur={() =>
-                        question.kind === "url" &&
-                        setText(
-                          question.id,
-                          normalizeUrl(textValue(question.id, draft)),
-                        )}
-                      on:keydown={onKey}
-                    />
-                  {:else if question.kind === "textarea"}
-                    <textarea
-                      bind:this={answerInput}
-                      class="bd-input bd-textarea"
-                      rows="3"
-                      maxlength={question.maxLength}
-                      placeholder={question.placeholder}
-                      value={textValue(question.id, draft)}
-                      on:input={(event) =>
-                        setText(question.id, event.currentTarget.value)}
-                      on:keydown={onKey}
-                    ></textarea>
-                  {:else if question.kind === "logo"}
-                    <div class="bd-marks">
-                      <BrandImages
-                        single
-                        assets={logo}
-                        {previews}
-                        uploading={uploading.logo ?? 0}
-                        emptyLabel="Drop your logo"
-                        onupload={(files) => upload("logo", files)}
-                        onremove={removeAsset}
-                      />
-                      <div class="bd-marks__favicon">
-                        <span class="bd-label"
-                          >Favicon <small>Optional</small></span
-                        >
-                        <BrandImages
-                          single
-                          small
-                          assets={favicon}
-                          {previews}
-                          uploading={uploading.favicon ?? 0}
-                          emptyLabel="Drop favicon"
-                          onupload={(files) => upload("favicon", files)}
-                          onremove={removeAsset}
-                        />
-                      </div>
-                    </div>
-                  {:else if question.kind === "colors"}
-                    <div class="bd-palette">
-                      {#each draft.visual.colors as color, index (color.id)}
-                        <div class="bd-color">
-                          <label
-                            class="bd-color__swatch"
-                            style={`background:${color.hex}`}
-                          >
-                            <input
-                              type="color"
-                              value={color.hex}
-                              aria-label="Pick colour"
-                              on:input={(event) =>
-                                setHex(index, event.currentTarget.value)}
-                            />
-                          </label>
-                          <div class="bd-color__fields">
-                            <input
-                              class="bd-input bd-input--bare"
-                              maxlength="40"
-                              placeholder="Name"
-                              bind:value={color.name}
-                            />
-                            <div class="bd-color__row">
-                              <input
-                                class="bd-input bd-input--bare bd-mono"
-                                value={color.hex}
-                                maxlength="7"
-                                aria-label="Hex value"
-                                on:change={(event) => {
-                                  setHex(index, event.currentTarget.value);
-                                  event.currentTarget.value = color.hex;
-                                }}
-                              />
-                              <select
-                                class="bd-input bd-input--bare bd-select"
-                                bind:value={color.role}
-                              >
-                                {#each BRAND_COLOR_ROLES as role}<option
-                                    value={role}>{role}</option
-                                  >{/each}
-                              </select>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            class="bd-remove"
-                            aria-label="Remove colour"
-                            on:click={() =>
-                              (draft.visual.colors = removeAt(
-                                draft.visual.colors,
-                                index,
-                              ))}><Trash2 size={13} /></button
-                          >
-                        </div>
-                      {/each}
-                      {#if draft.visual.colors.length < BRAND_LIMITS.colors}
-                        <button
-                          type="button"
-                          class="bd-color bd-color--add"
-                          on:click={addColor}
-                        >
-                          <Plus size={16} /> Add colour
-                        </button>
-                      {/if}
-                    </div>
-                  {:else if question.kind === "fonts"}
-                    <BrandFonts
-                      bind:fonts={draft.visual.fonts}
-                      upload={(file) => linkFile(file, "font")}
-                      onnotice={showToast}
-                    />
-                  {:else if question.kind === "features"}
-                    <div class="bd-features">
-                      {#each draft.product.features as feature, index (feature.id)}
-                        <div class="bd-feature">
-                          <span class="bd-feature__n">{index + 1}</span>
-                          <div class="bd-feature__fields">
-                            <input
-                              class="bd-input bd-input--bare bd-feature__title"
-                              maxlength="80"
-                              placeholder="Feature name"
-                              bind:value={feature.title}
-                            />
-                            <input
-                              class="bd-input bd-input--bare"
-                              maxlength="300"
-                              placeholder="What it does (optional)"
-                              bind:value={feature.description}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            class="bd-remove"
-                            aria-label="Remove feature"
-                            on:click={() =>
-                              (draft.product.features = removeAt(
-                                draft.product.features,
-                                index,
-                              ))}><Trash2 size={13} /></button
-                          >
-                        </div>
-                      {/each}
-                      {#if draft.product.features.length < BRAND_LIMITS.features}
-                        <button
-                          type="button"
-                          class="bd-feature bd-feature--add"
-                          on:click={addFeature}
-                        >
-                          <Plus size={15} /> Add feature
-                        </button>
-                      {/if}
-                    </div>
-                  {:else if question.kind === "tone"}
-                    <div class="bd-chips">
-                      {#each [...new Set( [...TONE_SUGGESTIONS, ...draft.voice.tone] )] as tone}
-                        <button
-                          type="button"
-                          class="bd-chip"
-                          class:is-on={draft.voice.tone.some(
-                            (entry) =>
-                              entry.toLowerCase() === tone.toLowerCase(),
-                          )}
-                          on:click={() => toggleTone(tone)}>{tone}</button
-                        >
-                      {/each}
-                      <form
-                        class="bd-chip-add"
-                        on:submit|preventDefault={addCustomTone}
-                      >
-                        <input
-                          maxlength="30"
-                          placeholder="+ Your own"
-                          bind:value={toneInput}
-                        />
-                      </form>
-                    </div>
-                  {:else if question.kind === "files"}
-                    <div class="bd-files">
-                      <div class="bd-field">
-                        <span class="bd-label">Screenshots</span>
-                        <BrandImages
-                          compact
-                          assets={screenshots}
-                          {previews}
-                          uploading={uploading.screenshot ?? 0}
-                          emptyLabel="Drop screenshots"
-                          onupload={(files) => upload("screenshot", files)}
-                          onremove={removeAsset}
-                        />
-                      </div>
-                      <div class="bd-field">
-                        <span class="bd-label">Product images</span>
-                        <BrandImages
-                          compact
-                          assets={images}
-                          {previews}
-                          uploading={uploading.image ?? 0}
-                          emptyLabel="Drop images"
-                          onupload={(files) => upload("image", files)}
-                          onremove={removeAsset}
-                        />
-                      </div>
-                      <div class="bd-field">
-                        <span class="bd-label">Logos &amp; icons</span>
-                        <BrandImages
-                          compact
-                          assets={marks}
-                          {previews}
-                          uploading={(uploading.logo_variant ?? 0) +
-                            (uploading.icon ?? 0)}
-                          emptyLabel="Drop logos or icons"
-                          onupload={(files) => upload("logo_variant", files)}
-                          onremove={removeAsset}
-                        />
-                      </div>
-                    </div>
-                  {/if}
-                </fieldset>
-
-                <div class="bd-answer__actions">
-                  {#if saveError}
-                    <span class="bd-answer__error">
-                      <TriangleAlert size={14} />
-                      {saveError}
-                      {#if conflict}<button
-                          type="button"
-                          class="bd-link"
-                          on:click={loadBrand}>Reload</button
-                        >{/if}
-                    </span>
-                  {:else if question.kind === "text" || question.kind === "url"}
-                    <span class="bd-answer__hint"
-                      ><CornerDownLeft size={12} /> Enter to send</span
-                    >
-                  {:else if question.kind === "textarea"}
-                    <span class="bd-answer__hint">Ctrl + Enter to send</span>
-                  {:else}
-                    <span></span>
-                  {/if}
-                  <div class="bd-answer__buttons">
-                    {#if question.optional && !editingFromReview}
-                      <button
-                        type="button"
-                        class="bd-btn bd-btn--ghost"
-                        on:click={() => answer(true)}
-                        disabled={saving}
-                      >
-                        Skip
-                      </button>
-                    {/if}
-                    {#if editingFromReview}
-                      <button
-                        type="button"
-                        class="bd-btn bd-btn--ghost"
-                        on:click={() => {
-                          draft = cloneBrandDna(saved);
-                          editingFromReview = false;
-                          mode = "review";
-                        }}>Cancel</button
-                      >
-                    {/if}
-                    <button
-                      type="button"
-                      class="bd-btn bd-btn--primary"
-                      on:click={() => answer()}
-                      disabled={saving || conflict || !canAnswer}
-                    >
-                      {#if saving}<LoaderCircle
-                          class="brand-spin"
-                          size={14}
-                        />{/if}
-                      {editingFromReview ? "Save" : "Send"}
-                      <ArrowRight size={15} />
-                    </button>
-                  </div>
-                </div>
+            {#if extractNotice && !typing}
+              <div class="bd-msg bd-msg--tiffy">
+                <span class="bd-avatar-space"></span>
+                <div class="bd-bubble" role="status">{extractNotice}</div>
               </div>
+            {/if}
+
+            {#if !typing}
+              {@render answerBox()}
             {/if}
           {/if}
           <div bind:this={threadEnd} class="bd-thread__end"></div>
@@ -1223,34 +1402,225 @@
             </button>
           {/if}
         </header>
-        <div class="bd-review__grid">
-          {#each Object.entries(SECTIONS) as [section, title] (section)}
-            <section class="bd-card">
-              <h2>{title}</h2>
-              <dl>
-                {#each sectionQuestions(section as SectionId) as { entry, index } (entry.id)}
-                  <button
-                    type="button"
-                    class="bd-card__row"
-                    on:click={() => editQuestion(index, true)}
-                  >
-                    <dt>{entry.label}</dt>
-                    <dd class:is-empty={!entry.answered(draft, assets)}>
-                      {#if entry.answered(draft, assets)}
-                        {@render answerSummary(entry)}
-                      {:else}
-                        Not yet
-                      {/if}
-                    </dd>
-                    <Pencil size={13} />
-                  </button>
+        <section class="bd-ov-hero">
+          <button
+            type="button"
+            class="bd-ov-logo"
+            class:is-empty={!logo[0]}
+            aria-label="Edit logo"
+            on:click={() => edit("logo")}
+          >
+            {#if logo[0] && previews[logo[0].assetId]}
+              <img src={previews[logo[0].assetId]} alt="" />
+            {:else}
+              <ImageIcon size={22} strokeWidth={1.5} />
+              <span>Add logo</span>
+            {/if}
+          </button>
+          <div class="bd-ov-identity">
+            <button
+              type="button"
+              class="bd-ov-name"
+              on:click={() => edit("name")}>{brandName || "Add a name"}</button
+            >
+            <button
+              type="button"
+              class="bd-ov-line"
+              class:is-empty={!draft.identity.tagline.trim()}
+              on:click={() => edit("tagline")}
+              >{draft.identity.tagline.trim() || "Add a tagline"}</button
+            >
+            <button
+              type="button"
+              class="bd-ov-line bd-ov-link"
+              class:is-empty={!draft.identity.websiteUrl.trim()}
+              on:click={() => edit("website")}
+              >{draft.identity.websiteUrl.trim()
+                ? displayUrl(draft.identity.websiteUrl)
+                : "Add a website"}</button
+            >
+          </div>
+          {#if favicon[0] && previews[favicon[0].assetId]}
+            <button
+              type="button"
+              class="bd-ov-favicon"
+              aria-label="Edit favicon"
+              on:click={() => edit("logo")}
+            >
+              <img src={previews[favicon[0].assetId]} alt="" />
+            </button>
+          {/if}
+        </section>
+
+        <div class="bd-ov-grid">
+          <section class="bd-ov-card">
+            <h2>Colours</h2>
+            {#if draft.visual.colors.length > 0}
+              <button
+                type="button"
+                class="bd-ov-swatches"
+                on:click={() => edit("colors")}
+              >
+                {#each draft.visual.colors as color (color.id)}
+                  <span class="bd-ov-swatch">
+                    <span style={`background:${color.hex}`}></span>
+                    <small>{color.hex}</small>
+                  </span>
                 {/each}
-              </dl>
-            </section>
-          {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("colors")}
+              >
+                <Plus size={16} /> Add colours
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card">
+            <h2>Typefaces</h2>
+            {#if draft.visual.fonts.length > 0}
+              <button
+                type="button"
+                class="bd-ov-fonts"
+                on:click={() => edit("fonts")}
+              >
+                {#each draft.visual.fonts as font (font.id)}
+                  <span class="bd-ov-font">
+                    <strong
+                      style={`font-family: ${fontStack(font.family, font.id, font.source)}`}
+                      >Aa</strong
+                    >
+                    <span>{font.family}</span>
+                    <small>{font.role}</small>
+                  </span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("fonts")}
+              >
+                <Plus size={16} /> Add typefaces
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Images</h2>
+            {#if [...screenshots, ...images, ...marks].length > 0}
+              <button
+                type="button"
+                class="bd-ov-images"
+                on:click={() => edit("files")}
+              >
+                {#each [...screenshots, ...images, ...marks] as file (file.assetId)}
+                  <span class="bd-ov-image">
+                    {#if previews[file.assetId]}<img
+                        src={previews[file.assetId]}
+                        alt=""
+                      />{/if}
+                  </span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("files")}
+              >
+                <Plus size={16} /> Add screenshots and images
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Product</h2>
+            <div class="bd-ov-blocks">
+              {@render block("description", "What it is")}
+              {@render block("audience", "Who it's for")}
+            </div>
+            {#if draft.product.features.some((feature) => feature.title.trim())}
+              <button
+                type="button"
+                class="bd-ov-chips"
+                on:click={() => edit("features")}
+              >
+                {#each draft.product.features.filter( (feature) => feature.title.trim() ) as feature (feature.id)}
+                  <span class="bd-ov-chip">{feature.title}</span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("features")}
+              >
+                <Plus size={16} /> Add main features
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Story</h2>
+            <div class="bd-ov-blocks">
+              {@render block("problem", "The problem")}
+              {@render block("solution", "Your solution")}
+              {@render block("differentiators", "Why you")}
+              {@render block("proof", "Proof")}
+            </div>
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Voice</h2>
+            {#if draft.voice.tone.length > 0}
+              <button
+                type="button"
+                class="bd-ov-chips"
+                on:click={() => edit("tone")}
+              >
+                {#each draft.voice.tone as tone (tone)}
+                  <span class="bd-ov-chip">{tone}</span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("tone")}
+              >
+                <Plus size={16} /> Add a tone
+              </button>
+            {/if}
+            <div class="bd-ov-blocks">
+              {@render block("writingStyle", "Writing style")}
+            </div>
+          </section>
         </div>
       </div>
     </main>
+    {#if overviewEdit}
+      <div
+        class="bd-modal"
+        role="presentation"
+        on:mousedown|self={cancelEdit}
+        on:keydown={(event) => event.key === "Escape" && cancelEdit()}
+      >
+        <div
+          class="bd-modal__card"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Edit ${question.label}`}
+        >
+          <h2>{question.label}</h2>
+          {#if question.hint}<p>{question.hint}</p>{/if}
+          {@render answerBox()}
+        </div>
+      </div>
+    {/if}
   {/if}
 
   {#if toast}<div class="bd-toast" role="status">{toast}</div>{/if}

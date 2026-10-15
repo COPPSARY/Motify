@@ -13,12 +13,7 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
-  import {
-    MOTIFY_SITE_URL,
-    motifySiteHref,
-    PRICING_URL,
-    TEMPLATES_URL,
-  } from "../api/config";
+  import { motifySiteHref, PRICING_URL } from "../api/config";
   import {
     lastCreditCharge,
     refreshCredits,
@@ -108,15 +103,13 @@
   import ExportDialog from "./ExportDialog.svelte";
   import TourCoach from "../onboarding/TourCoach.svelte";
   import {
-    clearTour,
-    HANDOFF_PARAMS,
-    saveTour,
-    startingTour,
-    stepsFor,
+    TOUR_STEPS,
     isNewAccountLanding,
-    welcomeUrl,
-    type TourState,
+    resumeIndex,
   } from "../onboarding/tour";
+  import { beginOnboarding } from "../onboarding/begin";
+  import { takeInterests } from "../onboarding/interests";
+  import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import {
     CANVAS_ASPECTS,
@@ -220,6 +213,8 @@
   import "./styles/music-panel.css";
   import "./styles/credits-badge.css";
   import "./styles/home-shell.css";
+  import "./styles/prompt-templates.css";
+  import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
 
   export let mode: AppMode = "cloud";
 
@@ -424,8 +419,14 @@
         : null))
     : null;
   let pendingLandingPrompt = "";
-  /** First-run tour for new accounts, handed over by the site's /welcome. */
-  let tour: TourState | null = null;
+  /** First-run tour for new accounts: the step it is on, or null when there is none to show. */
+  let tourIndex: number | null = null;
+  /** A new account's first visit; the landing prompt waits for the tour instead of running. */
+  let newAccountLanding = false;
+  /** Categories a new account picked before Prompt Templates; the tab opens filtered to them. */
+  let templateInterests: string[] = [];
+  /** Set once the account's onboarding progress is known, so a held prompt isn't run before the tour. */
+  let onboardingChecked = false;
   let landingPromptStarted = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let assetObjectUrls: string[] = [];
@@ -569,6 +570,7 @@
 
   onMount(() => {
     const url = new URL(window.location.href);
+    templateInterests = mode === "cloud" ? takeInterests(localStorage) : [];
     const storedAspect = sessionStorage.getItem(PENDING_ASPECT_KEY);
     if (isCanvasAspect(storedAspect)) generationAspect = storedAspect;
     const promptFromUrl =
@@ -579,27 +581,18 @@
           sessionStorage.getItem("motionly_pending_prompt") ||
           ""
         : "";
-    // A brand-new account goes through the site's onboarding first, before
-    // anything here starts (including a held prompt, which travels along).
+    // A brand-new account (Google sign-up lands here flagged by the API) is
+    // taken to Brand DNA first; the held prompt waits for the end of the tour.
     if (mode === "cloud" && isNewAccountLanding(url.searchParams)) {
-      sessionStorage.removeItem("motionly_pending_prompt");
-      window.location.replace(
-        welcomeUrl(pendingLandingPrompt, MOTIFY_SITE_URL),
-      );
-      return;
+      newAccountLanding = true;
+      url.searchParams.delete("newAccount");
+      window.history.replaceState({}, "", url);
     }
     if (pendingLandingPrompt) {
       sessionStorage.setItem("motionly_pending_prompt", pendingLandingPrompt);
       sessionStorage.setItem(PENDING_ASPECT_KEY, generationAspect);
       url.searchParams.delete("prompt");
       window.history.replaceState({}, "", url);
-    }
-    if (mode === "cloud") {
-      tour = startingTour(url.searchParams, sessionStorage);
-      if (HANDOFF_PARAMS.some((key) => url.searchParams.has(key))) {
-        for (const key of HANDOFF_PARAMS) url.searchParams.delete(key);
-        window.history.replaceState({}, "", url);
-      }
     }
     if (mode === "cloud") {
       void refreshPromotionBanner();
@@ -609,6 +602,7 @@
         if (user) {
           identifyDatadogUser(user);
           identifyAnalyticsUser(user);
+          void startOnboarding();
           void refreshCredits();
           void refreshActivePlan();
           void loadBrand();
@@ -2369,35 +2363,77 @@
     return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
   }
 
-  // The tour waits for the video view: it runs while Tiffy builds the first video.
-  $: tourSteps = tour ? stepsFor(tour.level) : [];
-  $: tourActive = Boolean(
-    tour && currentUser && hasEditorProject && tourSteps.length > 0,
-  );
-  $: if (tourActive && tour)
-    captureEvent("onboarding tour step viewed", {
-      step: tourSteps[tour.index]?.target ?? "",
-      level: tour.level,
-    });
+  // The tour shows over the home pages; it waits while a video is open.
+  $: tourStep = tourIndex === null ? null : (TOUR_STEPS[tourIndex] ?? null);
+  $: tourActive = Boolean(tourStep && currentUser && !hasEditorProject);
+  $: if (tourActive && tourStep) {
+    captureEvent("onboarding tour step viewed", { step: tourStep.id });
+    // Each step needs its own page on screen before its target can be found.
+    if (centerPage !== tourStep.page) openPage(tourStep.page);
+  }
+
+  /** Where a new or returning account stands: Brand DNA first, then the tour from where it left off. */
+  async function startOnboarding(): Promise<void> {
+    try {
+      if (newAccountLanding) {
+        await beginOnboarding();
+        return;
+      }
+      const progress = await fetchOnboarding();
+      if (progress.completedAt === null && progress.step === "brand") {
+        window.location.replace(BRAND_ROUTE);
+        return;
+      }
+      tourIndex = resumeIndex(progress);
+    } catch {
+      // Onboarding is a nicety: the editor works without it.
+    } finally {
+      onboardingChecked = true;
+      void runLandingPrompt();
+    }
+  }
 
   function moveTour(by: number): void {
-    if (!tour) return;
-    tour = { ...tour, index: Math.max(0, tour.index + by) };
-    saveTour(sessionStorage, tour);
+    if (tourIndex === null) return;
+    tourIndex = Math.max(0, tourIndex + by);
+    const step = TOUR_STEPS[tourIndex];
+    if (step) void updateOnboarding({ step: step.id }).catch(() => undefined);
   }
 
   function endTour(skipped: boolean): void {
-    if (!tour) return;
+    if (tourIndex === null) return;
     captureEvent(
       skipped ? "onboarding tour skipped" : "onboarding tour completed",
-      {
-        level: tour.level,
-        goal: tour.goal,
-        step: tour.index,
-      },
+      { step: TOUR_STEPS[tourIndex]?.id ?? "" },
     );
-    clearTour(sessionStorage);
-    tour = null;
+    tourIndex = null;
+    void updateOnboarding({ completed: true }).catch(() => undefined);
+    releaseHeldPrompt();
+  }
+
+  /** The landing-page prompt that waited for onboarding goes into the composer, unsent. */
+  function releaseHeldPrompt(): void {
+    const held =
+      pendingLandingPrompt ||
+      sessionStorage.getItem("motionly_pending_prompt") ||
+      "";
+    if (!held) return;
+    pendingLandingPrompt = "";
+    sessionStorage.removeItem("motionly_pending_prompt");
+    sessionStorage.removeItem(PENDING_ASPECT_KEY);
+    openPage("create");
+    assistantDraft = held;
+    void tick().then(() => resizeComposer());
+  }
+
+  async function replayTour(): Promise<void> {
+    try {
+      await updateOnboarding({ reset: true });
+      await updateOnboarding({ step: "prompts" });
+    } catch {
+      // The tour still replays for this visit.
+    }
+    tourIndex = 0;
   }
 
   function openPage(next: HomePage): void {
@@ -2407,6 +2443,16 @@
     page = next === "create" ? null : next;
     // Inside a video a page is a picker over it, and the URL stays the video's.
     if (mode === "cloud" && !hasEditorProject) navigate(homePagePath(page));
+  }
+
+  /** Puts a template's prompt in Tiffy's composer on the create page. */
+  function usePromptTemplate(prompt: string): void {
+    openPage("create");
+    assistantDraft = prompt;
+    void tick().then(() => {
+      resizeComposer();
+      composerInput?.focus();
+    });
   }
 
   function openMobileSidebar(): void {
@@ -3752,6 +3798,9 @@
    */
   async function runLandingPrompt(): Promise<void> {
     if (!pendingLandingPrompt || landingPromptStarted) return;
+    // A new account's first prompt waits for onboarding rather than spending credits mid-tour.
+    if (newAccountLanding || tourIndex !== null) return;
+    if (mode === "cloud" && currentUser && !onboardingChecked) return;
     // A prompt handed over by a guest waits behind the sign-in dialog instead
     // of being spent, and resumes from sessionStorage once the session exists.
     if (mode === "cloud" && !currentUser) {
@@ -4201,9 +4250,15 @@
                   >
                     <LayoutGrid size={16} /><span>My Videos</span>
                   </button>
-                  <a class="me-sidebar-link" href={TEMPLATES_URL}>
-                    <FolderOpen size={16} /><span>Templates</span>
-                  </a>
+                  <button
+                    class="me-sidebar-link"
+                    class:me-active={centerPage === "prompts"}
+                    aria-current={centerPage === "prompts" ? "page" : undefined}
+                    data-tour="nav-prompts"
+                    on:click={() => openPage("prompts")}
+                  >
+                    <FolderOpen size={16} /><span>Prompt Templates</span>
+                  </button>
                   <a class="me-sidebar-link" href={BRAND_ROUTE}>
                     <Dna size={16} /><span>Brand Kit</span>
                   </a>
@@ -4211,6 +4266,7 @@
                     class="me-sidebar-link"
                     class:me-active={centerPage === "assets"}
                     aria-current={centerPage === "assets" ? "page" : undefined}
+                    data-tour="nav-assets"
                     on:click={() => openPage("assets")}
                   >
                     <ImageIcon size={16} /><span>Assets</span>
@@ -4221,6 +4277,7 @@
                     aria-current={centerPage === "storyboard"
                       ? "page"
                       : undefined}
+                    data-tour="nav-storyboard"
                     on:click={() => openPage("storyboard")}
                   >
                     <Grid3X3 size={16} /><span>Storyboard Generation</span>
@@ -4229,6 +4286,7 @@
                     class="me-sidebar-link"
                     class:me-active={centerPage === "music"}
                     aria-current={centerPage === "music" ? "page" : undefined}
+                    data-tour="nav-music"
                     on:click={() => openPage("music")}
                   >
                     <Music2 size={16} /><span>Music</span>
@@ -4590,6 +4648,18 @@
                     {/each}
                   </div>
                 </section>
+              {:else if centerPage === "prompts"}
+                <section class="me-page-body" aria-labelledby="prompts-title">
+                  <header class="me-page-header">
+                    <h1 id="prompts-title">Prompt Templates</h1>
+                    <p>Copy a prompt, make it yours, paste it into Tiffy.</p>
+                  </header>
+                  <PromptTemplatesPanel
+                    initialCategories={templateInterests}
+                    onUse={usePromptTemplate}
+                    onNotice={(message) => showNotice(message)}
+                  />
+                </section>
               {:else if centerPage === "music"}
                 <section
                   class="me-page-body me-page-body--narrow"
@@ -4756,6 +4826,17 @@
                       <div class="me-settings-row">
                         <span>Brand DNA</span>
                         <a href={BRAND_ROUTE}>{brandName ?? "Set it up"}</a>
+                      </div>
+                    </div>
+                    <div class="me-settings-card">
+                      <h2>Help</h2>
+                      <div class="me-settings-row">
+                        <span>Product tour</span>
+                        <button
+                          type="button"
+                          class="me-settings-link"
+                          on:click={() => void replayTour()}>Replay tour</button
+                        >
                       </div>
                     </div>
                     <button
@@ -5808,10 +5889,10 @@
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
-  {#if tourActive && tour}
+  {#if tourActive && tourIndex !== null}
     <TourCoach
-      steps={tourSteps}
-      index={tour.index}
+      steps={TOUR_STEPS}
+      index={tourIndex}
       onNext={() => moveTour(1)}
       onBack={() => moveTour(-1)}
       onDone={endTour}
