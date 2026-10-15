@@ -68,17 +68,37 @@ describe("InterestPicker", () => {
     expect(onDone).toHaveBeenCalledWith(["Product", "Design"]);
   });
 
-  it("lets a pick be undone, and 'Show all' returns none", async () => {
+  it("allows at most 3 picks, and frees a slot when one is undone", async () => {
+    fetchPromptTemplates.mockResolvedValue([
+      { categories: ["A", "B", "C", "D"] },
+    ]);
     await open();
+    [0, 1, 2].forEach((index) => chips()[index]?.click());
+    await settle();
+    expect(chips()[3]?.disabled).toBe(true);
+    chips()[3]?.click();
+    await settle();
+    primary().click();
+    expect(onDone).toHaveBeenLastCalledWith(["A", "B", "C"]);
+
+    chips()[0]?.click();
+    await settle();
+    expect(chips()[3]?.disabled).toBe(false);
+  });
+
+  it("has no way to skip the choice, and needs a pick to continue", async () => {
+    await open();
+    expect(primary().disabled).toBe(true);
+    expect(
+      [...document.querySelectorAll("button")].some((button) =>
+        /show all/i.test(button.textContent ?? ""),
+      ),
+    ).toBe(false);
     chips()[0]?.click();
     await settle();
     chips()[0]?.click();
     await settle();
     expect(primary().disabled).toBe(true);
-    [...document.querySelectorAll<HTMLButtonElement>(".bd-btn")]
-      .find((button) => button.textContent === "Show all")
-      ?.click();
-    expect(onDone).toHaveBeenCalledWith([]);
   });
 
   it("never blocks onboarding when the templates cannot load", async () => {

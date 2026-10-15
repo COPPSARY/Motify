@@ -3,7 +3,10 @@
   import { fetchPromptTemplates } from "../api/prompt-templates";
   import { categoriesOf } from "./interests";
 
-  /** Called with the picked categories, or none to see every template. */
+  /** The most categories a person can pick, so the list they land on stays short. */
+  const MAX_PICKS = 3;
+
+  /** Called with the picked categories; none when the templates could not be loaded. */
   export let onDone: (categories: string[]) => void;
 
   let categories: string[] = [];
@@ -32,7 +35,7 @@
   function toggle(name: string) {
     const next = new Set(picked);
     if (next.has(name)) next.delete(name);
-    else next.add(name);
+    else if (next.size < MAX_PICKS) next.add(name);
     picked = next;
   }
 </script>
@@ -40,7 +43,7 @@
 <div class="ip" role="dialog" aria-modal="true" aria-labelledby="ip-title">
   <div class="ip__card">
     <h2 id="ip-title">What do you want to make?</h2>
-    <p>Pick a few. We&rsquo;ll show matching templates.</p>
+    <p>Pick up to 3. We&rsquo;ll show matching templates.</p>
 
     {#if status === "ready"}
       <div class="bd-chips" role="group" aria-label="Categories">
@@ -50,6 +53,7 @@
             class="bd-chip"
             class:is-on={picked.has(name)}
             aria-pressed={picked.has(name)}
+            disabled={!picked.has(name) && picked.size >= MAX_PICKS}
             on:click={() => toggle(name)}>{name}</button
           >
         {/each}
@@ -62,9 +66,6 @@
         class="bd-btn bd-btn--primary"
         disabled={status !== "ready" || picked.size === 0}
         on:click={() => onDone([...picked])}>Show templates</button
-      >
-      <button type="button" class="bd-btn" on:click={() => onDone([])}
-        >Show all</button
       >
     </div>
   </div>
