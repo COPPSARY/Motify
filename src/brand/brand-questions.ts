@@ -87,7 +87,7 @@ export const QUESTIONS: readonly BrandQuestion[] = [
     kind: "url",
     optional: true,
     ask: (brand) => `Where does ${you(brand)} live online?`,
-    hint: "Soon I'll read your site and fill in the rest myself.",
+    hint: "No website? Skip it and answer the rest here.",
     placeholder: "acme.com",
     maxLength: 500,
     answered: (dna) => has(dna.identity.websiteUrl),

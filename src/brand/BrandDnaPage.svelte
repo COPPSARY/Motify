@@ -994,17 +994,15 @@
                         )}
                       on:keydown={onKey}
                     />
-                    {#if question.id === "website" && canExtract}
+                    {#if question.id === "website" && canExtract && normalizeUrl(textValue("website", draft))}
                       <button
                         type="button"
                         class="bd-btn bd-extract"
-                        disabled={extracting ||
-                          !normalizeUrl(textValue("website", draft))}
+                        disabled={extracting}
                         on:click={fillFromWebsite}
                       >
                         {#if extracting}
-                          <LoaderCircle class="brand-spin" size={15} /> Reading your
-                          site…
+                          <LoaderCircle class="brand-spin" size={15} /> Reading…
                         {:else}
                           Fill from my website
                         {/if}
@@ -1257,7 +1255,7 @@
                         on:click={() => answer(true)}
                         disabled={saving}
                       >
-                        Skip
+                        {question.id === "website" ? "No website" : "Skip"}
                       </button>
                     {/if}
                     {#if editingFromReview}
