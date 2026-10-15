@@ -1421,7 +1421,8 @@
 
   .code-editor-scope .is-hero .ai-composer-bar {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+    /* Send grows with its credit cost ("12", "120") instead of spilling out. */
+    grid-template-columns: 44px minmax(0, 1fr) 44px auto;
     grid-template-areas: "add aspect brand send";
     gap: 8px;
   }

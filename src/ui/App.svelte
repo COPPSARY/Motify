@@ -172,9 +172,17 @@
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
   import AssetGeneratorPanel from "./cloud/AssetGeneratorPanel.svelte";
   import { generationStore } from "../stores/generation";
-  import { hydrateCloudAssetTokens, uploadAsset } from "../api/assets";
+  import {
+    hydrateCloudAssetTokens,
+    isVideoFile,
+    uploadAsset,
+    VIDEO_ACCEPT,
+    VIDEO_MAX_BYTES,
+    withVideoType,
+  } from "../api/assets";
   import { AUDIO_ACCEPT, addTrackToLibrary, isAudioFile } from "../api/audio";
   import { AudioSync } from "../composition/audio-sync";
+  import { VideoSync } from "../composition/video-sync";
   import { removeAudioTrackFromComposition } from "../composition/composition-audio";
   import {
     MAX_SELECTED_AUDIO,
@@ -244,8 +252,8 @@
     name: string;
     previewUrl?: string;
     intent?: AssetIntent;
-    /** A song scoring the film rather than an image placed in it. */
-    kind?: "audio";
+    /** A song scoring the film, or a clip, rather than an image placed in it. */
+    kind?: "audio" | "video";
   }
 
   interface AssistantMessage {
@@ -280,6 +288,11 @@
   let fileInput: HTMLInputElement;
   let cloudProjects: CloudProjectGallery;
   let mediaInput: HTMLInputElement;
+  /** The backend's limits on what one generation can use: images and videos, and of those videos. */
+  const MAX_PROMPT_IMAGES = 10;
+  const MAX_PROMPT_VIDEOS = 3;
+  /** Images uploaded at once when several are added together. */
+  const UPLOAD_CONCURRENCY = 3;
   let stagedAssets: LocalAssetReference[] = [];
   /**
    * Assets that left the composer with a message and are still being generated
@@ -298,6 +311,7 @@
   let runtimeUnsubscribe: (() => void) | null = null;
   /** Plays the mounted film's music in step with the timeline playhead. */
   let audioSync: AudioSync | null = null;
+  let videoSync: VideoSync | null = null;
   let soundMuted = false;
   /** Songs sent with the message being generated, kept for its repair pass. */
   let audioInFlight: AudioTrack[] | null = null;
@@ -666,6 +680,7 @@
     return () => {
       runtimeUnsubscribe?.();
       audioSync?.dispose();
+      videoSync?.dispose();
       cancelAnimationFrame(playbackFrame);
       if (activityTimer) clearInterval(activityTimer);
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
@@ -705,6 +720,7 @@
     const previousSelectedId = selectedId;
     runtimeUnsubscribe?.();
     audioSync?.dispose();
+    videoSync?.dispose();
     runtime?.destroy();
     activeComposition = composition;
     selectedId = "";
@@ -724,6 +740,7 @@
     });
     audioSync = new AudioSync(previewRoot);
     audioSync.muted = soundMuted;
+    videoSync = new VideoSync(previewRoot);
     runtime.importEditorState(editorState);
     if (previousSelectedId && runtime.elements.has(previousSelectedId)) {
       selectedId = previousSelectedId;
@@ -739,7 +756,11 @@
       )
         canvasState = nextCanvas;
       // An export steps the playhead frame by frame; it must stay silent.
-      if (!exporting) audioSync?.sync(value);
+      // An export places each clip itself, frame by frame.
+      if (!exporting) {
+        audioSync?.sync(value);
+        videoSync?.sync(value);
+      }
       // In scene mode the user has opened one beat to edit it. Following the
       // playhead there would swap the track list out from under a click.
       if (timelineMode === "project") selectedSceneId = value.sceneId;
@@ -1183,7 +1204,10 @@
     }
     backdropBusy = true;
     try {
-      const frame = await renderAuthoredFrame(runtime, BACKDROP_RESOLUTION);
+      // The backdrop copies the live view; it must not stop a playing clip to seek it.
+      const frame = await renderAuthoredFrame(runtime, BACKDROP_RESOLUTION, {
+        seekVideos: false,
+      });
       const target = backdropCanvas;
       const context = target?.getContext("2d");
       if (!target || !context) return;
@@ -2505,6 +2529,11 @@
       openPage("create");
       return;
     }
+    if (stagedAssets.length >= MAX_PROMPT_IMAGES) {
+      showNotice(`A prompt can use up to ${MAX_PROMPT_IMAGES} images.`);
+      openPage("create");
+      return;
+    }
     stagedAssets = [
       ...stagedAssets,
       {
@@ -2541,26 +2570,23 @@
     showNotice("Opened the HTML source for the active GSAP composition.");
   }
 
+  /** Every image on the clipboard: a screenshot, or several files copied from a folder. */
   async function handlePaste(event: ClipboardEvent): Promise<void> {
     if (!event.clipboardData) return;
-    let file: File | null = null;
-    for (const item of event.clipboardData.items) {
-      if (item.type.startsWith("image/")) {
-        file = item.getAsFile();
-        break;
-      }
-    }
-    if (file) await stageAsset(file, "Pasted image");
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .flatMap((item) => item.getAsFile() ?? [])
+      .filter((file) => file.type.startsWith("image/") || isVideoFile(file));
+    if (files.length === 0) return;
+    event.preventDefault();
+    await stageImages(files);
   }
 
   async function handleMediaUpload(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) {
-      if (isAudioFile(file)) await addAudioFile(file);
-      else await stageAsset(file, file.name);
-    }
+    const files = Array.from(input.files ?? []);
     input.value = "";
+    await handleChatDrop(files);
   }
 
   /**
@@ -2602,14 +2628,19 @@
     }
   }
 
-  /** Songs and images dropped on the chat; anything else is turned away. */
+  /** Songs, images and videos dropped on the chat; anything else is turned away. */
   async function handleChatDrop(files: File[]): Promise<void> {
-    for (const file of files) {
-      if (isAudioFile(file)) await addAudioFile(file);
-      else if (file.type.startsWith("image/"))
-        await stageAsset(file, file.name);
-      else showNotice(`${file.name} is not an image or an audio file.`);
-    }
+    const isVisual = (file: File) =>
+      !isAudioFile(file) &&
+      (file.type.startsWith("image/") || isVideoFile(file));
+    const rejected = files.find(
+      (file) => !isAudioFile(file) && !isVisual(file),
+    );
+    if (rejected)
+      showNotice(`${rejected.name} is not an image, video or audio file.`);
+    const images = files.filter(isVisual);
+    if (images.length > 0) await stageImages(images);
+    for (const file of files.filter(isAudioFile)) await addAudioFile(file);
   }
 
   /** Picking a song in the music panel sends you back to the prompt it is for. */
@@ -2758,30 +2789,118 @@
     uploadName = "";
   }
 
-  async function stageAsset(file: File, name: string): Promise<void> {
+  /**
+   * Uploads images and videos for the next prompt, a few at a time, keeping
+   * the order they were picked in. Past the per-prompt limits the rest are
+   * left out, and one failed upload does not stop the others.
+   */
+  async function stageImages(files: File[]): Promise<void> {
+    const room = MAX_PROMPT_IMAGES - stagedAssets.length;
+    if (room <= 0) {
+      showNotice(
+        `A prompt can use up to ${MAX_PROMPT_IMAGES} images and videos.`,
+      );
+      return;
+    }
+    let videoRoom =
+      MAX_PROMPT_VIDEOS -
+      stagedAssets.filter((asset) => asset.mimeType.startsWith("video/"))
+        .length;
+    const tooLong = files.filter(
+      (file) => isVideoFile(file) && file.size > VIDEO_MAX_BYTES,
+    );
+    const accepted = files.filter((file) => {
+      if (!isVideoFile(file)) return true;
+      if (file.size > VIDEO_MAX_BYTES || videoRoom <= 0) return false;
+      videoRoom -= 1;
+      return true;
+    });
+    const picked = accepted.slice(0, room).map((file) => ({
+      file: withVideoType(file),
+      name: file.name && file.name !== "image.png" ? file.name : "Pasted image",
+    }));
+    const [first] = picked;
+    if (!first) {
+      showNotice(
+        tooLong.length > 0
+          ? "Videos are limited to 100 MB."
+          : `A prompt can use up to ${MAX_PROMPT_VIDEOS} videos.`,
+      );
+      return;
+    }
+    const label =
+      picked.length === 1
+        ? first.name
+        : `${picked.length} ${picked.some(({ file }) => isVideoFile(file)) ? "files" : "images"}`;
+    const progress = picked.map(() => 0);
     uploadingMedia = true;
     uploadProgress = 0;
-    beginUploadPreview(file, name);
-    showNotice(`Adding ${name}...`);
-    try {
-      const reference = await storeLocalAsset(file, name);
-      if (workspaceId) {
-        reference.uploadId = await uploadAsset(
-          workspaceId,
-          file,
-          (percentage) => (uploadProgress = percentage),
-        );
-        reference.token = `motify-asset://${reference.uploadId}`;
+    beginUploadPreview(first.file, label);
+    showNotice(`Adding ${label}...`);
+
+    const results: (LocalAssetReference | null)[] = picked.map(() => null);
+    const failures: string[] = [];
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < picked.length) {
+        const index = next++;
+        const { file, name } = picked[index]!;
+        try {
+          const reference = await storeLocalAsset(file, name);
+          if (workspaceId) {
+            reference.uploadId = await uploadAsset(
+              workspaceId,
+              file,
+              (percentage) => {
+                progress[index] = percentage;
+                uploadProgress = Math.round(
+                  progress.reduce((sum, value) => sum + value, 0) /
+                    progress.length,
+                );
+              },
+            );
+            reference.token = `motify-asset://${reference.uploadId}`;
+          }
+          results[index] = reference;
+          captureEvent("media uploaded", {
+            file_type: file.type.split("/")[0] || "unknown",
+          });
+        } catch (error: unknown) {
+          failures.push(
+            `${name}: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        } finally {
+          progress[index] = 100;
+        }
       }
-      stagedAssets = [...stagedAssets, reference];
-      captureEvent("media uploaded", {
-        file_type: file.type.split("/")[0] || "unknown",
-      });
-      showNotice(`${name} is ready for the next prompt.`);
-      scheduleDraftSave();
-    } catch (error: unknown) {
+    };
+    try {
+      await Promise.all(
+        Array.from(
+          { length: Math.min(UPLOAD_CONCURRENCY, picked.length) },
+          worker,
+        ),
+      );
+      const staged = results.filter(
+        (reference): reference is LocalAssetReference => reference !== null,
+      );
+      stagedAssets = [...stagedAssets, ...staged];
+      if (staged.length > 0) scheduleDraftSave();
+      const skipped = files.length - picked.length - tooLong.length;
       showNotice(
-        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        [
+          failures.length > 0
+            ? `Upload failed for ${failures.join("; ")}`
+            : `${label} ${picked.length === 1 ? "is" : "are"} ready for the next prompt.`,
+          tooLong.length > 0
+            ? `${tooLong.map((file) => file.name).join(", ")}: videos are limited to 100 MB.`
+            : "",
+          skipped > 0
+            ? `${skipped} left out: a prompt can use up to ${MAX_PROMPT_IMAGES} images and videos, ${MAX_PROMPT_VIDEOS} of them videos.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
     } finally {
       uploadingMedia = false;
@@ -3334,6 +3453,9 @@
           ? { previewUrl: stagedPreviews[asset.id] }
           : {}),
         ...(asset.intent ? { intent: asset.intent } : {}),
+        ...(asset.mimeType.startsWith("video/")
+          ? { kind: "video" as const }
+          : {}),
       })),
       ...sentAudio.map((track) => ({
         id: track.id,
@@ -4013,7 +4135,8 @@
   <input
     bind:this={mediaInput}
     type="file"
-    accept={`image/*,video/*,image/svg+xml,${AUDIO_ACCEPT}`}
+    multiple
+    accept={`image/*,image/svg+xml,${VIDEO_ACCEPT},${AUDIO_ACCEPT}`}
     style="display: none"
     on:change={handleMediaUpload}
     disabled={uploadingMedia}

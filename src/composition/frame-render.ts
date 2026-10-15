@@ -7,6 +7,7 @@ import {
 import type { FrameLayout } from "./canvas-frame";
 import { rawFilmDocument } from "./raw-film";
 import type { CompositionRuntime } from "./runtime";
+import { seekVideosExactly } from "./video-sync";
 
 /**
  * Rasterizes the mounted film into canvases: the authored frame on its own,
@@ -174,6 +175,52 @@ export function snapshotCanvases(source: ParentNode, clone: ParentNode): void {
 }
 
 /**
+ * Each <video> in `clone` replaced by an image of the frame its counterpart in
+ * `source` shows right now. An SVG image cannot play a video, so without this
+ * every clip exports empty. The image keeps the clip's attributes, and its
+ * laid-out size and fit, so it sits exactly where the clip did.
+ */
+export function snapshotVideos(source: ParentNode, clone: ParentNode): void {
+  const sources = Array.from(source.querySelectorAll("video"));
+  const targets = Array.from(clone.querySelectorAll("video"));
+  sources.forEach((video, index) => {
+    const target = targets[index];
+    if (!target) return;
+    const width = video.clientWidth || video.videoWidth;
+    const height = video.clientHeight || video.videoHeight;
+    let url = "";
+    if (video.videoWidth > 0 && video.readyState >= 2) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      try {
+        context2d(canvas).drawImage(video, 0, 0);
+        url = canvas.toDataURL("image/jpeg", 0.92);
+      } catch {
+        // A clip from another origin cannot be read; it exports empty.
+        url = "";
+      }
+    }
+    const image = target.ownerDocument.createElement("img");
+    for (const attribute of Array.from(target.attributes))
+      if (!["src", "poster", "autoplay", "controls"].includes(attribute.name))
+        image.setAttribute(attribute.name, attribute.value);
+    if (url) image.setAttribute("src", url);
+    else image.style.visibility = "hidden";
+    // Styles written for `video` no longer match an <img>; carry what places the picture.
+    const computed = (
+      video.ownerDocument.defaultView ?? window
+    ).getComputedStyle(video);
+    image.style.width = `${width}px`;
+    image.style.height = `${height}px`;
+    image.style.objectFit = computed.objectFit;
+    image.style.objectPosition = computed.objectPosition;
+    if (computed.display === "inline") image.style.display = "inline-block";
+    target.replaceWith(image);
+  });
+}
+
+/**
  * A raw film's frame: its whole document, as the iframe shows it now, drawn
  * through the same SVG image as any other film, so it exports what preview
  * shows. Scripts and audio are left out; images, canvases and fonts are inlined.
@@ -186,9 +233,10 @@ async function renderRawFrame(
 ): Promise<HTMLCanvasElement> {
   const live = doc.documentElement;
   const clone = live.cloneNode(true) as HTMLElement;
-  // Images pair up by position, so they are inlined before canvases become images.
+  // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(live, clone);
   snapshotCanvases(live, clone);
+  snapshotVideos(live, clone);
   clone
     .querySelectorAll("script, audio, noscript, style[data-motify-fonts]")
     .forEach((node) => node.remove());
@@ -209,19 +257,26 @@ async function renderRawFrame(
   return canvas;
 }
 
-/** The film exactly as authored, at `scale` times its authored size. */
+/**
+ * The film exactly as authored, at `scale` times its authored size. Clips are
+ * first placed on the playhead's exact frame; a caller drawing the live view
+ * while it plays (the editor backdrop) passes `seekVideos: false` instead.
+ */
 export async function renderAuthoredFrame(
   runtime: CompositionRuntime,
   scale = 1,
+  { seekVideos = true }: { seekVideos?: boolean } = {},
 ): Promise<HTMLCanvasElement> {
+  if (seekVideos) await seekVideosExactly(runtime.root, runtime.time);
   // An adaptive film is mounted at the canvas size rather than its authored one.
   const { width, height } = runtime.mountedSize;
   const rawDocument = rawFilmDocument(runtime.root);
   if (rawDocument) return renderRawFrame(rawDocument, width, height, scale);
   const clone = runtime.root.cloneNode(true) as HTMLElement;
-  // Images pair up by position, so they are inlined before canvases become images.
+  // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(runtime.root, clone);
   snapshotCanvases(runtime.root, clone);
+  snapshotVideos(runtime.root, clone);
   // The preview's watermark sits on the canvas, not in the film.
   clone
     .querySelectorAll("[data-motify-watermark]")

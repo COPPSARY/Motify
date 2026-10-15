@@ -6,6 +6,7 @@
     ChevronDown,
     Coins,
     Dna,
+    Film,
     History,
     Image as ImageIcon,
     Images,
@@ -41,8 +42,8 @@
     name: string;
     previewUrl?: string;
     intent?: AssetIntent;
-    /** A song scoring the film rather than an image placed in it. */
-    kind?: "audio";
+    /** A song scoring the film, or a clip, rather than an image placed in it. */
+    kind?: "audio" | "video";
   }
 
   interface AssistantMessage {
@@ -400,7 +401,17 @@
                   class:is-image={Boolean(attachment.previewUrl)}
                   title={attachment.name}
                 >
-                  {#if attachment.previewUrl}
+                  {#if attachment.previewUrl && attachment.kind === "video"}
+                    <!-- The first frame stands for the clip; it never plays here. -->
+                    <video
+                      class="ai-message-attachment-image"
+                      src={attachment.previewUrl}
+                      muted
+                      playsinline
+                      preload="metadata"
+                      aria-label={attachment.name}
+                    ></video>
+                  {:else if attachment.previewUrl}
                     <img
                       class="ai-message-attachment-image"
                       src={attachment.previewUrl}
@@ -476,14 +487,23 @@
     </div>
   {/if}
   {#if classifiedAssets.length > 0}
-    <div class="ai-chat-attachments" aria-label="Attached images">
+    <div class="ai-chat-attachments" aria-label="Attached images and videos">
       {#each classifiedAssets as asset (asset.id)}
         <span
           class="ai-attachment"
           class:is-reference={asset.intent === "reference"}
           title={`${asset.name} — ${asset.intent === "reference" ? "reference" : asset.intent === "asset" ? "project media" : "intent inferred from your prompt"}`}
         >
-          {#if stagedPreviews[asset.id]}
+          {#if stagedPreviews[asset.id] && asset.mimeType.startsWith("video/")}
+            <video
+              class="ai-attachment-thumb"
+              src={stagedPreviews[asset.id]}
+              muted
+              playsinline
+              preload="metadata"
+              aria-label={asset.name}
+            ></video>
+          {:else if stagedPreviews[asset.id]}
             <img
               class="ai-attachment-thumb"
               src={stagedPreviews[asset.id]}
@@ -491,7 +511,9 @@
             />
           {:else}
             <span class="ai-attachment-thumb ai-attachment-fallback"
-              ><ImageIcon size={11} /></span
+              >{#if asset.mimeType.startsWith("video/")}<Film
+                  size={11}
+                />{:else}<ImageIcon size={11} />{/if}</span
             >
           {/if}
           <span class="ai-attachment-name">{asset.name}</span>
@@ -591,7 +613,7 @@
           aria-label="Attach an image or song"
           aria-haspopup={hasLibraries ? "menu" : undefined}
           aria-expanded={hasLibraries ? addMenuOpen : undefined}
-          title="Attach an image or song, or drop one here"
+          title="Attach images or songs, or drop or paste them here"
           disabled={uploadingMedia || $generationStore.isActive}
           on:click={addClicked}><Plus size={17} /></button
         >
