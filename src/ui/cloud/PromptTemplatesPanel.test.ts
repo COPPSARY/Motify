@@ -92,6 +92,27 @@ describe("PromptTemplatesPanel", () => {
     expect(document.body.textContent).toContain("Copied");
   });
 
+  it("tells them to edit it for their product and add references once copied", async () => {
+    open();
+    await settle();
+    expect(document.querySelector(".pt-note")).toBeNull();
+    document
+      .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
+      ?.click();
+    await settle();
+    const note = document.querySelector(".pt-note")?.textContent ?? "";
+    expect(note).toMatch(/edit it for your own product/i);
+    expect(note).toMatch(/add references/i);
+
+    // It outlasts the button's "Copied" state, and goes away on another template.
+    await new Promise((resolve) => setTimeout(resolve, 2400));
+    flushSync();
+    expect(document.querySelector(".pt-note")).not.toBeNull();
+    document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
+    await settle();
+    expect(document.querySelector(".pt-note")).toBeNull();
+  });
+
   it("copies what the person changed, in a field or by hand", async () => {
     open();
     await settle();

@@ -24,6 +24,8 @@
   /** The prompt as edited by hand; null until they type in it, and reset when a field changes. */
   let manualPrompt: string | null = null;
   let copied = false;
+  /** After a copy, what to do next; it stays until another template is opened. */
+  let copyNote = false;
   /** Templates in any of these categories show; none means all of them. */
   let activeCategories = new Set<string>(initialCategories);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -100,6 +102,7 @@
     values = {};
     manualPrompt = null;
     copied = false;
+    copyNote = false;
   }
 
   function setField(key: string, value: string) {
@@ -127,6 +130,7 @@
       }
     }
     copied = true;
+    copyNote = true;
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied = false), 2200);
   }
@@ -251,6 +255,12 @@
             <SendHorizontal size={15} /> Use in Tiffy
           </button>
         </div>
+        {#if copyNote}
+          <p class="pt-note" role="status">
+            Edit it for your own product, and add references in Tiffy for better
+            results.
+          </p>
+        {/if}
       </section>
     {/if}
   </div>

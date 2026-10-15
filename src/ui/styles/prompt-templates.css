@@ -91,6 +91,15 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+.code-editor-scope .pt-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 8px;
+  color: var(--sl-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .code-editor-scope .pt-btn {
   display: inline-flex;
   align-items: center;
