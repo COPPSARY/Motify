@@ -2,7 +2,7 @@ import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
-import { PRICING_URL, TEMPLATES_URL } from "../api/config";
+import { PRICING_URL } from "../api/config";
 import { generationStore } from "../stores/generation";
 import { saveProjectDraft } from "../stores/project-drafts";
 
@@ -107,11 +107,12 @@ describe("App project actions", () => {
         document.querySelector(".me-sidebar-upgrade")?.getAttribute("href"),
       ).toBe(PRICING_URL);
 
-      expect(
-        Array.from(
-          document.querySelectorAll<HTMLAnchorElement>(".me-sidebar-link"),
-        ).find((link) => link.textContent?.trim() === "Templates")?.href,
-      ).toBe(TEMPLATES_URL);
+      // Templates live in the editor now: a Prompt Templates tab, not a link out to the website.
+      const links = Array.from(
+        document.querySelectorAll<HTMLElement>(".me-sidebar-link"),
+      ).map((link) => link.textContent?.trim());
+      expect(links).toContain("Prompt Templates");
+      expect(links).not.toContain("Templates");
 
       window.history.pushState({}, "", "/templates");
       window.dispatchEvent(new PopStateEvent("popstate"));
