@@ -608,7 +608,7 @@
       setText("website", url);
       if (!(await save())) return;
       applyResource(await api.extractBrand(url));
-      showToast(`Filled in from ${displayUrl(url)}.`);
+      showToast(`Filled from ${displayUrl(url)}.`);
       await answer();
     } catch (error) {
       showToast(messageOf(error, "Could not read that website."));
@@ -769,10 +769,7 @@
 
   {#if onboarding}
     <div class="bd-welcome" role="status">
-      <span
-        ><strong>Step 1 of 4.</strong> Tell Tiffy about your brand once, and every
-        video uses it.</span
-      >
+      <span>Set up your brand.</span>
       <button type="button" class="bd-welcome__skip" on:click={goBack}
         >Skip for now</button
       >
@@ -1009,7 +1006,7 @@
                           <LoaderCircle class="brand-spin" size={15} /> Reading your
                           site…
                         {:else}
-                          Fill the rest from my website
+                          Fill from my website
                         {/if}
                       </button>
                     {/if}

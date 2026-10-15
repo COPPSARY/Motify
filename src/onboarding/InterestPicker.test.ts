@@ -35,10 +35,10 @@ describe("InterestPicker", () => {
   });
 
   const chips = () => [
-    ...document.querySelectorAll<HTMLButtonElement>(".ip__chip"),
+    ...document.querySelectorAll<HTMLButtonElement>(".bd-chip"),
   ];
   const primary = () =>
-    document.querySelector<HTMLButtonElement>(".ip__primary")!;
+    document.querySelector<HTMLButtonElement>(".bd-btn--primary")!;
 
   async function open() {
     component = mount(InterestPicker, {
@@ -48,11 +48,13 @@ describe("InterestPicker", () => {
     await settle();
   }
 
-  it("offers each category with its template count, most first", async () => {
+  it("offers each category, the biggest first", async () => {
     await open();
-    expect(
-      chips().map((chip) => chip.textContent?.replace(/\s+/g, " ").trim()),
-    ).toEqual(["Product 2", "UI 2", "Design 1"]);
+    expect(chips().map((chip) => chip.textContent)).toEqual([
+      "Product",
+      "UI",
+      "Design",
+    ]);
   });
 
   it("needs a pick before continuing, then returns what was picked", async () => {
@@ -66,14 +68,16 @@ describe("InterestPicker", () => {
     expect(onDone).toHaveBeenCalledWith(["Product", "Design"]);
   });
 
-  it("lets a pick be undone, and 'Show me everything' returns none", async () => {
+  it("lets a pick be undone, and 'Show all' returns none", async () => {
     await open();
     chips()[0]?.click();
     await settle();
     chips()[0]?.click();
     await settle();
     expect(primary().disabled).toBe(true);
-    document.querySelector<HTMLButtonElement>(".ip__link")?.click();
+    [...document.querySelectorAll<HTMLButtonElement>(".bd-btn")]
+      .find((button) => button.textContent === "Show all")
+      ?.click();
     expect(onDone).toHaveBeenCalledWith([]);
   });
 

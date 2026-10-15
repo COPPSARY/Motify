@@ -1569,9 +1569,6 @@
   color: var(--bd-soft);
   font-size: 13px;
 }
-.bd-welcome strong {
-  color: var(--bd-text);
-}
 .bd-welcome__skip {
   flex: none;
   padding: 0;

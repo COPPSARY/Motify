@@ -85,7 +85,7 @@ describe("PromptTemplatesPanel", () => {
     const copy = document.querySelector<HTMLButtonElement>(
       "[data-tour='prompts-copy']",
     );
-    expect(copy?.dataset["tooltip"]).toMatch(/tweak it/i);
+    expect(copy?.dataset["tooltip"]).toMatch(/edit it/i);
     copy?.click();
     await settle();
     expect(writeText).toHaveBeenCalledWith("Make a video about a coffee shop.");
@@ -171,7 +171,7 @@ describe("PromptTemplatesPanel", () => {
       await settle();
       expect(cards()).toHaveLength(3);
       const chip = (name: string) =>
-        [...document.querySelectorAll<HTMLButtonElement>(".pt-chip")].find(
+        [...document.querySelectorAll<HTMLButtonElement>(".me-chip")].find(
           (button) => button.textContent === name,
         )!;
       chip("Product").click();
@@ -190,7 +190,7 @@ describe("PromptTemplatesPanel", () => {
       open();
       await settle();
       expect(document.body.textContent).toContain("Title one");
-      [...document.querySelectorAll<HTMLButtonElement>(".pt-chip")]
+      [...document.querySelectorAll<HTMLButtonElement>(".me-chip")]
         .find((button) => button.textContent === "UI")
         ?.click();
       await settle();

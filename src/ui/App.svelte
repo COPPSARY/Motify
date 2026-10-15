@@ -4652,10 +4652,7 @@
                 <section class="me-page-body" aria-labelledby="prompts-title">
                   <header class="me-page-header">
                     <h1 id="prompts-title">Prompt Templates</h1>
-                    <p>
-                      Start from a prompt that already works. Copy one, make it
-                      yours, and paste it into Tiffy.
-                    </p>
+                    <p>Copy a prompt, make it yours, paste it into Tiffy.</p>
                   </header>
                   <PromptTemplatesPanel
                     initialCategories={templateInterests}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Copy, Info, SendHorizontal } from "lucide-svelte";
+  import { Check, Copy, SendHorizontal } from "lucide-svelte";
   import {
     fetchPromptTemplates,
     renderPrompt,
@@ -14,10 +14,8 @@
   /** Categories to start filtered to, such as the ones a new account picked. */
   export let initialCategories: string[] = [];
 
-  const COPY_HINT =
-    "Copy this prompt, then change it to fit your own idea and attach references (a logo, a screenshot, a song) in Tiffy for a better result.";
   const COPY_TOOLTIP =
-    "Copy it, tweak it to your idea, and add references for a better result.";
+    "Copy it, edit it to fit your idea, and add references for better results.";
 
   let templates: PromptTemplate[] = [];
   let status: "loading" | "ready" | "error" = "loading";
@@ -135,26 +133,26 @@
 </script>
 
 {#if status === "loading"}
-  <p class="pt-state" role="status">Loading templates…</p>
+  <p class="pt-state" role="status">Loading…</p>
 {:else if status === "error"}
   <div class="pt-state" role="alert">
     <p>Templates could not be loaded.</p>
     <button type="button" class="pt-btn" on:click={load}>Try again</button>
   </div>
 {:else}
-  <div class="pt-filter" role="group" aria-label="Filter by category">
+  <div class="me-chip-row" role="group" aria-label="Categories">
     <button
       type="button"
-      class="pt-chip"
-      class:is-on={filter.length === 0}
+      class="me-chip"
+      class:me-active={filter.length === 0}
       aria-pressed={filter.length === 0}
       on:click={() => setCategories(new Set())}>All</button
     >
     {#each categories as category (category.name)}
       <button
         type="button"
-        class="pt-chip"
-        class:is-on={filter.includes(category.name)}
+        class="me-chip"
+        class:me-active={filter.includes(category.name)}
         aria-pressed={filter.includes(category.name)}
         on:click={() => toggleCategory(category.name)}>{category.name}</button
       >
@@ -166,12 +164,12 @@
         <li>
           <button
             type="button"
-            class="pt-card"
+            class="me-template-card pt-card"
             class:is-selected={template.slug === selectedSlug}
             aria-pressed={template.slug === selectedSlug}
             on:click={() => select(template)}
           >
-            <span class="pt-card__media" data-aspect={template.aspectRatio}>
+            <span class="pt-media">
               {#if template.video}
                 <video
                   src={template.video}
@@ -185,10 +183,9 @@
                 ></video>
               {/if}
             </span>
-            <span class="pt-card__meta">
-              <small>{template.eyebrow}</small>
-              <strong>{template.title}</strong>
-            </span>
+            <span class="me-template-meta"
+              ><strong>{template.title}</strong></span
+            >
           </button>
         </li>
       {/each}
@@ -196,11 +193,7 @@
 
     {#if selected}
       <section class="pt-detail" aria-labelledby="pt-detail-title">
-        <header>
-          <small>{selected.eyebrow} · {selected.aspectRatio}</small>
-          <h2 id="pt-detail-title">{selected.title}</h2>
-          <p>{selected.description}</p>
-        </header>
+        <h2 id="pt-detail-title">{selected.title}</h2>
 
         <div class="pt-fields">
           {#each selected.fields as field (field.key)}
@@ -226,7 +219,6 @@
                     setField(field.key, event.currentTarget.value)}
                 />
               {/if}
-              <small>{field.description}</small>
             </label>
           {/each}
         </div>
@@ -241,7 +233,6 @@
           ></textarea>
         </label>
 
-        <p class="pt-hint"><Info size={14} /> {COPY_HINT}</p>
         <div class="pt-actions">
           <button
             type="button"

@@ -94,7 +94,7 @@ describe("TourCoach", () => {
     const component = coach(calls);
     await settle();
     flushSync();
-    expect(document.body.textContent).toContain("This is where you prompt");
+    expect(document.body.textContent).toContain("Prompt here");
     expect(document.querySelector(".tour--visible")).not.toBeNull();
 
     [...document.querySelectorAll("button")]
