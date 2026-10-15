@@ -236,3 +236,74 @@ describe("Brand DNA website step", () => {
     expect(button("Send")).toBeDefined();
   });
 });
+
+describe("Brand DNA overview", () => {
+  let component: ReturnType<typeof mount> | undefined;
+
+  const filled = () =>
+    resource(3, (dna) => {
+      dna.identity.name = "Acme";
+      dna.identity.tagline = "Anvils for everyone.";
+      dna.visual.colors = [
+        { id: "c1", name: "Primary", hex: "#0a9dff", role: "primary" },
+      ];
+      dna.product.features = [
+        { id: "f1", title: "Fast shipping", description: "" },
+      ];
+      dna.voice.tone = ["bold"];
+    });
+
+  beforeEach(() => {
+    api.listBrands.mockResolvedValue({ maxProfiles: 1, profiles: [] });
+    api.getBrand.mockResolvedValue(filled());
+    api.getCapabilities.mockResolvedValue({ storyboardGeneration: true });
+    HTMLElement.prototype.scrollIntoView = () => undefined;
+  });
+
+  afterEach(() => {
+    if (component) unmount(component);
+    component = undefined;
+    document.body.replaceChildren();
+    vi.clearAllMocks();
+  });
+
+  async function open() {
+    component = mount(BrandDnaPage, { target: document.body });
+    await wait(50);
+    await wait(50);
+  }
+
+  it("shows the brand as cards, with colours, features and tone up front", async () => {
+    await open();
+    const text = document.querySelector(".bd-review")?.textContent ?? "";
+    expect(text).toContain("Acme");
+    expect(text).toContain("Anvils for everyone.");
+    expect(text).toContain("#0a9dff");
+    expect(text).toContain("Fast shipping");
+    expect(text).toContain("bold");
+    expect(document.querySelector(".bd-card")).toBeNull();
+  });
+
+  it("offers an Add tile for what is missing", async () => {
+    await open();
+    const empties = [...document.querySelectorAll(".bd-ov-empty")].map((node) =>
+      node.textContent?.trim(),
+    );
+    expect(empties).toEqual(
+      expect.arrayContaining(["Add typefaces", "Add screenshots and images"]),
+    );
+    expect(document.querySelector(".bd-ov-logo.is-empty")).not.toBeNull();
+  });
+
+  it("opens the matching question in the chat when a card is clicked", async () => {
+    await open();
+    document.querySelector<HTMLButtonElement>(".bd-ov-swatches")?.click();
+    await wait(900);
+    expect(document.querySelector(".bd-review")).toBeNull();
+    expect(
+      [...document.querySelectorAll(".bd-msg--tiffy .bd-bubble")]
+        .map((node) => node.textContent)
+        .join(" "),
+    ).toMatch(/colour/i);
+  });
+});

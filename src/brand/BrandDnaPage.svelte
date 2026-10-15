@@ -10,6 +10,7 @@
     LogIn,
     MessageCircle,
     Pencil,
+    Image as ImageIcon,
     Plus,
     Trash2,
     TriangleAlert,
@@ -49,6 +50,7 @@
     SKIPPED_REACTIONS,
     firstUnanswered,
     type BrandQuestion,
+    type QuestionId,
     type SectionId,
   } from "./brand-questions";
   import "./brand-dna-page.css";
@@ -592,6 +594,14 @@
     );
   }
 
+  /** Opens one answer for editing from the overview. */
+  function edit(id: QuestionId) {
+    editQuestion(
+      QUESTIONS.findIndex((entry) => entry.id === id),
+      true,
+    );
+  }
+
   function sectionQuestions(section: SectionId) {
     return QUESTIONS.map((entry, index) => ({ entry, index })).filter(
       ({ entry }) => entry.section === section,
@@ -692,6 +702,19 @@
 <svelte:head><title>Brand DNA · Motionly</title></svelte:head>
 
 <!-- An answer, the way it appears as the user's reply and on the review page. -->
+{#snippet block(id: QuestionId, label: string)}
+  {@const text = textValue(id, draft).trim()}
+  <button
+    type="button"
+    class="bd-ov-block"
+    class:is-empty={!text}
+    on:click={() => edit(id)}
+  >
+    <small>{label}</small>
+    <span>{text || "Add"}</span>
+  </button>
+{/snippet}
+
 {#snippet answerSummary(entry: BrandQuestion)}
   {#if entry.kind === "logo"}
     {#if logo[0]}
@@ -1385,31 +1408,203 @@
             </button>
           {/if}
         </header>
-        <div class="bd-review__grid">
-          {#each Object.entries(SECTIONS) as [section, title] (section)}
-            <section class="bd-card">
-              <h2>{title}</h2>
-              <dl>
-                {#each sectionQuestions(section as SectionId) as { entry, index } (entry.id)}
-                  <button
-                    type="button"
-                    class="bd-card__row"
-                    on:click={() => editQuestion(index, true)}
-                  >
-                    <dt>{entry.label}</dt>
-                    <dd class:is-empty={!entry.answered(draft, assets)}>
-                      {#if entry.answered(draft, assets)}
-                        {@render answerSummary(entry)}
-                      {:else}
-                        Not yet
-                      {/if}
-                    </dd>
-                    <Pencil size={13} />
-                  </button>
+        <section class="bd-ov-hero">
+          <button
+            type="button"
+            class="bd-ov-logo"
+            class:is-empty={!logo[0]}
+            aria-label="Edit logo"
+            on:click={() => edit("logo")}
+          >
+            {#if logo[0] && previews[logo[0].assetId]}
+              <img src={previews[logo[0].assetId]} alt="" />
+            {:else}
+              <ImageIcon size={22} strokeWidth={1.5} />
+              <span>Add logo</span>
+            {/if}
+          </button>
+          <div class="bd-ov-identity">
+            <button
+              type="button"
+              class="bd-ov-name"
+              on:click={() => edit("name")}>{brandName || "Add a name"}</button
+            >
+            <button
+              type="button"
+              class="bd-ov-line"
+              class:is-empty={!draft.identity.tagline.trim()}
+              on:click={() => edit("tagline")}
+              >{draft.identity.tagline.trim() || "Add a tagline"}</button
+            >
+            <button
+              type="button"
+              class="bd-ov-line bd-ov-link"
+              class:is-empty={!draft.identity.websiteUrl.trim()}
+              on:click={() => edit("website")}
+              >{draft.identity.websiteUrl.trim()
+                ? displayUrl(draft.identity.websiteUrl)
+                : "Add a website"}</button
+            >
+          </div>
+          {#if favicon[0] && previews[favicon[0].assetId]}
+            <button
+              type="button"
+              class="bd-ov-favicon"
+              aria-label="Edit favicon"
+              on:click={() => edit("logo")}
+            >
+              <img src={previews[favicon[0].assetId]} alt="" />
+            </button>
+          {/if}
+        </section>
+
+        <div class="bd-ov-grid">
+          <section class="bd-ov-card">
+            <h2>Colours</h2>
+            {#if draft.visual.colors.length > 0}
+              <button
+                type="button"
+                class="bd-ov-swatches"
+                on:click={() => edit("colors")}
+              >
+                {#each draft.visual.colors as color (color.id)}
+                  <span class="bd-ov-swatch">
+                    <span style={`background:${color.hex}`}></span>
+                    <small>{color.hex}</small>
+                  </span>
                 {/each}
-              </dl>
-            </section>
-          {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("colors")}
+              >
+                <Plus size={16} /> Add colours
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card">
+            <h2>Typefaces</h2>
+            {#if draft.visual.fonts.length > 0}
+              <button
+                type="button"
+                class="bd-ov-fonts"
+                on:click={() => edit("fonts")}
+              >
+                {#each draft.visual.fonts as font (font.id)}
+                  <span class="bd-ov-font">
+                    <strong
+                      style={`font-family: ${fontStack(font.family, font.id, font.source)}`}
+                      >Aa</strong
+                    >
+                    <span>{font.family}</span>
+                    <small>{font.role}</small>
+                  </span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("fonts")}
+              >
+                <Plus size={16} /> Add typefaces
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Images</h2>
+            {#if [...screenshots, ...images, ...marks].length > 0}
+              <button
+                type="button"
+                class="bd-ov-images"
+                on:click={() => edit("files")}
+              >
+                {#each [...screenshots, ...images, ...marks] as file (file.assetId)}
+                  <span class="bd-ov-image">
+                    {#if previews[file.assetId]}<img
+                        src={previews[file.assetId]}
+                        alt=""
+                      />{/if}
+                  </span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("files")}
+              >
+                <Plus size={16} /> Add screenshots and images
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Product</h2>
+            <div class="bd-ov-blocks">
+              {@render block("description", "What it is")}
+              {@render block("audience", "Who it's for")}
+            </div>
+            {#if draft.product.features.some((feature) => feature.title.trim())}
+              <button
+                type="button"
+                class="bd-ov-chips"
+                on:click={() => edit("features")}
+              >
+                {#each draft.product.features.filter( (feature) => feature.title.trim() ) as feature (feature.id)}
+                  <span class="bd-ov-chip">{feature.title}</span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("features")}
+              >
+                <Plus size={16} /> Add main features
+              </button>
+            {/if}
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Story</h2>
+            <div class="bd-ov-blocks">
+              {@render block("problem", "The problem")}
+              {@render block("solution", "Your solution")}
+              {@render block("differentiators", "Why you")}
+              {@render block("proof", "Proof")}
+            </div>
+          </section>
+
+          <section class="bd-ov-card bd-ov-card--wide">
+            <h2>Voice</h2>
+            {#if draft.voice.tone.length > 0}
+              <button
+                type="button"
+                class="bd-ov-chips"
+                on:click={() => edit("tone")}
+              >
+                {#each draft.voice.tone as tone (tone)}
+                  <span class="bd-ov-chip">{tone}</span>
+                {/each}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="bd-ov-empty"
+                on:click={() => edit("tone")}
+              >
+                <Plus size={16} /> Add a tone
+              </button>
+            {/if}
+            <div class="bd-ov-blocks">
+              {@render block("writingStyle", "Writing style")}
+            </div>
+          </section>
         </div>
       </div>
     </main>
