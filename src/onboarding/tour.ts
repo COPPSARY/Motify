@@ -38,7 +38,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "prompts-grid",
     page: "prompts",
     title: "Start from a template",
-    body: "There’s a variety to choose from. Click one to open it and see the prompt behind it.",
+    body: "There’s a variety to choose from, and the filters narrow it down. Click a template to see the prompt behind it.",
   },
   {
     id: "copy",

@@ -5,6 +5,30 @@
   gap: 28px;
   align-items: start;
 }
+.code-editor-scope .pt-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.code-editor-scope .pt-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 999px;
+  background: none;
+  color: var(--sl-text-soft, #b5b5b5);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.code-editor-scope .pt-chip:hover {
+  color: var(--sl-text);
+}
+.code-editor-scope .pt-chip.is-on {
+  border-color: transparent;
+  background: var(--sl-text, #ededed);
+  color: var(--sl-bg, #0c0c0e);
+}
 .code-editor-scope .pt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));

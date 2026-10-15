@@ -6,10 +6,13 @@
     renderPrompt,
     type PromptTemplate,
   } from "../../api/prompt-templates";
+  import { categoriesOf } from "../../onboarding/interests";
 
   /** Puts a prompt in Tiffy's composer on the create page. */
   export let onUse: (prompt: string) => void;
   export let onNotice: (message: string) => void;
+  /** Categories to start filtered to, such as the ones a new account picked. */
+  export let initialCategories: string[] = [];
 
   const COPY_HINT =
     "Copy this prompt, then change it to fit your own idea and attach references (a logo, a screenshot, a song) in Tiffy for a better result.";
@@ -23,8 +26,13 @@
   /** The prompt as edited by hand; null until they type in it, and reset when a field changes. */
   let manualPrompt: string | null = null;
   let copied = false;
+  /** Templates in any of these categories show; none means all of them. */
+  let activeCategories = new Set<string>(initialCategories);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
+  $: categories = categoriesOf(templates);
+  $: filter = realCategories(activeCategories, categories);
+  $: visible = withCategories(templates, filter);
   $: selected = templates.find((item) => item.slug === selectedSlug) ?? null;
   $: rendered = selected ? renderPrompt(selected, values) : "";
   $: prompt = manualPrompt ?? rendered;
@@ -34,16 +42,59 @@
     return () => clearTimeout(copiedTimer);
   });
 
+  /** A saved pick that no template uses would hide everything, so only real categories count. */
+  function realCategories(
+    wanted: ReadonlySet<string>,
+    known: readonly { name: string }[],
+  ): string[] {
+    return [...wanted].filter((name) =>
+      known.some((item) => item.name === name),
+    );
+  }
+
+  function withCategories(
+    all: readonly PromptTemplate[],
+    names: readonly string[],
+  ): PromptTemplate[] {
+    return names.length === 0
+      ? [...all]
+      : all.filter((item) =>
+          item.categories.some((name) => names.includes(name)),
+        );
+  }
+
+  /** The open template always belongs to the list on screen, so Copy is never about a hidden one. */
+  function keepSelectionVisible() {
+    const shown = withCategories(
+      templates,
+      realCategories(activeCategories, categoriesOf(templates)),
+    );
+    const first = shown[0];
+    if (first && !shown.some((item) => item.slug === selectedSlug))
+      select(first);
+  }
+
   async function load() {
     status = "loading";
     try {
       templates = await fetchPromptTemplates();
       status = "ready";
-      // A template is always open, so the copy button is there to find.
-      if (!selectedSlug && templates[0]) select(templates[0]);
+      keepSelectionVisible();
     } catch {
       status = "error";
     }
+  }
+
+  function toggleCategory(name: string) {
+    const next = new Set(activeCategories);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setCategories(next);
+  }
+
+  function setCategories(next: Set<string>) {
+    activeCategories = next;
+    keepSelectionVisible();
   }
 
   function select(template: PromptTemplate) {
@@ -91,9 +142,27 @@
     <button type="button" class="pt-btn" on:click={load}>Try again</button>
   </div>
 {:else}
+  <div class="pt-filter" role="group" aria-label="Filter by category">
+    <button
+      type="button"
+      class="pt-chip"
+      class:is-on={filter.length === 0}
+      aria-pressed={filter.length === 0}
+      on:click={() => setCategories(new Set())}>All</button
+    >
+    {#each categories as category (category.name)}
+      <button
+        type="button"
+        class="pt-chip"
+        class:is-on={filter.includes(category.name)}
+        aria-pressed={filter.includes(category.name)}
+        on:click={() => toggleCategory(category.name)}>{category.name}</button
+      >
+    {/each}
+  </div>
   <div class="pt">
     <ul class="pt-grid" aria-label="Prompt templates" data-tour="prompts-grid">
-      {#each templates as template (template.slug)}
+      {#each visible as template (template.slug)}
         <li>
           <button
             type="button"

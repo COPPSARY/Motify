@@ -17,6 +17,8 @@
   import { currentMotionlyUser } from "../auth";
   import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
   import { PROMPTS_ROUTE } from "../app/routes";
+  import InterestPicker from "../onboarding/InterestPicker.svelte";
+  import { saveInterests } from "../onboarding/interests";
   import { loadAssetObjectUrl, uploadAsset } from "../api/assets";
   import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
   import {
@@ -107,6 +109,8 @@
   let onboarding = false;
   let canExtract = false;
   let extracting = false;
+  /** After Brand DNA, a new account picks the kinds of video they want before seeing templates. */
+  let pickingInterests = false;
 
   /** Chat state. */
   let current = 0;
@@ -613,7 +617,9 @@
     }
   }
 
-  async function continueOnboarding() {
+  /** Leaves for Prompt Templates, with the picked categories (none shows everything). */
+  async function continueOnboarding(categories: string[] = []) {
+    saveInterests(localStorage, categories);
     try {
       await updateOnboarding({ step: "prompts" });
     } catch {
@@ -623,6 +629,7 @@
   }
 
   function goBack() {
+    // Skipping goes straight on, with every template; finishing asks what they want to make first.
     if (onboarding) {
       void continueOnboarding();
       return;
@@ -754,10 +761,16 @@
     {/if}
   </header>
 
+  {#if pickingInterests}
+    <InterestPicker
+      onDone={(categories) => void continueOnboarding(categories)}
+    />
+  {/if}
+
   {#if onboarding}
     <div class="bd-welcome" role="status">
       <span
-        ><strong>Step 1 of 3.</strong> Tell Tiffy about your brand once, and every
+        ><strong>Step 1 of 4.</strong> Tell Tiffy about your brand once, and every
         video uses it.</span
       >
       <button type="button" class="bd-welcome__skip" on:click={goBack}
@@ -921,7 +934,8 @@
                   <button
                     type="button"
                     class="bd-btn bd-btn--primary"
-                    on:click={goBack}
+                    on:click={() =>
+                      onboarding ? (pickingInterests = true) : goBack()}
                   >
                     {onboarding ? "Continue" : "Make a film"}
                     <ArrowRight size={15} />

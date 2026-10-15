@@ -108,6 +108,7 @@
     resumeIndex,
   } from "../onboarding/tour";
   import { beginOnboarding } from "../onboarding/begin";
+  import { takeInterests } from "../onboarding/interests";
   import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import {
@@ -422,6 +423,8 @@
   let tourIndex: number | null = null;
   /** A new account's first visit; the landing prompt waits for the tour instead of running. */
   let newAccountLanding = false;
+  /** Categories a new account picked before Prompt Templates; the tab opens filtered to them. */
+  let templateInterests: string[] = [];
   /** Set once the account's onboarding progress is known, so a held prompt isn't run before the tour. */
   let onboardingChecked = false;
   let landingPromptStarted = false;
@@ -567,6 +570,7 @@
 
   onMount(() => {
     const url = new URL(window.location.href);
+    templateInterests = mode === "cloud" ? takeInterests(localStorage) : [];
     const storedAspect = sessionStorage.getItem(PENDING_ASPECT_KEY);
     if (isCanvasAspect(storedAspect)) generationAspect = storedAspect;
     const promptFromUrl =
@@ -4654,6 +4658,7 @@
                     </p>
                   </header>
                   <PromptTemplatesPanel
+                    initialCategories={templateInterests}
                     onUse={usePromptTemplate}
                     onNotice={(message) => showNotice(message)}
                   />

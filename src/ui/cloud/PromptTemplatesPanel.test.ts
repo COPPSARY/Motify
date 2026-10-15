@@ -10,13 +10,17 @@ vi.mock("../../api/prompt-templates", async (importOriginal) => ({
   fetchPromptTemplates,
 }));
 
-function template(slug: string, concept: string): PromptTemplate {
+function template(
+  slug: string,
+  concept: string,
+  categories: string[] = [],
+): PromptTemplate {
   return {
     slug,
     title: `Title ${slug}`,
     eyebrow: "Brand",
     description: "A description.",
-    categories: [],
+    categories,
     video: null,
     aspectRatio: "16:9",
     fields: [
@@ -66,10 +70,10 @@ describe("PromptTemplatesPanel", () => {
     vi.clearAllMocks();
   });
 
-  function open(onUse = vi.fn()) {
+  function open(onUse = vi.fn(), initialCategories: string[] = []) {
     component = mount(PromptTemplatesPanel, {
       target: document.body,
-      props: { onUse, onNotice: vi.fn() },
+      props: { onUse, onNotice: vi.fn(), initialCategories },
     });
     return onUse;
   }
@@ -132,5 +136,67 @@ describe("PromptTemplatesPanel", () => {
     document.querySelector<HTMLButtonElement>("[role='alert'] button")?.click();
     await settle();
     expect(document.body.textContent).toContain("Title one");
+  });
+
+  describe("category filter", () => {
+    beforeEach(() => {
+      fetchPromptTemplates.mockResolvedValue([
+        template("one", "a coffee shop", ["Product"]),
+        template("two", "a bus", ["UI"]),
+        template("three", "a poster", ["Product", "Design"]),
+      ]);
+    });
+
+    const cards = () =>
+      [...document.querySelectorAll(".pt-card strong")].map(
+        (element) => element.textContent,
+      );
+
+    it("opens filtered to the categories a new account picked", async () => {
+      open(vi.fn(), ["UI"]);
+      await settle();
+      expect(cards()).toEqual(["Title two"]);
+      // The open template is one of the visible ones.
+      expect(document.body.textContent).toContain("Title two");
+    });
+
+    it("ignores picks no template uses rather than showing nothing", async () => {
+      open(vi.fn(), ["Nope"]);
+      await settle();
+      expect(cards()).toHaveLength(3);
+    });
+
+    it("narrows and widens with the chips, and All clears them", async () => {
+      open();
+      await settle();
+      expect(cards()).toHaveLength(3);
+      const chip = (name: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>(".pt-chip")].find(
+          (button) => button.textContent === name,
+        )!;
+      chip("Product").click();
+      await settle();
+      expect(cards()).toEqual(["Title one", "Title three"]);
+      chip("UI").click();
+      await settle();
+      expect(cards()).toHaveLength(3);
+      chip("All").click();
+      await settle();
+      expect(cards()).toHaveLength(3);
+      expect(chip("All").getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("keeps the open template inside the filtered list", async () => {
+      open();
+      await settle();
+      expect(document.body.textContent).toContain("Title one");
+      [...document.querySelectorAll<HTMLButtonElement>(".pt-chip")]
+        .find((button) => button.textContent === "UI")
+        ?.click();
+      await settle();
+      expect(document.querySelector("#pt-detail-title")?.textContent).toBe(
+        "Title two",
+      );
+    });
   });
 });
