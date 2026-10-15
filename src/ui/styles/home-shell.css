@@ -963,7 +963,13 @@
   gap: 14px;
 }
 
-.code-editor-scope .me-settings-row a {
+.code-editor-scope .me-settings-row a,
+.code-editor-scope .me-settings-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
   color: var(--sl-text);
   font-weight: 500;
   text-decoration: underline;

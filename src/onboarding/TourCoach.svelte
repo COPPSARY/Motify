@@ -36,11 +36,22 @@
     return rect.width > 0 && rect.height > 0 ? element : null;
   }
 
+  /** A step can follow a page change, so give its target a moment to appear. */
+  async function waitForTarget(current: TourStep) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await tick();
+      if (current !== step) return null;
+      const element = target(current);
+      if (element) return element;
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    return target(current);
+  }
+
   async function show(current: TourStep) {
     visible = false;
-    await tick();
+    const element = await waitForTarget(current);
     if (current !== step) return;
-    const element = target(current);
     if (!element) {
       if (last) onDone(false);
       else onNext();

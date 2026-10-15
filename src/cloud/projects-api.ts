@@ -213,6 +213,8 @@ interface ApiErrorEnvelope {
 
 export interface ApiCapabilities {
   storyboardGeneration: boolean;
+  /** Whether this deployment can read a website into Brand DNA. */
+  brandExtraction?: boolean;
 }
 
 export interface MotionMessageInput {
@@ -609,6 +611,19 @@ export class ProjectsApi {
     return this.request<BrandResource>(
       `/v1/brand${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`,
     );
+  }
+
+  /**
+   * Reads a website into the brand. The server only fills fields a person has
+   * not typed, and answers with the brand as it now stands.
+   */
+  async extractBrand(url: string) {
+    await this.ensureCsrfToken();
+    const { brand } = await this.request<{ brand: BrandResource }>(
+      "/v1/brand/extract",
+      { method: "POST", body: { url } },
+    );
+    return brand;
   }
 
   /** Replaces the brand document against the revision it was read at. */

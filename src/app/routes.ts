@@ -1,6 +1,9 @@
 /** The path of the Brand DNA page. */
 export const BRAND_ROUTE = "/brand";
 
+/** The Prompt Templates page, where a new account goes after Brand DNA. */
+export const PROMPTS_ROUTE = "/prompts";
+
 export function isBrandRoute(pathname: string): boolean {
   return /^\/brand\/?$/.test(pathname);
 }
@@ -12,6 +15,7 @@ export function isBrandRoute(pathname: string): boolean {
 export const HOME_PAGES = [
   "videos",
   "templates",
+  "prompts",
   "music",
   "assets",
   "storyboard",

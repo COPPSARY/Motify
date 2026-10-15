@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { homePageFromPath, homePagePath } from "./routes";
+import { PROMPTS_ROUTE, homePageFromPath, homePagePath } from "./routes";
 
 describe("home page routes", () => {
   it("maps each page to its own path and back", () => {
@@ -10,6 +10,8 @@ describe("home page routes", () => {
     expect(homePageFromPath("/")).toBeNull();
     expect(homePageFromPath("/templates")).toBe("templates");
     expect(homePageFromPath("/storyboard")).toBe("storyboard");
+    expect(homePageFromPath("/prompts")).toBe("prompts");
+    expect(homePagePath("prompts")).toBe(PROMPTS_ROUTE);
     expect(homePageFromPath("/support/")).toBe("support");
   });
 

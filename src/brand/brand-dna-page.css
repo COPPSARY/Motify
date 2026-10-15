@@ -1556,3 +1556,34 @@
     height: 22px;
   }
 }
+
+/* First run: a thin strip above the thread telling a new account where they are. */
+.bd-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--bd-border);
+  background: var(--bd-accent-soft);
+  color: var(--bd-soft);
+  font-size: 13px;
+}
+.bd-welcome strong {
+  color: var(--bd-text);
+}
+.bd-welcome__skip {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bd-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.bd-welcome__skip:hover {
+  color: var(--bd-text);
+}
+.bd-extract {
+  margin-top: 10px;
+}

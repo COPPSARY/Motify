@@ -15,6 +15,8 @@
     TriangleAlert,
   } from "lucide-svelte";
   import { currentMotionlyUser } from "../auth";
+  import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
+  import { PROMPTS_ROUTE } from "../app/routes";
   import { loadAssetObjectUrl, uploadAsset } from "../api/assets";
   import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
   import {
@@ -101,6 +103,10 @@
   let previews: Record<string, string> = {};
   let uploading: Partial<Record<BrandAssetRole, number>> = {};
   let toneInput = "";
+  /** First-run: a new account lands here before the editor, then moves on to Prompt Templates. */
+  let onboarding = false;
+  let canExtract = false;
+  let extracting = false;
 
   /** Chat state. */
   let current = 0;
@@ -160,6 +166,7 @@
       }
       await loadBrand();
       state = "ready";
+      void loadOnboarding();
       // A brand that has been started opens on its overview; a new one opens
       // on Tiffy's first question.
       if (resource && resource.revision > 0) mode = "review";
@@ -574,7 +581,52 @@
     );
   }
 
+  async function loadOnboarding() {
+    try {
+      const progress = await fetchOnboarding();
+      onboarding = progress.completedAt === null && progress.step === "brand";
+    } catch {
+      // The page works the same without it.
+    }
+    try {
+      canExtract = (await api.getCapabilities()).brandExtraction === true;
+    } catch {
+      canExtract = false;
+    }
+  }
+
+  /** Reads the website into the brand, then carries on with whatever is still unanswered. */
+  async function fillFromWebsite() {
+    const url = normalizeUrl(textValue("website", draft));
+    if (!url || extracting) return;
+    extracting = true;
+    try {
+      setText("website", url);
+      if (!(await save())) return;
+      applyResource(await api.extractBrand(url));
+      showToast(`Filled in from ${displayUrl(url)}.`);
+      await answer();
+    } catch (error) {
+      showToast(messageOf(error, "Could not read that website."));
+    } finally {
+      extracting = false;
+    }
+  }
+
+  async function continueOnboarding() {
+    try {
+      await updateOnboarding({ step: "prompts" });
+    } catch {
+      // Moving on matters more than remembering where they were.
+    }
+    window.location.href = PROMPTS_ROUTE;
+  }
+
   function goBack() {
+    if (onboarding) {
+      void continueOnboarding();
+      return;
+    }
     if (window.opener && !window.opener.closed) {
       window.opener.focus();
       window.close();
@@ -701,6 +753,18 @@
       <span></span>
     {/if}
   </header>
+
+  {#if onboarding}
+    <div class="bd-welcome" role="status">
+      <span
+        ><strong>Step 1 of 3.</strong> Tell Tiffy about your brand once, and every
+        video uses it.</span
+      >
+      <button type="button" class="bd-welcome__skip" on:click={goBack}
+        >Skip for now</button
+      >
+    </div>
+  {/if}
 
   {#if state === "ready"}
     <div class="bd-profiles" aria-label="Brand DNA profiles">
@@ -859,7 +923,8 @@
                     class="bd-btn bd-btn--primary"
                     on:click={goBack}
                   >
-                    Make a film <ArrowRight size={15} />
+                    {onboarding ? "Continue" : "Make a film"}
+                    <ArrowRight size={15} />
                   </button>
                   <button
                     type="button"
@@ -918,6 +983,22 @@
                         )}
                       on:keydown={onKey}
                     />
+                    {#if question.id === "website" && canExtract}
+                      <button
+                        type="button"
+                        class="bd-btn bd-extract"
+                        disabled={extracting ||
+                          !normalizeUrl(textValue("website", draft))}
+                        on:click={fillFromWebsite}
+                      >
+                        {#if extracting}
+                          <LoaderCircle class="brand-spin" size={15} /> Reading your
+                          site…
+                        {:else}
+                          Fill the rest from my website
+                        {/if}
+                      </button>
+                    {/if}
                   {:else if question.kind === "textarea"}
                     <textarea
                       bind:this={answerInput}
