@@ -70,7 +70,9 @@ describe("Brand DNA website step", () => {
     ),
   ];
   const button = (label: string) =>
-    buttons().find((item) => item.textContent?.includes(label));
+    buttons().find((item) =>
+      item.textContent?.replace(/\s+/g, " ").includes(label),
+    );
   const type = async (value: string) => {
     input().value = value;
     input().dispatchEvent(new Event("input", { bubbles: true }));
@@ -257,6 +259,12 @@ describe("Brand DNA overview", () => {
     api.listBrands.mockResolvedValue({ maxProfiles: 1, profiles: [] });
     api.getBrand.mockResolvedValue(filled());
     api.getCapabilities.mockResolvedValue({ storyboardGeneration: true });
+    api.saveBrand.mockImplementation(
+      async (revision: number, dna: BrandResource["dna"]) => ({
+        ...resource(revision + 1),
+        dna,
+      }),
+    );
     HTMLElement.prototype.scrollIntoView = () => undefined;
   });
 
@@ -295,15 +303,55 @@ describe("Brand DNA overview", () => {
     expect(document.querySelector(".bd-ov-logo.is-empty")).not.toBeNull();
   });
 
-  it("opens the matching question in the chat when a card is clicked", async () => {
+  it("edits a card in a dialog and stays on the overview", async () => {
     await open();
-    document.querySelector<HTMLButtonElement>(".bd-ov-swatches")?.click();
-    await wait(900);
-    expect(document.querySelector(".bd-review")).toBeNull();
-    expect(
-      [...document.querySelectorAll(".bd-msg--tiffy .bd-bubble")]
-        .map((node) => node.textContent)
-        .join(" "),
-    ).toMatch(/colour/i);
+    document.querySelector<HTMLButtonElement>(".bd-ov-block")?.click();
+    await wait(50);
+    const dialog = document.querySelector(".bd-modal__card");
+    expect(dialog).not.toBeNull();
+    expect(document.querySelector(".bd-review")).not.toBeNull();
+    expect(document.querySelector(".bd-msg--tiffy")).toBeNull();
+
+    const field = dialog!.querySelector<HTMLTextAreaElement>("textarea")!;
+    field.value = "We make anvils.";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await wait(50);
+    [...dialog!.querySelectorAll<HTMLButtonElement>(".bd-btn")]
+      .find((button) => button.textContent?.includes("Save"))!
+      .click();
+    await wait(50);
+    await wait(50);
+
+    expect(api.saveBrand).toHaveBeenCalled();
+    expect(api.saveBrand.mock.calls.at(-1)?.[1].product.description).toBe(
+      "We make anvils.",
+    );
+    expect(document.querySelector(".bd-modal")).toBeNull();
+    expect(document.querySelector(".bd-review")?.textContent).toContain(
+      "We make anvils.",
+    );
+  });
+
+  it("discards the change on Cancel and on Escape", async () => {
+    await open();
+    document.querySelector<HTMLButtonElement>(".bd-ov-block")?.click();
+    await wait(50);
+    const field = document.querySelector<HTMLTextAreaElement>(
+      ".bd-modal__card textarea",
+    )!;
+    field.value = "Changed";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await wait(50);
+    document
+      .querySelector(".bd-modal")
+      ?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    await wait(50);
+    expect(document.querySelector(".bd-modal")).toBeNull();
+    expect(api.saveBrand).not.toHaveBeenCalled();
+    expect(document.querySelector(".bd-review")?.textContent).not.toContain(
+      "Changed",
+    );
   });
 });

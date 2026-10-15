@@ -1792,3 +1792,40 @@
 .bd-welcome__skip:hover {
   color: var(--bd-text);
 }
+
+/* Editing an overview card in place */
+.bd-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow-y: auto;
+}
+.bd-modal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(680px, 100%);
+  padding: 24px;
+  border: 1px solid var(--bd-border-strong);
+  border-radius: 16px;
+  background: var(--bd-surface);
+}
+.bd-modal__card h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.bd-modal__card > p {
+  margin: -8px 0 0;
+  color: var(--bd-muted);
+  font-size: 13.5px;
+}
+.bd-modal__card .bd-answer {
+  margin-left: 0;
+  max-width: none;
+  animation: none;
+}
