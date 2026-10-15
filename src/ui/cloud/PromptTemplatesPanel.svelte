@@ -173,13 +173,12 @@
               {#if template.video}
                 <video
                   src={template.video}
+                  autoplay
                   muted
                   loop
                   playsinline
                   preload="metadata"
                   aria-hidden="true"
-                  on:mouseenter={(event) => void event.currentTarget.play()}
-                  on:mouseleave={(event) => event.currentTarget.pause()}
                 ></video>
               {/if}
             </span>
