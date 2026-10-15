@@ -951,10 +951,19 @@
           {/each}
 
           {#if finished}
+            {#if reaction}
+              <div class="bd-msg bd-msg--tiffy">
+                <TiffyMark size={32} />
+                <div class="bd-bubble">{reaction}</div>
+              </div>
+            {/if}
             <div class="bd-msg bd-msg--tiffy">
-              <TiffyMark size={32} />
+              {#if reaction}
+                <span class="bd-avatar-space"></span>
+              {:else}
+                <TiffyMark size={32} />
+              {/if}
               <div class="bd-bubble">
-                {#if reaction}<span class="bd-reaction">{reaction}</span>{/if}
                 That's everything I need. {brandName
                   ? `${brandName}'s`
                   : "Your"} Brand DNA is saved, and every new film will use it.
@@ -979,17 +988,24 @@
               </div>
             </div>
           {:else}
+            {#if reaction && !editingFromReview && !typing}
+              <div class="bd-msg bd-msg--tiffy">
+                <TiffyMark size={32} />
+                <div class="bd-bubble">{reaction}</div>
+              </div>
+            {/if}
             <div class="bd-msg bd-msg--tiffy is-current">
-              <TiffyMark size={32} />
+              {#if reaction && !editingFromReview && !typing}
+                <span class="bd-avatar-space"></span>
+              {:else}
+                <TiffyMark size={32} />
+              {/if}
               {#if typing}
                 <div class="bd-bubble bd-typing" aria-label="Tiffy is typing">
                   <span></span><span></span><span></span>
                 </div>
               {:else}
                 <div class="bd-bubble">
-                  {#if reaction && !editingFromReview}<span class="bd-reaction"
-                      >{reaction}</span
-                    >{/if}
                   {question.ask(brandName)}
                   {#if question.hint}<small>{question.hint}</small>{/if}
                 </div>
@@ -998,7 +1014,7 @@
 
             {#if extractNotice && !typing}
               <div class="bd-msg bd-msg--tiffy">
-                <TiffyMark size={32} />
+                <span class="bd-avatar-space"></span>
                 <div class="bd-bubble" role="status">{extractNotice}</div>
               </div>
             {/if}
@@ -1049,15 +1065,18 @@
                     ></textarea>
                   {:else if question.kind === "logo"}
                     <div class="bd-marks">
-                      <BrandImages
-                        single
-                        assets={logo}
-                        {previews}
-                        uploading={uploading.logo ?? 0}
-                        emptyLabel="Drop your logo"
-                        onupload={(files) => upload("logo", files)}
-                        onremove={removeAsset}
-                      />
+                      <div class="bd-marks__logo">
+                        <span class="bd-label">Logo</span>
+                        <BrandImages
+                          single
+                          assets={logo}
+                          {previews}
+                          uploading={uploading.logo ?? 0}
+                          emptyLabel="Drop your logo"
+                          onupload={(files) => upload("logo", files)}
+                          onremove={removeAsset}
+                        />
+                      </div>
                       <div class="bd-marks__favicon">
                         <span class="bd-label"
                           >Favicon <small>Optional</small></span

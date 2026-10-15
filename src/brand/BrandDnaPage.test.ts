@@ -139,6 +139,20 @@ describe("Brand DNA website step", () => {
     await wait(900);
     expect(api.extractBrand).toHaveBeenCalledWith("https://acme.com");
     expect(tiffy()).toContain("I filled in what I could from your site.");
+    // The reaction is its own chat message, and the question that follows has no second avatar.
+    const rows = [...document.querySelectorAll(".bd-msg--tiffy")];
+    const reaction = rows.findIndex(
+      (row) =>
+        row.querySelector(".bd-bubble")?.textContent?.trim() ===
+        "I filled in what I could from your site.",
+    );
+    expect(reaction).toBeGreaterThan(-1);
+    expect(
+      rows[reaction]?.querySelector(".tiffy-mark, svg, img"),
+    ).not.toBeNull();
+    expect(
+      rows[reaction + 1]?.querySelector(".bd-avatar-space"),
+    ).not.toBeNull();
     // The description is filled, so Tiffy skips ahead to the next gap.
     expect(tiffy()).not.toContain("describe");
   });

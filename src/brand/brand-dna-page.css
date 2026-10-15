@@ -258,10 +258,6 @@
 .bd-msg.is-current .bd-bubble {
   color: var(--bd-text);
 }
-.bd-reaction {
-  color: var(--bd-accent);
-  font-weight: 500;
-}
 .bd-bubble--you {
   flex-direction: row;
   align-items: center;
@@ -377,8 +373,10 @@
   gap: 16px;
   align-items: start;
 }
+.bd-marks__logo,
 .bd-marks__favicon {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 8px;
 }
