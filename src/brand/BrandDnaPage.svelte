@@ -109,6 +109,10 @@
   let onboarding = false;
   let canExtract = false;
   let extracting = false;
+  /** What Tiffy says in the chat when a website could not be read, or had nothing in it. */
+  let extractNotice = "";
+  /** After a failed read the website is kept as typed and they can retry or carry on by hand. */
+  let extractFailed = false;
   /** After Brand DNA, a new account picks the kinds of video they want before seeing templates. */
   let pickingInterests = false;
 
@@ -138,6 +142,12 @@
   $: void syncPreviews(assets.filter((asset) => asset.role !== "font"));
   $: question = QUESTIONS[current] ?? QUESTIONS[0]!;
   $: brandName = draft.identity.name.trim();
+  // A typed website swaps Send for reading it, until a read fails and they choose to go on by hand.
+  $: fillMode =
+    question.id === "website" &&
+    canExtract &&
+    !extractFailed &&
+    normalizeUrl(textValue("website", draft)) !== "";
   $: canAnswer = question.optional || question.answered(draft, assets);
   $: progress = Math.round(
     ((finished ? QUESTIONS.length : current) / QUESTIONS.length) * 100,
@@ -292,6 +302,8 @@
   /** Tiffy "types" for a beat before each question, then focuses the answer. */
   async function ask(index: number) {
     current = index;
+    extractNotice = "";
+    extractFailed = false;
     finished = false;
     typing = !reduceMotion;
     await scrollDown();
@@ -342,7 +354,8 @@
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     if (multiline && !(event.metaKey || event.ctrlKey)) return;
     event.preventDefault();
-    void answer();
+    if (fillMode) void fillFromWebsite();
+    else void answer();
   }
 
   /** Reopens one question: from the thread it continues the chat, from review it comes back. */
@@ -599,19 +612,37 @@
     }
   }
 
+  function extractMessage(error: unknown): string {
+    if (error instanceof CloudApiError) {
+      if (error.status === 429)
+        return "I've read a lot of sites today. Fill it in by hand, or try again tomorrow.";
+      if (error.details?.["reason"] === "INVALID_URL")
+        return "That doesn't look like a website address. Check it and try again, or fill it in by hand.";
+    }
+    return "I can't open that website. Try again, or fill it in by hand.";
+  }
+
   /** Reads the website into the brand, then carries on with whatever is still unanswered. */
   async function fillFromWebsite() {
     const url = normalizeUrl(textValue("website", draft));
     if (!url || extracting) return;
     extracting = true;
+    extractNotice = "";
+    extractFailed = false;
     try {
       setText("website", url);
       if (!(await save())) return;
-      applyResource(await api.extractBrand(url));
-      showToast(`Filled from ${displayUrl(url)}.`);
+      const result = await api.extractBrand(url);
+      applyResource(result.brand);
       await answer();
+      reaction =
+        result.applied.length > 0
+          ? "I filled in what I could from your site."
+          : "I couldn't find anything on that site, so let's fill it in by hand.";
     } catch (error) {
-      showToast(messageOf(error, "Could not read that website."));
+      extractNotice = extractMessage(error);
+      extractFailed = true;
+      await scrollDown();
     } finally {
       extracting = false;
     }
@@ -965,6 +996,13 @@
               {/if}
             </div>
 
+            {#if extractNotice && !typing}
+              <div class="bd-msg bd-msg--tiffy">
+                <TiffyMark size={32} />
+                <div class="bd-bubble" role="status">{extractNotice}</div>
+              </div>
+            {/if}
+
             {#if !typing}
               <div
                 class="bd-answer"
@@ -984,8 +1022,11 @@
                       maxlength={question.maxLength}
                       placeholder={question.placeholder}
                       value={textValue(question.id, draft)}
-                      on:input={(event) =>
-                        setText(question.id, event.currentTarget.value)}
+                      on:input={(event) => {
+                        setText(question.id, event.currentTarget.value);
+                        extractNotice = "";
+                        extractFailed = false;
+                      }}
                       on:blur={() =>
                         question.kind === "url" &&
                         setText(
@@ -994,20 +1035,6 @@
                         )}
                       on:keydown={onKey}
                     />
-                    {#if question.id === "website" && canExtract && normalizeUrl(textValue("website", draft))}
-                      <button
-                        type="button"
-                        class="bd-btn bd-extract"
-                        disabled={extracting}
-                        on:click={fillFromWebsite}
-                      >
-                        {#if extracting}
-                          <LoaderCircle class="brand-spin" size={15} /> Reading…
-                        {:else}
-                          Fill from my website
-                        {/if}
-                      </button>
-                    {/if}
                   {:else if question.kind === "textarea"}
                     <textarea
                       bind:this={answerInput}
@@ -1269,19 +1296,45 @@
                         }}>Cancel</button
                       >
                     {/if}
-                    <button
-                      type="button"
-                      class="bd-btn bd-btn--primary"
-                      on:click={() => answer()}
-                      disabled={saving || conflict || !canAnswer}
-                    >
-                      {#if saving}<LoaderCircle
-                          class="brand-spin"
-                          size={14}
-                        />{/if}
-                      {editingFromReview ? "Save" : "Send"}
-                      <ArrowRight size={15} />
-                    </button>
+                    {#if extractFailed}
+                      <button
+                        type="button"
+                        class="bd-btn"
+                        on:click={fillFromWebsite}
+                        disabled={extracting}>Try again</button
+                      >
+                    {/if}
+                    {#if fillMode}
+                      <button
+                        type="button"
+                        class="bd-btn bd-btn--primary"
+                        on:click={fillFromWebsite}
+                        disabled={extracting || saving || conflict}
+                      >
+                        {#if extracting}<LoaderCircle
+                            class="brand-spin"
+                            size={14}
+                          /> Reading…{:else}Fill from my website{/if}
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="bd-btn bd-btn--primary"
+                        on:click={() => answer()}
+                        disabled={saving || conflict || !canAnswer}
+                      >
+                        {#if saving}<LoaderCircle
+                            class="brand-spin"
+                            size={14}
+                          />{/if}
+                        {editingFromReview
+                          ? "Save"
+                          : extractFailed
+                            ? "Continue"
+                            : "Send"}
+                        <ArrowRight size={15} />
+                      </button>
+                    {/if}
                   </div>
                 </div>
               </div>
