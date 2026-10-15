@@ -11,7 +11,11 @@
     Trash2,
     Upload,
   } from "lucide-svelte";
-  import { loadAssetObjectUrl, uploadAsset } from "../../api/assets";
+  import {
+    loadAssetObjectUrl,
+    uploadAsset,
+    withVideoType,
+  } from "../../api/assets";
   import type { BrandAsset } from "../../cloud/brand-dna";
   import {
     ProjectsApi,
@@ -178,7 +182,7 @@
     uploadProgress = 0;
     try {
       for (const [index, file] of files.entries()) {
-        await uploadAsset(workspaceId, file, (progress) => {
+        await uploadAsset(workspaceId, withVideoType(file), (progress) => {
           uploadProgress = Math.round(
             ((index + progress / 100) / files.length) * 100,
           );

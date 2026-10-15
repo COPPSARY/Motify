@@ -45,6 +45,39 @@ export async function loadAssetObjectUrl(assetId: string): Promise<string> {
   return URL.createObjectURL(await imageResponse.blob());
 }
 
+/** The clip types the backend accepts, keyed by the extension it checks. */
+const VIDEO_CONTENT_TYPES: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+};
+
+export const VIDEO_ACCEPT =
+  "video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov";
+export const VIDEO_MAX_BYTES = 100_000_000;
+
+function videoExtension(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot === -1 ? "" : fileName.slice(dot).toLowerCase();
+}
+
+export function isVideoFile(file: File): boolean {
+  return videoExtension(file.name) in VIDEO_CONTENT_TYPES;
+}
+
+/**
+ * The file with the type the backend expects for its extension. Browsers
+ * often report a .mov as nothing at all, and the backend requires the type to
+ * match the extension.
+ */
+export function withVideoType(file: File): File {
+  const type = VIDEO_CONTENT_TYPES[videoExtension(file.name)];
+  return type && file.type !== type
+    ? new File([file], file.name, { type, lastModified: file.lastModified })
+    : file;
+}
+
 export async function uploadAsset(
   workspaceId: string,
   file: File,
