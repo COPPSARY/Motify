@@ -65,7 +65,7 @@
       ? "Unavailable"
       : rewardCredits === null
         ? "Loading…"
-        : `${rewardCredits} each`}</small
+        : `Free ${rewardCredits} Credits`}</small
   >
 </button>
 
