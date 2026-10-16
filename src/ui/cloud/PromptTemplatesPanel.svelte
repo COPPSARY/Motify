@@ -1,15 +1,3 @@
-<script module lang="ts">
-  import type { PromptTemplate as CachedTemplate } from "../../api/prompt-templates";
-
-  /** The last list loaded this session, so coming back to the page is instant. */
-  let cachedTemplates: CachedTemplate[] | null = null;
-
-  /** Tests start each case from an empty cache. */
-  export function forgetPromptTemplates(): void {
-    cachedTemplates = null;
-  }
-</script>
-
 <script lang="ts">
   import { onMount } from "svelte";
   import { Check, Copy, SendHorizontal } from "lucide-svelte";
@@ -20,6 +8,10 @@
   } from "../../api/prompt-templates";
   import { categoriesOf } from "../../onboarding/interests";
   import { lazyVideo } from "./lazy-video";
+  import {
+    cachedPromptTemplates,
+    rememberPromptTemplates,
+  } from "./prompt-template-cache";
 
   /** Puts a prompt in Tiffy's composer on the create page. */
   export let onUse: (prompt: string) => void;
@@ -91,13 +83,15 @@
 
   async function load() {
     // Show the cached list at once and refresh it behind it; only a first load shows "Loading…".
-    if (cachedTemplates) show(cachedTemplates);
+    const cached = cachedPromptTemplates();
+    if (cached) show(cached);
     else status = "loading";
     try {
-      cachedTemplates = await fetchPromptTemplates();
-      show(cachedTemplates);
+      const fresh = await fetchPromptTemplates();
+      rememberPromptTemplates(fresh);
+      show(fresh);
     } catch {
-      if (!cachedTemplates) status = "error";
+      if (!cached) status = "error";
     }
   }
 

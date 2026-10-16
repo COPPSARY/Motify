@@ -2,9 +2,8 @@ import { flushSync, mount, tick, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PromptTemplate } from "../../api/prompt-templates";
-import PromptTemplatesPanel, {
-  forgetPromptTemplates,
-} from "./PromptTemplatesPanel.svelte";
+import PromptTemplatesPanel from "./PromptTemplatesPanel.svelte";
+import { forgetPromptTemplates } from "./prompt-template-cache";
 
 const fetchPromptTemplates = vi.hoisted(() => vi.fn());
 vi.mock("../../api/prompt-templates", async (importOriginal) => ({
