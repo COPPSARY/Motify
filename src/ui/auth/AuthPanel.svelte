@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { Eye, EyeOff } from "lucide-svelte";
   import {
     AuthError,
     motionlyLoginUrl,
+    resendSignupOtp,
     signInWithPassword,
     signUpWithPassword,
+    verifyEmailOtp,
     type MotionlyUser,
   } from "../../auth";
   import { beginOnboarding } from "../../onboarding/begin";
@@ -27,6 +30,9 @@
   let busy = false;
   let errorMessage = "";
   let verificationSentTo = "";
+  let otpCode = "";
+  let otpInput: HTMLInputElement;
+  let otpStatus = "";
 
   $: isSignUp = mode === "signup";
   $: heading =
@@ -36,6 +42,8 @@
     mode = next;
     errorMessage = "";
     verificationSentTo = "";
+    otpCode = "";
+    otpStatus = "";
   }
 
   function readableError(error: unknown): string {
@@ -63,13 +71,8 @@
       if (isSignUp) {
         const signedUp = await signUpWithPassword(address, password);
         password = "";
-        if (signedUp?.newAccount) {
-          // New accounts start with Brand DNA, then the tour; a held prompt waits in the composer.
-          await beginOnboarding();
-          return;
-        }
-        if (signedUp) await onauthenticated(signedUp.user);
-        else verificationSentTo = address;
+        if (signedUp) await finishAuthentication(signedUp);
+        else await showOtp(address);
       } else {
         const user = await signInWithPassword(address, password);
         password = "";
@@ -84,12 +87,80 @@
       ) {
         mode = "signin";
         errorMessage = "That account already exists. Log in instead.";
+      } else if (
+        error instanceof AuthError &&
+        error.code === "EMAIL_NOT_VERIFIED"
+      ) {
+        try {
+          await resendSignupOtp(address);
+          await showOtp(address);
+        } catch (resendError) {
+          errorMessage = readableError(resendError);
+        }
       } else {
         errorMessage = readableError(error);
       }
     } finally {
       busy = false;
     }
+  }
+
+  async function showOtp(address: string): Promise<void> {
+    password = "";
+    verificationSentTo = address;
+    otpCode = "";
+    otpStatus = "";
+    await tick();
+    otpInput?.focus();
+  }
+
+  async function resendOtp(): Promise<void> {
+    if (busy) return;
+    busy = true;
+    errorMessage = "";
+    otpStatus = "";
+    try {
+      await resendSignupOtp(verificationSentTo);
+      otpStatus = "A new code was sent.";
+      otpCode = "";
+      await tick();
+      otpInput?.focus();
+    } catch (error) {
+      errorMessage = readableError(error);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function verifyOtp(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (busy || !/^\d{6,10}$/.test(otpCode)) {
+      errorMessage = "Enter the 6–10 digit code from your email.";
+      return;
+    }
+    busy = true;
+    errorMessage = "";
+    try {
+      await finishAuthentication(
+        await verifyEmailOtp(verificationSentTo, otpCode),
+      );
+    } catch (error) {
+      errorMessage = readableError(error);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function finishAuthentication(result: {
+    user: MotionlyUser;
+    newAccount: boolean;
+  }): Promise<void> {
+    if (result.newAccount) {
+      // New accounts start with Brand DNA, then the tour; a held prompt waits in the composer.
+      await beginOnboarding();
+      return;
+    }
+    await onauthenticated(result.user);
   }
 </script>
 
@@ -100,16 +171,48 @@
 
   {#if verificationSentTo}
     <header class="auth-panel__head" role="status">
-      <h2>Check your inbox</h2>
+      <h2 id="auth-panel-title">Check your inbox</h2>
       <p>
-        We sent a verification link to <strong>{verificationSentTo}</strong>.
-        Open it to finish setting up your account — you'll land back here signed
-        in.
+        Enter the verification code sent to <strong>{verificationSentTo}</strong
+        >.
       </p>
     </header>
+    <form class="auth-panel__form" on:submit={verifyOtp}>
+      <label class="auth-panel__field">
+        <span>Verification code</span>
+        <input
+          bind:this={otpInput}
+          bind:value={otpCode}
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern={"[0-9]{6,10}"}
+          maxlength="10"
+          placeholder="Enter code"
+          aria-label="Verification code"
+          required
+        />
+      </label>
+      {#if errorMessage}
+        <p class="auth-panel__error" role="alert">{errorMessage}</p>
+      {/if}
+      {#if otpStatus}<p class="auth-panel__status" role="status">
+          {otpStatus}
+        </p>{/if}
+      <button class="auth-panel__submit" type="submit" disabled={busy}>
+        {busy ? "Verifying…" : "Verify email"}
+      </button>
+    </form>
     <button
-      class="auth-panel__submit"
+      class="auth-panel__google"
       type="button"
+      disabled={busy}
+      on:click={resendOtp}>Resend code</button
+    >
+    <button
+      class="auth-panel__google"
+      type="button"
+      disabled={busy}
       on:click={() => switchMode("signin")}>Back to log in</button
     >
   {:else}

@@ -121,6 +121,7 @@
 
 .auth-panel__head p strong {
   color: #f4f4f5;
+  overflow-wrap: anywhere;
 }
 
 .auth-panel__form {
@@ -204,6 +205,13 @@
   line-height: 1.45;
 }
 
+.auth-panel__status {
+  margin: -4px 0 0;
+  color: #b8e5c6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .auth-panel__submit {
   height: 50px;
   border: 0;
@@ -262,6 +270,11 @@
 
 .auth-panel__google:hover {
   background: #2d2d30;
+}
+
+.auth-panel__google:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .auth-panel__google-mark {

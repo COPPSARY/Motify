@@ -11,6 +11,7 @@
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
+  import ReferralButton from "./cloud/ReferralButton.svelte";
   import { get } from "svelte/store";
   import { formatCredits } from "../api/credits";
   import { motifySiteHref, PRICING_URL } from "../api/config";
@@ -4337,6 +4338,7 @@
                         >{activePlan ?? "Free"}</small
                       >
                     </div>
+                    <ReferralButton user={currentUser} compact />
                     <div class="me-profile" bind:this={profileMenu}>
                       {#if profileMenuOpen}
                         <div class="me-profile-menu" role="menu">
