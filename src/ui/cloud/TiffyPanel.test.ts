@@ -46,6 +46,88 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
+  it("sends a free user to pricing from a faded, locked Pro", async () => {
+    const onSelectModel = vi.fn();
+    const onUpgradeModel = vi.fn();
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        modelPicker: true,
+        modelLocked: true,
+        onSelectModel,
+        onUpgradeModel,
+      }),
+    });
+
+    try {
+      const trigger = must<HTMLButtonElement>(".ai-model-picker");
+      expect(trigger.textContent).toContain("Flash");
+      trigger.click();
+      await tick();
+      const pro = document.querySelectorAll<HTMLButtonElement>(
+        ".ai-model-menu button",
+      )[1];
+      expect(pro?.textContent).toContain("Pro");
+      expect(pro?.classList.contains("is-locked")).toBe(true);
+      expect(pro?.textContent).toContain("Upgrade to unlock");
+      pro?.click();
+      await tick();
+      expect(onUpgradeModel).toHaveBeenCalledOnce();
+      expect(onSelectModel).not.toHaveBeenCalled();
+      expect(document.querySelector(".ai-model-menu")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("lets a paid user switch between Pro and Flash", async () => {
+    const onSelectModel = vi.fn();
+    const onUpgradeModel = vi.fn();
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        modelPicker: true,
+        modelLocked: false,
+        generationModel: "pro",
+        onSelectModel,
+        onUpgradeModel,
+      }),
+    });
+
+    try {
+      const trigger = must<HTMLButtonElement>(".ai-model-picker");
+      expect(trigger.textContent).toContain("Pro");
+      trigger.click();
+      await tick();
+      const options = document.querySelectorAll<HTMLButtonElement>(
+        ".ai-model-menu button",
+      );
+      expect(options[1]?.classList.contains("is-locked")).toBe(false);
+      options[0]?.click();
+      await tick();
+      expect(onSelectModel).toHaveBeenCalledWith("flash");
+      expect(onUpgradeModel).not.toHaveBeenCalled();
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("shows no model picker for a local project", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, { target, props: panelProps() });
+
+    try {
+      expect(document.querySelector(".ai-model-picker")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+
   it("shows progress only in the temporary run card", async () => {
     generationStore.set({
       isActive: true,

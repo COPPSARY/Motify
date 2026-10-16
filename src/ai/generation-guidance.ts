@@ -19,7 +19,7 @@ import {
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
 import type { CanvasAspect } from "../composition/canvas-frame";
 import type { RegistryItemSummary } from "../registry/types";
-import type { GenerationEffort } from "../cloud/projects-api";
+import type { GenerationEffort, GenerationModel } from "../cloud/projects-api";
 
 export interface GenerationFiles {
   /**
@@ -33,6 +33,8 @@ export interface GenerationFiles {
   aspectRatio?: CanvasAspect;
   /** Reasoning effort chosen in the prompt composer. */
   effort?: GenerationEffort;
+  /** Model chosen in the prompt composer. */
+  model?: GenerationModel;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;

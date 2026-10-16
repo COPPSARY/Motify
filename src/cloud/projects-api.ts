@@ -223,6 +223,8 @@ export interface MotionMessageInput {
   message: string;
   /** Reasoning effort selected in the prompt composer. */
   effort?: GenerationEffort;
+  /** Model selected in the prompt composer; Pro needs a paid plan. */
+  model?: GenerationModel;
   brandId?: string | null;
   /** The canvas chosen in the new-video composer before generation starts. */
   aspectRatio?: CanvasAspect;
@@ -244,6 +246,12 @@ export interface MotionMessageInput {
 }
 
 export type GenerationEffort = "medium" | "high";
+
+/**
+ * Flash runs for everyone; Pro is the paid plans' model. The backend decides
+ * which model each one is, so the editor never names one.
+ */
+export type GenerationModel = "flash" | "pro";
 
 /** A project message the backend runs in the background. */
 export interface MotionMessageJob {
