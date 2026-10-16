@@ -114,11 +114,11 @@ describe("App project actions", () => {
       expect(links).toContain("Prompt Templates");
       expect(links).not.toContain("Templates");
 
-      window.history.pushState({}, "", "/templates");
+      window.history.pushState({}, "", "/films");
       window.dispatchEvent(new PopStateEvent("popstate"));
       await tick();
       expect(document.querySelector(".me-template-grid")).not.toBeNull();
-      expect(window.location.pathname).toBe("/templates");
+      expect(window.location.pathname).toBe("/films");
       document
         .querySelector<HTMLButtonElement>(
           '[aria-label="Open the Relay template"]',

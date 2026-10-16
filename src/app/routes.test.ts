@@ -10,8 +10,10 @@ describe("home page routes", () => {
     expect(homePageFromPath("/")).toBeNull();
     expect(homePageFromPath("/templates")).toBe("templates");
     expect(homePageFromPath("/storyboard")).toBe("storyboard");
-    expect(homePageFromPath("/prompts")).toBe("prompts");
-    expect(homePagePath("prompts")).toBe(PROMPTS_ROUTE);
+    expect(homePagePath("templates")).toBe(PROMPTS_ROUTE);
+    // Prompt Templates moved from /prompts; old links still open it.
+    expect(homePageFromPath("/prompts")).toBe("templates");
+    expect(homePageFromPath("/films")).toBe("films");
     expect(homePageFromPath("/support/")).toBe("support");
   });
 

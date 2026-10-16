@@ -21,7 +21,7 @@ export type TourTarget =
   | "nav-storyboard";
 
 /** The page a step needs on screen before its target can be found. */
-export type TourPage = "prompts" | "create";
+export type TourPage = "templates" | "create";
 
 export interface TourStep {
   /** Stored as the account's onboarding step. */
@@ -36,14 +36,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "templates",
     target: "prompts-grid",
-    page: "prompts",
+    page: "templates",
     title: "Pick a template",
     body: "Filter by category, then click one to see its prompt.",
   },
   {
     id: "copy",
     target: "prompts-copy",
-    page: "prompts",
+    page: "templates",
     title: "Copy the prompt",
     body: "Edit it to fit your idea and add references for better results.",
   },

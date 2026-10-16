@@ -2,7 +2,9 @@ import { flushSync, mount, tick, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PromptTemplate } from "../../api/prompt-templates";
-import PromptTemplatesPanel from "./PromptTemplatesPanel.svelte";
+import PromptTemplatesPanel, {
+  forgetPromptTemplates,
+} from "./PromptTemplatesPanel.svelte";
 
 const fetchPromptTemplates = vi.hoisted(() => vi.fn());
 vi.mock("../../api/prompt-templates", async (importOriginal) => ({
@@ -67,6 +69,7 @@ describe("PromptTemplatesPanel", () => {
     if (component) unmount(component);
     component = undefined;
     document.body.replaceChildren();
+    forgetPromptTemplates();
     vi.clearAllMocks();
   });
 
@@ -149,6 +152,43 @@ describe("PromptTemplatesPanel", () => {
     expect(onUse).toHaveBeenCalledWith("Make a video about a bus.");
   });
 
+  it("shapes each preview to its video's aspect ratio", async () => {
+    fetchPromptTemplates.mockResolvedValue([
+      template("wide", "a launch"),
+      { ...template("tall", "a reel"), aspectRatio: "9:16" },
+    ]);
+    open();
+    await settle();
+    const media = [...document.querySelectorAll<HTMLElement>(".pt-media")];
+    expect(media.map((element) => element.style.aspectRatio)).toEqual([
+      "16 / 9",
+      "9 / 16",
+    ]);
+    expect(media[1]?.querySelector(".pt-ratio")?.textContent).toBe("9:16");
+  });
+
+  it("shows the list from earlier at once when the page is opened again", async () => {
+    open();
+    await settle();
+    if (component) unmount(component);
+    fetchPromptTemplates.mockReturnValueOnce(new Promise(() => undefined));
+    open();
+    flushSync();
+    expect(document.body.textContent).not.toContain("Loading");
+    expect(document.body.textContent).toContain("Title one");
+  });
+
+  it("keeps the earlier list when a refresh fails", async () => {
+    open();
+    await settle();
+    if (component) unmount(component);
+    fetchPromptTemplates.mockRejectedValueOnce(new Error("down"));
+    open();
+    await settle();
+    expect(document.body.textContent).not.toContain("could not be loaded");
+    expect(document.body.textContent).toContain("Title one");
+  });
+
   it("offers a retry when the templates cannot be loaded", async () => {
     fetchPromptTemplates.mockRejectedValueOnce(new Error("down"));
     open();
@@ -173,12 +213,18 @@ describe("PromptTemplatesPanel", () => {
         (element) => element.textContent,
       );
 
-    it("opens filtered to the categories a new account picked", async () => {
+    it("opens filtered to the category a new account picked", async () => {
       open(vi.fn(), ["UI"]);
       await settle();
       expect(cards()).toEqual(["Title two"]);
       // The open template is one of the visible ones.
       expect(document.body.textContent).toContain("Title two");
+    });
+
+    it("shows everything when a new account picked several categories", async () => {
+      open(vi.fn(), ["UI", "Design"]);
+      await settle();
+      expect(cards()).toHaveLength(3);
     });
 
     it("ignores picks no template uses rather than showing nothing", async () => {
@@ -187,7 +233,7 @@ describe("PromptTemplatesPanel", () => {
       expect(cards()).toHaveLength(3);
     });
 
-    it("narrows and widens with the chips, and All clears them", async () => {
+    it("filters to one category at a time, and All clears it", async () => {
       open();
       await settle();
       expect(cards()).toHaveLength(3);
@@ -200,7 +246,9 @@ describe("PromptTemplatesPanel", () => {
       expect(cards()).toEqual(["Title one", "Title three"]);
       chip("UI").click();
       await settle();
-      expect(cards()).toHaveLength(3);
+      expect(cards()).toEqual(["Title two"]);
+      expect(chip("Product").getAttribute("aria-pressed")).toBe("false");
+      expect(chip("UI").getAttribute("aria-pressed")).toBe("true");
       chip("All").click();
       await settle();
       expect(cards()).toHaveLength(3);
