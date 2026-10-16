@@ -351,6 +351,62 @@ describe("ProjectsApi", () => {
     await expect(api.removeProject("project", 3)).resolves.toBeUndefined();
   });
 
+  it("uploads a thumbnail as the image itself, for the revision it shows", async () => {
+    const saved = { revision: 4, updatedAt: "2026-10-16T00:00:00.000Z" };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(200, {
+          data: { user: { id: "user" }, csrfToken: "csrf-token" },
+        }),
+      )
+      .mockResolvedValueOnce(response(200, { data: saved }));
+    vi.stubGlobal("fetch", fetchMock);
+    const image = new Blob(["still"], { type: "image/webp" });
+
+    await expect(
+      new ProjectsApi("http://localhost:4000").uploadProjectThumbnail(
+        "project 1",
+        4,
+        image,
+      ),
+    ).resolves.toEqual(saved);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL(
+        "http://localhost:4000/v1/projects/project%201/thumbnail?revision=4",
+      ),
+      expect.objectContaining({
+        method: "PUT",
+        body: image,
+        headers: expect.objectContaining({
+          "Content-Type": "image/webp",
+          "X-CSRF-Token": "csrf-token",
+        }),
+      }),
+    );
+  });
+
+  it("fetches a thumbnail at a URL that names its revision", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response("still", { headers: { "Content-Type": "image/webp" } }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new ProjectsApi("http://localhost:4000");
+
+    const image = await api.getProjectThumbnail("project", 3);
+    expect(await image.text()).toBe("still");
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://localhost:4000/v1/projects/project/thumbnail?v=3"),
+      { credentials: "include" },
+    );
+    await expect(api.getProjectThumbnail("project", 3)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
   it("sends a generation message and reads generated source from the backend", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

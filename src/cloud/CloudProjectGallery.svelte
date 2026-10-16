@@ -21,6 +21,10 @@
     type WorkspaceSummary,
   } from "./projects-api";
   import { splitCompositionSource } from "./project-source";
+  import {
+    projectThumbnailUrl,
+    seedProjectThumbnail,
+  } from "./project-thumbnails";
   import AuthPanel from "../ui/auth/AuthPanel.svelte";
   import "./cloud-project-gallery.css";
 
@@ -142,6 +146,20 @@
   ): Promise<void> {
     currentProject = project;
     if (state === "ready" && workspaceId) await refreshProjects();
+  }
+
+  /** Puts a still the editor just saved on its card without fetching it back. */
+  export function showThumbnail(
+    projectId: string,
+    revision: number,
+    image: Blob,
+  ): void {
+    seedProjectThumbnail(projectId, revision, image);
+    projects = projects.map((project) =>
+      project.id === projectId
+        ? { ...project, thumbnailRevision: revision }
+        : project,
+    );
   }
 
   export async function createProjectForPrompt(): Promise<ProjectSummary> {
@@ -452,6 +470,65 @@
     return role === "owner" || role === "editor";
   }
 
+  /** Loads a card's still once the card comes near the viewport. */
+  function thumbnail(node: HTMLImageElement, project: ProjectSummary) {
+    let current = project;
+    let observer: IntersectionObserver | undefined;
+    node.addEventListener("load", () => node.classList.add("is-loaded"));
+    const load = () => {
+      const { id, thumbnailRevision } = current;
+      if (!thumbnailRevision) return;
+      projectThumbnailUrl(api, id, thumbnailRevision).then(
+        (url) => {
+          if (
+            current.id === id &&
+            current.thumbnailRevision === thumbnailRevision
+          )
+            node.src = url;
+        },
+        // The lettered cover beneath stays.
+        () => undefined,
+      );
+    };
+    const watch = () => {
+      observer?.disconnect();
+      if (typeof IntersectionObserver === "undefined") {
+        load();
+        return;
+      }
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer?.disconnect();
+          load();
+        },
+        { rootMargin: "300px" },
+      );
+      observer.observe(node);
+    };
+    watch();
+    return {
+      update(next: ProjectSummary) {
+        if (
+          next.id === current.id &&
+          next.thumbnailRevision === current.thumbnailRevision
+        )
+          return;
+        // The list is not keyed: a card reused for another project must not
+        // show the last one's still while its own loads.
+        if (next.id !== current.id) {
+          node.removeAttribute("src");
+          node.classList.remove("is-loaded");
+        }
+        current = next;
+        watch();
+      },
+      destroy() {
+        observer?.disconnect();
+      },
+    };
+  }
+
   function coverStyle(project: ProjectSummary): string {
     const seed = [...project.id].reduce(
       (total, character) => total + character.charCodeAt(0),
@@ -712,6 +789,14 @@
                 <span class="cloud-cover-initials"
                   >{projectInitials(project.name)}</span
                 >
+                {#if project.thumbnailRevision}
+                  <img
+                    class="cloud-cover-thumbnail"
+                    alt=""
+                    decoding="async"
+                    use:thumbnail={project}
+                  />
+                {/if}
                 <span class="cloud-cover-open"
                   ><FolderOpen size={14} /> Open</span
                 >

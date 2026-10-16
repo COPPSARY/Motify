@@ -80,6 +80,8 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   savedAt: string;
+  /** The revision the gallery still was drawn from; null or absent when there is none. */
+  thumbnailRevision?: number | null;
 }
 
 export interface ProjectSource {
@@ -363,6 +365,44 @@ export class ProjectsApi {
     return this.request<ProjectSource>(
       `/v1/projects/${encodeURIComponent(projectId)}/source`,
     );
+  }
+
+  /** Saves the gallery still drawn from `revision`. It is not an edit: the revision stays. */
+  async uploadProjectThumbnail(
+    projectId: string,
+    revision: number,
+    image: Blob,
+  ) {
+    await this.ensureCsrfToken();
+    return this.request<{ revision: number; updatedAt: string }>(
+      `/v1/projects/${encodeURIComponent(projectId)}/thumbnail?revision=${revision}`,
+      { method: "PUT", body: image },
+    );
+  }
+
+  /**
+   * The gallery still for `revision`. Its URL names the revision and the API
+   * lets the browser keep it, so each still crosses the network once.
+   */
+  async getProjectThumbnail(
+    projectId: string,
+    revision: number,
+  ): Promise<Blob> {
+    const response = await fetch(
+      new URL(
+        `/v1/projects/${encodeURIComponent(projectId)}/thumbnail?v=${revision}`,
+        this.baseUrl,
+      ),
+      { credentials: "include" },
+    );
+    if (!response.ok) {
+      throw new CloudApiError(
+        response.status,
+        "THUMBNAIL_UNAVAILABLE",
+        `Thumbnail request failed with status ${response.status}.`,
+      );
+    }
+    return response.blob();
   }
 
   getPreview(projectId: string) {
@@ -773,6 +813,8 @@ export class ProjectsApi {
     options: { method?: string; body?: unknown } = {},
   ): Promise<T | undefined> {
     const method = options.method ?? "GET";
+    // A Blob (an image) goes up as itself, typed by its own MIME type.
+    const raw = options.body instanceof Blob ? options.body : null;
     const response = await fetch(new URL(path, this.baseUrl), {
       method,
       credentials: "include",
@@ -780,14 +822,14 @@ export class ProjectsApi {
         Accept: "application/json",
         ...(options.body === undefined
           ? {}
-          : { "Content-Type": "application/json" }),
+          : { "Content-Type": raw ? raw.type : "application/json" }),
         ...(method === "GET" || method === "HEAD" || !this.csrfToken
           ? {}
           : { "X-CSRF-Token": this.csrfToken }),
       },
       ...(options.body === undefined
         ? {}
-        : { body: JSON.stringify(options.body) }),
+        : { body: raw ?? JSON.stringify(options.body) }),
     });
 
     if (!response.ok) {

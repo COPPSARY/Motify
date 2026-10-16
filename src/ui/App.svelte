@@ -112,6 +112,7 @@
   import { takeInterests } from "../onboarding/interests";
   import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
+  import { captureThumbnail } from "../composition/thumbnail";
   import {
     CANVAS_ASPECTS,
     DEFAULT_CANVAS,
@@ -1157,6 +1158,67 @@
         settings.framing,
       ),
     };
+  }
+
+  /**
+   * Each My Videos card shows a still of its saved film. Once a cloud
+   * project's design settles, one is drawn in idle time from a hidden copy of
+   * the film and sent once per revision, so a new generation refreshes its
+   * card and opening a project saved before stills existed gives it one.
+   */
+  const THUMBNAIL_SETTLE_MS = 2_500;
+  let thumbnailTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The revision this tab last pictured, or tried to, per project. */
+  const thumbnailAttempts = new Map<string, number>();
+
+  $: scheduleThumbnail(
+    cloudProject,
+    editorRevision,
+    sourceDirty,
+    $generationStore.isActive,
+  );
+
+  function thumbnailWanted(project: ProjectSummary | null): boolean {
+    return Boolean(
+      project &&
+      project.thumbnailRevision !== project.revision &&
+      thumbnailAttempts.get(project.id) !== project.revision,
+    );
+  }
+
+  function scheduleThumbnail(
+    project: ProjectSummary | null,
+    ..._changed: unknown[]
+  ): void {
+    clearTimeout(thumbnailTimer);
+    if (!thumbnailWanted(project)) return;
+    thumbnailTimer = setTimeout(() => {
+      if (typeof window.requestIdleCallback === "function")
+        window.requestIdleCallback(() => void saveProjectThumbnail(), {
+          timeout: 5_000,
+        });
+      else void saveProjectThumbnail();
+    }, THUMBNAIL_SETTLE_MS);
+  }
+
+  async function saveProjectThumbnail(): Promise<void> {
+    const project = cloudProject;
+    // Unsaved edits mean the mounted film is not the saved one; a generation
+    // or an export is about to replace it or needs the tab.
+    if (!project || !runtime || sourceDirty || exporting) return;
+    if ($generationStore.isActive || !thumbnailWanted(project)) return;
+    thumbnailAttempts.set(project.id, project.revision);
+    try {
+      const image = await captureThumbnail(activeComposition);
+      const saved = await new ProjectsApi().uploadProjectThumbnail(
+        project.id,
+        project.revision,
+        image,
+      );
+      cloudProjects?.showThumbnail(project.id, saved.revision, image);
+    } catch {
+      // The card keeps its lettered cover; the next revision tries again.
+    }
   }
 
   /**
