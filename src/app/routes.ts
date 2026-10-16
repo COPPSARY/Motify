@@ -2,7 +2,7 @@
 export const BRAND_ROUTE = "/brand";
 
 /** The Prompt Templates page, where a new account goes after Brand DNA. */
-export const PROMPTS_ROUTE = "/prompts";
+export const PROMPTS_ROUTE = "/templates";
 
 export function isBrandRoute(pathname: string): boolean {
   return /^\/brand\/?$/.test(pathname);
@@ -14,8 +14,8 @@ export function isBrandRoute(pathname: string): boolean {
  */
 export const HOME_PAGES = [
   "videos",
+  "films",
   "templates",
-  "prompts",
   "music",
   "assets",
   "storyboard",
@@ -24,6 +24,11 @@ export const HOME_PAGES = [
 ] as const;
 
 export type HomePageRoute = (typeof HOME_PAGES)[number];
+
+/** Old paths that still open their page: Prompt Templates lived at /prompts. */
+const HOME_PAGE_ALIASES: Readonly<Record<string, HomePageRoute>> = {
+  prompts: "templates",
+};
 
 export function homePagePath(page: HomePageRoute | null): string {
   return page ? `/${page}` : "/";
@@ -39,6 +44,7 @@ export function homePageFromPath(
   const name = /^\/([a-z]*)\/?$/.exec(pathname)?.[1];
   if (name === undefined) return undefined;
   if (name === "") return null;
+  if (Object.hasOwn(HOME_PAGE_ALIASES, name)) return HOME_PAGE_ALIASES[name];
   return (HOME_PAGES as readonly string[]).includes(name)
     ? (name as HomePageRoute)
     : undefined;

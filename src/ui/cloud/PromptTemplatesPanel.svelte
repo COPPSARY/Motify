@@ -7,11 +7,16 @@
     type PromptTemplate,
   } from "../../api/prompt-templates";
   import { categoriesOf } from "../../onboarding/interests";
+  import { lazyVideo } from "./lazy-video";
+  import {
+    cachedPromptTemplates,
+    rememberPromptTemplates,
+  } from "./prompt-template-cache";
 
   /** Puts a prompt in Tiffy's composer on the create page. */
   export let onUse: (prompt: string) => void;
   export let onNotice: (message: string) => void;
-  /** Categories to start filtered to, such as the ones a new account picked. */
+  /** Categories a new account picked; with just one, the page opens filtered to it. */
   export let initialCategories: string[] = [];
 
   const COPY_TOOLTIP =
@@ -26,13 +31,14 @@
   let copied = false;
   /** After a copy, what to do next; it stays until another template is opened. */
   let copyNote = false;
-  /** Templates in any of these categories show; none means all of them. */
-  let activeCategories = new Set<string>(initialCategories);
+  /** Only templates in this category show; null means all of them. */
+  let activeCategory: string | null =
+    initialCategories.length === 1 ? (initialCategories[0] ?? null) : null;
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   $: categories = categoriesOf(templates);
-  $: filter = realCategories(activeCategories, categories);
-  $: visible = withCategories(templates, filter);
+  $: filter = realCategory(activeCategory, categories);
+  $: visible = inCategory(templates, filter);
   $: selected = templates.find((item) => item.slug === selectedSlug) ?? null;
   $: rendered = selected ? renderPrompt(selected, values) : "";
   $: prompt = manualPrompt ?? rendered;
@@ -42,32 +48,33 @@
     return () => clearTimeout(copiedTimer);
   });
 
-  /** A saved pick that no template uses would hide everything, so only real categories count. */
-  function realCategories(
-    wanted: ReadonlySet<string>,
+  /** A saved pick that no template uses would hide everything, so only a real category counts. */
+  function realCategory(
+    wanted: string | null,
     known: readonly { name: string }[],
-  ): string[] {
-    return [...wanted].filter((name) =>
-      known.some((item) => item.name === name),
-    );
+  ): string | null {
+    return known.some((item) => item.name === wanted) ? wanted : null;
   }
 
-  function withCategories(
+  function inCategory(
     all: readonly PromptTemplate[],
-    names: readonly string[],
+    name: string | null,
   ): PromptTemplate[] {
-    return names.length === 0
+    return name === null
       ? [...all]
-      : all.filter((item) =>
-          item.categories.some((name) => names.includes(name)),
-        );
+      : all.filter((item) => item.categories.includes(name));
+  }
+
+  /** "9:16" as a CSS aspect-ratio, so each preview keeps its video's shape. */
+  function cssRatio(ratio: PromptTemplate["aspectRatio"]): string {
+    return ratio.replace(":", " / ");
   }
 
   /** The open template always belongs to the list on screen, so Copy is never about a hidden one. */
   function keepSelectionVisible() {
-    const shown = withCategories(
+    const shown = inCategory(
       templates,
-      realCategories(activeCategories, categoriesOf(templates)),
+      realCategory(activeCategory, categoriesOf(templates)),
     );
     const first = shown[0];
     if (first && !shown.some((item) => item.slug === selectedSlug))
@@ -75,25 +82,27 @@
   }
 
   async function load() {
-    status = "loading";
+    // Show the cached list at once and refresh it behind it; only a first load shows "Loading…".
+    const cached = cachedPromptTemplates();
+    if (cached) show(cached);
+    else status = "loading";
     try {
-      templates = await fetchPromptTemplates();
-      status = "ready";
-      keepSelectionVisible();
+      const fresh = await fetchPromptTemplates();
+      rememberPromptTemplates(fresh);
+      show(fresh);
     } catch {
-      status = "error";
+      if (!cached) status = "error";
     }
   }
 
-  function toggleCategory(name: string) {
-    const next = new Set(activeCategories);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
-    setCategories(next);
+  function show(list: PromptTemplate[]) {
+    templates = list;
+    status = "ready";
+    keepSelectionVisible();
   }
 
-  function setCategories(next: Set<string>) {
-    activeCategories = next;
+  function setCategory(name: string | null) {
+    activeCategory = name;
     keepSelectionVisible();
   }
 
@@ -148,17 +157,17 @@
     <button
       type="button"
       class="me-chip"
-      class:me-active={filter.length === 0}
-      aria-pressed={filter.length === 0}
-      on:click={() => setCategories(new Set())}>All</button
+      class:me-active={filter === null}
+      aria-pressed={filter === null}
+      on:click={() => setCategory(null)}>All</button
     >
     {#each categories as category (category.name)}
       <button
         type="button"
         class="me-chip"
-        class:me-active={filter.includes(category.name)}
-        aria-pressed={filter.includes(category.name)}
-        on:click={() => toggleCategory(category.name)}>{category.name}</button
+        class:me-active={filter === category.name}
+        aria-pressed={filter === category.name}
+        on:click={() => setCategory(category.name)}>{category.name}</button
       >
     {/each}
   </div>
@@ -173,15 +182,18 @@
             aria-pressed={template.slug === selectedSlug}
             on:click={() => select(template)}
           >
-            <span class="pt-media">
+            <span
+              class="pt-media"
+              style:aspect-ratio={cssRatio(template.aspectRatio)}
+            >
+              <span class="pt-ratio">{template.aspectRatio}</span>
               {#if template.video}
                 <video
-                  src={template.video}
-                  autoplay
+                  use:lazyVideo={template.video}
                   muted
                   loop
                   playsinline
-                  preload="metadata"
+                  preload="none"
                   aria-hidden="true"
                 ></video>
               {/if}

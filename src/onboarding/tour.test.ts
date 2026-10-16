@@ -8,7 +8,7 @@ describe("first-run tour progress", () => {
     expect(new Set(TOUR_STEPS.map((step) => step.id)).size).toBe(
       TOUR_STEPS.length,
     );
-    expect(TOUR_STEPS[0]?.page).toBe("prompts");
+    expect(TOUR_STEPS[0]?.page).toBe("templates");
     expect(TOUR_STEPS.at(-1)?.id).toBe("storyboard");
   });
 

@@ -349,6 +349,8 @@
     mode === "cloud"
       ? (homePageFromPath(window.location.pathname) ?? null)
       : null;
+  // An old address, such as /prompts, moves to the page's own.
+  if (page !== null) navigate(homePagePath(page), true);
   /** Where the My Videos page draws the project gallery. */
   let videosHost: HTMLElement | null = null;
   let profileMenuOpen = false;
@@ -4253,10 +4255,12 @@
                   </button>
                   <button
                     class="me-sidebar-link"
-                    class:me-active={centerPage === "prompts"}
-                    aria-current={centerPage === "prompts" ? "page" : undefined}
+                    class:me-active={centerPage === "templates"}
+                    aria-current={centerPage === "templates"
+                      ? "page"
+                      : undefined}
                     data-tour="nav-prompts"
-                    on:click={() => openPage("prompts")}
+                    on:click={() => openPage("templates")}
                   >
                     <FolderOpen size={16} /><span>Prompt Templates</span>
                   </button>
@@ -4573,7 +4577,7 @@
                 <div class="me-create">
                   {@render tiffy("hero")}
                 </div>
-              {:else if centerPage === "templates"}
+              {:else if centerPage === "films"}
                 <section class="me-page-body" aria-labelledby="templates-title">
                   <header class="me-page-header">
                     <h1 id="templates-title">Templates</h1>
@@ -4650,7 +4654,7 @@
                     {/each}
                   </div>
                 </section>
-              {:else if centerPage === "prompts"}
+              {:else if centerPage === "templates"}
                 <section class="me-page-body" aria-labelledby="prompts-title">
                   <header class="me-page-header">
                     <h1 id="prompts-title">Prompt Templates</h1>
