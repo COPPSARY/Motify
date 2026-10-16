@@ -10,6 +10,7 @@
     History,
     Image as ImageIcon,
     Images,
+    Lock,
     Music,
     Plus,
     Upload,
@@ -25,6 +26,7 @@
   import type {
     AudioTrack,
     GenerationEffort,
+    GenerationModel,
     ProjectsApi,
   } from "../../cloud/projects-api";
   import { estimateMessageCredits, formatCredits } from "../../api/credits";
@@ -87,6 +89,14 @@
   export let generationAspect: CanvasAspect = "16:9";
   /** Reasoning depth sent with every cloud generation. */
   export let generationEffort: GenerationEffort = "medium";
+  /** The model sent with every cloud generation. */
+  export let generationModel: GenerationModel = "flash";
+  /** Cloud only: a local project runs on the browser's own provider key. */
+  export let modelPicker = false;
+  /** Pro needs a paid plan; locked, it is shown faded and opens pricing instead. */
+  export let modelLocked = true;
+  export let onSelectModel: (model: GenerationModel) => void = () => undefined;
+  export let onUpgradeModel: () => void = () => undefined;
   /** Long prompts get a time expectation while the run is active. */
   export let longGeneration = false;
   /** The open video's name, shown in the panel header. */
@@ -122,6 +132,9 @@
   let addMenu: HTMLDivElement;
   let aspectMenuOpen = false;
   let effortMenuOpen = false;
+  let modelMenuOpen = false;
+  let modelPickerWrap: HTMLDivElement;
+  let modelButton: HTMLButtonElement;
   let brandMenuOpen = false;
   let brandPicker: HTMLDivElement;
   let brandButton: HTMLButtonElement;
@@ -176,6 +189,29 @@
       description: "More thorough and usually slower",
     },
   ];
+  const flashModelOption: {
+    value: GenerationModel;
+    label: string;
+    description: string;
+    paid: boolean;
+  } = {
+    value: "flash",
+    label: "Flash",
+    description: "Fast and capable",
+    paid: false,
+  };
+  const modelOptions: readonly (typeof flashModelOption)[] = [
+    flashModelOption,
+    {
+      value: "pro",
+      label: "Pro",
+      description: "Our most capable model",
+      paid: true,
+    },
+  ];
+  $: selectedModel =
+    modelOptions.find((option) => option.value === generationModel) ??
+    flashModelOption;
   const activitySteps = [
     "Reading your brief",
     "Planning the scene flow",
@@ -258,6 +294,16 @@
     aspectButton?.focus();
   }
 
+  function pickModel(option: (typeof modelOptions)[number]): void {
+    modelMenuOpen = false;
+    if (option.paid && modelLocked) {
+      onUpgradeModel();
+      return;
+    }
+    onSelectModel(option.value);
+    modelButton?.focus();
+  }
+
   function selectEffort(value: GenerationEffort): void {
     generationEffort = value;
     effortMenuOpen = false;
@@ -306,6 +352,9 @@
     }
     if (effortMenuOpen && !effortPicker?.contains(event.target as Node)) {
       effortMenuOpen = false;
+    }
+    if (modelMenuOpen && !modelPickerWrap?.contains(event.target as Node)) {
+      modelMenuOpen = false;
     }
     if (brandMenuOpen && !brandPicker?.contains(event.target as Node))
       brandMenuOpen = false;
@@ -703,6 +752,63 @@
           {/if}
         </div>
       {/if}
+      {#if modelPicker}
+        <div class="ai-effort-picker-wrap" bind:this={modelPickerWrap}>
+          <button
+            class="ai-effort-picker ai-model-picker"
+            data-tour="model"
+            class:is-open={modelMenuOpen}
+            type="button"
+            aria-label={`Model: ${selectedModel.label}`}
+            aria-haspopup="menu"
+            aria-expanded={modelMenuOpen}
+            title="Choose the model Tiffy builds with"
+            disabled={$generationStore.isActive}
+            bind:this={modelButton}
+            on:click={() => {
+              modelMenuOpen = !modelMenuOpen;
+              effortMenuOpen = false;
+              aspectMenuOpen = false;
+              brandMenuOpen = false;
+              addMenuOpen = false;
+            }}
+            on:keydown={(event) => {
+              if (event.key === "Escape") modelMenuOpen = false;
+            }}
+          >
+            <span>{selectedModel.label}</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+          {#if modelMenuOpen}
+            <div
+              class="ai-effort-menu ai-model-menu"
+              role="menu"
+              aria-label="Model"
+            >
+              {#each modelOptions as option (option.value)}
+                {@const locked = option.paid && modelLocked}
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  class:is-locked={locked}
+                  aria-checked={generationModel === option.value}
+                  title={locked ? "Upgrade to use Pro" : undefined}
+                  on:click={() => pickModel(option)}
+                >
+                  <span
+                    ><strong>{option.label}</strong><small
+                      >{locked
+                        ? "Upgrade to unlock"
+                        : option.description}</small
+                    ></span
+                  >
+                  {#if locked}<Lock size={14} aria-hidden="true" />{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
       <div class="ai-effort-picker-wrap" bind:this={effortPicker}>
         <button
           class="ai-effort-picker"
@@ -717,6 +823,7 @@
           bind:this={effortButton}
           on:click={() => {
             effortMenuOpen = !effortMenuOpen;
+            modelMenuOpen = false;
             aspectMenuOpen = false;
             brandMenuOpen = false;
             addMenuOpen = false;

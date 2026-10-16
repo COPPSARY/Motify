@@ -657,6 +657,28 @@
   flex: none;
 }
 
+/* The model picker reuses the effort picker; Pro is faded and locked off a paid plan. */
+.code-editor-scope .ai-model-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.code-editor-scope .ai-model-menu button.is-locked {
+  opacity: 0.55;
+}
+
+.code-editor-scope .ai-model-menu button.is-locked:hover,
+.code-editor-scope .ai-model-menu button.is-locked:focus-visible {
+  opacity: 0.8;
+}
+
+.code-editor-scope .ai-model-menu button > svg {
+  flex: none;
+  color: var(--sl-muted);
+}
+
 /* ------------------------------------------------------------ create page */
 
 /* A faint grid, strongest behind the prompt and fading out toward the

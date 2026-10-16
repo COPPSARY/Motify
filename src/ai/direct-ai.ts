@@ -337,6 +337,7 @@ async function requestBackendProject(
         currentFiles.generationProfile,
       ),
       ...(currentFiles.effort ? { effort: currentFiles.effort } : {}),
+      ...(currentFiles.model ? { model: currentFiles.model } : {}),
       ...(currentFiles.aspectRatio
         ? { aspectRatio: currentFiles.aspectRatio }
         : {}),

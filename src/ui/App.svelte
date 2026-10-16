@@ -83,6 +83,7 @@
     type BillingPlanId,
     type PromotionBanner as PromotionBannerData,
     type GenerationEffort,
+    type GenerationModel,
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
@@ -333,6 +334,14 @@
   let generationAspect: CanvasAspect = DEFAULT_CANVAS.aspect;
   /** Medium is the default; people can opt into the slower High pass. */
   let generationEffort: GenerationEffort = "medium";
+  /**
+   * Flash for everyone; Pro is a paid plan's model, picked for subscribers
+   * until they choose otherwise. Losing the plan puts them back on Flash.
+   */
+  let generationModel: GenerationModel = "flash";
+  let generationModelPicked = false;
+  $: if (!activePlan) generationModel = "flash";
+  else if (!generationModelPicked) generationModel = "pro";
   let longGeneration = false;
   // Read from the runtime on every snapshot: a smart camera moves with time.
   $: canvasView = computeCanvasView(
@@ -3138,6 +3147,7 @@
           selectedBrand === null ? null : (generationBrand?.id ?? undefined),
         ...(aspectRatio ? { aspectRatio } : {}),
         effort: generationEffort,
+        model: generationModel,
         compositionHtml: currentHtml,
         timelineJs: currentJs,
         stylesCss: basis.files["styles.css"],
@@ -6043,6 +6053,14 @@
     {variant}
     bind:generationAspect
     bind:generationEffort
+    {generationModel}
+    modelPicker={mode === "cloud"}
+    modelLocked={!activePlan}
+    onSelectModel={(model) => {
+      generationModel = model;
+      generationModelPicked = true;
+    }}
+    onUpgradeModel={() => window.open(PRICING_URL, "_blank", "noopener")}
     {longGeneration}
     title={projectTitle}
     onBack={variant === "panel" ? () => void returnHome() : null}
