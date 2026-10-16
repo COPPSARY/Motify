@@ -96,6 +96,32 @@ export async function signInWithPassword(
   return session.user;
 }
 
+export async function resendSignupOtp(email: string): Promise<void> {
+  await authFetch("/v1/auth/otp/send", {
+    method: "POST",
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+): Promise<{ user: MotionlyUser; newAccount: boolean }> {
+  const response = await authFetch("/v1/auth/otp/verify", {
+    method: "POST",
+    body: JSON.stringify({
+      email: email.trim().toLowerCase(),
+      token,
+      referralCode: currentReferralCode(),
+    }),
+  });
+  const session = ((await response.json()) as SignUpResponse).data;
+  if (!session.user || !session.csrfToken)
+    throw new Error("OTP verification did not return a session.");
+  csrfToken = session.csrfToken;
+  return { user: session.user, newAccount: session.newAccount === true };
+}
+
 /** Returns the signed-in user when email confirmation is disabled; null while a verification mail is pending. */
 export async function signUpWithPassword(
   email: string,
@@ -107,6 +133,7 @@ export async function signUpWithPassword(
       email: email.trim().toLowerCase(),
       password,
       returnTo: returnToUrl(),
+      referralCode: currentReferralCode(),
     }),
   });
   const {
@@ -149,5 +176,26 @@ export function motionlyLoginUrl(): string {
   );
   const returnTo = returnToUrl();
   if (returnTo) url.searchParams.set("returnTo", returnTo);
+  const referralCode = currentReferralCode();
+  if (referralCode) url.searchParams.set("referralCode", referralCode);
   return url.toString();
+}
+
+/** Cello also persists this value; reading URL/cookie synchronously keeps OAuth links ordinary anchors. */
+export function currentReferralCode(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const fromUrl = new URL(window.location.href).searchParams.get("ucc")?.trim();
+  const fromCookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("cello-referral="))
+    ?.slice("cello-referral=".length);
+  let cookieValue = "";
+  try {
+    cookieValue = fromCookie ? decodeURIComponent(fromCookie) : "";
+  } catch {
+    // Ignore a malformed third-party cookie rather than breaking authentication.
+  }
+  const value = fromUrl || cookieValue;
+  return value && value.length <= 255 ? value : undefined;
 }
