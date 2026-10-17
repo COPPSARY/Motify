@@ -106,6 +106,15 @@ describe("credits store", () => {
     expect(get(creditBalance)).toBe(46.6);
   });
 
+  it("adds up every charged pass of one request, until the next one starts", () => {
+    applyServerCharge({ charged: 3.4, remaining: 46.6 });
+    applyServerCharge({ charged: 1.2, remaining: 45.4 });
+    expect(get(lastCreditCharge)).toBeCloseTo(4.6, 10);
+    clearLastCharge();
+    applyServerCharge({ charged: 2, remaining: 43.4 });
+    expect(get(lastCreditCharge)).toBe(2);
+  });
+
   it("ignores a response balance that is negative or not a number", () => {
     applyServerCharge({ charged: 1, remaining: 10 });
     applyServerCharge({ charged: 1, remaining: -3 });

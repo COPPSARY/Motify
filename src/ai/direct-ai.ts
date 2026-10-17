@@ -1,5 +1,3 @@
-import { get } from "svelte/store";
-
 import { repairGeneratedMarkup } from "./auto-repair";
 import {
   analyzeMotionQuality,
@@ -27,16 +25,8 @@ import {
 } from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
 import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
-import {
-  estimateMessageCredits,
-  insufficientCreditsMessage,
-} from "../api/credits";
-import {
-  applyServerCharge,
-  clearLastCharge,
-  creditEstimate,
-  refreshCredits,
-} from "../stores/credits";
+import { insufficientCreditsMessage } from "../api/credits";
+import { applyServerCharge, refreshCredits } from "../stores/credits";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -331,34 +321,24 @@ async function requestBackendProject(
         ]
       : [],
   );
-  clearLastCharge();
-  const message = buildCloudProjectMessage(
-    userPrompt,
-    currentFiles.generationProfile,
-  );
-  // The price the composer shows for this message; the server charges it.
-  const estimate = get(creditEstimate);
   let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
   try {
     result = await api.runMotionMessage(projectId, {
       ...(currentFiles.brandId !== undefined
         ? { brandId: currentFiles.brandId }
         : {}),
-      message,
-      ...(estimate
-        ? {
-            quotedCredits: estimateMessageCredits(
-              estimate,
-              message.trim().length,
-            ),
-          }
-        : {}),
+      message: buildCloudProjectMessage(
+        userPrompt,
+        currentFiles.generationProfile,
+      ),
       ...(currentFiles.effort ? { effort: currentFiles.effort } : {}),
       ...(currentFiles.model ? { model: currentFiles.model } : {}),
       ...(currentFiles.aspectRatio
         ? { aspectRatio: currentFiles.aspectRatio }
         : {}),
-      ...(uploadedAssets.length > 0 ? { assets: uploadedAssets } : {}),
+      // Always explicit, even empty: a message with no list makes the backend
+      // reuse every image ever attached to the project.
+      assets: uploadedAssets,
       ...((currentFiles.evidenceFrames ?? []).length > 0
         ? {
             frames: (currentFiles.evidenceFrames ?? []).map((frame) => ({

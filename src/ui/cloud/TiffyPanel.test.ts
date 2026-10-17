@@ -637,85 +637,7 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("shows no cost until there is a message to send", async () => {
-    fetchCreditSnapshot.mockResolvedValue({
-      balance: 50,
-      estimate: { typical: 10, min: 0.5, max: 30 },
-    });
-    await refreshCredits();
-
-    const target = document.createElement("div");
-    document.body.append(target);
-    const component = mount(TiffyPanel, {
-      target,
-      props: panelProps({ assistantDraft: "" }),
-    });
-
-    try {
-      expect(document.querySelector(".ai-send-cost")).toBeNull();
-      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
-    } finally {
-      await unmount(component);
-    }
-  });
-
-  it("shows the cost compactly inside the arrow send button", async () => {
-    fetchCreditSnapshot.mockResolvedValue({
-      balance: 50,
-      estimate: { typical: 10, min: 0.5, max: 30 },
-    });
-    await refreshCredits();
-
-    const target = document.createElement("div");
-    document.body.append(target);
-    const component = mount(TiffyPanel, {
-      target,
-      props: panelProps({ assistantDraft: "Make the intro pop" }),
-    });
-
-    try {
-      const send = must<HTMLButtonElement>(".ai-composer-send");
-      expect(send.textContent?.trim()).toBe("5");
-      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
-      expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
-      expect(send.disabled).toBe(false);
-    } finally {
-      await unmount(component);
-    }
-  });
-
-  it("grows the price as the drafted message gets longer", async () => {
-    fetchCreditSnapshot.mockResolvedValue({
-      balance: 50,
-      estimate: { typical: 10, min: 0.5, max: 30 },
-    });
-    await refreshCredits();
-
-    const target = document.createElement("div");
-    document.body.append(target);
-    const component = mount(TiffyPanel, {
-      target,
-      props: panelProps({ assistantDraft: "Fix it" }),
-    });
-
-    try {
-      const composer = must<HTMLTextAreaElement>(".ai-composer-input");
-      const cost = must<HTMLElement>(".ai-send-cost");
-      const short = cost.textContent;
-
-      composer.value =
-        "Slow the intro to two seconds, make the headline larger, and fade the logo in over the first second instead of cutting to it.";
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
-      await tick();
-
-      expect(cost.textContent).not.toBe(short);
-      expect(cost.textContent?.trim()).toBe("20.8");
-    } finally {
-      await unmount(component);
-    }
-  });
-
-  it("does not block sending just because the balance is under the typical cost", async () => {
+  it("does not show what a message will cost before it is sent", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 3,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -730,9 +652,36 @@ describe("TiffyPanel credit estimate", () => {
     });
 
     try {
-      expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
-      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
+      const send = must<HTMLButtonElement>(".ai-composer-send");
+      expect(send.textContent?.trim()).toBe("");
+      expect(send.getAttribute("aria-label")).toBe("Send message to Tiffy");
+      // A balance under the typical cost can still send; only below the minimum is it blocked.
+      expect(send.disabled).toBe(false);
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+
+  it("says under a reply what the request it answered used", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        assistantMessages: [
+          { role: "user", text: "Make the intro pop" },
+          { role: "assistant", text: "Done.", credits: 12.34 },
+          { role: "assistant", text: "Hello!" },
+        ],
+      }),
+    });
+
+    try {
+      const lines = [...document.querySelectorAll(".ai-message-credits")];
+      expect(lines.map((line) => line.textContent?.trim())).toEqual([
+        "Used 12.3 credits",
+      ]);
     } finally {
       await unmount(component);
     }

@@ -639,27 +639,6 @@
   font-weight: 500;
 }
 
-.code-editor-scope .ai-composer-send.has-cost {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 0 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.code-editor-scope .ai-send-cost {
-  font-size: 11.5px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-.code-editor-scope .ai-composer-send.has-cost svg {
-  flex: none;
-}
-
 /* The model picker reuses the effort picker; Pro is faded and locked off a paid plan. */
 .code-editor-scope .ai-model-menu button {
   display: flex;

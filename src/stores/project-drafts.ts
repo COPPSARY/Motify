@@ -1,11 +1,22 @@
 import type { GenerationPlanMemory } from "../ai/generation-guidance";
 import type { ProjectSourceFiles } from "../cloud/projects-api";
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
-import type { LocalAssetReference } from "./local-assets";
+import type { AssetIntent, LocalAssetReference } from "./local-assets";
 
 export interface DraftMessage {
   role: "user" | "assistant";
   text: string;
+  /** Sent with the message. `previewUrl` does not outlive the session that saved it. */
+  attachments?: Array<{
+    id: string;
+    uploadId?: string;
+    name: string;
+    previewUrl?: string;
+    intent?: AssetIntent;
+    kind?: "audio" | "video";
+  }>;
+  /** What the request a reply answered was charged, in credits. */
+  credits?: number;
 }
 
 export interface ProjectDraft {

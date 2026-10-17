@@ -4,7 +4,6 @@
     ArrowLeft,
     ArrowUp,
     ChevronDown,
-    Coins,
     Dna,
     Film,
     History,
@@ -29,7 +28,7 @@
     GenerationModel,
     ProjectsApi,
   } from "../../cloud/projects-api";
-  import { estimateMessageCredits, formatCredits } from "../../api/credits";
+  import { formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
   import type {
@@ -52,6 +51,8 @@
     role: "assistant" | "user";
     text: string;
     attachments?: MessageAttachment[];
+    /** What the request this reply answered was charged, in credits. */
+    credits?: number;
   }
 
   export let assistantMessages: AssistantMessage[];
@@ -154,14 +155,26 @@
     $creditEstimate !== null &&
     $creditBalance !== null &&
     $creditBalance < $creditEstimate.min;
-  // The price of the draft as typed: the same number the server charges (see
-  // `estimateMessageCredits`). Shown once there is something to send; only a
-  // balance too low to pay for it needs a line of its own.
-  $: draftLength = assistantDraft.trim().length;
-  $: estimatedCredits = $creditEstimate
-    ? estimateMessageCredits($creditEstimate, draftLength)
-    : 0;
-  $: showCost = $creditEstimate !== null && draftLength > 0;
+
+  /**
+   * Keeps the newest message and the run's progress in view: a long prompt
+   * would otherwise push the progress below the fold, out of sight.
+   */
+  let messagesList: HTMLDivElement | undefined;
+  $: void scrollToLatest(
+    messagesList,
+    assistantMessages.length,
+    $generationStore.isActive,
+  );
+
+  async function scrollToLatest(
+    list: HTMLDivElement | undefined,
+    ..._changes: unknown[]
+  ): Promise<void> {
+    if (!list) return;
+    await tick();
+    list.scrollTop = list.scrollHeight;
+  }
 
   const aspectOptions: readonly { value: CanvasAspect; label: string }[] = [
     { value: "16:9", label: "16:9 · Landscape" },
@@ -424,7 +437,7 @@
       onClose={() => (versionsOpen = false)}
     />
   {:else if variant === "panel"}
-    <div class="ai-chat-messages" aria-live="polite">
+    <div class="ai-chat-messages" aria-live="polite" bind:this={messagesList}>
       {#if assistantMessages.length === 0}
         <div class="ai-chat-message assistant">
           Tell me what to change — copy, colors, pacing, music — and I’ll update
@@ -482,6 +495,11 @@
             </div>
           {/if}
           <div>{message.text}</div>
+          {#if message.role === "assistant" && message.credits}
+            <div class="ai-message-credits">
+              Used {formatCredits(message.credits)} credits
+            </div>
+          {/if}
           {#if message.role === "assistant" && isErrorMessage(message.text)}
             <button
               class="ai-fix-btn"
@@ -951,25 +969,15 @@
       </div>
       <button
         class="ai-composer-send"
-        class:has-cost={showCost}
         aria-label={insufficientCredits
           ? "Send message to Tiffy (not enough credits)"
-          : showCost
-            ? `Send message to Tiffy, ${formatCredits(estimatedCredits)} credits`
-            : "Send message to Tiffy"}
-        title={showCost
-          ? `Uses ${formatCredits(estimatedCredits)} credits`
-          : undefined}
+          : "Send message to Tiffy"}
         disabled={!assistantDraft.trim() ||
           $generationStore.isActive ||
           uploadingMedia ||
           insufficientCredits}
         type="submit"
       >
-        {#if showCost}
-          <Coins size={12} aria-hidden="true" />
-          <span class="ai-send-cost">{formatCredits(estimatedCredits)}</span>
-        {/if}
         <ArrowUp size={17} aria-hidden="true" />
       </button>
     </div>

@@ -100,6 +100,21 @@
   overflow: auto;
 }
 
+/*
+ * The list scrolls; its items never shrink to fit it. The progress card clips
+ * its own overflow, and without this a long prompt squeezed it to nothing.
+ */
+.code-editor-scope .ai-chat-messages > * {
+  flex-shrink: 0;
+}
+
+.code-editor-scope .ai-message-credits {
+  margin-top: 6px;
+  color: #7d828b;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .code-editor-scope .ai-chat-message {
   max-width: 92%;
   padding: 10px 11px;
