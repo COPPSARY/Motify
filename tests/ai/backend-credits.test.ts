@@ -44,12 +44,22 @@ const savedFilm = () => [
 
 describe("credits around a backend generation", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
+  /**
+   * `GET /v1/credits`, answered on its own: the editor rereads it after any
+   * request, whenever that lands among the other calls.
+   */
+  let creditsMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.stubEnv("MOTIFY_API_URL", "");
     vi.stubEnv("VITE_MOTIFY_API_URL", "");
     fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    creditsMock = vi.fn(async () => json({ data: { balance: 46.6 } }));
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      /\/v1\/credits$/.test(String(input))
+        ? creditsMock(input, init)
+        : fetchMock(input, init),
+    );
     resetCredits();
   });
 
@@ -79,6 +89,8 @@ describe("credits around a backend generation", () => {
     expect(get(creditBalance)).toBe(46.6);
     expect(get(creditStatus)).toBe("ready");
     expect(get(lastCreditCharge)).toBe(3.4);
+    // The charge moved the user's typical cost, so the next price is reread.
+    await vi.waitFor(() => expect(creditsMock).toHaveBeenCalled());
   });
 
   it("leaves the balance alone when the server is not charging", async () => {
@@ -101,7 +113,8 @@ describe("credits around a backend generation", () => {
     expect(get(lastCreditCharge)).toBeNull();
   });
 
-  it("does not trust a nonsense balance in a response", async () => {
+  it("does not trust a nonsense balance in a response, and asks the server instead", async () => {
+    creditsMock.mockImplementation(async () => json({ data: { balance: 12 } }));
     fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
       finishedJob({
         type: "generation",
@@ -117,25 +130,26 @@ describe("credits around a backend generation", () => {
     await generateWithDirectAi("make a product tour", {
       backendProjectId: "project-1",
     });
-    expect(get(creditBalance)).toBeNull();
+    expect(get(lastCreditCharge)).toBeNull();
+    await vi.waitFor(() => expect(get(creditBalance)).toBe(12));
   });
 
   it("tells the user plainly when they cannot afford a request, and rereads the balance", async () => {
-    fetchMock
-      .mockResolvedValueOnce(session())
-      .mockResolvedValueOnce(
-        json(
-          {
-            error: {
-              code: "INSUFFICIENT_CREDITS",
-              message: "You do not have enough credits for this request.",
-              details: { balance: 0.2, required: 0.5 },
-            },
+    fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
+      json(
+        {
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: "You do not have enough credits for this request.",
+            details: { balance: 0.2, required: 0.5 },
           },
-          402,
-        ),
-      )
-      .mockResolvedValueOnce(json({ data: { balance: 0.2 } }));
+        },
+        402,
+      ),
+    );
+    creditsMock.mockImplementation(async () =>
+      json({ data: { balance: 0.2 } }),
+    );
 
     await expect(
       generateWithDirectAi("make a product tour", {
@@ -146,6 +160,6 @@ describe("credits around a backend generation", () => {
     );
 
     await vi.waitFor(() => expect(get(creditBalance)).toBe(0.2));
-    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toMatch(/\/v1\/credits$/);
+    expect(creditsMock).toHaveBeenCalled();
   });
 });

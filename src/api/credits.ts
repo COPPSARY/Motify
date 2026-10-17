@@ -18,12 +18,11 @@ export interface CreditHistoryPage {
 }
 
 /**
- * What a request is expected to cost, ahead of sending it. Not a prediction
- * for this particular message: `typical` is what this user's recent requests
- * cost on average, priced the way the server charges today; `min` is the
- * fewest credits a request needs to be accepted at all, and `max` is the most
- * any single request can ever cost. The real charge follows the tokens the
- * request uses and is only known once it finishes.
+ * What the server prices messages from: `typical` is what this user's recent
+ * requests cost on average at today's prices (the price of a message of
+ * `TYPICAL_MESSAGE_CHARS`), `min` is the fewest credits a request needs to
+ * be accepted at all, and `max` is the most any single request can ever cost.
+ * See `estimateMessageCredits` for the price of a given message.
  */
 export interface CreditEstimate {
   typical: number;
@@ -96,6 +95,45 @@ export async function fetchCreditHistory(
     entries,
     nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : null,
   };
+}
+
+/**
+ * The message length `typical` is the price of. Scaling is relative to it,
+ * so a message near this length costs the server's average, and a much
+ * longer or shorter one moves the price up or down as it's typed.
+ */
+const TYPICAL_MESSAGE_CHARS = 60;
+/** How far the length of a message alone moves its price. */
+const MIN_LENGTH_SCALE = 0.5;
+const MAX_LENGTH_SCALE = 2.5;
+/** Prices are whole tenths of a credit, worked in the server's hundredths. */
+const CREDIT_UNITS = 100;
+const QUOTE_STEP_UNITS = 10;
+
+/**
+ * What a message will be charged: the server's typical cost scaled by the
+ * message's trimmed length, rounded to a tenth of a credit, and kept within
+ * what one request can cost. The server prices with this same formula
+ * (`quoteMessageUnits` in the backend's credit-pricing.ts), in the same whole
+ * hundredths, and charges it: the editor sends this number with the message,
+ * and a request whose number is out of date is refused rather than charged.
+ */
+export function estimateMessageCredits(
+  estimate: CreditEstimate,
+  messageLength: number,
+): number {
+  const scale = Math.min(
+    MAX_LENGTH_SCALE,
+    Math.max(MIN_LENGTH_SCALE, messageLength / TYPICAL_MESSAGE_CHARS),
+  );
+  const typicalUnits = Math.round(estimate.typical * CREDIT_UNITS);
+  const quote =
+    Math.round((typicalUnits * scale) / QUOTE_STEP_UNITS) * QUOTE_STEP_UNITS;
+  const units = Math.min(
+    Math.round(estimate.max * CREDIT_UNITS),
+    Math.max(Math.round(estimate.min * CREDIT_UNITS), quote),
+  );
+  return units / CREDIT_UNITS;
 }
 
 /** The chat message for a request the server refused because the account could not pay. */

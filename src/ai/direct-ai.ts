@@ -1,3 +1,5 @@
+import { get } from "svelte/store";
+
 import { repairGeneratedMarkup } from "./auto-repair";
 import {
   analyzeMotionQuality,
@@ -25,10 +27,14 @@ import {
 } from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
 import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
-import { insufficientCreditsMessage } from "../api/credits";
+import {
+  estimateMessageCredits,
+  insufficientCreditsMessage,
+} from "../api/credits";
 import {
   applyServerCharge,
   clearLastCharge,
+  creditEstimate,
   refreshCredits,
 } from "../stores/credits";
 import {
@@ -326,16 +332,27 @@ async function requestBackendProject(
       : [],
   );
   clearLastCharge();
+  const message = buildCloudProjectMessage(
+    userPrompt,
+    currentFiles.generationProfile,
+  );
+  // The price the composer shows for this message; the server charges it.
+  const estimate = get(creditEstimate);
   let result: Awaited<ReturnType<ProjectsApi["sendMotionMessage"]>>;
   try {
     result = await api.runMotionMessage(projectId, {
       ...(currentFiles.brandId !== undefined
         ? { brandId: currentFiles.brandId }
         : {}),
-      message: buildCloudProjectMessage(
-        userPrompt,
-        currentFiles.generationProfile,
-      ),
+      message,
+      ...(estimate
+        ? {
+            quotedCredits: estimateMessageCredits(
+              estimate,
+              message.trim().length,
+            ),
+          }
+        : {}),
       ...(currentFiles.effort ? { effort: currentFiles.effort } : {}),
       ...(currentFiles.model ? { model: currentFiles.model } : {}),
       ...(currentFiles.aspectRatio
