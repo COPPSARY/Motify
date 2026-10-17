@@ -131,7 +131,7 @@ describe("billing API", () => {
   it("downloads the server's PDF under the receipt number", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(new Response(new Blob(["%PDF-1.3"]), { status: 200 }));
+      .mockResolvedValue(new Response("%PDF-1.3", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal(
       "URL",
