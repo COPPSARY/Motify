@@ -303,10 +303,6 @@
   color: var(--sl-accent-hover);
 }
 
-.code-editor-scope .me-sidebar-link.me-storyboard-link.me-active svg {
-  color: var(--sl-text);
-}
-
 .code-editor-scope .me-sidebar-link:disabled {
   opacity: 0.45;
   cursor: default;

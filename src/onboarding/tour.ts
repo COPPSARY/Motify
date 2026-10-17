@@ -17,8 +17,7 @@ export type TourTarget =
   | "effort"
   | "brand"
   | "nav-music"
-  | "nav-assets"
-  | "nav-storyboard";
+  | "nav-assets";
 
 /** The page a step needs on screen before its target can be found. */
 export type TourPage = "templates" | "create";
@@ -94,14 +93,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "nav-assets",
     page: "create",
     title: "Assets",
-    body: "Your images and logos, ready for any video.",
-  },
-  {
-    id: "storyboard",
-    target: "nav-storyboard",
-    page: "create",
-    title: "Storyboard",
-    body: "Plan a video scene by scene before generating. That’s the tour. Enjoy.",
+    body: "Your images and logos, ready for any video. That’s the tour. Enjoy.",
   },
 ];
 
@@ -111,6 +103,8 @@ export function resumeIndex(progress: {
   completedAt: string | null;
 }): number | null {
   if (progress.completedAt !== null || progress.step === null) return null;
+  // The storyboard step was removed; accounts saved on it were on the last step.
+  if (progress.step === "storyboard") return TOUR_STEPS.length - 1;
   const index = TOUR_STEPS.findIndex((step) => step.id === progress.step);
   // "prompts" (arrived, tour not started) and "brand" are both before the first step.
   return index === -1 ? 0 : index;

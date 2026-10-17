@@ -36,7 +36,6 @@
     FileText,
     FolderOpen,
     Gift,
-    Grid3X3,
     Image as ImageIcon,
     LayoutGrid,
     Layers3,
@@ -169,7 +168,6 @@
   import TiffyPanel from "./cloud/TiffyPanel.svelte";
   import MusicPanel from "./cloud/MusicPanel.svelte";
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
-  import AssetGeneratorPanel from "./cloud/AssetGeneratorPanel.svelte";
   import { generationStore } from "../stores/generation";
   import {
     hydrateCloudAssetTokens,
@@ -2717,10 +2715,6 @@
     stageLibraryAsset(asset, "asset");
   }
 
-  function useStoryboardReference(asset: WorkspaceAsset): void {
-    stageLibraryAsset(asset, "reference");
-  }
-
   function openLocalPanel(tab: "presets" | "source" | "assets"): void {
     sourceOpen = tab === "source";
     localPanelView = tab;
@@ -4454,17 +4448,6 @@
                     <ImageIcon size={16} /><span>Assets</span>
                   </button>
                   <button
-                    class="me-sidebar-link me-storyboard-link"
-                    class:me-active={centerPage === "storyboard"}
-                    aria-current={centerPage === "storyboard"
-                      ? "page"
-                      : undefined}
-                    data-tour="nav-storyboard"
-                    on:click={() => openPage("storyboard")}
-                  >
-                    <Grid3X3 size={16} /><span>Storyboard Generation</span>
-                  </button>
-                  <button
                     class="me-sidebar-link"
                     class:me-active={centerPage === "music"}
                     aria-current={centerPage === "music" ? "page" : undefined}
@@ -4885,26 +4868,6 @@
                       onNotice={(message) => showNotice(message)}
                     />
                   </div>
-                </section>
-              {:else if centerPage === "storyboard"}
-                <section
-                  class="me-page-body"
-                  aria-labelledby="storyboard-title"
-                >
-                  <header class="me-page-header">
-                    <h1 id="storyboard-title">Storyboard Generation</h1>
-                    <p>
-                      Create and approve a branded nine-scene story with Nano
-                      Banana, then add it to your next video prompt as a visual
-                      reference.
-                    </p>
-                  </header>
-                  <AssetGeneratorPanel
-                    api={musicApi}
-                    {workspaceId}
-                    onUseReference={useStoryboardReference}
-                    onNotice={(message) => showNotice(message)}
-                  />
                 </section>
               {:else if centerPage === "videos"}
                 <section
