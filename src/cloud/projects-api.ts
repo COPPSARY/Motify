@@ -230,6 +230,12 @@ export interface MotionMessageInput {
   aspectRatio?: CanvasAspect;
   revision?: number;
   runtimeError?: string;
+  /**
+   * The price the composer showed for this message, in credits. The server
+   * charges exactly this, or refuses with `CREDIT_PRICE_CHANGED` and charges
+   * nothing when it is no longer the price.
+   */
+  quotedCredits?: number;
   assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
   audio?: Array<{ trackId: string }>;
   /**

@@ -10,6 +10,7 @@ import {
   foundationHtml,
   foundationTimeline,
 } from "../../src/ai/generation-foundation";
+import { refreshCredits, resetCredits } from "../../src/stores/credits";
 
 const soundHtml = readFileSync("tests/fixtures/strong-generation.html", "utf8");
 const soundTimeline = readFileSync(
@@ -258,6 +259,60 @@ describe("directed generation with self-repair", () => {
     expect((fetchMock.mock.calls[3]?.[0] as URL).pathname).toBe(
       "/v1/projects/project-1",
     );
+  });
+
+  it("sends the price the composer shows with a backend message, so that is what is charged", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: { balance: 50, estimate: { typical: 10, min: 0.5, max: 30 } },
+        }),
+        { status: 200 },
+      ),
+    );
+    await refreshCredits();
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { user: { id: "user" }, csrfToken: "csrf-token" },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              id: "job-1",
+              projectId: "project-1",
+              status: "succeeded",
+              createdAt: "2026-10-04T00:00:00.000Z",
+              result: { type: "chat", response: "Hi!", projectId: "project-1" },
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    try {
+      await expect(
+        generateWithDirectAi("  make a product tour  ", {
+          backendProjectId: "project-1",
+        }),
+      ).rejects.toThrow();
+      const post = fetchMock.mock.calls.find(
+        (call) =>
+          String((call[0] as URL).pathname) ===
+          "/v1/projects/project-1/message-jobs",
+      );
+      // 19 characters after trimming: half the typical 10 credits.
+      expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject(
+        { quotedCredits: 5 },
+      );
+    } finally {
+      resetCredits();
+    }
   });
 
   it("ships a backend project's first pass without spending a repair generation", async () => {

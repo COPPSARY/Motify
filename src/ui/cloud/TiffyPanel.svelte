@@ -29,7 +29,7 @@
     GenerationModel,
     ProjectsApi,
   } from "../../cloud/projects-api";
-  import { formatCredits } from "../../api/credits";
+  import { estimateMessageCredits, formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
   import type {
@@ -154,12 +154,14 @@
     $creditEstimate !== null &&
     $creditBalance !== null &&
     $creditBalance < $creditEstimate.min;
-  // The server's own average for this user, shown as is: the real charge
-  // follows the tokens the request uses, and the length of a message says
-  // too little about that to adjust the number by. Shown once there is
-  // something to send; only a balance too low to pay needs a line of its own.
-  $: estimatedCredits = $creditEstimate?.typical ?? 0;
-  $: showCost = $creditEstimate !== null && assistantDraft.trim().length > 0;
+  // The price of the draft as typed: the same number the server charges (see
+  // `estimateMessageCredits`). Shown once there is something to send; only a
+  // balance too low to pay for it needs a line of its own.
+  $: draftLength = assistantDraft.trim().length;
+  $: estimatedCredits = $creditEstimate
+    ? estimateMessageCredits($creditEstimate, draftLength)
+    : 0;
+  $: showCost = $creditEstimate !== null && draftLength > 0;
 
   const aspectOptions: readonly { value: CanvasAspect; label: string }[] = [
     { value: "16:9", label: "16:9 · Landscape" },
@@ -953,10 +955,10 @@
         aria-label={insufficientCredits
           ? "Send message to Tiffy (not enough credits)"
           : showCost
-            ? `Send message to Tiffy, about ${formatCredits(estimatedCredits)} credits`
+            ? `Send message to Tiffy, ${formatCredits(estimatedCredits)} credits`
             : "Send message to Tiffy"}
         title={showCost
-          ? `Uses about ${formatCredits(estimatedCredits)} credits`
+          ? `Uses ${formatCredits(estimatedCredits)} credits`
           : undefined}
         disabled={!assistantDraft.trim() ||
           $generationStore.isActive ||
