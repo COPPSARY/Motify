@@ -15,6 +15,7 @@ describe("home page routes", () => {
     expect(homePageFromPath("/prompts")).toBe("templates");
     expect(homePageFromPath("/films")).toBe("films");
     expect(homePageFromPath("/support/")).toBe("support");
+    expect(homePageFromPath("/billing")).toBe("billing");
   });
 
   it("leaves videos, the brand page and unknown paths alone", () => {

@@ -45,6 +45,7 @@ export interface WorkspaceEntitlements {
 export interface WorkspaceSubscription {
   status: "none" | "active" | "expired";
   plan: BillingPlanId | null;
+  interval?: "MONTH" | "YEAR" | null;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   /** Optional only for rolling deploy compatibility with older API nodes. */

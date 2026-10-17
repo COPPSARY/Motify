@@ -11,6 +11,8 @@
   import type { MotionlyUser } from "../auth";
   import AuthDialog from "./auth/AuthDialog.svelte";
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
+  import BillingPage from "./cloud/BillingPage.svelte";
+  import ReceiptDialog from "./cloud/ReceiptDialog.svelte";
   import ReferralButton from "./cloud/ReferralButton.svelte";
   import { get } from "svelte/store";
   import { motifySiteHref, PRICING_URL } from "../api/config";
@@ -81,6 +83,7 @@
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
+    type WorkspaceSubscription,
     type PromotionBanner as PromotionBannerData,
     type GenerationEffort,
     type GenerationModel,
@@ -217,6 +220,7 @@
   import "./styles/music-panel.css";
   import "./styles/credits-badge.css";
   import "./styles/home-shell.css";
+  import "./styles/billing.css";
   import "./styles/prompt-templates.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
 
@@ -413,6 +417,8 @@
   let activityTimer: ReturnType<typeof setInterval> | undefined;
   let editorRevision = 0;
   let currentUser: MotionlyUser | null = null;
+  /** The receipt open over Billing: `/billing?receipt=<payment id>`, as receipt emails link to. */
+  let receiptPaymentId: string | null = receiptFromRoute();
   let authChecked = false;
   let authDialogOpen = false;
   let authDialogMode: "signin" | "signup" = "signin";
@@ -420,6 +426,8 @@
   const PENDING_ASPECT_KEY = "motionly_pending_aspect";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
+  /** The plan as last read, for the Billing page; null before it loads. */
+  let activeSubscription: WorkspaceSubscription | null = null;
   let exportWithoutWatermark = false;
   let subscriptionChecked = mode === "local";
   let maxExportHeight = FREE_MAX_HEIGHT;
@@ -630,6 +638,8 @@
         else {
           subscriptionChecked = true;
           if (pendingLandingPrompt) openAuthDialog("signup");
+          // A receipt link from an email: sign in, then the receipt opens.
+          else if (receiptPaymentId) openAuthDialog("signin");
         }
       });
     }
@@ -872,8 +882,40 @@
     window.history[replace ? "replaceState" : "pushState"]({}, "", pathname);
   }
 
+  function receiptFromRoute(): string | null {
+    const routed = homePageFromPath(window.location.pathname);
+    const receipt = new URLSearchParams(window.location.search).get("receipt");
+    if (!receipt || (routed !== "billing" && routed !== "settings"))
+      return null;
+    // Receipt links used to open over Settings; they now open on Billing.
+    if (routed === "settings") {
+      window.history.replaceState(
+        {},
+        "",
+        `/billing?receipt=${encodeURIComponent(receipt)}`,
+      );
+    }
+    return receipt;
+  }
+
+  function openReceipt(paymentId: string): void {
+    receiptPaymentId = paymentId;
+    const url = new URL(window.location.href);
+    url.searchParams.set("receipt", paymentId);
+    window.history.pushState({}, "", url);
+  }
+
+  function closeReceipt(): void {
+    receiptPaymentId = null;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("receipt")) return;
+    url.searchParams.delete("receipt");
+    window.history.replaceState({}, "", url);
+  }
+
   /** Back and forward: show whatever the URL now names. */
   function syncRouteFromHistory(): void {
+    receiptPaymentId = receiptFromRoute();
     const routed = homePageFromPath(window.location.pathname);
     if (routed !== undefined) {
       if (hasEditorProject && !$generationStore.isActive) closeProject();
@@ -3483,6 +3525,7 @@
     clearDatadogUser();
     currentUser = null;
     activePlan = null;
+    activeSubscription = null;
     exportWithoutWatermark = false;
     subscriptionChecked = true;
     maxExportHeight = FREE_MAX_HEIGHT;
@@ -3971,6 +4014,7 @@
   async function refreshActivePlan(): Promise<void> {
     if (!currentUser || !workspaceId) {
       activePlan = null;
+      activeSubscription = null;
       exportWithoutWatermark = false;
       maxExportHeight = FREE_MAX_HEIGHT;
       if (authChecked && !currentUser) subscriptionChecked = true;
@@ -3978,6 +4022,7 @@
     }
     try {
       const subscription = await musicApi.getSubscription(workspaceId);
+      activeSubscription = subscription;
       activePlan =
         subscription.status === "active" && subscription.plan
           ? subscription.plan
@@ -4868,6 +4913,29 @@
                 >
                   <div class="me-videos-host" bind:this={videosHost}></div>
                 </section>
+              {:else if centerPage === "billing"}
+                <section
+                  class="me-page-body me-page-body--narrow me-billing-page"
+                  aria-labelledby="billing-title"
+                >
+                  <header class="me-page-header">
+                    <h1 id="billing-title">Billing</h1>
+                  </header>
+                  {#if currentUser}
+                    <BillingPage
+                      subscription={activeSubscription}
+                      onOpenReceipt={openReceipt}
+                    />
+                    {#if receiptPaymentId}
+                      {#key receiptPaymentId}
+                        <ReceiptDialog
+                          paymentId={receiptPaymentId}
+                          onClose={closeReceipt}
+                        />
+                      {/key}
+                    {/if}
+                  {/if}
+                </section>
               {:else if centerPage === "support"}
                 <section
                   class="me-page-body me-page-body--narrow"
@@ -4957,6 +5025,15 @@
                       <div class="me-settings-row">
                         <span>Credits</span>
                         <CreditsBadge />
+                      </div>
+                      <div class="me-settings-row">
+                        <span>Invoices</span>
+                        <button
+                          type="button"
+                          class="me-settings-link"
+                          on:click={() => openPage("billing")}
+                          >View billing</button
+                        >
                       </div>
                     </div>
                     <div class="me-settings-card">

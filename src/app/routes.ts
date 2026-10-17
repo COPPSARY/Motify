@@ -20,6 +20,7 @@ export const HOME_PAGES = [
   "assets",
   "storyboard",
   "settings",
+  "billing",
   "support",
 ] as const;
 
