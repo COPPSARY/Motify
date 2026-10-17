@@ -372,7 +372,11 @@ async function requestBackendProject(
     }
     throw error;
   }
-  if (result.credits) applyServerCharge(result.credits);
+  if (result.credits) {
+    applyServerCharge(result.credits);
+    // This request moved the user's typical cost, so the next price shown must too.
+    void refreshCredits();
+  }
   if (result.type !== "generation") {
     throw new BackendConversationResponse(
       result.type,
