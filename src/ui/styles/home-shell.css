@@ -325,6 +325,7 @@
 
 .code-editor-scope .ai-brand-picker {
   position: relative;
+  align-self: flex-start;
 }
 .code-editor-scope .ai-brand-menu {
   position: absolute;
@@ -353,6 +354,8 @@
   color: #eee;
   text-align: left;
   font: inherit;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 }
 .code-editor-scope .ai-brand-menu button:hover,
@@ -1722,8 +1725,8 @@
   .code-editor-scope .is-hero .ai-composer-bar {
     display: grid;
     /* Send grows with its credit cost ("12", "120") instead of spilling out. */
-    grid-template-columns: 44px minmax(0, 1fr) 44px auto;
-    grid-template-areas: "add aspect brand send";
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-areas: "add aspect send";
     gap: 8px;
   }
 
@@ -1736,10 +1739,6 @@
     grid-area: aspect;
   }
 
-  .code-editor-scope .is-hero .ai-brand-picker {
-    grid-area: brand;
-  }
-
   .code-editor-scope .is-hero .ai-composer-send {
     grid-area: send;
   }
@@ -1750,16 +1749,10 @@
     height: 44px;
   }
 
-  .code-editor-scope .is-hero .ai-aspect-picker,
-  .code-editor-scope .is-hero .ai-brand-chip {
+  .code-editor-scope .is-hero .ai-aspect-picker {
     width: 100%;
     max-width: none;
     height: 44px;
-  }
-
-  .code-editor-scope .is-hero .ai-brand-chip {
-    justify-content: center;
-    padding: 0;
   }
 
   .code-editor-scope .is-hero .ai-aspect-picker > span {
@@ -1769,14 +1762,7 @@
     white-space: nowrap;
   }
 
-  .code-editor-scope .is-hero .ai-brand-chip > span,
-  .code-editor-scope .is-hero .ai-brand-chip > svg:last-child {
-    display: none;
-  }
-
   .code-editor-scope .is-hero .ai-brand-menu {
-    right: 0;
-    left: auto;
     width: min(210px, calc(100vw - 32px));
     max-width: none;
   }
