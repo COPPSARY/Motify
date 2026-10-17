@@ -637,7 +637,7 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("shows no cost until there is a message to size it from", async () => {
+  it("shows no cost until there is a message to send", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -675,8 +675,8 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       const send = must<HTMLButtonElement>(".ai-composer-send");
-      expect(send.textContent?.trim()).toBe("5");
-      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
+      expect(send.textContent?.trim()).toBe("10");
+      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("10");
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
       expect(send.disabled).toBe(false);
     } finally {
@@ -684,7 +684,7 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("grows the estimate as the drafted message gets longer", async () => {
+  it("shows the server's typical cost whatever the length of the message", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 50,
       estimate: { typical: 10, min: 0.5, max: 30 },
@@ -708,8 +708,8 @@ describe("TiffyPanel credit estimate", () => {
       composer.dispatchEvent(new Event("input", { bubbles: true }));
       await tick();
 
-      expect(cost.textContent).not.toBe(short);
-      expect(cost.textContent?.trim()).toBe("20.8");
+      expect(cost.textContent).toBe(short);
+      expect(cost.textContent?.trim()).toBe("10");
     } finally {
       await unmount(component);
     }
@@ -731,7 +731,7 @@ describe("TiffyPanel credit estimate", () => {
 
     try {
       expect(must<HTMLButtonElement>(".ai-composer-send").disabled).toBe(false);
-      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("5");
+      expect(must<HTMLElement>(".ai-send-cost").textContent?.trim()).toBe("10");
       expect(document.querySelector(".ai-composer-credit-hint")).toBeNull();
     } finally {
       await unmount(component);

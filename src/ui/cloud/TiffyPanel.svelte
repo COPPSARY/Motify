@@ -29,7 +29,7 @@
     GenerationModel,
     ProjectsApi,
   } from "../../cloud/projects-api";
-  import { estimateMessageCredits, formatCredits } from "../../api/credits";
+  import { formatCredits } from "../../api/credits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
   import type {
@@ -154,17 +154,12 @@
     $creditEstimate !== null &&
     $creditBalance !== null &&
     $creditBalance < $creditEstimate.min;
-  // A rough, live guide scaled off the draft's own length — see
-  // `estimateMessageCredits`. The real cost is only known once the request
-  // finishes, so this is shown only once there is something to size it from;
-  // an empty composer has nothing to base a number on.
-  $: draftLength = assistantDraft.trim().length;
-  $: estimatedCredits = $creditEstimate
-    ? estimateMessageCredits($creditEstimate, draftLength)
-    : 0;
-  // With something to send, the button says what it will cost; only a
-  // balance too low to pay for it needs a line of its own.
-  $: showCost = $creditEstimate !== null && draftLength > 0;
+  // The server's own average for this user, shown as is: the real charge
+  // follows the tokens the request uses, and the length of a message says
+  // too little about that to adjust the number by. Shown once there is
+  // something to send; only a balance too low to pay needs a line of its own.
+  $: estimatedCredits = $creditEstimate?.typical ?? 0;
+  $: showCost = $creditEstimate !== null && assistantDraft.trim().length > 0;
 
   const aspectOptions: readonly { value: CanvasAspect; label: string }[] = [
     { value: "16:9", label: "16:9 · Landscape" },
