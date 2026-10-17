@@ -9,12 +9,18 @@ describe("first-run tour progress", () => {
       TOUR_STEPS.length,
     );
     expect(TOUR_STEPS[0]?.page).toBe("templates");
-    expect(TOUR_STEPS.at(-1)?.id).toBe("storyboard");
+    expect(TOUR_STEPS.at(-1)?.id).toBe("assets");
   });
 
   it("resumes at the saved step", () => {
     expect(resumeIndex({ step: "attach", completedAt: null })).toBe(
       TOUR_STEPS.findIndex((step) => step.id === "attach"),
+    );
+  });
+
+  it("resumes accounts saved on the removed storyboard step at the last step", () => {
+    expect(resumeIndex({ step: "storyboard", completedAt: null })).toBe(
+      TOUR_STEPS.length - 1,
     );
   });
 

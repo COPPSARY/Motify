@@ -102,10 +102,7 @@ describe("Brand DNA website step", () => {
         dna,
       }),
     );
-    api.getCapabilities.mockResolvedValue({
-      storyboardGeneration: true,
-      brandExtraction: true,
-    });
+    api.getCapabilities.mockResolvedValue({ brandExtraction: true });
     api.extractBrand.mockResolvedValue({
       brand: resource(2, (dna) => {
         dna.identity.name = "Acme";
@@ -231,7 +228,7 @@ describe("Brand DNA website step", () => {
   });
 
   it("never offers the fill when this deployment cannot read websites", async () => {
-    api.getCapabilities.mockResolvedValue({ storyboardGeneration: true });
+    api.getCapabilities.mockResolvedValue({});
     await atWebsiteQuestion();
     await type("acme.com");
     expect(button("Fill from my website")).toBeUndefined();
@@ -258,7 +255,7 @@ describe("Brand DNA overview", () => {
   beforeEach(() => {
     api.listBrands.mockResolvedValue({ maxProfiles: 1, profiles: [] });
     api.getBrand.mockResolvedValue(filled());
-    api.getCapabilities.mockResolvedValue({ storyboardGeneration: true });
+    api.getCapabilities.mockResolvedValue({});
     api.saveBrand.mockImplementation(
       async (revision: number, dna: BrandResource["dna"]) => ({
         ...resource(revision + 1),

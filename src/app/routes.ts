@@ -18,7 +18,6 @@ export const HOME_PAGES = [
   "templates",
   "music",
   "assets",
-  "storyboard",
   "settings",
   "billing",
   "support",

@@ -157,21 +157,6 @@ export interface WorkspaceAsset {
   };
 }
 
-export interface GenerateStoryboardInput {
-  prompt: string;
-  aspectRatio: "1:1" | "3:2" | "4:3" | "4:5" | "9:16" | "16:9" | "21:9";
-  imageSize: "1K" | "2K" | "4K";
-}
-
-export const RESOLUTION_CREDIT_COSTS: Record<
-  GenerateStoryboardInput["imageSize"],
-  number
-> = {
-  "1K": 5,
-  "2K": 10,
-  "4K": 15,
-};
-
 /** A song in the music library: the user's own upload or a built-in track. */
 export interface AudioTrack {
   id: string;
@@ -215,7 +200,6 @@ interface ApiErrorEnvelope {
 }
 
 export interface ApiCapabilities {
-  storyboardGeneration: boolean;
   /** Whether this deployment can read a website into Brand DNA. */
   brandExtraction?: boolean;
 }
@@ -517,31 +501,6 @@ export class ProjectsApi {
     if (query.trim()) params.set("q", query.trim());
     return this.request<WorkspaceAsset[]>(
       `/v1/workspaces/${encodeURIComponent(workspaceId)}/assets?${params}`,
-    );
-  }
-
-  async generateStoryboard(
-    workspaceId: string,
-    input: GenerateStoryboardInput,
-  ) {
-    let capabilities: ApiCapabilities;
-    try {
-      capabilities = await this.getCapabilities();
-    } catch (error) {
-      if (
-        error instanceof CloudApiError &&
-        error.status === 404 &&
-        error.code === "NOT_FOUND"
-      ) {
-        throw storyboardUnavailable();
-      }
-      throw error;
-    }
-    if (!capabilities.storyboardGeneration) throw storyboardUnavailable();
-    await this.ensureCsrfToken();
-    return this.request<WorkspaceAsset>(
-      `/v1/workspaces/${encodeURIComponent(workspaceId)}/storyboards`,
-      { method: "POST", body: input },
     );
   }
 
@@ -866,12 +825,4 @@ export class ProjectsApi {
   private async ensureCsrfToken(): Promise<void> {
     if (!this.csrfToken) await this.getSession();
   }
-}
-
-function storyboardUnavailable(): CloudApiError {
-  return new CloudApiError(
-    503,
-    "STORYBOARD_UNAVAILABLE",
-    "Storyboard generation is temporarily unavailable while the service updates. Try again shortly.",
-  );
 }
