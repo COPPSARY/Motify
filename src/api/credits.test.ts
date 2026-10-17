@@ -4,7 +4,6 @@ import {
   fetchCreditHistory,
   fetchCreditSnapshot,
   formatCreditChange,
-  estimateMessageCredits,
   formatCredits,
   insufficientCreditsMessage,
 } from "./credits";
@@ -136,41 +135,6 @@ describe("formatCredits", () => {
   it("shows the direction of a change", () => {
     expect(formatCreditChange(50)).toBe("+50");
     expect(formatCreditChange(-3.4)).toBe("-3.4");
-  });
-});
-
-describe("estimateMessageCredits", () => {
-  const estimate = { typical: 10, min: 0.5, max: 30 };
-
-  it("is the server's typical cost for a message near the reference length", () => {
-    expect(estimateMessageCredits(estimate, 60)).toBe(10);
-  });
-
-  it("grows as the message gets longer", () => {
-    expect(estimateMessageCredits(estimate, 90)).toBe(15);
-    expect(estimateMessageCredits(estimate, 240)).toBe(25);
-  });
-
-  it("shrinks for a short message, but not below the server's floor", () => {
-    expect(estimateMessageCredits(estimate, 1)).toBe(5);
-    expect(estimateMessageCredits({ ...estimate, typical: 0.6 }, 1)).toBe(0.5);
-  });
-
-  it("never exceeds the server's ceiling, however long the message", () => {
-    expect(
-      estimateMessageCredits({ typical: 13, min: 0.5, max: 30 }, 100_000),
-    ).toBe(30);
-  });
-
-  it("rounds to a tenth of a credit, exactly as the server prices it", () => {
-    // The backend's quoteMessageUnits(367, 70) is 430 units: 3.67 x 70/60 = 4.28.
-    expect(
-      estimateMessageCredits({ typical: 3.67, min: 0.5, max: 30 }, 70),
-    ).toBe(4.3);
-    // 15.79 x 125/60 = 32.9, kept at the ceiling.
-    expect(
-      estimateMessageCredits({ typical: 15.79, min: 0.5, max: 30 }, 125),
-    ).toBe(30);
   });
 });
 

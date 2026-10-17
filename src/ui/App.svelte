@@ -13,9 +13,9 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import ReferralButton from "./cloud/ReferralButton.svelte";
   import { get } from "svelte/store";
-  import { formatCredits } from "../api/credits";
   import { motifySiteHref, PRICING_URL } from "../api/config";
   import {
+    clearLastCharge,
     lastCreditCharge,
     refreshCredits,
     resetCredits,
@@ -171,6 +171,7 @@
   import {
     hydrateCloudAssetTokens,
     isVideoFile,
+    loadAssetObjectUrl,
     uploadAsset,
     VIDEO_ACCEPT,
     VIDEO_MAX_BYTES,
@@ -247,6 +248,8 @@
 
   interface MessageAttachment {
     id: string;
+    /** The stored copy, so the thumbnail can be rebuilt after a reload. */
+    uploadId?: string;
     name: string;
     previewUrl?: string;
     intent?: AssetIntent;
@@ -258,6 +261,8 @@
     role: "user" | "assistant";
     text: string;
     attachments?: MessageAttachment[];
+    /** What the request this reply answered was charged, in credits. */
+    credits?: number;
   }
 
   const unsavedDraftKey = "active";
@@ -505,16 +510,16 @@
       const completedMessage =
         $generationStore.message ||
         "Done — I updated the project and saved your changes.";
+      const charged = get(lastCreditCharge);
+      const reply: AssistantMessage = {
+        role: "assistant",
+        text: completedMessage,
+        ...(charged && charged > 0 ? { credits: charged } : {}),
+      };
       assistantMessages =
         assistantMessages.at(-1)?.role === "assistant"
-          ? [
-              ...assistantMessages.slice(0, -1),
-              { role: "assistant", text: completedMessage },
-            ]
-          : [
-              ...assistantMessages,
-              { role: "assistant", text: completedMessage },
-            ];
+          ? [...assistantMessages.slice(0, -1), reply]
+          : [...assistantMessages, reply];
       scheduleDraftSave();
     } else if (
       $generationStore.status === "AWAITING_APPLY" &&
@@ -1092,21 +1097,16 @@
     if (draft) {
       assistantMessages = draft.messages.map((message) => ({ ...message }));
       generationPlan = draft.plan ?? null;
+      void restoreMessagePreviews();
     }
     projectStyles?.remove();
     projectStyles = null;
     const hydrated = await hydrateCloudAssetTokens(
       combineCompositionSource(files),
     );
-    const attachments = await new ProjectsApi().listProjectAssets(project.id);
-    stagedAssets = attachments.map((asset) => ({
-      id: asset.id,
-      uploadId: asset.id,
-      name: asset.fileName,
-      mimeType: asset.contentType,
-      token: asset.token ?? `motify-asset://${asset.id}`,
-      intent: asset.role,
-    }));
+    // Only what was attached and not yet sent goes back in the composer.
+    // Images already sent stay on their messages; they are not sent again.
+    stagedAssets = (draft?.assets ?? []).map((asset) => ({ ...asset }));
     assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     assetObjectUrls = hydrated.objectUrls;
     mountComposition(
@@ -2814,6 +2814,69 @@
     showNotice(`${track.title} removed from the film.`);
   }
 
+  /**
+   * A restored chat's thumbnails point at object URLs from the session that
+   * saved it, which a reload has revoked. Each is rebuilt from the browser's
+   * own copy of the file, or else the uploaded one, so a sent image stays on
+   * the message it was sent with. One that can't be loaded shows its name.
+   */
+  let messagePreviewUrls: string[] = [];
+
+  async function restoreMessagePreviews(): Promise<void> {
+    const sequence = previewLoadSequence;
+    // Only links saved by an earlier session are stale; a message sent while
+    // these load carries a live one.
+    const stale = new Set(
+      assistantMessages.flatMap((message) =>
+        (message.attachments ?? []).flatMap(({ previewUrl }) =>
+          previewUrl?.startsWith("blob:") ? [previewUrl] : [],
+        ),
+      ),
+    );
+    const restored = new Map<string, string>();
+    for (const message of assistantMessages) {
+      for (const attachment of message.attachments ?? []) {
+        if (attachment.kind === "audio" || restored.has(attachment.id)) {
+          continue;
+        }
+        try {
+          const blob = await readLocalAsset(attachment.id);
+          const url = blob
+            ? URL.createObjectURL(blob)
+            : await loadAssetObjectUrl(attachment.uploadId ?? attachment.id);
+          messagePreviewUrls = [...messagePreviewUrls, url];
+          restored.set(attachment.id, url);
+        } catch {
+          // Not stored here, and not an uploaded asset: the name stands in.
+        }
+      }
+    }
+    // Another project opened meanwhile: these thumbnails are not its own.
+    if (sequence !== previewLoadSequence) {
+      restored.forEach((url) => URL.revokeObjectURL(url));
+      return;
+    }
+    assistantMessages = assistantMessages.map((message) =>
+      message.attachments
+        ? {
+            ...message,
+            attachments: message.attachments.map(
+              ({ previewUrl, ...attachment }) => {
+                if (!previewUrl || !stale.has(previewUrl)) {
+                  return previewUrl
+                    ? { ...attachment, previewUrl }
+                    : attachment;
+                }
+                const url = restored.get(attachment.id);
+                // A revoked object URL would render as a broken image.
+                return url ? { ...attachment, previewUrl: url } : attachment;
+              },
+            ),
+          }
+        : message,
+    );
+  }
+
   async function ensureStagedPreviews(
     assets: readonly LocalAssetReference[],
   ): Promise<void> {
@@ -2890,6 +2953,8 @@
     projectStarted = true;
     Object.values(stagedPreviews).forEach((url) => URL.revokeObjectURL(url));
     stagedPreviews = {};
+    messagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    messagePreviewUrls = [];
     stagedAssets = [];
     selectedAudio.set([]);
     assistantMessages = [];
@@ -3569,6 +3634,7 @@
     const sentAttachments: MessageAttachment[] = [
       ...resolvedAssets.map((asset) => ({
         id: asset.id,
+        ...(asset.uploadId ? { uploadId: asset.uploadId } : {}),
         name: asset.name,
         ...(stagedPreviews[asset.id]
           ? { previewUrl: stagedPreviews[asset.id] }
@@ -3602,6 +3668,7 @@
     resizeComposer();
 
     const generationStartedAt = performance.now();
+    clearLastCharge();
     longGeneration = prompt.length >= 1_000;
     activityVerb = activityVerbs[0] ?? "Reading your brief";
     captureEvent("ai generation started", { prompt_length: prompt.length });
@@ -3626,7 +3693,7 @@
         duration_ms: Math.round(performance.now() - generationStartedAt),
         reference_asset_count: sentAttachments.length,
       });
-      showNotice(withCreditCost("Tiffy updated the composition."));
+      showNotice("Tiffy updated the composition.");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -3809,6 +3876,7 @@
     }
 
     const fixInstruction = buildRepairInstruction(errorMessage, lastPrompt);
+    clearLastCharge();
 
     assistantDraft = "";
     assistantMessages = [
@@ -3833,7 +3901,7 @@
         progress: 100,
         message: reply,
       });
-      showNotice(withCreditCost("Tiffy repaired the composition."));
+      showNotice("Tiffy repaired the composition.");
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "AI fix failed.";
       if (mayStillBeRunning(err) && (await waitForBackgroundGeneration())) {
@@ -4228,14 +4296,6 @@
       exportStatus = "";
       exportAbort = undefined;
     }
-  }
-
-  /** Adds what the request cost, when the server charged for it. */
-  function withCreditCost(message: string): string {
-    const charged = get(lastCreditCharge);
-    return charged && charged > 0
-      ? `${message} Used ${formatCredits(charged)} credits.`
-      : message;
   }
 
   function showNotice(message: string, duration = 3200): void {

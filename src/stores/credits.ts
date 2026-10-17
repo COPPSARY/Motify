@@ -17,7 +17,10 @@ const estimate = writable<CreditEstimate | null>(null);
  */
 export const creditBalance = readonly(balance);
 export const creditStatus = readonly(status);
-/** What the latest request cost, in credits, for the confirmation shown after it. */
+/**
+ * What the latest request cost, in credits, for the line shown under its
+ * reply. A request that ran more than one charged pass (a repair) adds them.
+ */
 export const lastCreditCharge = readonly(charge);
 /**
  * What a request is expected to cost, so the composer can show it before the
@@ -59,7 +62,7 @@ export function applyServerCharge(credits: {
   request += 1;
   balance.set(credits.remaining);
   status.set("ready");
-  charge.set(credits.charged);
+  charge.update((total) => (total ?? 0) + credits.charged);
 }
 
 /** Forgets the last request's cost, before the next one starts. */

@@ -261,7 +261,7 @@ describe("directed generation with self-repair", () => {
     );
   });
 
-  it("sends the price the composer shows with a backend message, so that is what is charged", async () => {
+  it("sends a backend message with an explicit image list and no price", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -306,10 +306,11 @@ describe("directed generation with self-repair", () => {
           String((call[0] as URL).pathname) ===
           "/v1/projects/project-1/message-jobs",
       );
-      // 19 characters after trimming: half the typical 10 credits.
-      expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject(
-        { quotedCredits: 5 },
-      );
+      const body = JSON.parse(String((post?.[1] as RequestInit).body));
+      // Empty, not absent: with no list the backend reuses every image ever
+      // attached to the project. The server prices the message itself.
+      expect(body.assets).toEqual([]);
+      expect(body).not.toHaveProperty("quotedCredits");
     } finally {
       resetCredits();
     }
