@@ -638,6 +638,104 @@
     </p>
   {/if}
   <form class="ai-chat-composer" on:submit={submitAssistant}>
+    <div class="ai-brand-picker" bind:this={brandPicker}>
+      <button
+        type="button"
+        class="ai-brand-chip"
+        data-tour="brand"
+        bind:this={brandButton}
+        class:is-unset={!brandName}
+        aria-label="Choose Brand DNA"
+        aria-expanded={brandMenuOpen}
+        aria-haspopup="menu"
+        title="Choose a Brand DNA or turn it off"
+        disabled={$generationStore.isActive}
+        on:click={() => {
+          brandMenuOpen = !brandMenuOpen;
+          aspectMenuOpen = false;
+          effortMenuOpen = false;
+          addMenuOpen = false;
+        }}
+        on:keydown={(event) => {
+          if (event.key === "Escape") brandMenuOpen = false;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            brandMenuOpen = true;
+            void tick().then(() =>
+              brandPicker
+                .querySelector<HTMLButtonElement>(".ai-brand-menu button")
+                ?.focus(),
+            );
+          }
+        }}
+      >
+        <Dna size={14} /><span
+          >{selectedBrand === null
+            ? "No brand"
+            : (brandName ?? "Set up brand")}</span
+        ><ChevronDown size={12} />
+      </button>
+      {#if brandMenuOpen}
+        <div
+          class="ai-brand-menu"
+          role="menu"
+          tabindex="-1"
+          aria-label="Brand DNA profiles"
+          on:keydown={(event) => {
+            if (event.key === "Escape") {
+              brandMenuOpen = false;
+              brandButton.focus();
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const buttons = [
+                ...brandPicker.querySelectorAll<HTMLButtonElement>(
+                  ".ai-brand-menu button",
+                ),
+              ];
+              const index = buttons.findIndex(
+                (button) => button === document.activeElement,
+              );
+              buttons[
+                (index +
+                  (event.key === "ArrowDown" ? 1 : -1) +
+                  buttons.length) %
+                  buttons.length
+              ]?.focus();
+            }
+          }}
+        >
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={selectedBrand === null}
+            on:click={() => {
+              brandMenuOpen = false;
+              void onSelectBrand(null);
+            }}>No brand <span>Off until selected</span></button
+          >
+          {#each brandProfiles as profile (profile.id)}
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={selectedBrand ===
+                (profile.isDefault ? "default" : profile.id)}
+              on:click={() => {
+                brandMenuOpen = false;
+                void onSelectBrand(profile.isDefault ? "default" : profile.id);
+              }}>{profile.name}</button
+            >
+          {/each}
+          <button
+            type="button"
+            role="menuitem"
+            on:click={() => {
+              brandMenuOpen = false;
+              onManageBrand();
+            }}>Manage Brand DNA</button
+          >
+        </div>
+      {/if}
+    </div>
     <textarea
       class="ai-composer-input"
       data-tour="prompt"
@@ -851,106 +949,6 @@
                 >
               </button>
             {/each}
-          </div>
-        {/if}
-      </div>
-      <div class="ai-brand-picker" bind:this={brandPicker}>
-        <button
-          type="button"
-          class="ai-brand-chip"
-          data-tour="brand"
-          bind:this={brandButton}
-          class:is-unset={!brandName}
-          aria-label="Choose Brand DNA"
-          aria-expanded={brandMenuOpen}
-          aria-haspopup="menu"
-          title="Choose a Brand DNA or turn it off"
-          disabled={$generationStore.isActive}
-          on:click={() => {
-            brandMenuOpen = !brandMenuOpen;
-            aspectMenuOpen = false;
-            effortMenuOpen = false;
-            addMenuOpen = false;
-          }}
-          on:keydown={(event) => {
-            if (event.key === "Escape") brandMenuOpen = false;
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
-              brandMenuOpen = true;
-              void tick().then(() =>
-                brandPicker
-                  .querySelector<HTMLButtonElement>(".ai-brand-menu button")
-                  ?.focus(),
-              );
-            }
-          }}
-        >
-          <Dna size={14} /><span
-            >{selectedBrand === null
-              ? "No brand"
-              : (brandName ?? "Set up brand")}</span
-          ><ChevronDown size={12} />
-        </button>
-        {#if brandMenuOpen}
-          <div
-            class="ai-brand-menu"
-            role="menu"
-            tabindex="-1"
-            aria-label="Brand DNA profiles"
-            on:keydown={(event) => {
-              if (event.key === "Escape") {
-                brandMenuOpen = false;
-                brandButton.focus();
-              } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                const buttons = [
-                  ...brandPicker.querySelectorAll<HTMLButtonElement>(
-                    ".ai-brand-menu button",
-                  ),
-                ];
-                const index = buttons.findIndex(
-                  (button) => button === document.activeElement,
-                );
-                buttons[
-                  (index +
-                    (event.key === "ArrowDown" ? 1 : -1) +
-                    buttons.length) %
-                    buttons.length
-                ]?.focus();
-              }
-            }}
-          >
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={selectedBrand === null}
-              on:click={() => {
-                brandMenuOpen = false;
-                void onSelectBrand(null);
-              }}>No brand <span>Off until selected</span></button
-            >
-            {#each brandProfiles as profile (profile.id)}
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={selectedBrand ===
-                  (profile.isDefault ? "default" : profile.id)}
-                on:click={() => {
-                  brandMenuOpen = false;
-                  void onSelectBrand(
-                    profile.isDefault ? "default" : profile.id,
-                  );
-                }}>{profile.name}</button
-              >
-            {/each}
-            <button
-              type="button"
-              role="menuitem"
-              on:click={() => {
-                brandMenuOpen = false;
-                onManageBrand();
-              }}>Manage Brand DNA</button
-            >
           </div>
         {/if}
       </div>
