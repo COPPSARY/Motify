@@ -10,6 +10,7 @@
     verifyEmailOtp,
     type MotionlyUser,
   } from "../../auth";
+  import { PRIVACY_URL, TERMS_URL } from "../../api/config";
   import { beginOnboarding } from "../../onboarding/begin";
   import "./auth.css";
 
@@ -27,6 +28,7 @@
   let email = "";
   let password = "";
   let showPassword = false;
+  let acceptedTerms = false;
   let busy = false;
   let errorMessage = "";
   let verificationSentTo = "";
@@ -63,6 +65,11 @@
     }
     if (isSignUp && password.length < 8) {
       errorMessage = "Choose a password of at least 8 characters.";
+      return;
+    }
+    if (isSignUp && !acceptedTerms) {
+      errorMessage =
+        "Agree to the Terms & Conditions and Privacy Policy to create an account.";
       return;
     }
     busy = true;
@@ -255,10 +262,29 @@
           </button>
         </span>
       </label>
+      {#if isSignUp}
+        <label class="auth-panel__terms">
+          <input type="checkbox" bind:checked={acceptedTerms} required />
+          <span>
+            I agree to the
+            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer"
+              >Terms &amp; Conditions</a
+            >
+            and
+            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
+              >Privacy Policy</a
+            >.
+          </span>
+        </label>
+      {/if}
       {#if errorMessage}
         <p class="auth-panel__error" role="alert">{errorMessage}</p>
       {/if}
-      <button class="auth-panel__submit" type="submit" disabled={busy}>
+      <button
+        class="auth-panel__submit"
+        type="submit"
+        disabled={busy || (isSignUp && !acceptedTerms)}
+      >
         {#if isSignUp}
           {busy ? "Creating account…" : "Create account"}
         {:else}
@@ -294,6 +320,17 @@
       </svg>
       {isSignUp ? "Sign up with Google" : "Log in with Google"}
     </a>
+    <!-- Google can create an account from either mode, so the notice stays in both. -->
+    <p class="auth-panel__legal">
+      By continuing with Google, you agree to the
+      <a href={TERMS_URL} target="_blank" rel="noopener noreferrer"
+        >Terms &amp; Conditions</a
+      >
+      and
+      <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
+        >Privacy Policy</a
+      >.
+    </p>
 
     <p class="auth-panel__switch">
       {#if isSignUp}

@@ -40,6 +40,8 @@ export const MOTIFY_SITE_URL = (
 
 export const PRICING_URL = `${MOTIFY_SITE_URL}/pricing`;
 export const TEMPLATES_URL = `${MOTIFY_SITE_URL}/templates`;
+export const TERMS_URL = `${MOTIFY_SITE_URL}/terms`;
+export const PRIVACY_URL = `${MOTIFY_SITE_URL}/privacy`;
 
 /** Resolve admin-authored site paths away from the editor subdomain. */
 export function motifySiteHref(href: string): string {
