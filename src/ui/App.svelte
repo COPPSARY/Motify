@@ -103,6 +103,7 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
+  import { isVoiceOverReleased } from "./cloud/voice-release";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
   import TourCoach from "../onboarding/TourCoach.svelte";
@@ -347,6 +348,9 @@
    */
   let generationModel: GenerationModel = "flash";
   let generationModelPicked = false;
+  /** Narration (text-to-speech) is on unless the user switches it off in the composer. */
+  let generationNarration = true;
+  let generationVoiceNote = "";
   $: if (!activePlan) generationModel = "flash";
   else if (!generationModelPicked) generationModel = "pro";
   let longGeneration = false;
@@ -3162,7 +3166,7 @@
       : null;
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
-        name: "Untitled Motionly Project",
+        name: "Untitled Motify Project",
         ...(selectedBrand ? { brandSelection: selectedBrand } : {}),
         width: requestedCanvas?.width ?? activeComposition.width,
         height: requestedCanvas?.height ?? activeComposition.height,
@@ -3239,8 +3243,14 @@
       }
     };
 
+    const voiceOverEnabled = isVoiceOverReleased() && generationNarration;
+    const voiceNote = generationVoiceNote.trim();
     const result = await ai.generateWithDirectAi(
-      prompt,
+      voiceOverEnabled && voiceNote
+        ? `${prompt}
+
+Voice over direction: ${voiceNote}`
+        : prompt,
       {
         backendProjectId:
           cloudProject?.id ?? (backendGenerationProjectId || undefined),
@@ -3249,6 +3259,7 @@
         ...(aspectRatio ? { aspectRatio } : {}),
         effort: generationEffort,
         model: generationModel,
+        tts: voiceOverEnabled,
         compositionHtml: currentHtml,
         timelineJs: currentJs,
         stylesCss: basis.files["styles.css"],
@@ -6153,6 +6164,9 @@
     {variant}
     bind:generationAspect
     bind:generationEffort
+    bind:generationNarration
+    bind:generationVoiceNote
+    narrationToggle={mode === "cloud"}
     {generationModel}
     modelPicker={mode === "cloud"}
     modelLocked={!activePlan}

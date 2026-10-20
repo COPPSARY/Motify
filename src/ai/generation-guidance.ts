@@ -35,6 +35,8 @@ export interface GenerationFiles {
   effort?: GenerationEffort;
   /** Model chosen in the prompt composer. */
   model?: GenerationModel;
+  /** Narration (text-to-speech) switch in the prompt composer; off sends `false`. */
+  tts?: boolean;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;

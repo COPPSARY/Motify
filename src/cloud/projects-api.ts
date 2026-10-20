@@ -210,6 +210,8 @@ export interface MotionMessageInput {
   effort?: GenerationEffort;
   /** Model selected in the prompt composer; Pro needs a paid plan. */
   model?: GenerationModel;
+  /** False when narration (text-to-speech) is switched off in the prompt composer. */
+  tts?: boolean;
   brandId?: string | null;
   /** The canvas chosen in the new-video composer before generation starts. */
   aspectRatio?: CanvasAspect;

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import VoiceComingSoonCard from "./VoiceComingSoonCard.svelte";
+  import { isVoiceOverReleased } from "./voice-release";
   import { tick } from "svelte";
   import {
     ArrowLeft,
@@ -13,6 +15,8 @@
     Music,
     Plus,
     Upload,
+    Volume2,
+    VolumeX,
     Wand2,
     RotateCcw,
     RectangleHorizontal,
@@ -92,6 +96,12 @@
   export let generationEffort: GenerationEffort = "medium";
   /** The model sent with every cloud generation. */
   export let generationModel: GenerationModel = "flash";
+  /** Narration (text-to-speech) on or off; sent with every cloud generation. */
+  export let generationNarration = true;
+  /** Free-text direction for the voice (tone, gender, pace); empty keeps the default. */
+  export let generationVoiceNote = "";
+  /** Cloud only: narration runs on the backend's speech service. */
+  export let narrationToggle = false;
   /** Cloud only: a local project runs on the browser's own provider key. */
   export let modelPicker = false;
   /** Pro needs a paid plan; locked, it is shown faded and opens pricing instead. */
@@ -130,6 +140,12 @@
 
   let dragDepth = 0;
   let addMenuOpen = false;
+  let narrationMenuOpen = false;
+  let voiceCustomOpen = false;
+  let voiceSoonOpen = false;
+  /** Voice over is not released yet; production opens a coming-soon card instead of the menu. */
+  const voiceComingSoon = !isVoiceOverReleased();
+  let narrationWrap: HTMLDivElement;
   let addMenu: HTMLDivElement;
   let aspectMenuOpen = false;
   let effortMenuOpen = false;
@@ -365,6 +381,9 @@
     }
     if (modelMenuOpen && !modelPickerWrap?.contains(event.target as Node)) {
       modelMenuOpen = false;
+    }
+    if (narrationMenuOpen && !narrationWrap?.contains(event.target as Node)) {
+      narrationMenuOpen = false;
     }
     if (brandMenuOpen && !brandPicker?.contains(event.target as Node))
       brandMenuOpen = false;
@@ -653,101 +672,193 @@
     </p>
   {/if}
   <form class="ai-chat-composer" on:submit={submitAssistant}>
-    <div class="ai-brand-picker" bind:this={brandPicker}>
-      <button
-        type="button"
-        class="ai-brand-chip"
-        data-tour="brand"
-        bind:this={brandButton}
-        class:is-unset={!brandName}
-        aria-label="Choose Brand DNA"
-        aria-expanded={brandMenuOpen}
-        aria-haspopup="menu"
-        title="Choose a Brand DNA or turn it off"
-        disabled={$generationStore.isActive}
-        on:click={() => {
-          brandMenuOpen = !brandMenuOpen;
-          aspectMenuOpen = false;
-          effortMenuOpen = false;
-          addMenuOpen = false;
-        }}
-        on:keydown={(event) => {
-          if (event.key === "Escape") brandMenuOpen = false;
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            brandMenuOpen = true;
-            void tick().then(() =>
-              brandPicker
-                .querySelector<HTMLButtonElement>(".ai-brand-menu button")
-                ?.focus(),
-            );
-          }
-        }}
-      >
-        <Dna size={14} /><span
-          >{selectedBrand === null
-            ? "No brand"
-            : (brandName ?? "Set up brand")}</span
-        ><ChevronDown size={12} />
-      </button>
-      {#if brandMenuOpen}
-        <div
-          class="ai-brand-menu"
-          role="menu"
-          tabindex="-1"
-          aria-label="Brand DNA profiles"
+    <div class="ai-composer-top">
+      <div class="ai-brand-picker" bind:this={brandPicker}>
+        <button
+          type="button"
+          class="ai-brand-chip"
+          data-tour="brand"
+          bind:this={brandButton}
+          class:is-unset={!brandName}
+          aria-label="Choose Brand DNA"
+          aria-expanded={brandMenuOpen}
+          aria-haspopup="menu"
+          title="Choose a Brand DNA or turn it off"
+          disabled={$generationStore.isActive}
+          on:click={() => {
+            brandMenuOpen = !brandMenuOpen;
+            aspectMenuOpen = false;
+            effortMenuOpen = false;
+            addMenuOpen = false;
+          }}
           on:keydown={(event) => {
-            if (event.key === "Escape") {
-              brandMenuOpen = false;
-              brandButton.focus();
-            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            if (event.key === "Escape") brandMenuOpen = false;
+            if (event.key === "ArrowDown") {
               event.preventDefault();
-              const buttons = [
-                ...brandPicker.querySelectorAll<HTMLButtonElement>(
-                  ".ai-brand-menu button",
-                ),
-              ];
-              const index = buttons.findIndex(
-                (button) => button === document.activeElement,
+              brandMenuOpen = true;
+              void tick().then(() =>
+                brandPicker
+                  .querySelector<HTMLButtonElement>(".ai-brand-menu button")
+                  ?.focus(),
               );
-              buttons[
-                (index +
-                  (event.key === "ArrowDown" ? 1 : -1) +
-                  buttons.length) %
-                  buttons.length
-              ]?.focus();
             }
           }}
         >
-          <button
-            type="button"
-            role="menuitemradio"
-            aria-checked={selectedBrand === null}
-            on:click={() => {
-              brandMenuOpen = false;
-              void onSelectBrand(null);
-            }}>No brand <span>Off until selected</span></button
+          <Dna size={14} /><span
+            >{selectedBrand === null
+              ? "No brand"
+              : (brandName ?? "Set up brand")}</span
+          ><ChevronDown size={12} />
+        </button>
+        {#if brandMenuOpen}
+          <div
+            class="ai-brand-menu"
+            role="menu"
+            tabindex="-1"
+            aria-label="Brand DNA profiles"
+            on:keydown={(event) => {
+              if (event.key === "Escape") {
+                brandMenuOpen = false;
+                brandButton.focus();
+              } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const buttons = [
+                  ...brandPicker.querySelectorAll<HTMLButtonElement>(
+                    ".ai-brand-menu button",
+                  ),
+                ];
+                const index = buttons.findIndex(
+                  (button) => button === document.activeElement,
+                );
+                buttons[
+                  (index +
+                    (event.key === "ArrowDown" ? 1 : -1) +
+                    buttons.length) %
+                    buttons.length
+                ]?.focus();
+              }
+            }}
           >
-          {#each brandProfiles as profile (profile.id)}
             <button
               type="button"
               role="menuitemradio"
-              aria-checked={selectedBrand ===
-                (profile.isDefault ? "default" : profile.id)}
+              aria-checked={selectedBrand === null}
               on:click={() => {
                 brandMenuOpen = false;
-                void onSelectBrand(profile.isDefault ? "default" : profile.id);
-              }}>{profile.name}</button
+                void onSelectBrand(null);
+              }}>No brand <span>Off until selected</span></button
             >
-          {/each}
+            {#each brandProfiles as profile (profile.id)}
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={selectedBrand ===
+                  (profile.isDefault ? "default" : profile.id)}
+                on:click={() => {
+                  brandMenuOpen = false;
+                  void onSelectBrand(
+                    profile.isDefault ? "default" : profile.id,
+                  );
+                }}>{profile.name}</button
+              >
+            {/each}
+            <button
+              type="button"
+              role="menuitem"
+              on:click={() => {
+                brandMenuOpen = false;
+                onManageBrand();
+              }}>Manage Brand DNA</button
+            >
+          </div>
+        {/if}
+      </div>
+      {#if narrationToggle}
+        <div class="ai-brand-picker" bind:this={narrationWrap}>
           <button
+            class="ai-brand-chip"
+            class:is-unset={!generationNarration}
+            data-tour="narration"
             type="button"
-            role="menuitem"
+            aria-label="Voice over"
+            aria-haspopup="menu"
+            aria-expanded={narrationMenuOpen}
+            title="Turn the voice over on or off, or customize the voice"
+            disabled={$generationStore.isActive}
             on:click={() => {
+              if (voiceComingSoon) {
+                voiceSoonOpen = true;
+                return;
+              }
+              narrationMenuOpen = !narrationMenuOpen;
               brandMenuOpen = false;
-              onManageBrand();
-            }}>Manage Brand DNA</button
+              aspectMenuOpen = false;
+              effortMenuOpen = false;
+              modelMenuOpen = false;
+              addMenuOpen = false;
+            }}
+            on:keydown={(event) => {
+              if (event.key === "Escape") narrationMenuOpen = false;
+            }}
           >
+            {#if generationNarration}
+              <Volume2 size={14} aria-hidden="true" />
+            {:else}
+              <VolumeX size={14} aria-hidden="true" />
+            {/if}
+            <span>Voice over</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+          {#if narrationMenuOpen}
+            <div class="ai-brand-menu" role="menu" aria-label="Voice over">
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={generationNarration}
+                on:click={() => {
+                  generationNarration = true;
+                  narrationMenuOpen = false;
+                }}>On</button
+              >
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={!generationNarration}
+                on:click={() => {
+                  generationNarration = false;
+                  narrationMenuOpen = false;
+                }}>Off</button
+              >
+              <button
+                type="button"
+                role="menuitem"
+                aria-expanded={voiceCustomOpen}
+                on:click={() => {
+                  generationNarration = true;
+                  voiceCustomOpen = !voiceCustomOpen;
+                }}>Customize voice</button
+              >
+              {#if voiceCustomOpen}
+                <input
+                  class="ai-voice-note"
+                  type="text"
+                  aria-label="Voice direction"
+                  placeholder="e.g. calm, warm female voice"
+                  maxlength="200"
+                  bind:value={generationVoiceNote}
+                  on:keydown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      narrationMenuOpen = false;
+                    }
+                  }}
+                />
+              {/if}
+            </div>
+          {/if}
+          {#if voiceSoonOpen}
+            <VoiceComingSoonCard onClose={() => (voiceSoonOpen = false)} />
+          {/if}
         </div>
       {/if}
     </div>

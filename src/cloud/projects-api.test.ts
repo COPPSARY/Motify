@@ -202,8 +202,8 @@ describe("ProjectsApi", () => {
           data: {
             id: "project-1",
             workspaceId: "workspace-1",
-            name: "Untitled Motionly Project",
-            slug: "untitled-motionly-project",
+            name: "Untitled Motify Project",
+            slug: "untitled-motify-project",
             width: 1920,
             height: 1080,
             fps: 30,
@@ -221,7 +221,7 @@ describe("ProjectsApi", () => {
     const api = new ProjectsApi("http://localhost:4000");
 
     await api.createProject("workspace-1", {
-      name: "Untitled Motionly Project",
+      name: "Untitled Motify Project",
       width: 1920,
       height: 1080,
       fps: 30,
