@@ -323,6 +323,12 @@
   font-weight: 500;
 }
 
+.code-editor-scope .ai-composer-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
 .code-editor-scope .ai-brand-picker {
   position: relative;
   align-self: flex-start;
@@ -406,6 +412,10 @@
 
 .code-editor-scope .ai-brand-chip.is-unset svg {
   color: var(--sl-muted);
+}
+
+.code-editor-scope .ai-brand-chip[data-tour="narration"] svg {
+  color: currentColor;
 }
 
 .code-editor-scope .ai-brand-chip:hover {
@@ -563,7 +573,9 @@
 
 .code-editor-scope .ai-effort-picker:hover,
 .code-editor-scope .ai-effort-picker:focus-visible,
-.code-editor-scope .ai-effort-picker.is-open {
+.code-editor-scope .ai-effort-picker.is-open,
+.code-editor-scope .ai-narration-toggle:hover,
+.code-editor-scope .ai-narration-toggle:focus-visible {
   border-color: rgba(255, 255, 255, 0.2);
   background: var(--sl-surface-hover);
   color: var(--sl-text);
@@ -571,6 +583,53 @@
 
 .code-editor-scope .ai-effort-picker > svg {
   flex: 0 0 auto;
+}
+
+/* The narration switch borrows the effort picker's pill; off, it dims. */
+.code-editor-scope .ai-narration-toggle {
+  flex: 0 0 auto;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.code-editor-scope .ai-voice-note {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.code-editor-scope .ai-voice-note:focus-visible {
+  outline: 0;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.code-editor-scope .ai-narration-toggle.is-off {
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .ai-narration-toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .code-editor-scope .ai-effort-picker.is-open > svg {

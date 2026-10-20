@@ -333,6 +333,7 @@ async function requestBackendProject(
       ),
       ...(currentFiles.effort ? { effort: currentFiles.effort } : {}),
       ...(currentFiles.model ? { model: currentFiles.model } : {}),
+      ...(currentFiles.tts !== undefined ? { tts: currentFiles.tts } : {}),
       ...(currentFiles.aspectRatio
         ? { aspectRatio: currentFiles.aspectRatio }
         : {}),

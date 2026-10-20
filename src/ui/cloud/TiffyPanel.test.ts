@@ -116,6 +116,80 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
+  it("lets the user switch narration off and on in a cloud project", async () => {
+    vi.stubEnv("VITE_DD_ENV", "dev");
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ narrationToggle: true }),
+    });
+
+    try {
+      const toggle = must<HTMLButtonElement>('[data-tour="narration"]');
+      const pick = async (name: string) => {
+        toggle.click();
+        await tick();
+        const item = [
+          ...document.querySelectorAll<HTMLButtonElement>(
+            '[aria-label="Voice over"] button',
+          ),
+        ].find((button) => button.textContent?.trim() === name);
+        item?.click();
+        await tick();
+      };
+      expect(toggle.classList.contains("is-unset")).toBe(false);
+      await pick("Off");
+      expect(toggle.classList.contains("is-unset")).toBe(true);
+      await pick("On");
+      expect(toggle.classList.contains("is-unset")).toBe(false);
+
+      await pick("Customize voice");
+      expect(document.querySelector(".ai-voice-note")).not.toBeNull();
+    } finally {
+      await unmount(component);
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("opens a coming-soon card instead of the voice menu in production", async () => {
+    vi.stubEnv("VITE_DD_ENV", "prod");
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ narrationToggle: true }),
+    });
+
+    try {
+      must<HTMLButtonElement>('[data-tour="narration"]').click();
+      await tick();
+      const card = must(".voice-soon-card");
+      expect(card.closest(".ai-chat-composer")).toBeNull();
+      expect(
+        document.querySelector('[aria-label="Voice over"][role="menu"]'),
+      ).toBeNull();
+      must<HTMLButtonElement>(".voice-soon-action").click();
+      await tick();
+      expect(document.querySelector(".voice-soon-card")).toBeNull();
+    } finally {
+      await unmount(component);
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("shows no narration toggle for a local project", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, { target, props: panelProps() });
+
+    try {
+      expect(document.querySelector('[data-tour="narration"]')).toBeNull();
+    } finally {
+      await unmount(component);
+    }
+  });
+
   it("shows no model picker for a local project", async () => {
     const target = document.createElement("div");
     document.body.append(target);

@@ -167,7 +167,7 @@
     if (state !== "ready" || !workspaceId || !canWrite()) {
       throw new Error("Sign in to create a project.");
     }
-    return createProjectWithName("Untitled Motionly Project");
+    return createProjectWithName("Untitled Motify Project");
   }
 
   export async function openProjectById(projectId: string): Promise<void> {
