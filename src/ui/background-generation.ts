@@ -17,7 +17,11 @@ export interface BackgroundWaitOptions {
   now?: () => number;
 }
 
-export const BACKGROUND_WAIT_MS = 10 * 60 * 1000;
+/**
+ * As long as the backend lets a run last (its RUN_LEASE_TTL_MS): a film too long
+ * for one model response is written in parts and can take about twenty minutes.
+ */
+export const BACKGROUND_WAIT_MS = 30 * 60 * 1000;
 export const BACKGROUND_POLL_MS = 5000;
 
 export async function waitForSavedGeneration({
