@@ -103,6 +103,7 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
+  import MaintenanceNotice from "./MaintenanceNotice.svelte";
   import { isVoiceOverReleased } from "./cloud/voice-release";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
@@ -6123,6 +6124,7 @@ Voice over direction: ${voiceNote}`
       />
     {/if}
     <EarlyNoticeCard />
+    <MaintenanceNotice />
     <AuthDialog
       bind:open={authDialogOpen}
       bind:mode={authDialogMode}
