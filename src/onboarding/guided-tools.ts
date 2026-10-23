@@ -11,6 +11,14 @@ import type { AssetIntent } from "../stores/local-assets";
 
 export type GuidedToolId = GuidedToolRequest["id"];
 export type GuidedLanguage = GuidedToolRequest["language"];
+export type GuidedFormat = NonNullable<GuidedToolRequest["format"]>;
+
+/** A way of telling a tool's film, e.g. in scenes or as one animated poster. */
+export interface FormatOption {
+  readonly format: GuidedFormat;
+  readonly label: string;
+  readonly hint: string;
+}
 
 /** An image slot: pictures shown in the film as they are, or ones to rebuild from. */
 export interface ImageSlot {
@@ -28,6 +36,8 @@ export interface GuidedTool {
   /** The Prompt Template whose video is the demo, and whose look the film takes. */
   readonly look: string;
   readonly aspect: CanvasAspect;
+  /** Ways the film can be told, the first being the default; none when it has one. */
+  readonly formats?: readonly FormatOption[];
   /** Pictures to rebuild from or take the look of; never shown in the film. */
   readonly reference: ImageSlot;
   /**
@@ -112,6 +122,10 @@ export const GUIDED_TOOLS: readonly GuidedTool[] = [
     summary: "A quick, eye-catching promo for your feed.",
     look: "motiks-spicy-curls",
     aspect: "9:16",
+    formats: [
+      { format: "scenes", label: "Scenes", hint: "Quick cuts" },
+      { format: "poster", label: "1 scene", hint: "Animated poster" },
+    ],
     reference: {
       label: "Style references",
       hint: "We take the look from these. They are not shown as they are.",
@@ -230,12 +244,17 @@ export function guideMessage(
     seconds: number;
     language: GuidedLanguage;
     instructions: string;
+    format?: GuidedFormat;
   },
 ): string {
   const language =
     LANGUAGE_OPTIONS.find((item) => item.language === options.language)
       ?.label ?? "English";
-  const summary = `${tool.title} · ${options.aspect} · ${options.seconds} sec · ${language}`;
+  const format = tool.formats?.find((item) => item.format === options.format);
+  // The default way of telling it goes without saying.
+  const told =
+    format && format !== tool.formats?.[0] ? ` · ${format.label}` : "";
+  const summary = `${tool.title}${told} · ${options.aspect} · ${options.seconds} sec · ${language}`;
   const extra = options.instructions.trim();
   return extra ? `${summary}\n\n${extra}` : summary;
 }

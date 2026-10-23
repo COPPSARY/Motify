@@ -383,6 +383,64 @@
   cursor: pointer;
 }
 
+.code-editor-scope .gs-thumb.is-movable {
+  cursor: grab;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.code-editor-scope .gs-thumb.is-movable:active {
+  cursor: grabbing;
+}
+
+.code-editor-scope .gs-thumb.is-movable:focus-visible {
+  outline: 2px solid var(--sl-brand-signal);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .gs-thumb.is-dragging {
+  opacity: 0.4;
+  transform: scale(0.94);
+}
+
+.code-editor-scope .gs-order {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.code-editor-scope .gs-slow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 184, 77, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 184, 77, 0.08);
+  color: #ffc46b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .gs-thumb.is-movable {
+    transition: none;
+  }
+}
+
 .code-editor-scope .gs-add {
   display: flex;
   flex-direction: column;

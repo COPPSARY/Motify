@@ -3,6 +3,7 @@
   import {
     ArrowLeft,
     ArrowRight,
+    Clock,
     ImagePlus,
     LayoutList,
     Sparkles,
@@ -29,6 +30,7 @@
     missingInput,
     STORYBOARD_CREDITS,
     toolVideo,
+    type GuidedFormat,
     type GuidedLanguage,
     type GuidedTool,
     type GuideResult,
@@ -76,11 +78,14 @@
   /** Kept apart from the pictures, so the model is told which one is the logo. */
   let logo: Picked | null = null;
   let logoInput: HTMLInputElement;
+  /** The picture being dragged to a new place in its own list. */
+  let dragged: { intent: AssetIntent; index: number } | null = null;
   let aspect: CanvasAspect = "16:9";
   let seconds = 15;
   let customSeconds = "";
   let customLength = false;
   let language: GuidedLanguage = "en";
+  let format: GuidedFormat = "scenes";
   let instructions = "";
   let triedGenerate = false;
   let sending = false;
@@ -105,10 +110,12 @@
     ? clampSeconds(Number.parseFloat(customSeconds))
     : seconds;
   $: price = estimateToolCredits(lengthValue ?? seconds, $creditEstimate);
+  $: pictureCount =
+    images.reference.length + images.asset.length + (logo ? 1 : 0);
   $: missing = tool
     ? missingInput(tool, {
         instructions,
-        images: images.reference.length + images.asset.length + (logo ? 1 : 0),
+        images: pictureCount,
         hasBrand: brand !== null,
       })
     : null;
@@ -173,6 +180,7 @@
     customLength = false;
     customSeconds = "";
     language = "en";
+    format = next.formats?.[0]?.format ?? "scenes";
     instructions = "";
     triedGenerate = false;
     onPick(next);
@@ -240,6 +248,55 @@
     images = { ...images, [intent]: list };
   }
 
+  function movePicture(intent: AssetIntent, from: number, to: number) {
+    const list = images[intent];
+    if (from === to || to < 0 || to >= list.length) return;
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    if (moved) next.splice(to, 0, moved);
+    images = { ...images, [intent]: next };
+  }
+
+  function onPictureDragStart(
+    intent: AssetIntent,
+    index: number,
+    event: DragEvent,
+  ) {
+    dragged = { intent, index };
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      // Firefox starts no drag without data.
+      event.dataTransfer.setData("text/plain", String(index));
+    }
+  }
+
+  // The others make way as a picture passes over them, so it is dropped where it shows.
+  function onPictureDragEnter(intent: AssetIntent, index: number) {
+    if (!dragged || dragged.intent !== intent || dragged.index === index)
+      return;
+    movePicture(intent, dragged.index, index);
+    dragged = { intent, index };
+  }
+
+  async function onPictureKey(
+    intent: AssetIntent,
+    index: number,
+    event: KeyboardEvent,
+  ) {
+    if (event.target !== event.currentTarget) return;
+    const offset =
+      event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+    if (offset === 0) return;
+    event.preventDefault();
+    const url = images[intent][index]?.url;
+    movePicture(intent, index, index + offset);
+    await tick();
+    // Moving the element can drop its focus; keep it on the picture.
+    Array.from(document.querySelectorAll<HTMLElement>("[data-picture]"))
+      .find((element) => element.dataset["picture"] === url)
+      ?.focus();
+  }
+
   function onFiles(intent: AssetIntent, max: number, event: Event) {
     const input = event.currentTarget as HTMLInputElement;
     addImages(intent, max, Array.from(input.files ?? []));
@@ -248,6 +305,11 @@
 
   function onDrop(intent: AssetIntent, max: number, event: DragEvent) {
     event.preventDefault();
+    // A picture reordered within the list is already in place.
+    if (dragged) {
+      dragged = null;
+      return;
+    }
     addImages(intent, max, Array.from(event.dataTransfer?.files ?? []));
   }
 
@@ -282,12 +344,19 @@
     });
     if (gap) return null;
     return {
-      tool: { id: tool.id, seconds: length, language, look: tool.look },
+      tool: {
+        id: tool.id,
+        seconds: length,
+        language,
+        ...(tool.formats ? { format } : {}),
+        look: tool.look,
+      },
       message: guideMessage(tool, {
         aspect,
         seconds: length,
         language,
         instructions,
+        format,
       }),
       aspect,
       files: [
@@ -505,8 +574,30 @@
                       on:drop={(event) => onDrop("asset", slot.max, event)}
                     >
                       {#each images.asset as image, index (image.url)}
-                        <span class="gs-thumb">
-                          <img src={image.url} alt={image.file.name} />
+                        <span
+                          class="gs-thumb is-movable"
+                          class:is-dragging={dragged?.intent === "asset" &&
+                            dragged.index === index}
+                          role="button"
+                          tabindex="0"
+                          draggable="true"
+                          data-picture={image.url}
+                          title="Drag to reorder"
+                          aria-label={`Picture ${index + 1} of ${images.asset.length}, ${image.file.name}. Drag, or press the left and right arrow keys, to reorder.`}
+                          on:dragstart={(event) =>
+                            onPictureDragStart("asset", index, event)}
+                          on:dragenter={() =>
+                            onPictureDragEnter("asset", index)}
+                          on:dragend={() => (dragged = null)}
+                          on:keydown={(event) =>
+                            onPictureKey("asset", index, event)}
+                        >
+                          <img src={image.url} alt="" draggable="false" />
+                          {#if images.asset.length > 1}
+                            <span class="gs-order" aria-hidden="true"
+                              >{index + 1}</span
+                            >
+                          {/if}
                           <button
                             type="button"
                             aria-label={`Remove ${image.file.name}`}
@@ -524,7 +615,11 @@
                         >
                       {/if}
                     </div>
-                    <small class="gs-hint">{slot.hint} Up to {slot.max}.</small>
+                    <small class="gs-hint"
+                      >{slot.hint} Up to {slot.max}.{images.asset.length > 1
+                        ? " Drag to reorder."
+                        : ""}</small
+                    >
                     <input
                       bind:this={inputs.asset}
                       class="gs-file"
@@ -549,8 +644,30 @@
                   on:drop={(event) => onDrop("reference", slot.max, event)}
                 >
                   {#each images.reference as image, index (image.url)}
-                    <span class="gs-thumb">
-                      <img src={image.url} alt={image.file.name} />
+                    <span
+                      class="gs-thumb is-movable"
+                      class:is-dragging={dragged?.intent === "reference" &&
+                        dragged.index === index}
+                      role="button"
+                      tabindex="0"
+                      draggable="true"
+                      data-picture={image.url}
+                      title="Drag to reorder"
+                      aria-label={`Picture ${index + 1} of ${images.reference.length}, ${image.file.name}. Drag, or press the left and right arrow keys, to reorder.`}
+                      on:dragstart={(event) =>
+                        onPictureDragStart("reference", index, event)}
+                      on:dragenter={() =>
+                        onPictureDragEnter("reference", index)}
+                      on:dragend={() => (dragged = null)}
+                      on:keydown={(event) =>
+                        onPictureKey("reference", index, event)}
+                    >
+                      <img src={image.url} alt="" draggable="false" />
+                      {#if images.reference.length > 1}
+                        <span class="gs-order" aria-hidden="true"
+                          >{index + 1}</span
+                        >
+                      {/if}
                       <button
                         type="button"
                         aria-label={`Remove ${image.file.name}`}
@@ -568,7 +685,11 @@
                     >
                   {/if}
                 </div>
-                <small class="gs-hint">{slot.hint} Up to {slot.max}.</small>
+                <small class="gs-hint"
+                  >{slot.hint} Up to {slot.max}.{images.reference.length > 1
+                    ? " Drag to reorder; the film follows this order."
+                    : ""}</small
+                >
                 <input
                   bind:this={inputs.reference}
                   class="gs-file"
@@ -581,7 +702,40 @@
             {/if}
           {/each}
 
+          {#if pictureCount >= 3}
+            <p class="gs-slow" role="status">
+              <Clock size={14} aria-hidden="true" />
+              <span
+                >With {pictureCount} pictures, your video takes a little longer to
+                make and to export.</span
+              >
+            </p>
+          {/if}
+
           <section class="gs-panel gs-settings">
+            {#if tool.formats}
+              <fieldset class="gs-setting">
+                <legend>Format</legend>
+                <div class="gs-segments gs-segments--2">
+                  {#each tool.formats as option (option.format)}
+                    <button
+                      type="button"
+                      class="gs-segment"
+                      class:is-selected={format === option.format}
+                      aria-pressed={format === option.format}
+                      on:click={() => (format = option.format)}
+                    >
+                      <span class="gs-segment-text"
+                        ><strong>{option.label}</strong><small
+                          >{option.hint}</small
+                        ></span
+                      >
+                    </button>
+                  {/each}
+                </div>
+              </fieldset>
+            {/if}
+
             <fieldset class="gs-setting">
               <legend>Aspect ratio</legend>
               <div class="gs-segments gs-segments--4">

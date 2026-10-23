@@ -248,6 +248,8 @@ export interface GuidedToolRequest {
   id: "product-walkthrough" | "product-launch" | "social-ad" | "story";
   seconds: number;
   language: "en" | "km";
+  /** Social media ad only: "poster" makes it one animated scene instead of cuts. */
+  format?: "scenes" | "poster";
   /** The Prompt Template whose look the film takes. */
   look?: string;
   /** The upload id of the attached picture that is the logo. */

@@ -65,6 +65,13 @@ describe("guided tools", () => {
         instructions: "20% off this week",
       }),
     ).toBe("Social media ad · 9:16 · 20 sec · Khmer\n\n20% off this week");
+    expect(
+      guideMessage(tool("social-ad"), {
+        ...options,
+        instructions: "",
+        format: "poster",
+      }),
+    ).toBe("Social media ad · 1 scene · 9:16 · 20 sec · Khmer");
   });
 
   it("needs something to say what the film is about", () => {

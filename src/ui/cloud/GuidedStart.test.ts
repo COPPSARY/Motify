@@ -133,6 +133,7 @@ describe("GuidedStart", () => {
       id: "social-ad",
       seconds: 40,
       language: "km",
+      format: "scenes",
       look: "motiks-spicy-curls",
     });
     expect(result.aspect).toBe("1:1");
@@ -142,6 +143,27 @@ describe("GuidedStart", () => {
     expect(result.files).toEqual([]);
     // Sent, so the form gives way to the tools again.
     expect(document.querySelectorAll(".gs-card")).toHaveLength(4);
+  });
+
+  it("makes a social ad as one animated poster when asked", async () => {
+    start();
+    button("Product walkthrough").click();
+    await settle();
+    // Only the Social media ad has formats to choose from.
+    expect(document.body.textContent).not.toContain("Animated poster");
+    button("All tools").click();
+    await settle();
+    button("Social media ad").click();
+    await settle();
+    button("1 scene").click();
+    type("guide-instructions", "New spicy flavour");
+    button("Generate video").click();
+    await settle();
+
+    expect(lastResult().tool.format).toBe("poster");
+    expect(lastResult().message).toBe(
+      "Social media ad · 1 scene · 9:16 · 15 sec · English\n\nNew spicy flavour",
+    );
   });
 
   it("keeps the logo apart from the pictures, and marks it as the logo", async () => {
@@ -175,6 +197,54 @@ describe("GuidedStart", () => {
     expect(lastResult().files).toEqual([
       { file: logo, intent: "asset", logo: true },
       { file: photo, intent: "asset" },
+    ]);
+  });
+
+  it("reorders pictures, and says when many will take longer", async () => {
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn((file: File) => `blob:${file.name}`),
+      revokeObjectURL: vi.fn(),
+    });
+    start();
+    button("Product walkthrough").click();
+    await settle();
+    const input = document.querySelector<HTMLInputElement>(
+      ".gs-panel > .gs-file",
+    );
+    const screens = ["one", "two", "three"].map(
+      (name) => new File([name], `${name}.png`, { type: "image/png" }),
+    );
+    expect(document.querySelector(".gs-slow")).toBeNull();
+    Object.defineProperty(input, "files", {
+      value: screens,
+      configurable: true,
+    });
+    input?.dispatchEvent(new Event("change"));
+    flushSync();
+    expect(document.querySelector(".gs-slow")?.textContent).toContain(
+      "3 pictures",
+    );
+
+    const first = document.querySelector<HTMLElement>(
+      '[data-picture="blob:one.png"]',
+    );
+    first?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    await settle();
+    expect(
+      [...document.querySelectorAll<HTMLElement>("[data-picture]")].map(
+        (thumb) => thumb.dataset["picture"],
+      ),
+    ).toEqual(["blob:two.png", "blob:one.png", "blob:three.png"]);
+
+    button("Generate video").click();
+    await settle();
+    expect(lastResult().files.map(({ file }) => file.name)).toEqual([
+      "two.png",
+      "one.png",
+      "three.png",
     ]);
   });
 
