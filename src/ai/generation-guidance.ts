@@ -19,7 +19,11 @@ import {
 import type { RuntimeEditorState, SceneDefinition } from "../composition/types";
 import type { CanvasAspect } from "../composition/canvas-frame";
 import type { RegistryItemSummary } from "../registry/types";
-import type { GenerationEffort, GenerationModel } from "../cloud/projects-api";
+import type {
+  GenerationEffort,
+  GenerationModel,
+  GuidedToolRequest,
+} from "../cloud/projects-api";
 
 export interface GenerationFiles {
   /**
@@ -37,6 +41,8 @@ export interface GenerationFiles {
   model?: GenerationModel;
   /** Narration (text-to-speech) switch in the prompt composer; off sends `false`. */
   tts?: boolean;
+  /** A guided tool from the create page; only the backend receives it. */
+  tool?: GuidedToolRequest;
   compositionHtml?: string;
   timelineJs?: string;
   stylesCss?: string;

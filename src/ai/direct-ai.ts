@@ -337,6 +337,7 @@ async function requestBackendProject(
       ...(currentFiles.aspectRatio
         ? { aspectRatio: currentFiles.aspectRatio }
         : {}),
+      ...(currentFiles.tool ? { tool: currentFiles.tool } : {}),
       // Always explicit, even empty: a message with no list makes the backend
       // reuse every image ever attached to the project.
       assets: uploadedAssets,

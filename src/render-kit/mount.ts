@@ -1,3 +1,7 @@
+import {
+  DEFAULT_CANVAS,
+  canvasAspectForSize,
+} from "../composition/canvas-frame";
 import { createDynamicComposition } from "../composition/dynamic-compiler";
 import { exportVideo } from "../composition/exporter";
 import { renderCompositionFrame } from "../composition/frame-render";
@@ -75,9 +79,23 @@ export function mountFilm(input: FilmInput): MountedFilm {
   const root = document.createElement("div");
   root.style.cssText = `position:absolute;left:0;top:0;width:${composition.width}px;height:${composition.height}px;overflow:hidden`;
   document.body.append(root);
+  // Start on the film's own canvas, as the editor does; without it the runtime
+  // defaults to 16:9 and reframes a portrait or square film into a landscape one.
+  const authoredAspect = canvasAspectForSize(
+    composition.width,
+    composition.height,
+  );
   let runtime: CompositionRuntime;
   try {
-    runtime = new CompositionRuntime(composition, root);
+    runtime = new CompositionRuntime(
+      composition,
+      root,
+      authoredAspect
+        ? {
+            canvas: { aspect: authoredAspect, framing: DEFAULT_CANVAS.framing },
+          }
+        : {},
+    );
   } catch (error) {
     root.remove();
     throw error;
