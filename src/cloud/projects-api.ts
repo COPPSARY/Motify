@@ -225,6 +225,7 @@ export interface MotionMessageInput {
   quotedCredits?: number;
   assets?: Array<{ assetId: string; role: "reference" | "asset" }>;
   audio?: Array<{ trackId: string }>;
+  tool?: GuidedToolRequest;
   /**
    * Frames this editor rendered from the candidate the message is
    * repairing. They travel inline, for this request only: the backend
@@ -236,6 +237,65 @@ export interface MotionMessageInput {
     mediaType: "image/jpeg" | "image/png" | "image/webp";
     dataBase64: string;
   }>;
+}
+
+/**
+ * A guided tool from the create page. The server writes the brief the model
+ * works from and prices the request by `seconds`; the message stays the short
+ * line the person sees in the chat.
+ */
+export interface GuidedToolRequest {
+  id: "product-walkthrough" | "product-launch" | "social-ad" | "story";
+  seconds: number;
+  language: "en" | "km";
+  /** Social media ad only: "poster" makes it one animated scene instead of cuts. */
+  format?: "scenes" | "poster";
+  /** The Prompt Template whose look the film takes. */
+  look?: string;
+  /** The upload id of the attached picture that is the logo. */
+  logo?: string;
+  /** The storyboard the person previewed and approved, with their edits. */
+  storyboard?: Storyboard;
+}
+
+/**
+ * A guided tool's storyboard: the beats planned before the film is built. It
+ * settles order, timing and what happens; a beat names the pictures it shows
+ * by upload id and never describes them, so the pictures still decide how
+ * everything looks.
+ */
+export interface Storyboard {
+  beats: StoryboardBeat[];
+  /** The last image. */
+  ending: string;
+}
+
+export interface StoryboardBeat {
+  title: string;
+  start: number;
+  duration: number;
+  /** Upload ids of the attached pictures this beat shows. */
+  shows: string[];
+  action: string;
+  camera: string;
+  /** The words on screen, exactly; empty when none. */
+  text: string;
+}
+
+export interface StoryboardRequest {
+  workspaceId: string;
+  message: string;
+  tool: Omit<GuidedToolRequest, "storyboard">;
+  assets: Array<{ assetId: string; role: "reference" | "asset" }>;
+  brandId?: string | null;
+  aspectRatio?: "16:9" | "1:1" | "4:5" | "9:16";
+  /** The price the create page showed, in credits. */
+  quotedCredits?: number;
+}
+
+export interface StoryboardResult {
+  storyboard: Storyboard;
+  credits?: { charged: number; remaining: number };
 }
 
 export type GenerationEffort = "medium" | "high";
@@ -426,6 +486,15 @@ export class ProjectsApi {
       `/v1/projects/${encodeURIComponent(projectId)}/message-jobs`,
       { method: "POST", body: input },
     );
+  }
+
+  /** Plans a guided tool's storyboard; charged a fixed few credits. */
+  async planStoryboard(input: StoryboardRequest) {
+    await this.ensureCsrfToken();
+    return this.request<StoryboardResult>("/v1/storyboards", {
+      method: "POST",
+      body: input,
+    });
   }
 
   getMotionMessageJob(projectId: string, jobId: string) {

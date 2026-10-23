@@ -17,11 +17,13 @@
   import { get } from "svelte/store";
   import { motifySiteHref, PRICING_URL } from "../api/config";
   import {
+    applyServerCharge,
     clearLastCharge,
     lastCreditCharge,
     refreshCredits,
     resetCredits,
   } from "../stores/credits";
+  import { insufficientCreditsMessage } from "../api/credits";
   import {
     ArrowLeft,
     Braces,
@@ -86,6 +88,8 @@
     type PromotionBanner as PromotionBannerData,
     type GenerationEffort,
     type GenerationModel,
+    type GuidedToolRequest,
+    type Storyboard,
     type WorkspaceAsset,
     type WorkspaceSummary,
   } from "../cloud/projects-api";
@@ -222,7 +226,13 @@
   import "./styles/home-shell.css";
   import "./styles/billing.css";
   import "./styles/prompt-templates.css";
+  import "./styles/guided-start.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
+  import GuidedStart from "./cloud/GuidedStart.svelte";
+  import {
+    STORYBOARD_CREDITS,
+    type GuideResult,
+  } from "../onboarding/guided-tools";
 
   export let mode: AppMode = "cloud";
 
@@ -503,6 +513,7 @@
     text: string;
     prompt: string;
     aspectRatio?: CanvasAspect;
+    tool?: GuidedToolRequest;
   } | null = null;
 
   let lastGenState = "";
@@ -2564,6 +2575,149 @@
     if (mode === "cloud" && !hasEditorProject) navigate(homePagePath(page));
   }
 
+  /** True while a guided tool's form replaces the composer on the create page. */
+  let guideOpen = false;
+  /** The guided tool the request in flight came from; the backend writes its brief. */
+  let toolInFlight: GuidedToolRequest | null = null;
+  /**
+   * Staged images whose role the guided start set ("Placed in your video" or
+   * "Used as reference only"). The prompt's wording does not change those;
+   * the person already chose.
+   */
+  const pinnedIntentIds = new Set<string>();
+  $: guideBrand =
+    selectedBrand !== null && brand && brand.revision > 0
+      ? {
+          name: brand.dna.identity.name,
+          logoAssetId:
+            brand.assets.find((asset) => asset.role === "logo")?.assetId ??
+            null,
+        }
+      : null;
+
+  /**
+   * A guided tool's pictures already uploaded for its storyboard, so making
+   * the film does not upload them again. Emptied once the film is sent.
+   */
+  const toolUploads = new Map<File, LocalAssetReference>();
+
+  /** Stores and uploads one of a guided tool's pictures, once. */
+  async function uploadToolPicture(file: File): Promise<LocalAssetReference> {
+    const known = toolUploads.get(file);
+    if (known?.uploadId) return known;
+    const reference = await storeLocalAsset(file, file.name || "Pasted image");
+    reference.uploadId = await uploadAsset(workspaceId, file);
+    reference.token = `motify-asset://${reference.uploadId}`;
+    toolUploads.set(file, reference);
+    return reference;
+  }
+
+  /**
+   * Plans a guided tool's storyboard: uploads its pictures and asks for the
+   * beats, for a fixed few credits. Null keeps the form as it is, after
+   * saying why.
+   */
+  async function planToolStoryboard(result: GuideResult): Promise<{
+    storyboard: Storyboard;
+    uploads: ReadonlyMap<File, string>;
+  } | null> {
+    if (mode === "cloud" && !currentUser) {
+      openAuthDialog("signin");
+      showNotice("Sign in to preview your video. Your choices are kept.");
+      return null;
+    }
+    if (!workspaceId) {
+      showNotice("Your workspace is still loading. Try again in a moment.");
+      return null;
+    }
+    captureEvent("guided storyboard requested", {
+      type: result.tool.id,
+      images: result.files.length,
+      seconds: result.tool.seconds,
+    });
+    try {
+      const references = await Promise.all(
+        result.files.map(({ file }) => uploadToolPicture(file)),
+      );
+      const uploads = new Map(
+        result.files.map(({ file }, index) => [
+          file,
+          references[index]!.uploadId!,
+        ]),
+      );
+      const logo = result.files.find((item) => item.logo)?.file;
+      const planned = await new ProjectsApi().planStoryboard({
+        workspaceId,
+        message: result.message,
+        tool: logo ? { ...result.tool, logo: uploads.get(logo)! } : result.tool,
+        assets: result.files.map(({ file, intent }) => ({
+          assetId: uploads.get(file)!,
+          role: intent,
+        })),
+        brandId: selectedBrand === null ? null : (brand?.id ?? undefined),
+        aspectRatio: result.aspect,
+        quotedCredits: STORYBOARD_CREDITS,
+      });
+      if (planned.credits) applyServerCharge(planned.credits);
+      void refreshCredits();
+      return { storyboard: planned.storyboard, uploads };
+    } catch (error) {
+      void refreshCredits();
+      showNotice(
+        error instanceof CloudApiError && error.code === "INSUFFICIENT_CREDITS"
+          ? insufficientCreditsMessage(error.details)
+          : error instanceof Error
+            ? error.message
+            : "The storyboard could not be made. Try again.",
+        6000,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Sends a guided tool's request straight away: its images are staged with
+   * the roles the person gave them, and the message is the short line they
+   * see in the chat. Our brief for the tool is written by the server, never
+   * shown. False keeps the form open, as it is while someone signs in.
+   */
+  async function generateFromTool(result: GuideResult): Promise<boolean> {
+    if ($generationStore.isActive) return false;
+    if (mode === "cloud" && !currentUser) {
+      openAuthDialog("signin");
+      showNotice("Sign in to make your video. Your choices are kept.");
+      return false;
+    }
+    captureEvent("guided start finished", {
+      type: result.tool.id,
+      images: result.files.length,
+      seconds: result.tool.seconds,
+      language: result.tool.language,
+      storyboard: Boolean(result.tool.storyboard),
+    });
+    generationAspect = result.aspect;
+    const staged =
+      result.files.length > 0
+        ? await stageImages(
+            result.files.map(({ file }) => file),
+            new Map(result.files.map(({ file, intent }) => [file, intent])),
+            toolUploads,
+          )
+        : new Map<File, LocalAssetReference>();
+    toolUploads.clear();
+    // The server names the logo to the model by its upload, so it is never
+    // taken for one of the pictures.
+    const logo = result.files.find((item) => item.logo)?.file;
+    const logoUpload = logo ? staged.get(logo)?.uploadId : undefined;
+    void submitAssistant(new SubmitEvent("submit"), {
+      text: result.message,
+      prompt: result.message,
+      aspectRatio: result.aspect,
+      tool: logoUpload ? { ...result.tool, logo: logoUpload } : result.tool,
+    });
+    return true;
+  }
+
   /** Puts a template's prompt in Tiffy's composer on the create page. */
   function usePromptTemplate(prompt: string): void {
     openPage("create");
@@ -2997,6 +3151,7 @@
     messagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     messagePreviewUrls = [];
     stagedAssets = [];
+    pinnedIntentIds.clear();
     selectedAudio.set([]);
     assistantMessages = [];
     assistantDraft = "";
@@ -3018,15 +3173,21 @@
   /**
    * Uploads images and videos for the next prompt, a few at a time, keeping
    * the order they were picked in. Past the per-prompt limits the rest are
-   * left out, and one failed upload does not stop the others.
+   * left out, and one failed upload does not stop the others. A file given a
+   * role in `intents` keeps it when the message is sent.
    */
-  async function stageImages(files: File[]): Promise<void> {
+  async function stageImages(
+    files: File[],
+    intents?: ReadonlyMap<File, AssetIntent>,
+    uploaded?: ReadonlyMap<File, LocalAssetReference>,
+  ): Promise<Map<File, LocalAssetReference>> {
+    const stagedBySource = new Map<File, LocalAssetReference>();
     const room = MAX_PROMPT_IMAGES - stagedAssets.length;
     if (room <= 0) {
       showNotice(
         `A prompt can use up to ${MAX_PROMPT_IMAGES} images and videos.`,
       );
-      return;
+      return stagedBySource;
     }
     let videoRoom =
       MAX_PROMPT_VIDEOS -
@@ -3042,6 +3203,7 @@
       return true;
     });
     const picked = accepted.slice(0, room).map((file) => ({
+      source: file,
       file: withVideoType(file),
       name: file.name && file.name !== "image.png" ? file.name : "Pasted image",
     }));
@@ -3052,7 +3214,7 @@
           ? "Videos are limited to 100 MB."
           : `A prompt can use up to ${MAX_PROMPT_VIDEOS} videos.`,
       );
-      return;
+      return stagedBySource;
     }
     const label =
       picked.length === 1
@@ -3070,10 +3232,11 @@
     const worker = async (): Promise<void> => {
       while (next < picked.length) {
         const index = next++;
-        const { file, name } = picked[index]!;
+        const { source, file, name } = picked[index]!;
         try {
-          const reference = await storeLocalAsset(file, name);
-          if (workspaceId) {
+          const reference =
+            uploaded?.get(source) ?? (await storeLocalAsset(file, name));
+          if (workspaceId && !reference.uploadId) {
             reference.uploadId = await uploadAsset(
               workspaceId,
               file,
@@ -3087,7 +3250,13 @@
             );
             reference.token = `motify-asset://${reference.uploadId}`;
           }
+          const intent = intents?.get(source);
+          if (intent) {
+            reference.intent = intent;
+            pinnedIntentIds.add(reference.id);
+          }
           results[index] = reference;
+          stagedBySource.set(source, reference);
           captureEvent("media uploaded", {
             file_type: file.type.split("/")[0] || "unknown",
           });
@@ -3133,6 +3302,7 @@
       uploadProgress = 0;
       clearUploadPreview();
     }
+    return stagedBySource;
   }
 
   function assistantGenerationBasis(ai: GenerationPipeline): GenerationBasis & {
@@ -3258,6 +3428,7 @@ Voice over direction: ${voiceNote}`
         brandId:
           selectedBrand === null ? null : (generationBrand?.id ?? undefined),
         ...(aspectRatio ? { aspectRatio } : {}),
+        ...(toolInFlight ? { tool: toolInFlight } : {}),
         effort: generationEffort,
         model: generationModel,
         tts: voiceOverEnabled,
@@ -3648,7 +3819,12 @@ Voice over direction: ${voiceNote}`
    */
   async function submitAssistant(
     event: SubmitEvent,
-    scoped?: { text: string; prompt: string; aspectRatio?: CanvasAspect },
+    scoped?: {
+      text: string;
+      prompt: string;
+      aspectRatio?: CanvasAspect;
+      tool?: GuidedToolRequest;
+    },
   ): Promise<void> {
     event.preventDefault();
     const shownText = (scoped?.text ?? assistantDraft).trim();
@@ -3664,6 +3840,7 @@ Voice over direction: ${voiceNote}`
       text: shownText,
       prompt,
       ...(aspectRatio ? { aspectRatio } : {}),
+      ...(scoped?.tool ? { tool: scoped.tool } : {}),
     };
     // The first prompt turns the create page into this video's chat.
     projectStarted = true;
@@ -3677,7 +3854,10 @@ Voice over direction: ${voiceNote}`
       stagedAssets.length <= 1 || appliesToAllImages(prompt) ? prompt : "";
     const resolvedAssets = stagedAssets.map((asset) => ({
       ...asset,
-      intent: resolveAssetIntent(imageIntentPrompt, asset.intent),
+      intent:
+        pinnedIntentIds.has(asset.id) && asset.intent
+          ? asset.intent
+          : resolveAssetIntent(imageIntentPrompt, asset.intent),
     }));
     stagedAssets = resolvedAssets;
     const sentAttachments: MessageAttachment[] = [
@@ -3711,7 +3891,9 @@ Voice over direction: ${voiceNote}`
     if (!scoped) assistantDraft = "";
     assetsInFlight = resolvedAssets.length ? [...resolvedAssets] : null;
     stagedAssets = [];
+    pinnedIntentIds.clear();
     audioInFlight = sentAudio.length ? [...sentAudio] : null;
+    toolInFlight = scoped?.tool ?? null;
     selectedAudio.set([]);
     await tick();
     resizeComposer();
@@ -3789,6 +3971,7 @@ Voice over direction: ${voiceNote}`
     } finally {
       assetsInFlight = null;
       audioInFlight = null;
+      toolInFlight = null;
       // The backend attaches songs when a message arrives, whether it answered
       // with a film or only a reply, so the project's list is reread either way.
       void refreshProjectAudio(
@@ -4746,8 +4929,20 @@ Voice over direction: ${voiceNote}`
                 >
               {/if}
               {#if centerPage === "create"}
-                <div class="me-create">
-                  {@render tiffy("hero")}
+                <div class="me-create" class:me-create--guide={guideOpen}>
+                  <div class="me-create-composer" hidden={guideOpen}>
+                    {@render tiffy("hero")}
+                  </div>
+                  <GuidedStart
+                    bind:open={guideOpen}
+                    disabled={$generationStore.isActive}
+                    brand={guideBrand}
+                    onExplore={() => openPage("templates")}
+                    onPick={(type) =>
+                      captureEvent("guided start picked", { type: type.id })}
+                    onGenerate={generateFromTool}
+                    onStoryboard={mode === "cloud" ? planToolStoryboard : null}
+                  />
                 </div>
               {:else if centerPage === "films"}
                 <section class="me-page-body" aria-labelledby="templates-title">

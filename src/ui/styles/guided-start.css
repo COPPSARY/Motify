@@ -1,0 +1,1009 @@
+/* Guided tools on the create page: a few tools under the composer, then a
+   short form for the one picked. */
+
+/* The cards make the page taller than the screen on small displays; auto
+   margins centre it while it fits and let it scroll from the top when not. */
+.code-editor-scope .me-page--create {
+  align-items: flex-start;
+}
+
+.code-editor-scope .me-create {
+  margin: auto 0;
+}
+
+.code-editor-scope .me-create--guide {
+  width: min(1040px, 100%);
+}
+
+.code-editor-scope .me-create-composer[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------ tool cards */
+
+.code-editor-scope .gs-start {
+  margin-top: 36px;
+}
+
+.code-editor-scope .gs-start-head {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.code-editor-scope .gs-start-head h2 {
+  margin: 0;
+  color: var(--sl-text);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.code-editor-scope .gs-start-head p {
+  margin: 4px 0 0;
+  color: var(--sl-muted);
+  font-size: 13px;
+}
+
+.code-editor-scope .gs-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.code-editor-scope .gs-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 8px 8px 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 14px;
+  background: var(--sl-panel);
+  color: var(--sl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.code-editor-scope .gs-card:hover:not(:disabled),
+.code-editor-scope .gs-card:focus-visible {
+  border-color: var(--sl-brand-cobalt-hover);
+  transform: translateY(-2px);
+}
+
+.code-editor-scope .gs-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.code-editor-scope .gs-card .gs-media {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.code-editor-scope .gs-card strong {
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.code-editor-scope .gs-card small {
+  padding: 0 4px;
+  color: var(--sl-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.code-editor-scope .gs-card .gs-tip {
+  margin-left: 4px;
+}
+
+/* "Screenshots → video": what goes in and what comes out. */
+.code-editor-scope .gs-tip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(39, 82, 201, 0.18);
+  color: #9fb6ff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.code-editor-scope .gs-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #1f45b0 0%, #0f1e4d 100%);
+}
+
+.code-editor-scope .gs-media[data-type="product-walkthrough"] {
+  background: linear-gradient(135deg, #1e5b4a 0%, #0c241e 100%);
+}
+
+.code-editor-scope .gs-media[data-type="story"] {
+  background: linear-gradient(135deg, #7a4a1e 0%, #2a170a 100%);
+}
+
+.code-editor-scope .gs-media[data-type="social-ad"] {
+  background: linear-gradient(135deg, #7a1e5b 0%, #2a0a1f 100%);
+}
+
+.code-editor-scope .gs-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.code-editor-scope .gs-media video[data-ready] {
+  opacity: 1;
+}
+
+/* Always on screen, so the cards read as things to click, not a gallery. */
+.code-editor-scope .gs-start-pill {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease;
+}
+
+.code-editor-scope .gs-card:hover:not(:disabled) .gs-start-pill,
+.code-editor-scope .gs-card:focus-visible .gs-start-pill {
+  background: var(--sl-brand-cobalt);
+}
+
+.code-editor-scope .gs-explore {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px auto 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-explore:hover {
+  background: var(--sl-surface);
+  color: var(--sl-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .gs-card {
+    transition: none;
+  }
+
+  .code-editor-scope .gs-card:hover:not(:disabled),
+  .code-editor-scope .gs-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------ form */
+
+.code-editor-scope .gs-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 6px 10px 6px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-back:hover {
+  background: var(--sl-surface);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .gs-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.code-editor-scope .gs-example {
+  position: sticky;
+  top: 16px;
+}
+
+.code-editor-scope .gs-example .gs-media {
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 14px;
+}
+
+.code-editor-scope .gs-note {
+  margin: 10px 0 0;
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+.code-editor-scope .gs-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.code-editor-scope .gs-form-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.code-editor-scope .gs-form-head h1 {
+  margin: 0;
+  color: var(--sl-text);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  outline: none;
+}
+
+.code-editor-scope .gs-form-head p {
+  margin: 0;
+  color: var(--sl-text-soft);
+  font-size: 14px;
+}
+
+/* One rounded panel per group, so the form reads as a few clear steps. */
+.code-editor-scope .gs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 14px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .gs-slot-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--sl-text);
+  font-size: 14px;
+}
+
+.code-editor-scope .gs-slot-head em {
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.code-editor-scope .gs-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 196, 0, 0.12);
+  color: #f5c84c;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.code-editor-scope .gs-badge.is-placed {
+  background: var(--sl-brand-signal-soft);
+  color: var(--sl-brand-signal);
+}
+
+.code-editor-scope .gs-hint {
+  color: var(--sl-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .gs-file {
+  display: none;
+}
+
+.code-editor-scope .gs-drop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px dashed var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-bg);
+}
+
+.code-editor-scope .gs-thumb,
+.code-editor-scope .gs-add {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 8px;
+}
+
+.code-editor-scope .gs-thumb img {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.code-editor-scope .gs-thumb--logo {
+  background: repeating-conic-gradient(#222 0 25%, #1a1a1a 0 50%) 0 0 / 14px
+    14px;
+}
+
+.code-editor-scope .gs-thumb--logo img {
+  object-fit: contain;
+}
+
+.code-editor-scope .gs-thumb button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-thumb.is-movable {
+  cursor: grab;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.code-editor-scope .gs-thumb.is-movable:active {
+  cursor: grabbing;
+}
+
+.code-editor-scope .gs-thumb.is-movable:focus-visible {
+  outline: 2px solid var(--sl-brand-signal);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .gs-thumb.is-dragging {
+  opacity: 0.4;
+  transform: scale(0.94);
+}
+
+.code-editor-scope .gs-order {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.code-editor-scope .gs-slow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 184, 77, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 184, 77, 0.08);
+  color: #ffc46b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .gs-thumb.is-movable {
+    transition: none;
+  }
+}
+
+.code-editor-scope .gs-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: var(--sl-surface);
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-add:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+/* Logo on one side, the other pictures on the other: kept apart so the logo
+   is never taken for a product photo. */
+.code-editor-scope .gs-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.code-editor-scope .gs-split--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.code-editor-scope .gs-half {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.code-editor-scope .gs-half .gs-drop {
+  flex: 1;
+  align-content: flex-start;
+}
+
+.code-editor-scope .gs-half-label {
+  color: var(--sl-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- settings */
+
+.code-editor-scope .gs-settings {
+  gap: 16px;
+}
+
+.code-editor-scope .gs-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.code-editor-scope .gs-setting legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--sl-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.code-editor-scope .gs-segments {
+  display: grid;
+  gap: 6px;
+}
+
+.code-editor-scope .gs-segments--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.code-editor-scope .gs-segments--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.code-editor-scope .gs-segment {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-bg);
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-segment:hover {
+  color: var(--sl-text);
+}
+
+.code-editor-scope .gs-segment.is-selected {
+  border-color: var(--sl-brand-cobalt-hover);
+  background: rgba(39, 82, 201, 0.18);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .gs-segment-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.code-editor-scope .gs-segment-text small {
+  overflow: hidden;
+  color: var(--sl-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-scope .gs-shape {
+  flex: none;
+  display: block;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.8;
+}
+
+.code-editor-scope .gs-custom {
+  gap: 2px;
+}
+
+.code-editor-scope .gs-custom input {
+  width: 40px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--sl-border-strong);
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  text-align: center;
+  appearance: textfield;
+}
+
+.code-editor-scope .gs-custom input::-webkit-inner-spin-button,
+.code-editor-scope .gs-custom input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.code-editor-scope .gs-custom input:focus {
+  border-bottom-color: var(--sl-brand-cobalt-hover);
+  outline: none;
+}
+
+.code-editor-scope .gs-setting.is-invalid .gs-hint {
+  color: #ff8589;
+}
+
+/* ---------------------------------------------------------- instructions */
+
+.code-editor-scope .gs-instructions textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.code-editor-scope .gs-instructions textarea::placeholder {
+  color: var(--sl-faint);
+}
+
+.code-editor-scope .gs-instructions textarea:focus {
+  border-color: var(--sl-brand-cobalt-hover);
+  outline: none;
+}
+
+.code-editor-scope .gs-instructions.is-invalid textarea {
+  border-color: #e5484d;
+}
+
+/* --------------------------------------------------------------- actions */
+
+.code-editor-scope .gs-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.code-editor-scope .gs-actions > small {
+  color: var(--sl-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.code-editor-scope .gs-missing {
+  margin: 0;
+  color: #ff8589;
+  font-size: 13px;
+  text-align: center;
+}
+
+.code-editor-scope .gs-generate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sl-brand-cobalt);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-generate:hover:not(:disabled) {
+  background: var(--sl-brand-cobalt-hover);
+}
+
+.code-editor-scope .gs-generate:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.code-editor-scope .gs-generate-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-editor-scope .gs-price {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .gs-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 12px;
+  background: var(--sl-panel);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-secondary:hover:not(:disabled) {
+  border-color: var(--sl-brand-cobalt-hover);
+}
+
+.code-editor-scope .gs-secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.code-editor-scope .gs-secondary-price {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sl-surface);
+  color: var(--sl-text-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ storyboard */
+
+.code-editor-scope .gs-beats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.code-editor-scope .gs-beat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.code-editor-scope .gs-beat-number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sl-surface);
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-beat-number:hover,
+.code-editor-scope .gs-beat.is-active .gs-beat-number {
+  background: var(--sl-brand-cobalt);
+  color: #fff;
+}
+
+.code-editor-scope .gs-beat.is-active {
+  border-color: var(--sl-brand-cobalt-hover);
+}
+
+/* ---------------------------------------------------------------- sketch */
+
+.code-editor-scope .gs-sketch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.code-editor-scope .gs-sketch-frame {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 14px;
+  background: #0d0f14;
+}
+
+.code-editor-scope .gs-sketch-host {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: top left;
+}
+
+.code-editor-scope .gs-sketch-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.code-editor-scope .gs-sketch-controls button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 50%;
+  background: var(--sl-panel);
+  color: var(--sl-text);
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-sketch-controls input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--sl-brand-cobalt);
+}
+
+.code-editor-scope .gs-sketch-time {
+  flex: none;
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .gs-beat-title {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.code-editor-scope .gs-beat-title:hover,
+.code-editor-scope .gs-beat-title:focus {
+  border-bottom-color: var(--sl-border-strong);
+  outline: none;
+}
+
+.code-editor-scope .gs-beat-time {
+  flex: none;
+  color: var(--sl-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-editor-scope .gs-beat-tools {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+.code-editor-scope .gs-beat-tools button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.code-editor-scope .gs-beat-tools button:hover:not(:disabled) {
+  background: var(--sl-surface);
+  color: var(--sl-text);
+}
+
+.code-editor-scope .gs-beat-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.code-editor-scope .gs-beat-shows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.code-editor-scope .gs-beat-picture {
+  position: relative;
+  width: 96px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--sl-bg);
+}
+
+.code-editor-scope .gs-beat-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.code-editor-scope .gs-beat-picture small {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.code-editor-scope .gs-beat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 10px;
+}
+
+.code-editor-scope .gs-beat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.code-editor-scope .gs-beat-field > span {
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+.code-editor-scope .gs-beat-field input,
+.code-editor-scope .gs-beat-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.code-editor-scope .gs-beat-field input::placeholder {
+  color: var(--sl-faint);
+}
+
+.code-editor-scope .gs-beat-field input:focus,
+.code-editor-scope .gs-beat-field textarea:focus {
+  border-color: var(--sl-brand-cobalt-hover);
+  outline: none;
+}
+
+.code-editor-scope .gs-board-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .code-editor-scope .gs-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .code-editor-scope .gs-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .code-editor-scope .gs-example {
+    position: static;
+  }
+}
+
+@media (max-width: 520px) {
+  .code-editor-scope .gs-segments--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .code-editor-scope .gs-split,
+  .code-editor-scope .gs-beat-row,
+  .code-editor-scope .gs-board-secondary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

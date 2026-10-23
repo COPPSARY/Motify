@@ -93,6 +93,35 @@ describe("credits around a backend generation", () => {
     await vi.waitFor(() => expect(creditsMock).toHaveBeenCalled());
   });
 
+  it("sends a guided tool with the message, so the server writes its brief", async () => {
+    fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
+      finishedJob({
+        type: "generation",
+        response: "Built the walkthrough.",
+        projectId: "project-1",
+        revision: 2,
+      }),
+    );
+    for (const response of savedFilm())
+      fetchMock.mockResolvedValueOnce(response);
+    const tool = {
+      id: "product-walkthrough" as const,
+      seconds: 20,
+      language: "km" as const,
+      look: "google-docs-product-demo",
+    };
+
+    await generateWithDirectAi("Product walkthrough · 16:9 · 20 sec · Khmer", {
+      backendProjectId: "project-1",
+      tool,
+    });
+
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body["message"]).toBe("Product walkthrough · 16:9 · 20 sec · Khmer");
+    expect(body["tool"]).toEqual(tool);
+  });
+
   it("leaves the balance alone when the server is not charging", async () => {
     fetchMock.mockResolvedValueOnce(session()).mockResolvedValueOnce(
       finishedJob({
