@@ -610,6 +610,79 @@
   outline: none;
 }
 
+/* A length past the plan's limit: faded, and says why on hover or focus. */
+.code-editor-scope .gs-segment.is-locked {
+  position: relative;
+  gap: 6px;
+  border-style: dashed;
+  color: var(--sl-muted);
+  cursor: help;
+}
+
+.code-editor-scope .gs-segment.is-locked:hover,
+.code-editor-scope .gs-segment.is-locked:focus-visible {
+  color: var(--sl-text-soft);
+}
+
+.code-editor-scope .gs-segment.is-locked > svg {
+  flex: none;
+}
+
+.code-editor-scope .gs-segment.is-locked::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 90;
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #29292d;
+  color: #f1f1f3;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+/* The last one sits at the form's edge, so its tip opens inward. */
+.code-editor-scope .gs-segment.is-locked:last-child::after {
+  left: auto;
+  right: 0;
+  transform: translateY(3px);
+}
+
+.code-editor-scope .gs-segment.is-locked:hover::after,
+.code-editor-scope .gs-segment.is-locked:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.code-editor-scope .gs-segment.is-locked:last-child:hover::after,
+.code-editor-scope .gs-segment.is-locked:last-child:focus-visible::after {
+  transform: translateY(0);
+}
+
+.code-editor-scope .gs-limit button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sl-brand-cobalt-hover);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .code-editor-scope .gs-setting.is-invalid .gs-hint {
   color: #ff8589;
 }
