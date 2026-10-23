@@ -42,7 +42,96 @@ function embeddedImageDataUrl(url: string): Promise<string> {
   return embeddedImage;
 }
 
-async function inlineImages(source: Element, clone: Element): Promise<void> {
+/** Pictures re-encoded smaller than this many bytes are not worth it. */
+const SHRINK_MIN_BYTES = 200_000;
+/** Room for a picture the film scales up past the frame (a push-in). */
+const PICTURE_HEADROOM = 1.25;
+
+/** `width` x `height` fitted inside `maxEdge` on its long side, never enlarged. */
+export function boundedPictureSize(
+  width: number,
+  height: number,
+  maxEdge: number,
+): { width: number; height: number } {
+  const ratio = Math.min(1, maxEdge / Math.max(width, height, 1));
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  };
+}
+
+/**
+ * The long edge a picture needs in a frame rendered `width` x `height` at
+ * `scale`: never more than the frame itself, with a little room for a zoom.
+ * Kept to steps of 256px, so one export encodes each picture once.
+ */
+export function pictureEdgeFor(
+  width: number,
+  height: number,
+  scale: number,
+): number {
+  const edge = Math.max(width, height) * scale * PICTURE_HEADROOM;
+  return Math.max(512, Math.ceil(edge / 256) * 256);
+}
+
+async function shrunkDataUrl(blob: Blob, maxEdge: number): Promise<string> {
+  if (
+    blob.size < SHRINK_MIN_BYTES ||
+    !/^image\/(png|jpeg|webp)$/.test(blob.type) ||
+    typeof createImageBitmap !== "function"
+  )
+    return blobAsDataUrl(blob);
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const size = boundedPictureSize(bitmap.width, bitmap.height, maxEdge);
+    if (size.width === bitmap.width && blob.type !== "image/png")
+      return blobAsDataUrl(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const context = canvas.getContext("2d");
+    if (!context) return blobAsDataUrl(blob);
+    context.imageSmoothingQuality = "high";
+    context.drawImage(bitmap, 0, 0, size.width, size.height);
+    // WebP keeps a logo's transparency at a fraction of PNG's size; a browser
+    // that cannot write it hands back PNG, which is still the smaller picture.
+    const shrunk = canvas.toDataURL("image/webp", 0.92);
+    const original = await blobAsDataUrl(blob);
+    return shrunk.length < original.length ? shrunk : original;
+  } finally {
+    bitmap.close();
+  }
+}
+
+/**
+ * A picture for an exported frame, no larger than the frame needs.
+ *
+ * Every frame is drawn as an SVG image with its pictures inlined, and the
+ * browser decodes each of them again for every frame. A phone screenshot sent
+ * whole is megabytes of text and millions of pixels per picture per frame, so
+ * a film with three or four of them exported many times slower than one
+ * without. Scaled to the frame, it looks the same.
+ */
+function embeddedPictureDataUrl(url: string, maxEdge: number): Promise<string> {
+  const key = `${maxEdge} ${url}`;
+  let embedded = embeddedImageCache.get(key);
+  if (!embedded) {
+    embedded = fetch(url).then(async (response) => {
+      if (!response.ok) throw new Error(`Could not embed ${url} for export.`);
+      const blob = await response.blob();
+      // A picture that cannot be re-encoded is still exported, whole.
+      return shrunkDataUrl(blob, maxEdge).catch(() => blobAsDataUrl(blob));
+    });
+    embeddedImageCache.set(key, embedded);
+  }
+  return embedded;
+}
+
+async function inlineImages(
+  source: Element,
+  clone: Element,
+  maxEdge: number,
+): Promise<void> {
   const sourceImages = Array.from(source.querySelectorAll("img"));
   const cloneImages = Array.from(clone.querySelectorAll("img"));
   await Promise.all(
@@ -50,7 +139,16 @@ async function inlineImages(source: Element, clone: Element): Promise<void> {
       const target = cloneImages[index];
       const url = image.currentSrc || image.src;
       if (!target || !url || url.startsWith("data:")) return;
-      target.src = await embeddedImageDataUrl(url);
+      target.src = await embeddedPictureDataUrl(url, maxEdge);
+      // A picture sized by its own pixels would shrink with them: pin it to
+      // the size it is laid out at now, which changes nothing for the rest.
+      const laid = (image.ownerDocument.defaultView ?? window).getComputedStyle(
+        image,
+      );
+      if (laid.display !== "none" && laid.width.endsWith("px")) {
+        target.style.width = laid.width;
+        target.style.height = laid.height;
+      }
     }),
   );
 }
@@ -234,7 +332,7 @@ async function renderRawFrame(
   const live = doc.documentElement;
   const clone = live.cloneNode(true) as HTMLElement;
   // Images pair up by position, so they are inlined before canvases and clips become images.
-  await inlineImages(live, clone);
+  await inlineImages(live, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(live, clone);
   snapshotVideos(live, clone);
   clone
@@ -274,7 +372,7 @@ export async function renderAuthoredFrame(
   if (rawDocument) return renderRawFrame(rawDocument, width, height, scale);
   const clone = runtime.root.cloneNode(true) as HTMLElement;
   // Images pair up by position, so they are inlined before canvases and clips become images.
-  await inlineImages(runtime.root, clone);
+  await inlineImages(runtime.root, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(runtime.root, clone);
   snapshotVideos(runtime.root, clone);
   // The preview's watermark sits on the canvas, not in the film.
