@@ -82,6 +82,35 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
+  it("shows a free plan's film length beside the prompt, and none without a limit", async () => {
+    const onUpgradeLength = vi.fn();
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({ maxSeconds: 10, onUpgradeLength }),
+    });
+
+    try {
+      const chip = must<HTMLButtonElement>(".ai-length-chip");
+      expect(chip.textContent).toContain("Up to 10 sec");
+      expect(chip.dataset["tooltip"]).toBe(
+        "Free plan videos are up to 10 seconds. Upgrade for longer videos.",
+      );
+      chip.click();
+      expect(onUpgradeLength).toHaveBeenCalledOnce();
+    } finally {
+      await unmount(component);
+    }
+
+    const unlimited = mount(TiffyPanel, { target, props: panelProps() });
+    try {
+      expect(document.querySelector(".ai-length-chip")).toBeNull();
+    } finally {
+      await unmount(unlimited);
+    }
+  });
+
   it("lets a paid user switch between Pro and Flash", async () => {
     const onSelectModel = vi.fn();
     const onUpgradeModel = vi.fn();

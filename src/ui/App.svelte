@@ -16,6 +16,7 @@
   import ReferralButton from "./cloud/ReferralButton.svelte";
   import { get } from "svelte/store";
   import { motifySiteHref, PRICING_URL } from "../api/config";
+  import { filmLimit } from "../cloud/film-limits";
   import {
     applyServerCharge,
     clearLastCharge,
@@ -107,7 +108,6 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
-  import MaintenanceNotice from "./MaintenanceNotice.svelte";
   import { isVoiceOverReleased } from "./cloud/voice-release";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
@@ -449,6 +449,14 @@
   // the exporter will produce, rather than inferring policy from a plan name.
   $: showPreviewWatermark =
     Boolean(runtime) && subscriptionChecked && !exportWithoutWatermark;
+  /** The longest film this account can make, in seconds; null for no limit. The server enforces it too. */
+  $: maxFilmSeconds = filmLimit({
+    cloud: mode === "cloud",
+    signedIn: Boolean(currentUser),
+    planRead: activeSubscription !== null,
+    entitled: activeSubscription?.entitlements?.maxFilmSeconds,
+    paid: Boolean(activePlan),
+  });
   $: promotionHref = promotionBanner
     ? ((promotionBanner.ctaUrl
         ? motifySiteHref(promotionBanner.ctaUrl)
@@ -4200,6 +4208,10 @@ Voice over direction: ${voiceNote}`
     void runLandingPrompt();
   }
 
+  function openPricing(): void {
+    window.open(PRICING_URL, "_blank", "noopener");
+  }
+
   async function refreshActivePlan(): Promise<void> {
     if (!currentUser || !workspaceId) {
       activePlan = null;
@@ -4942,6 +4954,8 @@ Voice over direction: ${voiceNote}`
                       captureEvent("guided start picked", { type: type.id })}
                     onGenerate={generateFromTool}
                     onStoryboard={mode === "cloud" ? planToolStoryboard : null}
+                    maxSeconds={maxFilmSeconds}
+                    onUpgrade={openPricing}
                   />
                 </div>
               {:else if centerPage === "films"}
@@ -6319,7 +6333,6 @@ Voice over direction: ${voiceNote}`
       />
     {/if}
     <EarlyNoticeCard />
-    <MaintenanceNotice />
     <AuthDialog
       bind:open={authDialogOpen}
       bind:mode={authDialogMode}
@@ -6371,7 +6384,9 @@ Voice over direction: ${voiceNote}`
       generationModel = model;
       generationModelPicked = true;
     }}
-    onUpgradeModel={() => window.open(PRICING_URL, "_blank", "noopener")}
+    onUpgradeModel={openPricing}
+    maxSeconds={maxFilmSeconds}
+    onUpgradeLength={openPricing}
     {longGeneration}
     title={projectTitle}
     onBack={variant === "panel" ? () => void returnHome() : null}

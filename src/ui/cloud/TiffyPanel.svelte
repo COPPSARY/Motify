@@ -6,6 +6,7 @@
     ArrowLeft,
     ArrowUp,
     ChevronDown,
+    Clock,
     Dna,
     Film,
     History,
@@ -33,6 +34,7 @@
     ProjectsApi,
   } from "../../cloud/projects-api";
   import { formatCredits } from "../../api/credits";
+  import { lengthLimitTip } from "../../cloud/film-limits";
   import { generationStore } from "../../stores/generation";
   import { creditBalance, creditEstimate } from "../../stores/credits";
   import type {
@@ -108,6 +110,9 @@
   export let modelLocked = true;
   export let onSelectModel: (model: GenerationModel) => void = () => undefined;
   export let onUpgradeModel: () => void = () => undefined;
+  /** The longest film the plan allows, in seconds; null for no limit. Shown beside the prompt. */
+  export let maxSeconds: number | null = null;
+  export let onUpgradeLength: () => void = () => undefined;
   /** Long prompts get a time expectation while the run is active. */
   export let longGeneration = false;
   /** The open video's name, shown in the panel header. */
@@ -860,6 +865,18 @@
             <VoiceComingSoonCard onClose={() => (voiceSoonOpen = false)} />
           {/if}
         </div>
+      {/if}
+      {#if maxSeconds !== null}
+        <button
+          type="button"
+          class="ai-brand-chip ai-length-chip"
+          aria-label={`Videos up to ${maxSeconds} seconds. ${lengthLimitTip(maxSeconds)}`}
+          data-tooltip={lengthLimitTip(maxSeconds)}
+          on:click={onUpgradeLength}
+          ><Clock size={14} aria-hidden="true" /><span
+            >Up to {maxSeconds} sec</span
+          ></button
+        >
       {/if}
     </div>
     <textarea

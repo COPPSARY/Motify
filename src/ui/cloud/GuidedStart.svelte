@@ -6,6 +6,7 @@
     Clock,
     ImagePlus,
     LayoutList,
+    Lock,
     Sparkles,
     X,
   } from "lucide-svelte";
@@ -15,6 +16,7 @@
     fetchPromptTemplates,
     type PromptTemplate,
   } from "../../api/prompt-templates";
+  import { lengthLimitTip } from "../../cloud/film-limits";
   import type { Storyboard } from "../../cloud/projects-api";
   import type { CanvasAspect } from "../../composition/canvas-frame";
   import {
@@ -55,6 +57,10 @@
   export let onPick: (tool: GuidedTool) => void = () => undefined;
   /** Opens the full Prompt Templates page; without it the link is not shown. */
   export let onExplore: (() => void) | null = null;
+  /** The longest film the plan allows, in seconds; null for no limit. Longer lengths are locked. */
+  export let maxSeconds: number | null = null;
+  /** Opens pricing, from a locked length. */
+  export let onUpgrade: () => void = () => undefined;
   /**
    * Plans the storyboard for these choices, uploading the pictures, and says
    * which upload each picture became; null when it could not (signing in, say).
@@ -106,6 +112,12 @@
   let planning = false;
 
   $: open = tool !== null;
+  // A plan read after the form opened, or one that ended, takes the length back inside it.
+  $: if (maxSeconds !== null && (customLength || seconds > maxSeconds)) {
+    customLength = false;
+    seconds = Math.min(seconds, maxSeconds);
+  }
+  $: limitTip = maxSeconds === null ? null : lengthLimitTip(maxSeconds);
   $: lengthValue = customLength
     ? clampSeconds(Number.parseFloat(customSeconds))
     : seconds;
@@ -176,7 +188,7 @@
     board = null;
     showBoard = false;
     aspect = next.aspect;
-    seconds = 15;
+    seconds = maxSeconds === null ? 15 : Math.min(15, maxSeconds);
     customLength = false;
     customSeconds = "";
     language = "en";
@@ -333,7 +345,7 @@
     const length = customLength
       ? clampSeconds(Number.parseFloat(customSeconds))
       : seconds;
-    if (length === null) {
+    if (length === null || (maxSeconds !== null && length > maxSeconds)) {
       document.getElementById("guide-seconds")?.focus();
       return null;
     }
@@ -769,16 +781,38 @@
               <legend>Length</legend>
               <div class="gs-segments gs-segments--4">
                 {#each LENGTH_PRESETS as preset (preset)}
+                  {#if maxSeconds !== null && preset > maxSeconds}
+                    <button
+                      type="button"
+                      class="gs-segment is-locked"
+                      aria-disabled="true"
+                      aria-label={`${preset} sec, locked. ${limitTip}`}
+                      data-tooltip={limitTip}
+                      on:click={onUpgrade}
+                      ><Lock size={13} aria-hidden="true" />{preset} sec</button
+                    >
+                  {:else}
+                    <button
+                      type="button"
+                      class="gs-segment"
+                      class:is-selected={!customLength && seconds === preset}
+                      aria-pressed={!customLength && seconds === preset}
+                      on:click={() => setPresetLength(preset)}
+                      >{preset} sec</button
+                    >
+                  {/if}
+                {/each}
+                {#if maxSeconds !== null}
                   <button
                     type="button"
-                    class="gs-segment"
-                    class:is-selected={!customLength && seconds === preset}
-                    aria-pressed={!customLength && seconds === preset}
-                    on:click={() => setPresetLength(preset)}
-                    >{preset} sec</button
+                    class="gs-segment is-locked"
+                    aria-disabled="true"
+                    aria-label={`Custom length, locked. ${limitTip}`}
+                    data-tooltip={limitTip}
+                    on:click={onUpgrade}
+                    ><Lock size={13} aria-hidden="true" />Custom</button
                   >
-                {/each}
-                {#if customLength}
+                {:else if customLength}
                   <label class="gs-segment gs-custom is-selected">
                     <input
                       id="guide-seconds"
@@ -800,7 +834,14 @@
                   >
                 {/if}
               </div>
-              {#if customLength}
+              {#if maxSeconds !== null}
+                <small class="gs-hint gs-limit"
+                  >Free plan videos are up to {maxSeconds} seconds.
+                  <button type="button" on:click={onUpgrade}
+                    >Upgrade for longer videos</button
+                  ></small
+                >
+              {:else if customLength}
                 <small class="gs-hint"
                   >Any length from {MIN_SECONDS} to {MAX_SECONDS} seconds.</small
                 >

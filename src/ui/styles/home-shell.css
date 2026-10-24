@@ -423,6 +423,49 @@
   color: var(--sl-text);
 }
 
+/* The plan's film length, beside the prompt; says why on hover or focus. */
+.code-editor-scope .ai-length-chip {
+  position: relative;
+  max-width: none;
+  border-style: dashed;
+  cursor: help;
+}
+
+.code-editor-scope .ai-length-chip svg {
+  color: var(--sl-muted);
+}
+
+.code-editor-scope .ai-length-chip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 90;
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #29292d;
+  color: #f1f1f3;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.code-editor-scope .ai-length-chip:hover::after,
+.code-editor-scope .ai-length-chip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .code-editor-scope .ai-aspect-picker-wrap {
   position: relative;
 }

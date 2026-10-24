@@ -40,6 +40,8 @@ export type BillingPlanId = string;
 export interface WorkspaceEntitlements {
   exportWithoutWatermark: boolean;
   maxExportHeight: number;
+  /** The longest film the account can make, in seconds; null on a paid plan. Absent on older API nodes. */
+  maxFilmSeconds?: number | null;
 }
 
 export interface WorkspaceSubscription {

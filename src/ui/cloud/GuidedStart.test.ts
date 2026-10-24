@@ -45,6 +45,8 @@ describe("GuidedStart", () => {
     props: {
       brand?: { name: string; logoAssetId: string | null } | null;
       onExplore?: () => void;
+      maxSeconds?: number | null;
+      onUpgrade?: () => void;
       onStoryboard?: (result: GuideResult) => Promise<{
         storyboard: Storyboard;
         uploads: ReadonlyMap<File, string>;
@@ -143,6 +145,40 @@ describe("GuidedStart", () => {
     expect(result.files).toEqual([]);
     // Sent, so the form gives way to the tools again.
     expect(document.querySelectorAll(".gs-card")).toHaveLength(4);
+  });
+
+  it("holds a free plan to its length, and says why on the locked ones", async () => {
+    const onUpgrade = vi.fn();
+    start({ maxSeconds: 10, onUpgrade });
+    button("Social media ad").click();
+    await settle();
+
+    const locked = [
+      ...document.querySelectorAll<HTMLButtonElement>(".gs-segment.is-locked"),
+    ];
+    expect(locked.map((item) => item.textContent?.trim())).toEqual([
+      "15 sec",
+      "25 sec",
+      "Custom",
+    ]);
+    for (const item of locked) {
+      expect(item.dataset["tooltip"]).toBe(
+        "Free plan videos are up to 10 seconds. Upgrade for longer videos.",
+      );
+      expect(item.getAttribute("aria-disabled")).toBe("true");
+    }
+    expect(document.querySelector(".gs-limit")?.textContent).toContain(
+      "Free plan videos are up to 10 seconds.",
+    );
+    expect(document.getElementById("guide-seconds")).toBeNull();
+
+    button("25 sec").click();
+    await settle();
+    expect(onUpgrade).toHaveBeenCalledTimes(1);
+    type("guide-instructions", "20% off this week");
+    button("Generate video").click();
+    await settle();
+    expect(lastResult().tool.seconds).toBe(10);
   });
 
   it("makes a social ad as one animated poster when asked", async () => {
