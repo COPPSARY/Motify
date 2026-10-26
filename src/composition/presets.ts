@@ -237,6 +237,22 @@ export interface InverseZoomThroughOptions extends MotionOptions {
   blur?: number;
 }
 
+export interface BeatCutOptions extends MotionOptions {
+  outgoing: Target;
+  incoming: Target;
+  direction?: "push" | "left" | "right" | "up" | "down";
+  distance?: number;
+  blur?: number;
+}
+
+export interface BlurDissolveOptions extends MotionOptions {
+  outgoing: Target;
+  incoming: Target;
+  blur?: number;
+  scaleExit?: number;
+  scaleEntry?: number;
+}
+
 type Target = gsap.TweenTarget;
 
 export function reveal(
@@ -1612,6 +1628,142 @@ export function inverseZoomThrough(
       immediateRender: false,
     },
     exitDur,
+  );
+
+  return timeline.add(sub, options.at);
+}
+
+/**
+ * A hard cut on a music beat, between two moving shots. The outgoing shot
+ * accelerates into a blur ramp and vanishes on the cut frame, 40% into the
+ * seam; the incoming one is on screen in full from that frame, already moving
+ * and still smeared, and decelerates on an exponential ease-out. Schedule `at`
+ * so the cut lands on the beat or 2 frames ahead of it. "push" drives toward
+ * the camera; a direction whips along that axis and smears along it.
+ */
+export function beatCut(
+  timeline: gsap.core.Timeline,
+  options: BeatCutOptions,
+): gsap.core.Timeline {
+  const duration = options.duration ?? 0.6;
+  const exitDur = duration * 0.4;
+  const entryDur = duration * 0.6;
+  const dir = options.direction ?? "push";
+  const dist = options.distance ?? 120;
+  const blurPx = options.blur ?? 6;
+  const sub = gsap.timeline();
+
+  const dx = dir === "left" ? -dist : dir === "right" ? dist : 0;
+  const dy = dir === "up" ? -dist : dir === "down" ? dist : 0;
+  const push = dir === "push";
+  // A stretch along the axis of travel reads as a directional smear; a push
+  // grows evenly toward the camera.
+  const exitScale = {
+    scaleX: push ? 1.08 : dx !== 0 ? 1.06 : 1,
+    scaleY: push ? 1.08 : dy !== 0 ? 1.06 : 1,
+  };
+  const entryScale = {
+    scaleX: push ? 0.94 : dx !== 0 ? 1.06 : 1,
+    scaleY: push ? 0.94 : dy !== 0 ? 1.06 : 1,
+  };
+
+  sub.set(options.incoming, { autoAlpha: 0 }, 0);
+
+  // Phase 1: the outgoing shot accelerates into the cut.
+  sub.to(
+    options.outgoing,
+    {
+      x: dx * 0.35,
+      y: dy * 0.35,
+      ...exitScale,
+      filter: `blur(${blurPx}px)`,
+      duration: exitDur,
+      ease: "power3.in",
+    },
+    0,
+  );
+
+  // The cut: no fade on either side.
+  sub.set(options.outgoing, { autoAlpha: 0 }, exitDur);
+
+  // Phase 2: the incoming shot arrives mid-move and settles.
+  sub.fromTo(
+    options.incoming,
+    {
+      x: -dx * 0.65,
+      y: -dy * 0.65,
+      ...entryScale,
+      filter: `blur(${blurPx}px)`,
+      autoAlpha: 1,
+    },
+    {
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      filter: "blur(0px)",
+      duration: entryDur,
+      ease: "expo.out",
+      immediateRender: false,
+    },
+    exitDur,
+  );
+
+  return timeline.add(sub, options.at);
+}
+
+/**
+ * Two shots exchanged through blur rather than opacity alone. The outgoing shot
+ * keeps drifting as it softens and fades; the incoming one rises out of the
+ * same blur while settling from `scaleEntry`. Both are moving the whole time,
+ * so it never reads as a crossfade between stills.
+ */
+export function blurDissolve(
+  timeline: gsap.core.Timeline,
+  options: BlurDissolveOptions,
+): gsap.core.Timeline {
+  const duration = options.duration ?? 0.7;
+  const blurPx = options.blur ?? 12;
+  const scaleExit = options.scaleExit ?? 1.04;
+  const scaleEntry = options.scaleEntry ?? 1.06;
+  const sub = gsap.timeline();
+
+  sub.set(options.incoming, { autoAlpha: 0 }, 0);
+
+  // Outgoing: blur ramps up while it keeps moving.
+  sub.to(
+    options.outgoing,
+    {
+      scale: scaleExit,
+      filter: `blur(${blurPx}px)`,
+      duration: duration * 0.6,
+      ease: "power2.in",
+    },
+    0,
+  );
+  sub.to(
+    options.outgoing,
+    { autoAlpha: 0, duration: duration * 0.4, ease: "power1.in" },
+    duration * 0.25,
+  );
+
+  // Incoming: resolves out of the blur peak.
+  sub.fromTo(
+    options.incoming,
+    {
+      scale: scaleEntry,
+      filter: `blur(${blurPx}px)`,
+      autoAlpha: 0,
+    },
+    {
+      scale: 1,
+      filter: "blur(0px)",
+      autoAlpha: 1,
+      duration: duration * 0.75,
+      ease: "expo.out",
+      immediateRender: false,
+    },
+    duration * 0.25,
   );
 
   return timeline.add(sub, options.at);

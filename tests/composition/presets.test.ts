@@ -15,6 +15,8 @@ describe("GSAP-first motion presets", () => {
       "ambientFloat",
       "ambientWaves",
       "anticipate",
+      "beatCut",
+      "blurDissolve",
       "blurReveal",
       "cameraPull",
       "cameraPush",
@@ -69,6 +71,45 @@ describe("GSAP-first motion presets", () => {
     presets.textReveal(timeline, title, { at: 0.18, unit: "words" });
     expect(timeline.getChildren().length).toBeGreaterThanOrEqual(2);
     expect(title.querySelectorAll("span")).toHaveLength(3);
+  });
+
+  it("cuts on the beat between two moving, smeared shots", () => {
+    const timeline = gsap.timeline({ paused: true });
+    const outgoing = document.createElement("section");
+    const incoming = document.createElement("section");
+    presets.beatCut(timeline, {
+      outgoing,
+      incoming,
+      at: 1,
+      duration: 0.5,
+      direction: "up",
+    });
+    // The cut frame is 40% into the seam: 1.2s.
+    timeline.seek(1.19);
+    expect(outgoing.style.visibility).not.toBe("hidden");
+    expect(outgoing.style.filter).toMatch(/blur\([1-9]/);
+    expect(incoming.style.visibility).toBe("hidden");
+    timeline.seek(1.21);
+    expect(outgoing.style.visibility).toBe("hidden");
+    expect(incoming.style.opacity).toBe("1");
+    expect(incoming.style.filter).toMatch(/blur\([1-9]/);
+    expect(incoming.style.transform).toMatch(/scale\(1, 1\.0\d+\)/);
+    timeline.seek(1.5);
+    expect(incoming.style.filter).toBe("blur(0px)");
+  });
+
+  it("dissolves through blur with both shots moving", () => {
+    const timeline = gsap.timeline({ paused: true });
+    const outgoing = document.createElement("section");
+    const incoming = document.createElement("section");
+    presets.blurDissolve(timeline, { outgoing, incoming, at: 0, duration: 1 });
+    timeline.seek(0.5);
+    expect(outgoing.style.filter).toMatch(/blur\([1-9]/);
+    expect(Number(incoming.style.opacity)).toBeGreaterThan(0);
+    expect(incoming.style.transform).toMatch(/scale/);
+    timeline.seek(1);
+    expect(outgoing.style.visibility).toBe("hidden");
+    expect(incoming.style.filter).toBe("blur(0px)");
   });
 
   it("supports masks, camera moves, morphs, and stagger without hidden state", () => {
