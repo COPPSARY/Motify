@@ -9,7 +9,11 @@ import {
 } from "../composition/frame-subjects";
 import { isRawFilm } from "../composition/raw-film-marker";
 import type { SceneDefinition } from "../composition/types";
-import { seamsFromResult, type SeamDirection } from "./seam-plan";
+import {
+  isCutMechanism,
+  seamsFromResult,
+  type SeamDirection,
+} from "./seam-plan";
 import type { DirectAiResult } from "./direct-ai";
 
 /**
@@ -28,7 +32,7 @@ const MAX_COMPOSITION_SECONDS = 300;
 
 /** Executable carrier handoffs. Opacity is not one of them. */
 const PHYSICAL_HANDOFF =
-  /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|particleReassemble)\s*\(/g;
+  /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|particleReassemble|beatCut|blurDissolve)\s*\(/g;
 
 /** Leaf elements that own their own visible text run. */
 function textLeaves(elements: readonly HTMLElement[]): HTMLElement[] {
@@ -723,7 +727,7 @@ function carrierContinuityWarnings(
   const warnings: string[] = [];
   if (Array.from(timelineJs.matchAll(PHYSICAL_HANDOFF)).length === 0) {
     warnings.push(
-      "Scenes are joined without a morph, match-cut, or particle handoff, so the film cuts like a slideshow.",
+      "Scenes are joined without a morph, match-cut, particle handoff, beat-cut or blur-dissolve, so the film cuts like a slideshow.",
     );
   }
   if (!/data-transition-carrier(?:\s|=|>)/i.test(html)) {
@@ -780,6 +784,7 @@ function seamRenderWarnings(
   runtime: CompositionRuntime,
   root: HTMLElement,
   seams: readonly SeamDirection[],
+  scenes: readonly SceneDefinition[],
   duration: number,
 ): string[] {
   const warnings: string[] = [];
@@ -815,19 +820,28 @@ function seamRenderWarnings(
      * standalone shape and drag it across the cut: the stray square that sat
      * on top of the words in exported films.
      */
-    if (entering.dataset["scene"]?.trim() === seam.from) {
+    const cut = isCutMechanism(seam.mechanism);
+    if (cut) warnings.push(...stillCutWarnings(runtime, root, seam, scenes));
+    if (cut || entering.dataset["scene"]?.trim() === seam.from) {
+      // A cut exchanges whole shots, so its outgoing side is the beat itself
+      // whatever element the plan named as its carrier.
+      const sceneLayer = (id: string): HTMLElement | undefined =>
+        Array.from(root.querySelectorAll<HTMLElement>("[data-scene]")).find(
+          (element) =>
+            element.dataset["scene"]?.trim() === id &&
+            !element.parentElement?.closest("[data-scene]"),
+        );
+      runtime.seek(before);
+      const outgoing = cut ? sceneLayer(seam.from) : entering;
+      const visibleOutgoing = outgoing
+        ? isVisiblyRendered(outgoing, root)
+        : visibleEntering;
       runtime.seek(after);
-      const incoming = Array.from(
-        root.querySelectorAll<HTMLElement>("[data-scene]"),
-      ).find(
-        (element) =>
-          element.dataset["scene"]?.trim() === seam.to &&
-          !element.parentElement?.closest("[data-scene]"),
-      );
-      if (!visibleEntering || !incoming || !isVisiblyRendered(incoming, root)) {
+      const incoming = sceneLayer(seam.to);
+      if (!visibleOutgoing || !incoming || !isVisiblyRendered(incoming, root)) {
         warnings.push(
           `The handoff at ${seam.at.toFixed(1)}s does not carry "${seam.from}" into "${seam.to}": ${
-            visibleEntering
+            visibleOutgoing
               ? `"${seam.to}" is not on screen once it finishes`
               : `"${seam.from}" is already gone before it starts`
           }.`,
@@ -919,6 +933,42 @@ function seamRenderWarnings(
   return warnings;
 }
 
+/**
+ * A cut between two shots only reads as one film when neither side is still:
+ * the outgoing shot is accelerating into the cut and the incoming one is
+ * already moving out of it. Two identical frames on either side is a hard cut
+ * between stills, the slideshow this seam type must never become.
+ */
+function stillCutWarnings(
+  runtime: CompositionRuntime,
+  root: HTMLElement,
+  seam: SeamDirection,
+  scenes: readonly SceneDefinition[],
+): string[] {
+  const outgoing = scenes.find((scene) => scene.id === seam.from);
+  const cut = outgoing
+    ? outgoing.start + outgoing.duration
+    : seam.at + seam.duration / 2;
+  const frame = 1 / 30;
+  const signatureAt = (time: number): string => {
+    runtime.seek(Math.max(0, time));
+    return frameSignature(root);
+  };
+  const still: string[] = [];
+  if (signatureAt(cut - 2 * frame) === signatureAt(cut - frame)) {
+    still.push(`"${seam.from}" is still going into it`);
+  }
+  if (signatureAt(cut + frame) === signatureAt(cut + 2 * frame)) {
+    still.push(`"${seam.to}" is still coming out of it`);
+  }
+  if (still.length === 0) return [];
+  return [
+    `The ${seam.mechanism} at ${cut.toFixed(2)}s lands on a still frame: ${still.join(
+      " and ",
+    )}. Leave on an accelerating move or a blur ramp, and enter already moving.`,
+  ];
+}
+
 function relativeChange(first: number, second: number): number {
   const base = Math.max(1, Math.max(first, second));
   return Math.abs(first - second) / base;
@@ -939,6 +989,7 @@ function assertBeatsShareMaterial(
   runtime: CompositionRuntime,
   root: HTMLElement,
   scenes: readonly SceneDefinition[],
+  seams: readonly SeamDirection[],
   limit: number,
 ): void {
   const rootRect = root.getBoundingClientRect();
@@ -969,6 +1020,15 @@ function assertBeatsShareMaterial(
     }
     const shared = [...before].filter((element) => after.has(element));
     if (shared.length > 0) continue;
+    // A beat-cut or blur-dissolve exchanges two moving shots on purpose; its
+    // continuity is the motion on both sides, checked in stillCutWarnings.
+    const cutSeam = seams.some(
+      (seam) =>
+        isCutMechanism(seam.mechanism) &&
+        seam.from === scene.id &&
+        seam.to === next.id,
+    );
+    if (cutSeam) continue;
     throw new Error(
       `Nothing survives the cut from ${scene.id} to ${next.id} at ${cut.toFixed(
         1,
@@ -1869,7 +1929,7 @@ export function validateGeneratedComposition(
         assertSceneDevelops(mounted, root, scene, limit);
       }
       assertSeamFramesHoldTheFilm(mounted, root, seams, limit);
-      assertBeatsShareMaterial(mounted, root, validated, limit);
+      assertBeatsShareMaterial(mounted, root, validated, seams, limit);
       assertNoDeadFrames(mounted, root, limit);
       assertFilmMakesAStatement(mounted, root, validated, limit);
       assertTypeStaysInFrame(mounted, root, validated, limit);
@@ -1895,7 +1955,9 @@ export function validateGeneratedComposition(
       if (!options.lenient || isFatalRenderFailure(message)) throw error;
       warnings.push(message);
     }
-    warnings.push(...seamRenderWarnings(runtime, root, seams, limit));
+    warnings.push(
+      ...seamRenderWarnings(runtime, root, seams, validated, limit),
+    );
     warnings.push(...deadAirWarnings(runtime, root, limit));
   } finally {
     runtime?.destroy();

@@ -35,6 +35,18 @@ function analyze(seam: Partial<typeof sound>) {
 }
 
 describe("seam plan", () => {
+  it("keeps beat-cut and blur-dissolve seams", () => {
+    const seams = seamsFromResult([
+      { ...sound, mechanism: "beat-cut" },
+      { ...sound, at: 5, mechanism: "blur-dissolve" },
+      { ...sound, at: 6, mechanism: "crossfade" },
+    ]);
+    expect(seams.map((seam) => seam.mechanism)).toEqual([
+      "beat-cut",
+      "blur-dissolve",
+    ]);
+  });
+
   it("accepts a seam that straddles its cut on a real carrier", () => {
     const report = analyze({});
     expect(report.issues).toEqual([]);

@@ -81,7 +81,7 @@ const ISSUE_REMEDIES: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     "multi-scene output has no morph",
-    "Join scene boundaries with `morph(...)`, `matchCut(timeline, outgoing, incoming, ...)`, or a particle reassembly instead of a cross-fade.",
+    "Join scene boundaries with `morph(...)`, `matchCut(timeline, outgoing, incoming, ...)`, a particle reassembly, `beatCut(...)` on a music hit, or `blurDissolve(...)` instead of a cross-fade.",
   ],
   [
     "scenes are joined by opacity toggles",
