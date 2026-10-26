@@ -15,6 +15,8 @@ export const PROMPT_SOURCES = [
   "src/composition/presets.ts",
   "src/ai/house-style.md",
   "src/ai/motion-direction.md",
+  "src/ai/ad-design.md",
+  "src/ai/product-film-craft.md",
 ];
 export const PROMPT_OUTPUT = "src/ai/generated/prompt.ts";
 /** Authored films measured into the house-style reference. */
