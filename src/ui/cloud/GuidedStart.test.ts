@@ -330,6 +330,7 @@ describe("GuidedStart", () => {
         },
       ],
       ending: "The logo on its own.",
+      direction: "orbit/116/silky",
     };
     const onStoryboard = vi.fn().mockResolvedValue({
       storyboard: structuredClone(storyboard),
@@ -364,6 +365,8 @@ describe("GuidedStart", () => {
     const sent = lastResult().tool.storyboard;
     expect(sent?.beats.map((beat) => beat.title)).toEqual(["Hook", "Close"]);
     expect(sent?.beats.at(-1)).toMatchObject({ start: 7.5, duration: 7.5 });
+    // The direction it was planned with goes back as it came, so the film is shot as planned.
+    expect(sent?.direction).toBe("orbit/116/silky");
   });
 
   it("plans a new storyboard when the choices change", async () => {

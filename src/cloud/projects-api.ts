@@ -270,6 +270,12 @@ export interface Storyboard {
   beats: StoryboardBeat[];
   /** The last image. */
   ending: string;
+  /**
+   * How the film is shot (camera, tempo and motion), chosen by the server when
+   * it planned the storyboard. Opaque here: it is sent back as it came so the
+   * film is shot as planned.
+   */
+  direction?: string;
 }
 
 export interface StoryboardBeat {
