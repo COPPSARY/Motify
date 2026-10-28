@@ -135,11 +135,10 @@ describe("App project actions", () => {
       expect(document.querySelector(".me-properties-panel")).toBeNull();
       expect(document.body.textContent).not.toContain("View timeline");
       expect(document.body.textContent).not.toContain("PNG");
-      // A guest's video is watermarked, with no way to turn it off.
+      // A guest has no way to turn the export watermark off.
       expect(
         document.querySelector('input[aria-label="Remove watermark"]'),
       ).toBeNull();
-      expect(document.querySelector("[data-motify-watermark]")).not.toBeNull();
 
       generationStore.set({
         isActive: true,
@@ -506,9 +505,6 @@ describe("App project actions", () => {
       expect(
         document.querySelector('input[aria-label="Remove watermark"]'),
       ).toBeNull();
-      await vi.waitFor(() => {
-        expect(document.querySelector("[data-motify-watermark]")).toBeNull();
-      });
     } finally {
       await unmount(component);
     }

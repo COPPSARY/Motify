@@ -375,10 +375,6 @@ export async function renderAuthoredFrame(
   await inlineImages(runtime.root, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(runtime.root, clone);
   snapshotVideos(runtime.root, clone);
-  // The preview's watermark sits on the canvas, not in the film.
-  clone
-    .querySelectorAll("[data-motify-watermark]")
-    .forEach((node) => node.remove());
   await inlineFontFaces(clone);
   const fontCss = await exportFontCss(clone.outerHTML);
   if (fontCss) {
