@@ -457,15 +457,6 @@
   pointer-events: none;
 }
 
-.code-editor-scope .me-canvas-watermark {
-  position: absolute;
-  z-index: 2;
-  display: block;
-  height: auto;
-  opacity: 0.8;
-  pointer-events: none;
-}
-
 .code-editor-scope .me-view-btn.me-view-relayout {
   gap: 5px;
   color: #fff;
