@@ -39,7 +39,11 @@ export interface PaymentReceipt {
   };
   lineItems: ReceiptLineItem[];
   subtotal: number;
+  /** Everything taken off the subtotal, the promo code's part included. */
   discount: number;
+  /** The promo code used, and its part of `discount`. Missing from APIs older than promo receipts. */
+  promoCode?: string | null;
+  promoDiscount?: number;
   total: number;
   amountPaid: number;
 }
@@ -159,6 +163,23 @@ export function receiptLineDetails(item: ReceiptLineItem): string[] {
     // Intl's thin spaces around the dash, as plain ones like the PDF.
     .replace(/[\u2009\u202f\u00a0]/g, " ");
   return [range, ...item.details];
+}
+
+/**
+ * The discount rows under the subtotal: the plan's own discounts, then the promo code on a line of its own
+ * ("Promo code NEWYEAR"). The same rows as the API's PDF and email.
+ */
+export function receiptDiscounts(
+  receipt: Pick<PaymentReceipt, "discount" | "promoCode" | "promoDiscount">,
+): { label: string; amount: number }[] {
+  const promo = receipt.promoCode ? (receipt.promoDiscount ?? 0) : 0;
+  const other = Math.round((receipt.discount - promo) * 100) / 100;
+  return [
+    ...(other > 0 ? [{ label: "Discount", amount: other }] : []),
+    ...(promo > 0
+      ? [{ label: `Promo code ${receipt.promoCode}`, amount: promo }]
+      : []),
+  ];
 }
 
 /** "Bakong KHQR - se•••@aclb" */
