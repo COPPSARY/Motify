@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    setupFiles: ["tests/setup/web-storage.ts"],
     // The composition suites are CPU-heavy DOM/GSAP renders. Letting Vitest
     // start one worker per core makes individual films slower than the default
     // timeout on shared release runners even though they complete correctly.
