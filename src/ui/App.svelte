@@ -13,7 +13,7 @@
   import CreditsBadge from "./cloud/CreditsBadge.svelte";
   import BillingPage from "./cloud/BillingPage.svelte";
   import ReceiptDialog from "./cloud/ReceiptDialog.svelte";
-  import ReferralButton from "./cloud/ReferralButton.svelte";
+  import DiscountOffer from "./cloud/DiscountOffer.svelte";
   import { get } from "svelte/store";
   import { motifySiteHref, PRICING_URL } from "../api/config";
   import { filmLimit } from "../cloud/film-limits";
@@ -229,6 +229,7 @@
   import "./styles/guided-start.css";
   import "./styles/out-of-credits.css";
   import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
+  import "./styles/discount-offer.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
   import GuidedStart from "./cloud/GuidedStart.svelte";
   import {
@@ -4713,7 +4714,10 @@ Voice over direction: ${voiceNote}`
                         >{activePlan ?? "Free"}</small
                       >
                     </div>
-                    <ReferralButton user={currentUser} compact />
+                    <!-- Refer a friend is paused for now; ReferralButton.svelte is kept for when it returns. -->
+                    <DiscountOffer
+                      onRedeem={() => captureEvent("discount code redeem clicked")}
+                    />
                     <div class="me-profile" bind:this={profileMenu}>
                       {#if profileMenuOpen}
                         <div class="me-profile-menu" role="menu">
@@ -4775,6 +4779,7 @@ Voice over direction: ${voiceNote}`
                   {/if}
                   <a
                     class="me-sidebar-upgrade"
+                    class:me-sidebar-upgrade--glow={!activePlan}
                     href={PRICING_URL}
                     target="_blank"
                     rel="noopener"

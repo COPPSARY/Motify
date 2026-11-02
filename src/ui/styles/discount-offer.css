@@ -1,0 +1,322 @@
+/* The sidebar's "Get 50% off" button and the MOTIFY50 dialog it opens.
+   The shell reuses the referral dialog's panel and close button. */
+
+.code-editor-scope .me-discount {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.code-editor-scope .me-discount__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 22px 22px;
+  text-align: center;
+}
+
+.code-editor-scope .me-discount__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.code-editor-scope .me-discount__eyebrow {
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  border: 1px solid rgba(143, 180, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(31, 69, 176, 0.18);
+  color: #b9cdff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.code-editor-scope .me-discount__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: rgba(31, 69, 176, 0.22);
+  color: #b9cdff;
+}
+
+.code-editor-scope .me-discount h2 {
+  margin: 0;
+  color: var(--sl-text);
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.code-editor-scope .me-discount__lede {
+  margin: 8px 0 18px;
+  color: var(--sl-text-soft);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* The code itself: a ticket with a clipboard button. */
+.code-editor-scope .me-discount__code {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 16px;
+  border: 1px dashed rgba(143, 180, 255, 0.5);
+  border-radius: 11px;
+  background: rgba(31, 69, 176, 0.1);
+}
+
+.code-editor-scope .me-discount__code strong {
+  flex: 1;
+  color: var(--sl-text);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: left;
+}
+
+.code-editor-scope .me-discount__copy {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: var(--sl-surface);
+  color: var(--sl-text);
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.code-editor-scope .me-discount__copy:hover {
+  background: var(--sl-surface-hover);
+}
+
+.code-editor-scope .me-discount__copy.is-copied {
+  border-color: rgba(110, 231, 160, 0.45);
+  color: #6ee7a0;
+}
+
+.code-editor-scope .me-discount__copy:focus-visible,
+.code-editor-scope .me-discount__decline:focus-visible {
+  outline: 2px solid var(--sl-accent-hover);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .me-discount__copied {
+  min-height: 16px;
+  margin: 6px 0 0;
+  color: #6ee7a0;
+  font-size: 11.5px;
+}
+
+/* "Where to use it": a small replica of the checkout's promo field. */
+.code-editor-scope .me-discount__where {
+  width: 100%;
+  margin: 8px 0 18px;
+  text-align: left;
+}
+
+.code-editor-scope .me-discount__where-title {
+  margin: 0;
+  color: var(--sl-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.code-editor-scope .me-discount__where-hint {
+  margin: 4px 0 10px;
+  color: var(--sl-text-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .me-discount__where-hint b {
+  color: var(--sl-text);
+  font-weight: 600;
+}
+
+.code-editor-scope .me-discount__checkout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--sl-border);
+  border-radius: 12px;
+  background: #0a0b0e;
+}
+
+.code-editor-scope .me-discount__checkout-label {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.code-editor-scope .me-discount__checkout-row {
+  display: flex;
+  gap: 8px;
+}
+
+.code-editor-scope .me-discount__checkout-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #3a5fc8;
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px rgba(31, 69, 176, 0.25);
+  color: #fff;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  animation: me-discount-field 2.4s ease-in-out infinite;
+}
+
+.code-editor-scope .me-discount__caret {
+  width: 1px;
+  height: 15px;
+  margin-left: 2px;
+  background: #fff;
+  animation: me-discount-caret 1s steps(1) infinite;
+}
+
+.code-editor-scope .me-discount__checkout-apply {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid #2a2d33;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+@keyframes me-discount-field {
+  50% {
+    box-shadow: 0 0 0 4px rgba(31, 69, 176, 0.12);
+  }
+}
+
+@keyframes me-discount-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.code-editor-scope .me-discount__redeem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sl-brand-cobalt);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-discount__redeem:hover {
+  background: var(--sl-brand-cobalt-hover);
+}
+
+.code-editor-scope .me-discount__redeem:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.code-editor-scope .me-discount__decline {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sl-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.code-editor-scope .me-discount__decline:hover {
+  color: var(--sl-text-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .me-discount__checkout-input,
+  .code-editor-scope .me-discount__caret {
+    animation: none;
+  }
+}
+
+/* Upgrade, for anyone not on a plan yet: a faint light-blue light runs
+   around the edge so it reads as the next step without shouting. */
+@property --me-upgrade-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.code-editor-scope .me-sidebar-upgrade--glow {
+  position: relative;
+  box-shadow: 0 0 14px rgba(143, 180, 255, 0.16);
+}
+
+/* A ring just outside the button's edge, masked to 1.5px. */
+.code-editor-scope .me-sidebar-upgrade--glow::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  padding: 1.5px;
+  border-radius: 8.5px;
+  background: conic-gradient(
+    from var(--me-upgrade-angle),
+    rgba(143, 180, 255, 0.14) 0deg,
+    rgba(143, 180, 255, 0.14) 230deg,
+    rgba(143, 180, 255, 0.35) 285deg,
+    #cfe0ff 330deg,
+    #ffffff 345deg,
+    rgba(143, 180, 255, 0.5) 355deg,
+    rgba(143, 180, 255, 0.14) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+  animation: me-upgrade-laser 4s linear infinite;
+}
+
+@keyframes me-upgrade-laser {
+  to {
+    --me-upgrade-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .me-sidebar-upgrade--glow::before {
+    animation: none;
+    background: rgba(143, 180, 255, 0.35);
+  }
+}
