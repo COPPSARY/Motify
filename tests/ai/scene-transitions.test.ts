@@ -131,6 +131,20 @@ describe("scene boundaries are judged on what the timeline does", () => {
     );
   });
 
+  it("counts beatCut and blurDissolve as executed handoffs", () => {
+    const cuts = film(`export function buildTimeline({ root, timeline: t }) {
+      const a = root.querySelector('[data-edit="scene-01"]');
+      const b = root.querySelector('[data-edit="scene-02"]');
+      const c = root.querySelector('[data-edit="scene-03"]');
+      beatCut(t, { outgoing: a, incoming: b, at: 4.6, duration: 0.8 });
+      blurDissolve(t, { outgoing: b, incoming: c, at: 9.6, duration: 0.8 });
+    }`);
+    const report = analyzeMotionQuality(cuts, { prompt: "a saas ad" });
+    const blocking = report.blockingIssues.join(" ");
+    expect(blocking).not.toContain("the timeline executes none");
+    expect(blocking).not.toContain("ghosts through the new one");
+  });
+
   it("leaves a boundary alone when both sides actually animate", () => {
     // A reveal that tweens in is a technique, not the static stack; only an
     // instant `set` to full opacity mid-fade is the defect.

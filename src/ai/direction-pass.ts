@@ -146,7 +146,7 @@ The carrier must be a literal element: a blinking cursor, a specific button, a g
 
 The carrier belongs to the whole film, not to one beat. Name something that can plausibly live outside every scene and persist across several boundaries — the same object crossing three seams beats a fresh carrier at each one.
 
-Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms).
+Mechanisms: morph (outline mathematically shifts), match-cut (silhouette aligns perfectly), particle-reassemble (shatters into grid dots, reforms), beat-cut (a hard cut on a music beat: the outgoing shot leaves on an accelerating move or a blur ramp, the incoming one enters already moving; its carrier is the outgoing scene), blur-dissolve (both shots keep moving while one blurs out and the next resolves; its carrier is the outgoing scene). Use beat-cut on the drop and other big rhythmic hits, blur-dissolve between quieter shots, and carry an object across the rest.
 
 Rule 5: The Tiling Beats and the Camera
 Reserve a reading area for the incoming subject and specify when outgoing material has cleared it. A shared object can remain while its surrounding interface exits. Do not send a tilted application through foreground text, leave an empty morph plate over the next scene, or reveal a full feature catalogue in a short hold. Choose one or two capabilities and show their result. A library may show the chosen option plus two alternatives; keep the full roster in its picker. At a processing gate, admit one record at a time, resolve its fields, then give it a separate output slot before the next arrives. The final comparison must fit in the frame. Reference examples teach mechanisms, not layouts to copy.
@@ -191,7 +191,7 @@ Return ONLY this JSON object. No markdown fences, no commentary. Every field is 
       "at": 3.5,
       "duration": 1,
       "carrier": "kebab-case-id of the literal element that crosses",
-      "mechanism": "morph | match-cut | particle-reassemble",
+      "mechanism": "morph | match-cut | particle-reassemble | beat-cut | blur-dissolve",
       "becomes": "what it is entering the seam and what it becomes leaving it"
     }
   ],

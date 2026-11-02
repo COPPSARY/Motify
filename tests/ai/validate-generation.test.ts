@@ -906,6 +906,69 @@ describe("a frame the viewer can read", () => {
       }),
     ).not.toThrow();
   });
+
+  /** Two replaced layouts joined by a declared cut seam, moving or not. */
+  function cutBetween(
+    mechanism: "beat-cut" | "blur-dissolve",
+    outgoingEnds: number,
+  ) {
+    return {
+      duration: 4,
+      scenes: two,
+      seams: [
+        {
+          from: "scene-01",
+          to: "scene-02",
+          at: 1.8,
+          duration: 0.5,
+          carrier: "one",
+          mechanism,
+          becomes: "the shot cuts on the drop",
+        },
+      ],
+      compositionHtml: `<template><main data-edit="stage" data-rect="0,0,1920,1080"><div data-edit="one" data-scene="scene-01" data-rect="200,200,1400,500" style="background:#fff">Scattered work</div><div data-edit="two" data-scene="scene-02" data-rect="200,200,1400,500" style="background:#fff">A filed table</div></main></template>`,
+      timelineJs: `export function buildTimeline({ root, timeline }) {
+        const one = root.querySelector('[data-edit="one"]');
+        const two = root.querySelector('[data-edit="two"]');
+        timeline.set(two, { display: "none", autoAlpha: 0 }, 0);
+        timeline.to(one, { x: 20, duration: ${outgoingEnds} }, 0);
+        timeline.set(one, { display: "none", autoAlpha: 0 }, 2);
+        timeline.set(two, { display: "block", autoAlpha: 1 }, 2);
+        timeline.to(two, { x: 20, duration: 1.5 }, 2);
+      }`,
+      reply: "Done",
+    };
+  }
+  const replaced = {
+    prompt: "make an ad",
+    previousHtml: `<template><main data-edit="stage"><div data-edit="one"></div><div data-edit="two"></div></main></template>`,
+    previousDuration: 4,
+    previousScenes: two,
+  };
+
+  it("lets a beat-cut replace every object between two moving shots", () => {
+    const { warnings } = validateGeneratedComposition(
+      cutBetween("beat-cut", 2),
+      replaced,
+    );
+    expect(warnings.join("\n")).not.toMatch(/still frame/);
+  });
+
+  it("lets a blur-dissolve replace every object", () => {
+    expect(() =>
+      validateGeneratedComposition(cutBetween("blur-dissolve", 2), replaced),
+    ).not.toThrow();
+  });
+
+  it("warns when a beat-cut leaves a shot that has already stopped", () => {
+    const { warnings } = validateGeneratedComposition(
+      cutBetween("beat-cut", 1.5),
+      replaced,
+    );
+    expect(warnings.join("\n")).toMatch(
+      /beat-cut at 2\.00s lands on a still frame: "scene-01" is still going into it\./,
+    );
+  });
 });
 
 describe("lenient validation of the pass that ships", () => {

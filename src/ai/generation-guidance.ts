@@ -108,7 +108,7 @@ export interface GenerationTechnique {
   registryReference: string;
   motionlyPresets: readonly string[];
   sustainedMotion: string;
-  handoff: "morph" | "match-cut" | "particle-reassemble" | "final-hold";
+  handoff: "morph" | "match-cut" | "particle-reassemble" | "beat-cut" | "blur-dissolve" | "final-hold";
 }
 
 export interface SceneDirection {
@@ -895,7 +895,7 @@ function handoffWindows(
 ): { from: number; until: number }[] {
   const windows: { from: number; until: number }[] = [];
   for (const match of source.matchAll(
-    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|pullbackComplete|growAndComplete)\s*\(([\s\S]{0,400}?)\)\s*;/g,
+    /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|beatCut|blurDissolve|pullbackComplete|growAndComplete)\s*\(([\s\S]{0,400}?)\)\s*;/g,
   )) {
     const body = match[1] ?? "";
     const at = /\bat\s*:\s*([\d.]+)/.exec(body);
@@ -1086,7 +1086,7 @@ export function analyzeMotionQuality(
   );
   const presetCount = countMatches(
     executableTimeline,
-    /\b(?:giantKineticCrop|waterfallTextReveal|wordSlideRotate|charSpringBounce|textReveal|morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|cameraPush|cameraPull|cameraZoomPan|stepSurgeCounter|perspectiveCardReveal|ambientWaves|motionArc|squashAndStretch)\s*\(/g,
+    /\b(?:giantKineticCrop|waterfallTextReveal|wordSlideRotate|charSpringBounce|textReveal|morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|beatCut|blurDissolve|cameraPush|cameraPull|cameraZoomPan|stepSurgeCounter|perspectiveCardReveal|ambientWaves|motionArc|squashAndStretch)\s*\(/g,
   );
   /**
    * Camera *moves*, not the drift underneath a hold.
@@ -1123,7 +1123,7 @@ export function analyzeMotionQuality(
   const physicalHandoffCount =
     countMatches(
       executableTimeline,
-      /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
+      /\b(?:morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|beatCut|blurDissolve)\s*\(/g,
     ) + authoredCarrierMoves(executableTimeline, carrierIds);
   const easeVocabularyCount = countMatches(executableTimeline, /\bEASE\.\w+/g);
   const stockTravelCount = stockCurveTravels(executableTimeline);
@@ -1288,7 +1288,7 @@ export function analyzeMotionQuality(
   const handoffVocabulary = new Set(
     Array.from(
       executableTimeline.matchAll(
-        /\b(morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough)\s*\(/g,
+        /\b(morph|matchCut|cutTheCurve|zoomThrough|inverseZoomThrough|beatCut|blurDissolve)\s*\(/g,
       ),
     ).map((match) => match[1]),
   );
@@ -1476,12 +1476,12 @@ export function analyzeMotionQuality(
   if (
     !seamReport.planned &&
     sceneCount > 1 &&
-    !/\b(?:morph|matchCut|particle|reassembl|cutTheCurve|zoomThrough|inverseZoomThrough)\b/i.test(
+    !/\b(?:morph|matchCut|particle|reassembl|cutTheCurve|zoomThrough|inverseZoomThrough|beatCut|blurDissolve)\b/i.test(
       timeline,
     )
   ) {
     warn(
-      "multi-scene output has no morph, match-cut, or particle-reassembly handoff",
+      "multi-scene output has no morph, match-cut, particle-reassembly, beat-cut or blur-dissolve handoff",
     );
   } else if (!seamReport.planned && sceneCount > 1) {
     strengths.push("scene boundaries use an explicit continuity mechanism");

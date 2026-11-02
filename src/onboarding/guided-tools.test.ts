@@ -25,7 +25,7 @@ describe("guided tools", () => {
   it("offers a few tools, each with its demo template", () => {
     expect(GUIDED_TOOLS.map((item) => [item.id, item.look])).toEqual([
       ["product-walkthrough", "google-docs-product-demo"],
-      ["product-launch", "bookmebus-journey"],
+      ["product-launch", "figma-ai-agent"],
       ["social-ad", "motiks-spicy-curls"],
       ["story", "paper-moon"],
     ]);

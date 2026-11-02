@@ -4,6 +4,7 @@ import {
   downloadReceiptPdf,
   fetchBillingHistory,
   fetchReceipt,
+  receiptDiscounts,
   receiptLineDetails,
   receiptPaymentMethod,
   type PaymentReceipt,
@@ -158,6 +159,27 @@ describe("billing API", () => {
 });
 
 describe("receipt formatting", () => {
+  it("puts a promo code on its own line under the plan discount", () => {
+    expect(
+      receiptDiscounts({
+        discount: 96,
+        promoCode: "NEWYEAR",
+        promoDiscount: 48,
+      }),
+    ).toEqual([
+      { label: "Discount", amount: 48 },
+      { label: "Promo code NEWYEAR", amount: 48 },
+    ]);
+    expect(
+      receiptDiscounts({ discount: 5, promoCode: "ALLOFF", promoDiscount: 5 }),
+    ).toEqual([{ label: "Promo code ALLOFF", amount: 5 }]);
+    // An API from before promo receipts sends neither field.
+    expect(receiptDiscounts({ discount: 48 })).toEqual([
+      { label: "Discount", amount: 48 },
+    ]);
+    expect(receiptDiscounts({ discount: 0 })).toEqual([]);
+  });
+
   it("shows a plan's period before its details", () => {
     expect(receiptLineDetails(receipt.lineItems[0]!)).toEqual([
       "Oct 15 – Nov 14, 2026",

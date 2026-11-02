@@ -10,15 +10,17 @@ Keep the visual editor: centered preview, correct aspect ratio, Play/Pause/Resta
 
 ## Core Motion & Typography Rules
 
-- **Transitions MUST use MORPH, MATCH-CUT, or PARTICLE-REASSEMBLE**: Never use hard cuts, cross-dissolves, or fade-to-black.
+- **Transitions use MORPH, MATCH-CUT, PARTICLE-REASSEMBLE, BEAT-CUT, or BLUR-DISSOLVE**: Never cut between still frames, plain cross-dissolve, or fade to black.
   - **MORPH**: Shape's own outline (width, height, border-radius) stretches and bends continuously.
   - **MATCH-CUT**: Cut happens at the exact instant two shots share identical position and silhouette.
   - **PARTICLE-REASSEMBLE**: Object fractures into physical shards that travel and reform into the next object.
+  - **BEAT-CUT** (`beatCut`): Hard cut on a music hit. The outgoing shot leaves on an accelerating move or blur ramp; the incoming one enters already moving.
+  - **BLUR-DISSOLVE** (`blurDissolve`): Both shots keep moving while one blurs out and the next resolves.
 - **Single Full-Sentence Editorial Thoughts**: NEVER split thoughts into oversized headlines plus tiny subtitles. Use single, bold, full-size statements in standard `Inter 68px/700`, strictly centered (`xPercent: -50, yPercent: -50`).
 - **Giant-to-Settle Kinetic Zoom**: Statements enter massive/zoomed-in (`scale: 2.0+` with gradient fill) and dynamically pull back into centered focus.
 - **Continuous Word-by-Word Animation**: Typography always animates word-by-word with spring overshoot bounce (`back.out(1.35)`).
 - **Rule of Continuous Motion**: No frame is ever static; apply continuous drift, breathing scale, or live stroke drawing.
-- **No Premature Cursors & No Muddy Dark Veils**: Cursors arrive only with active typing; never use full-screen dark opacity overlays over luminous backgrounds.
+- **No Premature Cursors & No Muddy Dark Veils**: Cursors arrive only with an action (a hover, a click, typing); never use full-screen dark opacity overlays over luminous backgrounds.
 
 ## Runtime boundary
 

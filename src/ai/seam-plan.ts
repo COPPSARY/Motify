@@ -17,7 +17,12 @@ import type { SceneDefinition } from "../composition/types";
  * beats it joins — so the boundary can be planned, budgeted, checked against
  * the markup, and watched at render time.
  */
-export type SeamMechanism = "morph" | "match-cut" | "particle-reassemble";
+export type SeamMechanism =
+  | "morph"
+  | "match-cut"
+  | "particle-reassemble"
+  | "beat-cut"
+  | "blur-dissolve";
 
 export interface SeamDirection {
   /** Scene id the carrier leaves. */
@@ -49,7 +54,23 @@ const MECHANISMS: readonly SeamMechanism[] = [
   "morph",
   "match-cut",
   "particle-reassemble",
+  "beat-cut",
+  "blur-dissolve",
 ];
+
+/**
+ * Seams that exchange two moving shots rather than carry an object across:
+ * a hard cut on a music beat, or a dissolve through blur. Their continuity is
+ * motion on both sides of the cut, so no element has to survive it.
+ */
+export const CUT_MECHANISMS: readonly SeamMechanism[] = [
+  "beat-cut",
+  "blur-dissolve",
+];
+
+export function isCutMechanism(mechanism: SeamMechanism): boolean {
+  return CUT_MECHANISMS.includes(mechanism);
+}
 
 function isMechanism(value: unknown): value is SeamMechanism {
   return MECHANISMS.includes(value as SeamMechanism);

@@ -8,6 +8,7 @@
     fetchReceipt,
     formatReceiptDate,
     formatReceiptMoney,
+    receiptDiscounts,
     receiptLineDetails,
     receiptPaymentMethod,
     type PaymentReceipt,
@@ -207,10 +208,10 @@
             <dt>Subtotal</dt>
             <dd>{money(receipt.subtotal)}</dd>
           </div>
-          {#if receipt.discount > 0}<div>
-              <dt>Discount</dt>
-              <dd>-{money(receipt.discount)}</dd>
-            </div>{/if}
+          {#each receiptDiscounts(receipt) as row (row.label)}<div>
+              <dt>{row.label}</dt>
+              <dd>-{money(row.amount)}</dd>
+            </div>{/each}
           <div>
             <dt>Total</dt>
             <dd>{money(receipt.total)}</dd>

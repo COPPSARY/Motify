@@ -40,7 +40,7 @@ For a general SaaS ad, build a shot progression from the request: editorial hook
 - During a reading hold, let a meaningful secondary action or bounded camera movement continue. Tiny global drift cannot substitute for the scene's primary action. Shorten a beat whose work is already complete.
 - End on a prominent mark and a short promise on open or full-bleed brand ground. Do not put the ending inside a small rounded pill.
 
-Borrow the reference shot design while obeying Motionly's MORPH, MATCH-CUT and PARTICLE-REASSEMBLE boundary rules. Recreate any reference edit that would break continuity with a real shared carrier.
+Borrow the reference shot design while obeying Motionly's seam rules: MORPH, MATCH-CUT, PARTICLE-REASSEMBLE, BEAT-CUT and BLUR-DISSOLVE. Recreate any reference edit that would break continuity with a real shared carrier.
 
 ## Step 1 — Write the transformation chain
 
@@ -193,14 +193,16 @@ Adjacent beats contrast in *framing* — a macro follows a wide, a full-bleed fo
 
 ### Transitions between beats
 
-Every boundary in these films is carried by an object. The four that actually appear:
+Most boundaries in these films are carried by an object, and the rest by motion that runs straight through the cut. The ones that actually appear:
 
 1. **Object-led wipe.** A large shape, panel, or colour field sweeps across the frame in one direction and the next beat is already composed behind it. The wipe is the carrier.
 2. **Camera-continuous cut.** The camera is already travelling; the material changes while the movement's axis, direction and speed are preserved across the boundary, so the eye reads one continuous move.
 3. **Morph of the shared object.** A card becomes a window becomes a panel — one element whose width, height, radius and surface change continuously while its contents cross-fade inside it.
 4. **Scatter and reform.** A cluster of objects breaks apart on individual vectors with rotation and motion blur, travels, and reassembles as the next beat's composition.
+5. **Beat cut.** On the music drop or a big hit, the outgoing shot accelerates into a blur ramp and the cut lands on the beat or 2 frames ahead of it. The incoming shot is already moving and still smeared on its first frame, then settles on an exponential ease-out. Use `beatCut`.
+6. **Blur-dissolve.** Between quieter shots, both keep moving while one blurs out and the next resolves out of the same blur. Use `blurDissolve`.
 
-Never a cross-dissolve, never a fade through white or black, never a hard cut between two unrelated static layouts.
+Never a plain cross-dissolve, never a fade through white or black, never a cut between two still frames. A hard cut is only ever a beat cut between two moving shots.
 
 ## How to actually shoot the film, move by move
 
@@ -312,7 +314,7 @@ Ground floods to the brand colour full-bleed (Move D). The mark and wordmark arr
 
 **One beat, one subject, at a size you can read.** Every beat has a single thing the viewer is looking at, and it is large: a sentence spanning most of the frame, one object at 25-45% of frame height, a proof artifact at 55-80% of frame width. Three or four small cards spread around an empty frame is not a composition — it is a list, and the viewer cannot tell what to look at or what you are claiming. A frame whose largest object covers less than 3% of the canvas is rejected outright as "small cards float in empty space". If your beat is a set of items, either enlarge one of them to be the subject and let the rest support it, or gather them into a single object with real mass.
 
-**Consecutive beats share material.** Not a mechanism at the boundary — actual objects. Something visible before the cut is still visible after it, and it is the thing the next beat is built around. A film where every element is replaced at the cut plays back as separate films spliced together, however sound its carrier chain reads on paper, and it is rejected with "nothing survives the cut". This is stricter than the seam rule and it is the one a viewer actually feels: if you cannot point at the object that is on screen on both sides, the beats are not the same film.
+**Consecutive beats share material.** Not a mechanism at the boundary — actual objects. Something visible before the cut is still visible after it, and it is the thing the next beat is built around. A film where every element is replaced at the cut plays back as separate films spliced together, however sound its carrier chain reads on paper, and it is rejected with "nothing survives the cut". This is stricter than the seam rule and it is the one a viewer actually feels: if you cannot point at the object that is on screen on both sides, the beats are not the same film. The one exception is a `beat-cut` or `blur-dissolve` seam: there the motion running through the cut is what holds the film together, so neither side may be still.
 
 **Plan the carrier chain before the beats.** Write the chain first: one object at 0s, and what it becomes at each boundary — *the sentence becomes the glyph becomes the button becomes the product.* The beats are the states that chain passes through, not containers you fill and then look for a way out of. Two independently built panels cannot morph into each other; one element whose outline changes can.
 
@@ -327,9 +329,11 @@ Because the seam straddles the cut, each beat's layers may be on screen slightly
 - **MORPH** — the carrier's own outline changes continuously through width, height, radius, surface and role. Word to glyph to button to application is a morph. A zoom or blur followed by a different object is not.
 - **MATCH-CUT** — source and destination share position, size, silhouette, direction and speed at the cut, then continue that movement.
 - **PARTICLE-REASSEMBLE** — visible fragments leave a real source and travel to construct the destination.
+- **BEAT-CUT** — a hard cut on a music hit between two moving shots, with `beatCut`. Its carrier is the outgoing scene.
+- **BLUR-DISSOLVE** — both shots moving while one blurs out and the next resolves, with `blurDissolve`. Its carrier is the outgoing scene.
 - **final-hold** — the ending only.
 
-Hard cuts, cross-dissolves, fade-to-black and opacity-only scene changes are forbidden between beats. Opacity may clean up internal faces *after* physical continuity is established. Maintain a dominant direction through connected seams: match axis, direction, velocity and motion phase rather than resetting at every boundary. Mark the owner `data-transition-carrier`.
+Cuts between still frames, plain cross-dissolves, fade-to-black and opacity-only scene changes are forbidden between beats. Opacity may clean up internal faces *after* physical continuity is established. Maintain a dominant direction through connected seams: match axis, direction, velocity and motion phase rather than resetting at every boundary. Mark the owner `data-transition-carrier`.
 
 **Clear the outgoing beat — at the end of its seam, not at the cut.** Every element you tag `data-scene="<id>"` must be gone from the frame by `seam.at + seam.duration`, the moment its outgoing seam completes. Past that it is composited on top of the next beat and the film is rejected outright with "still shows the stale layer from <scene>". Before that it is *supposed* to be there: that overlap is the transition.
 

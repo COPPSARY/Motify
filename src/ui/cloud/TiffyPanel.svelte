@@ -36,7 +36,11 @@
   import { formatCredits } from "../../api/credits";
   import { lengthLimitTip } from "../../cloud/film-limits";
   import { generationStore } from "../../stores/generation";
-  import { creditBalance, creditEstimate } from "../../stores/credits";
+  import {
+    creditBalance,
+    creditEstimate,
+    promptOutOfCredits,
+  } from "../../stores/credits";
   import type {
     AssetIntent,
     LocalAssetReference,
@@ -676,7 +680,17 @@
       Not enough credits — you have {formatCredits($creditBalance ?? 0)} left.
     </p>
   {/if}
-  <form class="ai-chat-composer" on:submit={submitAssistant}>
+  <form
+    class="ai-chat-composer"
+    on:submit={(event) => {
+      if (insufficientCredits) {
+        event.preventDefault();
+        promptOutOfCredits();
+        return;
+      }
+      return submitAssistant(event);
+    }}
+  >
     <div class="ai-composer-top">
       <div class="ai-brand-picker" bind:this={brandPicker}>
         <button
@@ -1102,8 +1116,7 @@
           : "Send message to Tiffy"}
         disabled={!assistantDraft.trim() ||
           $generationStore.isActive ||
-          uploadingMedia ||
-          insufficientCredits}
+          uploadingMedia}
         type="submit"
       >
         <ArrowUp size={17} aria-hidden="true" />

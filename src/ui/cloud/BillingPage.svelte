@@ -42,8 +42,7 @@
       {:else if expired && periodEnd}
         Ended on {periodEnd}. Renew it or choose another plan.
       {:else}
-        You’re on the free plan. Upgrade for more credits and exports without a
-        watermark.
+        You’re on the free plan. Upgrade for more credits and longer films.
       {/if}
     </p>
   </div>

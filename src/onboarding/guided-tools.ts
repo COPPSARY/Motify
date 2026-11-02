@@ -94,8 +94,8 @@ export const GUIDED_TOOLS: readonly GuidedTool[] = [
     id: "product-launch",
     title: "Product launch",
     tip: "Photos → launch film",
-    summary: "Announce a product with a big reveal.",
-    look: "bookmebus-journey",
+    summary: "Announce a product by showing it at work, live.",
+    look: "figma-ai-agent",
     aspect: "16:9",
     reference: {
       label: "Screenshots or style references",

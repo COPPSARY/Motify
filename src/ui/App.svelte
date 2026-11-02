@@ -21,10 +21,10 @@
     applyServerCharge,
     clearLastCharge,
     lastCreditCharge,
+    promptOutOfCredits,
     refreshCredits,
     resetCredits,
   } from "../stores/credits";
-  import { insufficientCreditsMessage } from "../api/credits";
   import {
     ArrowLeft,
     Braces,
@@ -227,6 +227,8 @@
   import "./styles/billing.css";
   import "./styles/prompt-templates.css";
   import "./styles/guided-start.css";
+  import "./styles/out-of-credits.css";
+  import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
   import "./styles/discount-offer.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
   import GuidedStart from "./cloud/GuidedStart.svelte";
@@ -446,10 +448,6 @@
   let subscriptionChecked = mode === "local";
   let maxExportHeight = FREE_MAX_HEIGHT;
   let promotionBanner: PromotionBannerData | null = null;
-  // The backend owns export entitlements. The preview shows the same result
-  // the exporter will produce, rather than inferring policy from a plan name.
-  $: showPreviewWatermark =
-    Boolean(runtime) && subscriptionChecked && !exportWithoutWatermark;
   /** The longest film this account can make, in seconds; null for no limit. The server enforces it too. */
   $: maxFilmSeconds = filmLimit({
     cloud: mode === "cloud",
@@ -2672,12 +2670,17 @@
       return { storyboard: planned.storyboard, uploads };
     } catch (error) {
       void refreshCredits();
+      if (
+        error instanceof CloudApiError &&
+        error.code === "INSUFFICIENT_CREDITS"
+      ) {
+        promptOutOfCredits();
+        return null;
+      }
       showNotice(
-        error instanceof CloudApiError && error.code === "INSUFFICIENT_CREDITS"
-          ? insufficientCreditsMessage(error.details)
-          : error instanceof Error
-            ? error.message
-            : "The storyboard could not be made. Try again.",
+        error instanceof Error
+          ? error.message
+          : "The storyboard could not be made. Try again.",
         6000,
       );
       return null;
@@ -4473,7 +4476,8 @@ Voice over direction: ${voiceNote}`
         exportStatus = "Framing for the canvas...";
         await ensureReframe();
       }
-      const includeWatermark = !exportWithoutWatermark;
+      // Watermarking is disabled for every plan.
+      const includeWatermark = false;
       const height = Math.min(settings.height, maxExportHeight);
       exportStatus = "Initializing export...";
       // The encoder loads on the first export, not with the editor.
@@ -5405,18 +5409,6 @@ Voice over direction: ${voiceNote}`
                       bind:this={previewRoot}
                     ></div>
                   </div>
-                  {#if showPreviewWatermark}
-                    <img
-                      class="me-canvas-watermark"
-                      data-motify-watermark
-                      src="/motify-watermark-smoke.png"
-                      alt=""
-                      aria-hidden="true"
-                      style:width={`${Math.round(canvasView.width * 0.21)}px`}
-                      style:right={`${Math.round(canvasView.width * -0.008)}px`}
-                      style:bottom={`${Math.round(canvasView.height * -0.007)}px`}
-                    />
-                  {/if}
                 </div>
                 {#if selectionRect.visible && selectedId}
                   <div
@@ -6290,6 +6282,9 @@ Voice over direction: ${voiceNote}`
         {/if}
       </div>
     </div>
+    <OutOfCreditsDialog
+      onUpgrade={() => captureEvent("out of credits upgrade clicked")}
+    />
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
