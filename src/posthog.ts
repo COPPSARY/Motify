@@ -10,6 +10,7 @@ export type MotionlyAnalyticsEvent =
   | "guided start finished"
   | "guided start picked"
   | "guided storyboard requested"
+  | "out of credits upgrade clicked"
   | "media uploaded"
   | "onboarding tour completed"
   | "onboarding tour skipped"

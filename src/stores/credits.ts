@@ -29,6 +29,20 @@ export const lastCreditCharge = readonly(charge);
  */
 export const creditEstimate = readonly(estimate);
 
+const outOfCredits = writable(false);
+/** True while the "you're out of credits" popup should be on screen. */
+export const outOfCreditsPrompt = readonly(outOfCredits);
+
+/** Opens the out-of-credits popup, after a request the account could not pay for. */
+export function promptOutOfCredits(): void {
+  outOfCredits.set(true);
+}
+
+/** Closes the out-of-credits popup. */
+export function dismissOutOfCredits(): void {
+  outOfCredits.set(false);
+}
+
 let request = 0;
 
 /** Asks the server for the balance and its cost estimate. A newer call, or a sign-out, supersedes an older one. */
@@ -77,4 +91,5 @@ export function resetCredits(): void {
   status.set("idle");
   charge.set(null);
   estimate.set(null);
+  outOfCredits.set(false);
 }

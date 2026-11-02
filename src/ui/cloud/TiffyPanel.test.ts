@@ -7,7 +7,12 @@ vi.mock("../../api/credits", async (importOriginal) => ({
   fetchCreditSnapshot,
 }));
 
-import { refreshCredits, resetCredits } from "../../stores/credits";
+import { get } from "svelte/store";
+import {
+  outOfCreditsPrompt,
+  refreshCredits,
+  resetCredits,
+} from "../../stores/credits";
 import { generationStore } from "../../stores/generation";
 import TiffyPanel from "./TiffyPanel.svelte";
 
@@ -819,18 +824,22 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 
-  it("blocks sending and explains why once the balance is below what a request needs", async () => {
+  it("opens the out-of-credits popup instead of sending once the balance is below what a request needs", async () => {
     fetchCreditSnapshot.mockResolvedValue({
       balance: 0.2,
       estimate: { typical: 10, min: 0.5, max: 30 },
     });
     await refreshCredits();
 
+    const submitAssistant = vi.fn(async () => undefined);
     const target = document.createElement("div");
     document.body.append(target);
     const component = mount(TiffyPanel, {
       target,
-      props: panelProps({ assistantDraft: "Make the intro pop" }),
+      props: panelProps({
+        assistantDraft: "Make the intro pop",
+        submitAssistant,
+      }),
     });
 
     try {
@@ -840,8 +849,13 @@ describe("TiffyPanel credit estimate", () => {
       );
       expect(hint.classList.contains("is-low")).toBe(true);
       const send = must<HTMLButtonElement>(".ai-composer-send");
-      expect(send.disabled).toBe(true);
+      expect(send.disabled).toBe(false);
       expect(send.getAttribute("aria-label")).toContain("not enough credits");
+
+      send.click();
+      await tick();
+      expect(submitAssistant).not.toHaveBeenCalled();
+      expect(get(outOfCreditsPrompt)).toBe(true);
     } finally {
       await unmount(component);
     }

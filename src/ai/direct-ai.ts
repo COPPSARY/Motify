@@ -26,7 +26,11 @@ import {
 import { isFatalRenderFailure } from "./validate-generation";
 import { CloudApiError, ProjectsApi } from "../cloud/projects-api";
 import { insufficientCreditsMessage } from "../api/credits";
-import { applyServerCharge, refreshCredits } from "../stores/credits";
+import {
+  applyServerCharge,
+  promptOutOfCredits,
+  refreshCredits,
+} from "../stores/credits";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -365,6 +369,7 @@ async function requestBackendProject(
       error instanceof CloudApiError &&
       error.code === "INSUFFICIENT_CREDITS"
     ) {
+      promptOutOfCredits();
       throw new Error(insufficientCreditsMessage(error.details), {
         cause: error,
       });
