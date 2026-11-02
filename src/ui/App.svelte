@@ -21,10 +21,10 @@
     applyServerCharge,
     clearLastCharge,
     lastCreditCharge,
+    promptOutOfCredits,
     refreshCredits,
     resetCredits,
   } from "../stores/credits";
-  import { insufficientCreditsMessage } from "../api/credits";
   import {
     ArrowLeft,
     Braces,
@@ -227,6 +227,8 @@
   import "./styles/billing.css";
   import "./styles/prompt-templates.css";
   import "./styles/guided-start.css";
+  import "./styles/out-of-credits.css";
+  import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
   import GuidedStart from "./cloud/GuidedStart.svelte";
   import {
@@ -2667,12 +2669,17 @@
       return { storyboard: planned.storyboard, uploads };
     } catch (error) {
       void refreshCredits();
+      if (
+        error instanceof CloudApiError &&
+        error.code === "INSUFFICIENT_CREDITS"
+      ) {
+        promptOutOfCredits();
+        return null;
+      }
       showNotice(
-        error instanceof CloudApiError && error.code === "INSUFFICIENT_CREDITS"
-          ? insufficientCreditsMessage(error.details)
-          : error instanceof Error
-            ? error.message
-            : "The storyboard could not be made. Try again.",
+        error instanceof Error
+          ? error.message
+          : "The storyboard could not be made. Try again.",
         6000,
       );
       return null;
@@ -6270,6 +6277,9 @@ Voice over direction: ${voiceNote}`
         {/if}
       </div>
     </div>
+    <OutOfCreditsDialog
+      onUpgrade={() => captureEvent("out of credits upgrade clicked")}
+    />
   </div>
 
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
