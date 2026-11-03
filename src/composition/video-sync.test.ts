@@ -32,4 +32,14 @@ describe("film videos", () => {
 
     expect(filmVideos(root)).toHaveLength(1);
   });
+
+  it("skips a stock slot that has no clip yet", () => {
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<video data-motify-video data-motify-stock="video"></video><video data-motify-video data-motify-stock="video" src="blob:c"></video>';
+
+    expect(filmVideos(root).map((video) => video.getAttribute("src"))).toEqual([
+      "blob:c",
+    ]);
+  });
 });

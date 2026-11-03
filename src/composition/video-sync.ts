@@ -28,7 +28,11 @@ function seconds(value: string | undefined): number {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
-/** Every clip in a mounted film, including inside a raw film's frame. */
+/**
+ * Every clip in a mounted film, including inside a raw film's frame. A stock
+ * slot nobody has picked a clip for yet has no src and is left out: it has
+ * nothing to play, and waiting on it would stall every exported frame.
+ */
 export function filmVideos(root: ParentNode): HTMLVideoElement[] {
   const videos = Array.from(
     root.querySelectorAll<HTMLVideoElement>(VIDEO_SELECTOR),
@@ -39,7 +43,7 @@ export function filmVideos(root: ParentNode): HTMLVideoElement[] {
     videos.push(
       ...Array.from(inner.querySelectorAll<HTMLVideoElement>(VIDEO_SELECTOR)),
     );
-  return videos;
+  return videos.filter((video) => Boolean(video.getAttribute("src")));
 }
 
 /**
