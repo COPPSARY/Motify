@@ -16,8 +16,18 @@ export interface VideoSyncSnapshot {
 }
 
 const VIDEO_SELECTOR = "video[data-motify-video]";
-/** Playback wanders from the timeline; past this it is pulled back. */
-const DRIFT_SECONDS = 0.25;
+/**
+ * Playback wanders from the timeline. A seek is the costly fix: the decoder
+ * restarts from the previous keyframe and the clip freezes meanwhile, so it
+ * falls further behind and seeks again: a stutter that never settles. Small
+ * drift is instead caught up by playing a touch faster or slower; only a clip
+ * this far out (a jump, a stall) is placed by seeking.
+ */
+const SEEK_DRIFT_SECONDS = 1;
+/** Within this the clip counts as in step and plays at normal speed. */
+const IN_STEP_SECONDS = 1 / 30;
+/** How far from normal speed catching up may go; unnoticeable on a muted clip. */
+const MAX_RATE_NUDGE = 0.15;
 /** While paused the clip is placed exactly, so only skip no-op seeks. */
 const SCRUB_EPSILON = 1 / 120;
 /** A clip that never answers a seek must not hang an export. */
@@ -63,6 +73,22 @@ export function clipTime(
   return Math.min(clip.trim + elapsed, Math.max(0, clip.duration - 0.05));
 }
 
+/**
+ * The speed that closes `drift` seconds (positive: the clip is behind) over
+ * about a second, without a seek. In step, it is normal speed.
+ */
+export function catchUpRate(drift: number): number {
+  if (Math.abs(drift) <= IN_STEP_SECONDS) return 1;
+  const nudge = Math.max(-MAX_RATE_NUDGE, Math.min(MAX_RATE_NUDGE, drift));
+  // In steps of 0.05, so the rate is not rewritten on every tick.
+  return 1 + Math.round(nudge * 20) / 20;
+}
+
+/** Only a real change is written; each write makes the player re-plan. */
+function setRate(video: HTMLVideoElement, rate: number): void {
+  if (video.playbackRate !== rate) video.playbackRate = rate;
+}
+
 function clipOf(video: HTMLVideoElement) {
   return {
     start: seconds(video.dataset["start"]),
@@ -100,12 +126,22 @@ export class VideoSync {
           !Number.isFinite(clip.duration) ||
           target < clip.duration - 0.05);
       if (running) {
-        if (Math.abs(video.currentTime - target) > DRIFT_SECONDS)
-          video.currentTime = target;
+        // A seek still in flight already heads for the clip's place; seeking
+        // again would restart its decode.
+        if (!video.seeking) {
+          const drift = target - video.currentTime;
+          if (Math.abs(drift) > SEEK_DRIFT_SECONDS) {
+            video.currentTime = target;
+            setRate(video, 1);
+          } else {
+            setRate(video, catchUpRate(drift));
+          }
+        }
         // A clip that is not ready yet is retried on the next tick.
         if (video.paused) void video.play().catch(() => undefined);
       } else {
         if (!video.paused) video.pause();
+        setRate(video, 1);
         if (Math.abs(video.currentTime - target) > SCRUB_EPSILON)
           video.currentTime = target;
       }
@@ -113,7 +149,10 @@ export class VideoSync {
   }
 
   dispose(): void {
-    for (const video of filmVideos(this.root)) video.pause();
+    for (const video of filmVideos(this.root)) {
+      video.pause();
+      setRate(video, 1);
+    }
   }
 }
 
@@ -153,6 +192,7 @@ export async function seekVideosExactly(
     filmVideos(root).map(async (video) => {
       prepare(video);
       if (!video.paused) video.pause();
+      setRate(video, 1);
       if (video.readyState < HTMLMediaElement.HAVE_METADATA)
         await settled(video);
       const target = clipTime(clipOf(video), time);

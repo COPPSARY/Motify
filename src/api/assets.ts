@@ -11,13 +11,26 @@ export async function hydrateCloudAssetTokens(
     match[1] ? [match[1]] : [],
   );
   let hydrated = source;
-  const objectUrls: string[] = [];
-
-  for (const assetId of new Set(assetIds)) {
-    const objectUrl = await loadAssetObjectUrl(assetId);
-    objectUrls.push(objectUrl);
-    hydrated = hydrated.replaceAll(`motify-asset://${assetId}`, objectUrl);
+  // Fetched together: one after another, a film with a few clips waited on
+  // every download in turn before it could show anything.
+  const unique = [...new Set(assetIds)];
+  const loaded = await Promise.allSettled(unique.map(loadAssetObjectUrl));
+  const objectUrls = loaded.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+  const failed = loaded.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failed) {
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+    throw failed.reason;
   }
+  unique.forEach((assetId, index) => {
+    hydrated = hydrated.replaceAll(
+      `motify-asset://${assetId}`,
+      objectUrls[index]!,
+    );
+  });
 
   const audio = await hydrateAudioTokens(hydrated);
   return {
