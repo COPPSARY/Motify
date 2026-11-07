@@ -27,6 +27,12 @@
   } from "lucide-svelte";
   import TiffyMark from "./TiffyMark.svelte";
   import VersionsPanel from "./VersionsPanel.svelte";
+  import StockGallery from "./StockGallery.svelte";
+  import type { StockItem, StockOrientation } from "../../api/stock";
+  import type {
+    StockSlot,
+    StockSlotPatch,
+  } from "../../composition/stock-slots";
   import type {
     AudioTrack,
     GenerationEffort,
@@ -142,6 +148,17 @@
     projectId: string;
     revision: number;
     onRestore: (revision: number) => Promise<void>;
+  } | null = null;
+
+  /**
+   * The open film's stock slots and what to do with a pick. Null when stock
+   * search is not offered (a local project, or no Pixabay key on the server).
+   */
+  export let stock: {
+    slots: StockSlot[];
+    orientation: StockOrientation;
+    onPick: (slot: StockSlot, item: StockItem) => Promise<void>;
+    onAdjust: (slot: StockSlot, patch: StockSlotPatch) => void;
   } | null = null;
 
   let versionsOpen = false;
@@ -550,6 +567,15 @@
           {/if}
         </div>
       {/each}
+      {#if stock && stock.slots.length > 0}
+        <StockGallery
+          slots={stock.slots}
+          orientation={stock.orientation}
+          disabled={$generationStore.isActive}
+          onPick={stock.onPick}
+          onAdjust={stock.onAdjust}
+        />
+      {/if}
       {#if $generationStore.isActive}
         <details class="ai-chat-activity" open>
           <summary aria-live="polite">

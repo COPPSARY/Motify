@@ -187,6 +187,15 @@
   import { AUDIO_ACCEPT, addTrackToLibrary, isAudioFile } from "../api/audio";
   import { AudioSync } from "../composition/audio-sync";
   import { VideoSync } from "../composition/video-sync";
+  import {
+    applyStockPatch,
+    mountedStockElements,
+    parseStockSlots,
+    updateStockSlot,
+    type StockSlot,
+    type StockSlotPatch,
+  } from "../composition/stock-slots";
+  import { importStock, orientationFor, type StockItem } from "../api/stock";
   import { removeAudioTrackFromComposition } from "../composition/composition-audio";
   import {
     MAX_SELECTED_AUDIO,
@@ -3022,6 +3031,118 @@
   }
 
   /**
+   * Stock slots the open film left for photos and B-roll, offered in the chat.
+   * Only a saved cloud project has them: a pick is stored in its workspace.
+   */
+  $: stockSlots =
+    mode === "cloud" && cloudProject
+      ? parseStockSlots(cloudFiles["composition.html"])
+      : [];
+  $: stockPanel =
+    stockSlots.length > 0
+      ? {
+          slots: stockSlots,
+          orientation: orientationFor(
+            activeComposition.width,
+            activeComposition.height,
+          ),
+          onPick: pickStock,
+          onAdjust: adjustStock,
+        }
+      : null;
+
+  let stockSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let stockSaving: Promise<void> = Promise.resolve();
+
+  /**
+   * Writes the open film's source as a new revision without remounting it, so
+   * the chat and the playhead stay where they are. Saves run one at a time:
+   * each needs the revision the one before it produced.
+   */
+  function saveStockChanges(): Promise<void> {
+    if (stockSaveTimer) clearTimeout(stockSaveTimer);
+    stockSaveTimer = undefined;
+    stockSaving = stockSaving.then(async () => {
+      const project = cloudProject;
+      if (!project) return;
+      try {
+        const saved = await musicApi.saveSource(project.id, {
+          revision: project.revision,
+          files: cloudFiles,
+        });
+        cloudProject = saved.project;
+        cloudProjects?.setFiles(cloudFiles);
+        await cloudProjects?.registerActiveProject(saved.project);
+        sourceDirty = false;
+        scheduleDraftSave();
+      } catch (error) {
+        sourceDirty = true;
+        showNotice(
+          error instanceof Error && error.message
+            ? `Could not save the change: ${error.message}`
+            : "Could not save the change. Try again.",
+        );
+      }
+    });
+    return stockSaving;
+  }
+
+  /** Writes a slot change into the source and the mounted film; false if the slot is gone. */
+  function patchStockSlot(
+    slot: StockSlot,
+    patch: StockSlotPatch,
+    src?: string,
+  ): boolean {
+    const html = cloudFiles["composition.html"];
+    const next = updateStockSlot(html, slot.index, patch);
+    if (next === html) return false;
+    cloudFiles = { ...cloudFiles, "composition.html": next };
+    const element = previewRoot
+      ? mountedStockElements(previewRoot)[slot.index]
+      : undefined;
+    if (element) {
+      applyStockPatch(element, patch, src);
+      // A new or retimed clip is placed on the playhead's frame at once.
+      if (patch.pick || patch.clip) videoSync?.sync(snapshot);
+      scheduleBackdrop();
+    }
+    sourceDirty = true;
+    return true;
+  }
+
+  async function pickStock(slot: StockSlot, item: StockItem): Promise<void> {
+    const projectId = cloudProject?.id;
+    if (!projectId)
+      throw new Error("Save this video before adding stock media.");
+    const imported = await importStock(projectId, item.kind, item.id);
+    const objectUrl = await loadAssetObjectUrl(imported.asset.id);
+    assetObjectUrls = [...assetObjectUrls, objectUrl];
+    const placed = patchStockSlot(
+      slot,
+      {
+        pick: {
+          assetId: imported.asset.id,
+          credit: {
+            id: item.id,
+            creator: imported.attribution.creator.name,
+            creatorUrl: imported.attribution.creator.profileUrl,
+            sourceUrl: imported.attribution.sourceUrl,
+          },
+        },
+      },
+      objectUrl,
+    );
+    if (!placed) throw new Error("This spot is no longer in the film.");
+    await saveStockChanges();
+  }
+
+  function adjustStock(slot: StockSlot, patch: StockSlotPatch): void {
+    if (!patchStockSlot(slot, patch)) return;
+    if (stockSaveTimer) clearTimeout(stockSaveTimer);
+    stockSaveTimer = setTimeout(() => void saveStockChanges(), 800);
+  }
+
+  /**
    * A restored chat's thumbnails point at object URLs from the session that
    * saved it, which a reload has revoked. Each is rebuilt from the browser's
    * own copy of the file, or else the uploaded one, so a sent image stays on
@@ -4716,7 +4837,8 @@ Voice over direction: ${voiceNote}`
                     </div>
                     <!-- Refer a friend is paused for now; ReferralButton.svelte is kept for when it returns. -->
                     <DiscountOffer
-                      onRedeem={() => captureEvent("discount code redeem clicked")}
+                      onRedeem={() =>
+                        captureEvent("discount code redeem clicked")}
                     />
                     <div class="me-profile" bind:this={profileMenu}>
                       {#if profileMenuOpen}
@@ -6405,6 +6527,7 @@ Voice over direction: ${voiceNote}`
           onRestore: restoreProjectVersion,
         }
       : null}
+    stock={stockPanel}
     {assistantMessages}
     bind:assistantDraft
     bind:composerInput
