@@ -22,10 +22,18 @@
     RotateCcw,
     RectangleHorizontal,
     RectangleVertical,
+    Send,
     Square,
     X,
   } from "lucide-svelte";
+  import FilmQueueCard from "./FilmQueueCard.svelte";
   import TiffyMark from "./TiffyMark.svelte";
+  import {
+    activeFilmRequest,
+    fulfillmentMode,
+    isTelegramContact,
+    telegramContact,
+  } from "../../stores/film-requests";
   import VersionsPanel from "./VersionsPanel.svelte";
   import type {
     AudioTrack,
@@ -550,6 +558,11 @@
           {/if}
         </div>
       {/each}
+      {#if $activeFilmRequest}
+        {#key $activeFilmRequest.id}
+          <FilmQueueCard request={$activeFilmRequest} />
+        {/key}
+      {/if}
       {#if $generationStore.isActive}
         <details class="ai-chat-activity" open>
           <summary aria-live="polite">
@@ -691,6 +704,26 @@
       return submitAssistant(event);
     }}
   >
+    {#if $fulfillmentMode === "manual"}
+      <!-- Our team makes films by hand right now; this is where they send it. -->
+      <label
+        class="ai-telegram-row"
+        class:is-invalid={$telegramContact.trim() !== "" &&
+          !isTelegramContact($telegramContact)}
+        title="Our team makes this film by hand and sends it to you on Telegram"
+      >
+        <Send size={13} aria-hidden="true" />
+        <input
+          type="text"
+          inputmode="tel"
+          autocomplete="tel"
+          aria-label="Your Telegram phone number or @username"
+          placeholder="Your Telegram number, for the finished video"
+          bind:value={$telegramContact}
+          disabled={$generationStore.isActive}
+        />
+      </label>
+    {/if}
     <div class="ai-composer-top">
       <div class="ai-brand-picker" bind:this={brandPicker}>
         <button

@@ -39,6 +39,11 @@
     type ImageSlot,
   } from "../../onboarding/guided-tools";
   import { creditEstimate } from "../../stores/credits";
+  import {
+    fulfillmentMode,
+    isTelegramContact,
+    telegramContact,
+  } from "../../stores/film-requests";
   import type { AssetIntent } from "../../stores/local-assets";
   import {
     cachedPromptTemplates,
@@ -355,6 +360,11 @@
       hasBrand: brand !== null,
     });
     if (gap) return null;
+    // While our team makes films by hand, they need somewhere to send this one.
+    if ($fulfillmentMode === "manual" && !isTelegramContact($telegramContact)) {
+      document.getElementById("guide-telegram")?.focus();
+      return null;
+    }
     return {
       tool: {
         id: tool.id,
@@ -884,6 +894,31 @@
               bind:value={instructions}
             ></textarea>
           </label>
+
+          {#if $fulfillmentMode === "manual"}
+            {@const telegramInvalid =
+              triedGenerate && !isTelegramContact($telegramContact)}
+            <label
+              class="gs-panel film-telegram-field"
+              class:is-invalid={telegramInvalid}
+            >
+              <span class="gs-slot-head"><strong>Your Telegram</strong></span>
+              <input
+                id="guide-telegram"
+                type="text"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="+855 12 345 678 or @username"
+                bind:value={$telegramContact}
+                aria-invalid={telegramInvalid}
+              />
+              <small
+                >{telegramInvalid
+                  ? "Enter the number or @username you use on Telegram."
+                  : "Our team makes this video by hand and sends it to you on Telegram."}</small
+              >
+            </label>
+          {/if}
 
           <div class="gs-actions">
             {#if triedGenerate && missing}

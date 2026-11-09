@@ -2,6 +2,7 @@ import type { PostHog } from "posthog-js";
 
 export type MotionlyAnalyticsEvent =
   | "ai generation completed"
+  | "film request sent"
   | "ai generation failed"
   | "ai generation recovered"
   | "ai generation started"

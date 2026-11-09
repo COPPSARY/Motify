@@ -3,7 +3,12 @@
  * validators and the frame observer. Loaded through `loadGenerationPipeline`
  * so it never ships with the first page load.
  */
-export { BackendConversationResponse, generateWithDirectAi } from "./direct-ai";
+export {
+  BackendConversationResponse,
+  FilmRequestQueued,
+  generateWithDirectAi,
+  TelegramContactRequired,
+} from "./direct-ai";
 export {
   isFatalRenderFailure,
   validateGeneratedComposition,
