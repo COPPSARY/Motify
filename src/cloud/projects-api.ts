@@ -204,7 +204,50 @@ interface ApiErrorEnvelope {
 export interface ApiCapabilities {
   /** Whether this deployment can read a website into Brand DNA. */
   brandExtraction?: boolean;
+  /**
+   * Who makes films right now: the AI, or the team by hand (`manual`). In
+   * `manual` a message is sent as a film request and the film arrives on
+   * Telegram. Absent on an API from before film requests, which is `ai`.
+   */
+  fulfillment?: FulfillmentMode;
 }
+
+export type FulfillmentMode = "ai" | "manual";
+
+export type FilmRequestStatus =
+  "queued" | "in_progress" | "delivered" | "cancelled";
+
+/** A film the team makes by hand, as the person who asked for it sees it. */
+export interface FilmRequest {
+  id: string;
+  projectId: string;
+  source: "prompt" | "guided";
+  status: FilmRequestStatus;
+  /** Their place and the queue's length while it is queued. */
+  queue: { position: number; total: number } | null;
+  telegram: {
+    contact: string;
+    /** Whether the person has opened the bot, so the film is sent there. */
+    connected: boolean;
+    /** Opens a chat with the bot and connects it; null when the bot is unknown. */
+    connectUrl: string | null;
+  };
+  /** Credits charged when it was delivered. */
+  charged: number | null;
+  createdAt: string;
+  startedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+}
+
+/** A message sent to the team: everything but a repair's fields, plus where to send the film. */
+export type FilmRequestInput = Omit<
+  MotionMessageInput,
+  "revision" | "runtimeError" | "frames"
+> & {
+  /** Phone number or @username on Telegram. */
+  telegram: string;
+};
 
 export interface MotionMessageInput {
   message: string;
@@ -503,6 +546,37 @@ export class ProjectsApi {
       method: "POST",
       body: input,
     });
+  }
+
+  /** Sends a message to the team, who make the film by hand and send it on Telegram. */
+  async submitFilmRequest(projectId: string, input: FilmRequestInput) {
+    await this.ensureCsrfToken();
+    return this.request<FilmRequest>(
+      `/v1/projects/${encodeURIComponent(projectId)}/film-requests`,
+      { method: "POST", body: input },
+    );
+  }
+
+  /** The project's latest film requests, newest first. */
+  listFilmRequests(projectId: string) {
+    return this.request<FilmRequest[]>(
+      `/v1/projects/${encodeURIComponent(projectId)}/film-requests`,
+    );
+  }
+
+  getFilmRequest(requestId: string) {
+    return this.request<FilmRequest>(
+      `/v1/film-requests/${encodeURIComponent(requestId)}`,
+    );
+  }
+
+  /** Withdraws a request the team has not started. */
+  async cancelFilmRequest(requestId: string) {
+    await this.ensureCsrfToken();
+    return this.request<FilmRequest>(
+      `/v1/film-requests/${encodeURIComponent(requestId)}/cancel`,
+      { method: "POST" },
+    );
   }
 
   getMotionMessageJob(projectId: string, jobId: string) {

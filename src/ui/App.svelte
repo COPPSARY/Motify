@@ -228,7 +228,18 @@
   import "./styles/prompt-templates.css";
   import "./styles/guided-start.css";
   import "./styles/out-of-credits.css";
+  import "./styles/film-requests.css";
   import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
+  import TelegramContactDialog from "./cloud/TelegramContactDialog.svelte";
+  import {
+    filmRequestReply,
+    fulfillmentMode,
+    isTelegramContact,
+    loadProjectFilmRequest,
+    refreshFulfillmentMode,
+    showFilmRequest,
+    telegramContact,
+  } from "../stores/film-requests";
   import "./styles/discount-offer.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
   import GuidedStart from "./cloud/GuidedStart.svelte";
@@ -522,6 +533,23 @@
     aspectRatio?: CanvasAspect;
     tool?: GuidedToolRequest;
   } | null = null;
+  /**
+   * A message held while the person says where on Telegram our team should
+   * send the film; it is sent once they do.
+   */
+  let heldForTelegram: Parameters<typeof submitAssistant>[1] | "draft" | null =
+    null;
+  let telegramDialogOpen = false;
+  /** The last send went to our team as a film request, not to the AI. */
+  let lastSendQueued = false;
+
+  // The open project's film request, if our team is making one. Read again
+  // only when the project changes, not on every save.
+  $: filmRequestProjectId =
+    mode === "cloud" && currentUser
+      ? (cloudProject?.id ?? (backendGenerationProjectId || null))
+      : null;
+  $: void loadProjectFilmRequest(filmRequestProjectId);
 
   let lastGenState = "";
 
@@ -677,8 +705,11 @@
       void refreshActivePlan();
       void refreshCredits();
       void refreshPromotionBanner();
+      void refreshFulfillmentMode();
     };
     if (mode === "cloud") {
+      // Whether our team or the AI makes films right now.
+      void refreshFulfillmentMode();
       // Fetch the generation pipeline once the page is idle, so the first
       // prompt rarely waits for it.
       const warm = () => void loadGenerationPipeline();
@@ -3616,11 +3647,26 @@ Voice over direction: ${voiceNote}`
     try {
       return await generateAndApplyAssistant(prompt, aspectRatio);
     } catch (error: unknown) {
-      const { BackendConversationResponse } = await loadGenerationPipeline();
+      const {
+        BackendConversationResponse,
+        FilmRequestQueued,
+        TelegramContactRequired,
+      } = await loadGenerationPipeline();
       if (error instanceof BackendConversationResponse) {
         backendGenerationProjectId =
           error.projectId ?? backendGenerationProjectId;
         return error.response;
+      }
+      // Our team makes this one by hand; the queue card takes it from here.
+      if (error instanceof FilmRequestQueued) {
+        lastSendQueued = true;
+        showFilmRequest(error.request);
+        return filmRequestReply(error.request);
+      }
+      // The team took over since this page loaded, and needs a Telegram contact.
+      if (error instanceof TelegramContactRequired && lastSentPrompt) {
+        heldForTelegram = lastSentPrompt;
+        telegramDialogOpen = true;
       }
       throw error;
     }
@@ -3848,6 +3894,17 @@ Voice over direction: ${voiceNote}`
         : undefined);
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt, aspectRatio)) return;
+    // Our team makes films by hand right now: ask where to send it, then send.
+    if (
+      mode === "cloud" &&
+      $fulfillmentMode === "manual" &&
+      !isTelegramContact($telegramContact)
+    ) {
+      heldForTelegram = scoped ?? "draft";
+      telegramDialogOpen = true;
+      return;
+    }
+    lastSendQueued = false;
     lastSentPrompt = {
       text: shownText,
       prompt,
@@ -3932,11 +3989,18 @@ Voice over direction: ${voiceNote}`
         progress: 100,
         message: reply,
       });
-      captureEvent("ai generation completed", {
-        duration_ms: Math.round(performance.now() - generationStartedAt),
-        reference_asset_count: sentAttachments.length,
-      });
-      showNotice("Tiffy updated the composition.");
+      captureEvent(
+        lastSendQueued ? "film request sent" : "ai generation completed",
+        {
+          duration_ms: Math.round(performance.now() - generationStartedAt),
+          reference_asset_count: sentAttachments.length,
+        },
+      );
+      showNotice(
+        lastSendQueued
+          ? "Sent to our team. Your film will arrive on Telegram."
+          : "Tiffy updated the composition.",
+      );
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -4716,7 +4780,8 @@ Voice over direction: ${voiceNote}`
                     </div>
                     <!-- Refer a friend is paused for now; ReferralButton.svelte is kept for when it returns. -->
                     <DiscountOffer
-                      onRedeem={() => captureEvent("discount code redeem clicked")}
+                      onRedeem={() =>
+                        captureEvent("discount code redeem clicked")}
                     />
                     <div class="me-profile" bind:this={profileMenu}>
                       {#if profileMenuOpen}
@@ -6284,6 +6349,16 @@ Voice over direction: ${voiceNote}`
     </div>
     <OutOfCreditsDialog
       onUpgrade={() => captureEvent("out of credits upgrade clicked")}
+    />
+    <TelegramContactDialog
+      bind:open={telegramDialogOpen}
+      onConfirm={() => {
+        const held = heldForTelegram;
+        heldForTelegram = null;
+        if (held === "draft") void submitAssistant(new SubmitEvent("submit"));
+        else if (held) void submitAssistant(new SubmitEvent("submit"), held);
+      }}
+      onCancel={() => (heldForTelegram = null)}
     />
   </div>
 

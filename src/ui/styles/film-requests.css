@@ -1,0 +1,248 @@
+/* Films made by hand: the Telegram field, the queue card and the contact dialog. */
+
+.code-editor-scope .film-telegram-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.code-editor-scope .film-telegram-field > span {
+  color: var(--sl-text-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.code-editor-scope .film-telegram-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 9px;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.code-editor-scope .film-telegram-field input::placeholder {
+  color: var(--sl-faint);
+}
+
+.code-editor-scope .film-telegram-field input:focus {
+  border-color: var(--sl-brand-cobalt-hover);
+  outline: none;
+}
+
+.code-editor-scope .film-telegram-field.is-invalid input {
+  border-color: #e5484d;
+}
+
+.code-editor-scope .film-telegram-field small {
+  color: var(--sl-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .film-telegram-field.is-invalid small {
+  color: #ff8589;
+}
+
+/* In the chat composer: one slim row above the prompt. */
+.code-editor-scope .ai-telegram-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-bg);
+  color: var(--sl-text-soft);
+  font-size: 12.5px;
+}
+
+.code-editor-scope .ai-telegram-row.is-invalid {
+  border-color: #e5484d;
+}
+
+.code-editor-scope .ai-telegram-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.code-editor-scope .ai-telegram-row input:focus {
+  outline: none;
+}
+
+.code-editor-scope .ai-telegram-row input::placeholder {
+  color: var(--sl-faint);
+}
+
+.code-editor-scope .film-contact {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.code-editor-scope .film-contact__field {
+  width: 100%;
+  margin: 0 0 16px;
+}
+
+/* ------------------------------------------------------------ queue card */
+
+.code-editor-scope .film-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0;
+  padding: 14px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 12px;
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .film-queue__head {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.code-editor-scope .film-queue__head strong {
+  display: block;
+  color: var(--sl-text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.code-editor-scope .film-queue__head strong span {
+  color: var(--sl-text-soft);
+  font-weight: 500;
+}
+
+.code-editor-scope .film-queue__head p {
+  margin: 3px 0 0;
+  color: var(--sl-text-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.code-editor-scope .film-queue__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--sl-accent-soft);
+  color: var(--sl-accent-hover);
+}
+
+.code-editor-scope .film-queue__icon.is-working {
+  animation: film-queue-pulse 1.6s ease-in-out infinite;
+}
+
+.code-editor-scope .film-queue__icon.is-done {
+  background: rgba(48, 164, 108, 0.16);
+  color: #4cc38a;
+}
+
+.code-editor-scope .film-queue__bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sl-border-strong);
+}
+
+.code-editor-scope .film-queue__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sl-brand-cobalt);
+  transition: width 600ms ease;
+}
+
+.code-editor-scope .film-queue__telegram {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.code-editor-scope .film-queue__connect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: var(--sl-brand-cobalt);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.code-editor-scope .film-queue__connect:hover {
+  background: var(--sl-brand-cobalt-hover);
+}
+
+.code-editor-scope .film-queue__connect:focus-visible,
+.code-editor-scope .film-queue__cancel:focus-visible {
+  outline: 2px solid var(--sl-accent-hover);
+  outline-offset: 2px;
+}
+
+.code-editor-scope .film-queue__telegram small {
+  color: var(--sl-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .film-queue__connected {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4cc38a;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.code-editor-scope .film-queue__cancel {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--sl-muted);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.code-editor-scope .film-queue__cancel:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@keyframes film-queue-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .film-queue__icon.is-working {
+    animation: none;
+  }
+
+  .code-editor-scope .film-queue__bar span {
+    transition: none;
+  }
+}
