@@ -85,6 +85,7 @@
     ProjectsApi,
     type AudioTrack,
     type BillingPlanId,
+    type FilmRequest,
     type WorkspaceSubscription,
     type PromotionBanner as PromotionBannerData,
     type GenerationEffort,
@@ -230,15 +231,13 @@
   import "./styles/out-of-credits.css";
   import "./styles/film-requests.css";
   import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
-  import TelegramContactDialog from "./cloud/TelegramContactDialog.svelte";
+  import SendToTeamDialog from "./cloud/SendToTeamDialog.svelte";
   import {
-    filmRequestReply,
     fulfillmentMode,
-    isTelegramContact,
     loadProjectFilmRequest,
     refreshFulfillmentMode,
+    setFulfillmentMode,
     showFilmRequest,
-    telegramContact,
   } from "../stores/film-requests";
   import "./styles/discount-offer.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
@@ -534,14 +533,24 @@
     tool?: GuidedToolRequest;
   } | null = null;
   /**
-   * A message held while the person says where on Telegram our team should
-   * send the film; it is sent once they do.
+   * A message waiting in the send-to-team popup while our team makes films by
+   * hand. It never opens the editor: the request goes to the team from the
+   * popup, and `done` tells a guided tool whether it went, so closing the
+   * popup keeps the form.
    */
-  let heldForTelegram: Parameters<typeof submitAssistant>[1] | "draft" | null =
-    null;
-  let telegramDialogOpen = false;
-  /** The last send went to our team as a film request, not to the AI. */
-  let lastSendQueued = false;
+  type TeamMessage = NonNullable<Parameters<typeof submitAssistant>[1]>;
+  let teamSend: {
+    message: TeamMessage;
+    /** Sent from the composer, so its draft is cleared once it goes. */
+    fromDraft: boolean;
+    assets: LocalAssetReference[];
+    audio: AudioTrack[];
+    /** The project made for it, kept so a retry does not make another. */
+    projectId?: string;
+    sent?: boolean;
+    done?: (sent: boolean) => void;
+  } | null = null;
+  let teamDialogOpen = false;
 
   // The open project's film request, if our team is making one. Read again
   // only when the project changes, not on every save.
@@ -2752,12 +2761,16 @@
     // taken for one of the pictures.
     const logo = result.files.find((item) => item.logo)?.file;
     const logoUpload = logo ? staged.get(logo)?.uploadId : undefined;
-    void submitAssistant(new SubmitEvent("submit"), {
+    const message = {
       text: result.message,
       prompt: result.message,
       aspectRatio: result.aspect,
       tool: logoUpload ? { ...result.tool, logo: logoUpload } : result.tool,
-    });
+    };
+    // Our team makes films by hand: the guide stays open until it is sent.
+    if (mode === "cloud" && $fulfillmentMode === "manual")
+      return openTeamSend(message, false);
+    void submitAssistant(new SubmitEvent("submit"), message);
     return true;
   }
 
@@ -3647,26 +3660,20 @@ Voice over direction: ${voiceNote}`
     try {
       return await generateAndApplyAssistant(prompt, aspectRatio);
     } catch (error: unknown) {
-      const {
-        BackendConversationResponse,
-        FilmRequestQueued,
-        TelegramContactRequired,
-      } = await loadGenerationPipeline();
+      const { BackendConversationResponse, SendToTeamInstead } =
+        await loadGenerationPipeline();
       if (error instanceof BackendConversationResponse) {
         backendGenerationProjectId =
           error.projectId ?? backendGenerationProjectId;
         return error.response;
       }
-      // Our team makes this one by hand; the queue card takes it from here.
-      if (error instanceof FilmRequestQueued) {
-        lastSendQueued = true;
-        showFilmRequest(error.request);
-        return filmRequestReply(error.request);
-      }
-      // The team took over since this page loaded, and needs a Telegram contact.
-      if (error instanceof TelegramContactRequired && lastSentPrompt) {
-        heldForTelegram = lastSentPrompt;
-        telegramDialogOpen = true;
+      // Our team took over making films since this page loaded.
+      if (error instanceof SendToTeamInstead && lastSentPrompt) {
+        void openTeamSend(lastSentPrompt, false, {
+          assets: assetsInFlight ?? [],
+          audio: audioInFlight ?? [],
+        });
+        return "Our team is making films by hand right now. Send this to them from the form, and they'll send you the film.";
       }
       throw error;
     }
@@ -3872,6 +3879,136 @@ Voice over direction: ${voiceNote}`
   }
 
   /**
+   * The staged pictures with how each is used. The prompt decides: clear
+   * wording can also change a saved role; otherwise the saved role is
+   * preserved and an ambiguous new paste is placed so it cannot be silently
+   * ignored.
+   */
+  function resolveStagedIntents(prompt: string): LocalAssetReference[] {
+    const imageIntentPrompt =
+      stagedAssets.length <= 1 || appliesToAllImages(prompt) ? prompt : "";
+    return stagedAssets.map((asset) => ({
+      ...asset,
+      intent:
+        pinnedIntentIds.has(asset.id) && asset.intent
+          ? asset.intent
+          : resolveAssetIntent(imageIntentPrompt, asset.intent),
+    }));
+  }
+
+  /**
+   * Opens the send-to-team popup for a message, with the pictures and music
+   * staged for it. Resolves once the popup closes, true if the request went.
+   */
+  function openTeamSend(
+    message: TeamMessage,
+    fromDraft: boolean,
+    staged: { assets: LocalAssetReference[]; audio: AudioTrack[] } = {
+      assets: resolveStagedIntents(message.prompt),
+      audio: $selectedAudio,
+    },
+  ): Promise<boolean> {
+    teamSend?.done?.(false);
+    return new Promise((done) => {
+      teamSend = { message, fromDraft, ...staged, done };
+      teamDialogOpen = true;
+    });
+  }
+
+  function closeTeamSend(): void {
+    const closing = teamSend;
+    teamSend = null;
+    closing?.done?.(closing.sent === true);
+  }
+
+  /**
+   * Sends the message in the popup to our team. A first message gets a
+   * project of its own to hold its pictures, but the editor never opens: the
+   * person stays where they are and the film arrives on Telegram or by email.
+   */
+  async function sendToTeam(
+    telegram: string | undefined,
+  ): Promise<FilmRequest> {
+    const pending = teamSend;
+    if (!pending) throw new Error("There is nothing to send.");
+    if (!workspaceId) throw new Error("Sign in again to send your request.");
+    const { message } = pending;
+    const api = new ProjectsApi();
+    const openProjectId = cloudProject?.id ?? backendGenerationProjectId;
+    if (!openProjectId && !pending.projectId) {
+      const size = message.aspectRatio
+        ? canvasSize(
+            activeComposition.width,
+            activeComposition.height,
+            message.aspectRatio,
+          )
+        : { width: activeComposition.width, height: activeComposition.height };
+      const created = await api.createProject(workspaceId, {
+        name: message.text.replace(/\s+/g, " ").slice(0, 60) || "Film request",
+        ...(selectedBrand ? { brandSelection: selectedBrand } : {}),
+        ...size,
+        fps: activeComposition.fps,
+        duration: 5,
+        files: blankProjectFiles,
+      });
+      pending.projectId = created.id;
+    }
+    const projectId = openProjectId || pending.projectId!;
+    const brandId = selectedBrand === null ? null : (brand?.id ?? undefined);
+    let request: FilmRequest;
+    try {
+      request = await api.submitFilmRequest(projectId, {
+        message: message.prompt,
+        ...(brandId !== undefined ? { brandId } : {}),
+        ...(message.aspectRatio ? { aspectRatio: message.aspectRatio } : {}),
+        ...(message.tool ? { tool: message.tool } : {}),
+        effort: generationEffort,
+        model: generationModel,
+        tts: isVoiceOverReleased() && generationNarration,
+        assets: pending.assets.flatMap((asset) =>
+          asset.uploadId
+            ? [
+                {
+                  assetId: asset.uploadId,
+                  role:
+                    asset.intent === "reference"
+                      ? ("reference" as const)
+                      : ("asset" as const),
+                },
+              ]
+            : [],
+        ),
+        ...(pending.audio.length
+          ? { audio: pending.audio.map((track) => ({ trackId: track.id })) }
+          : {}),
+        ...(telegram ? { telegram } : {}),
+      });
+    } catch (error) {
+      if (error instanceof CloudApiError && error.code === "FULFILLMENT_AI") {
+        setFulfillmentMode("ai");
+        throw new Error(
+          "Our AI is making films again. Close this and send your message once more.",
+        );
+      }
+      throw error;
+    }
+    pending.sent = true;
+    captureEvent("film request sent", {
+      reference_asset_count: pending.assets.length,
+    });
+    if (pending.fromDraft) {
+      assistantDraft = "";
+      void tick().then(resizeComposer);
+    }
+    const sentIds = new Set(pending.assets.map((asset) => asset.id));
+    stagedAssets = stagedAssets.filter((asset) => !sentIds.has(asset.id));
+    pinnedIntentIds.clear();
+    if (pending.audio.length) selectedAudio.set([]);
+    if (openProjectId) showFilmRequest(request);
+    return request;
+  }
+
+  /**
    * `scoped` sends an edit for one canvas element: the chat shows what the
    * user typed while Tiffy receives it with the element's identity attached.
    */
@@ -3894,17 +4031,19 @@ Voice over direction: ${voiceNote}`
         : undefined);
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt, aspectRatio)) return;
-    // Our team makes films by hand right now: ask where to send it, then send.
-    if (
-      mode === "cloud" &&
-      $fulfillmentMode === "manual" &&
-      !isTelegramContact($telegramContact)
-    ) {
-      heldForTelegram = scoped ?? "draft";
-      telegramDialogOpen = true;
+    // Our team makes films by hand right now: a popup sends it to them.
+    if (mode === "cloud" && $fulfillmentMode === "manual") {
+      void openTeamSend(
+        {
+          text: shownText,
+          prompt,
+          ...(aspectRatio ? { aspectRatio } : {}),
+          ...(scoped?.tool ? { tool: scoped.tool } : {}),
+        },
+        !scoped,
+      );
       return;
     }
-    lastSendQueued = false;
     lastSentPrompt = {
       text: shownText,
       prompt,
@@ -3916,18 +4055,7 @@ Voice over direction: ${voiceNote}`
     page = null;
 
     const sentAudio = $selectedAudio;
-    // The prompt decides how each image is used. Clear wording can also change
-    // a saved role; otherwise the saved role is preserved and an ambiguous new
-    // paste is placed so it cannot be silently ignored.
-    const imageIntentPrompt =
-      stagedAssets.length <= 1 || appliesToAllImages(prompt) ? prompt : "";
-    const resolvedAssets = stagedAssets.map((asset) => ({
-      ...asset,
-      intent:
-        pinnedIntentIds.has(asset.id) && asset.intent
-          ? asset.intent
-          : resolveAssetIntent(imageIntentPrompt, asset.intent),
-    }));
+    const resolvedAssets = resolveStagedIntents(prompt);
     stagedAssets = resolvedAssets;
     const sentAttachments: MessageAttachment[] = [
       ...resolvedAssets.map((asset) => ({
@@ -3989,18 +4117,11 @@ Voice over direction: ${voiceNote}`
         progress: 100,
         message: reply,
       });
-      captureEvent(
-        lastSendQueued ? "film request sent" : "ai generation completed",
-        {
-          duration_ms: Math.round(performance.now() - generationStartedAt),
-          reference_asset_count: sentAttachments.length,
-        },
-      );
-      showNotice(
-        lastSendQueued
-          ? "Sent to our team. Your film will arrive on Telegram."
-          : "Tiffy updated the composition.",
-      );
+      captureEvent("ai generation completed", {
+        duration_ms: Math.round(performance.now() - generationStartedAt),
+        reference_asset_count: sentAttachments.length,
+      });
+      showNotice("Tiffy updated the composition.");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -6350,15 +6471,13 @@ Voice over direction: ${voiceNote}`
     <OutOfCreditsDialog
       onUpgrade={() => captureEvent("out of credits upgrade clicked")}
     />
-    <TelegramContactDialog
-      bind:open={telegramDialogOpen}
-      onConfirm={() => {
-        const held = heldForTelegram;
-        heldForTelegram = null;
-        if (held === "draft") void submitAssistant(new SubmitEvent("submit"));
-        else if (held) void submitAssistant(new SubmitEvent("submit"), held);
-      }}
-      onCancel={() => (heldForTelegram = null)}
+    <SendToTeamDialog
+      bind:open={teamDialogOpen}
+      email={currentUser?.email ?? ""}
+      summary={teamSend?.message.text ?? ""}
+      attachments={teamSend?.assets.length ?? 0}
+      send={sendToTeam}
+      onClose={closeTeamSend}
     />
   </div>
 

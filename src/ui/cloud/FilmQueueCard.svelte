@@ -114,9 +114,13 @@
       <div>
         <strong>Your film is ready</strong>
         <p>
-          We sent it to {request.telegram.connected
-            ? "your Telegram"
-            : request.telegram.contact} on Telegram.
+          {#if request.telegram.connected}
+            We sent it to your Telegram.
+          {:else if request.telegram.contact}
+            We sent it to {request.telegram.contact} on Telegram.
+          {:else}
+            We emailed it to you.
+          {/if}
         </p>
       </div>
     </div>
@@ -138,7 +142,7 @@
         <span class="film-queue__connected"
           ><Check size={13} aria-hidden="true" /> Telegram connected</span
         >
-      {:else if request.telegram.connectUrl}
+      {:else if request.telegram.contact && request.telegram.connectUrl}
         <a
           class="film-queue__connect"
           href={request.telegram.connectUrl}

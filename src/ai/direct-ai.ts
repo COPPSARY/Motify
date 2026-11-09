@@ -24,11 +24,9 @@ import {
   type FilmObservation,
 } from "./frame-evidence";
 import { isFatalRenderFailure } from "./validate-generation";
-import { get } from "svelte/store";
 import {
   CloudApiError,
   ProjectsApi,
-  type FilmRequest,
   type MotionMessageInput,
 } from "../cloud/projects-api";
 import { insufficientCreditsMessage } from "../api/credits";
@@ -37,12 +35,7 @@ import {
   promptOutOfCredits,
   refreshCredits,
 } from "../stores/credits";
-import {
-  fulfillmentMode,
-  isTelegramContact,
-  setFulfillmentMode,
-  telegramContact,
-} from "../stores/film-requests";
+import { setFulfillmentMode } from "../stores/film-requests";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -310,52 +303,13 @@ async function requestBackend(
 }
 
 /**
- * The message went to our team instead of the AI: they make the film by hand
- * and send it to the person's Telegram. Thrown, like a conversational reply,
- * because there is no film to apply.
+ * Films are made by our team right now, so this message was not sent to the
+ * AI. The editor asks where to send the film and sends it to the team.
  */
-export class FilmRequestQueued extends Error {
-  constructor(readonly request: FilmRequest) {
-    super("Your request is with our team.");
-    this.name = "FilmRequestQueued";
-  }
-}
-
-/** Films are made by our team right now, and they need somewhere to send this one. */
-export class TelegramContactRequired extends Error {
+export class SendToTeamInstead extends Error {
   constructor() {
-    super(
-      "Our team is making films by hand right now. Add your Telegram number and send it again.",
-    );
-    this.name = "TelegramContactRequired";
-  }
-}
-
-/**
- * Sends the message to the team as a film request. Null when the API says the
- * AI makes films after all, so the caller sends it to the AI instead.
- */
-async function sendToTeam(
-  api: ProjectsApi,
-  projectId: string,
-  input: MotionMessageInput,
-): Promise<FilmRequest | null> {
-  const telegram = get(telegramContact).trim();
-  if (!isTelegramContact(telegram)) throw new TelegramContactRequired();
-  const {
-    frames: _frames,
-    revision: _revision,
-    runtimeError: _error,
-    ...message
-  } = input;
-  try {
-    return await api.submitFilmRequest(projectId, { ...message, telegram });
-  } catch (error) {
-    if (error instanceof CloudApiError && error.code === "FULFILLMENT_AI") {
-      setFulfillmentMode("ai");
-      return null;
-    }
-    throw error;
+    super("Our team is making films by hand right now.");
+    this.name = "SendToTeamInstead";
   }
 }
 
@@ -424,11 +378,6 @@ async function requestBackendProject(
       : {}),
   };
   try {
-    // A repair carries frames of a film the AI made; it stays with the AI.
-    if (get(fulfillmentMode) === "manual" && !input.frames) {
-      const queued = await sendToTeam(api, projectId, input);
-      if (queued) throw new FilmRequestQueued(queued);
-    }
     try {
       result = await api.runMotionMessage(projectId, input);
     } catch (error) {
@@ -439,16 +388,10 @@ async function requestBackendProject(
         throw error;
       // The team took over since this page loaded.
       setFulfillmentMode("manual");
-      const queued = await sendToTeam(api, projectId, input);
-      if (queued) throw new FilmRequestQueued(queued);
-      throw error;
+      throw new SendToTeamInstead();
     }
   } catch (error) {
-    if (
-      error instanceof FilmRequestQueued ||
-      error instanceof TelegramContactRequired
-    )
-      throw error;
+    if (error instanceof SendToTeamInstead) throw error;
     // A failed request is not charged, but ask the server rather than assume.
     void refreshCredits();
     if (
