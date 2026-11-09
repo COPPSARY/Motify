@@ -308,7 +308,9 @@ async function requestBackend(
  */
 export class SendToTeamInstead extends Error {
   constructor() {
-    super("Our team is making films by hand right now.");
+    super(
+      "Lots of videos are generating right now, so new requests join a queue.",
+    );
     this.name = "SendToTeamInstead";
   }
 }

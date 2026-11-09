@@ -83,7 +83,10 @@
           >You're #{request.queue.position}
           <span>of {request.queue.total} in the queue</span></strong
         >
-        <p>Our team makes your film by hand and sends it to you on Telegram.</p>
+        <p>
+          Lots of videos are generating right now. We'll send yours as soon as
+          it's finished.
+        </p>
       </div>
     </div>
     <div
@@ -102,8 +105,8 @@
         ><Clapperboard size={16} /></span
       >
       <div>
-        <strong>Our team is making your film</strong>
-        <p>It will arrive on Telegram as soon as it's ready.</p>
+        <strong>Your film is generating</strong>
+        <p>We'll send it to you as soon as it's finished.</p>
       </div>
     </div>
   {:else if request.status === "delivered"}

@@ -143,7 +143,8 @@
       >
       <h2 id="film-send-title">Send us your film request</h2>
       <p id="film-send-description">
-        Our team makes your film by hand and sends it to you when it's ready.
+        Lots of videos are generating right now, so yours joins the queue. We'll
+        send it to you as soon as it's finished.
       </p>
       <form
         class="film-send__form"
