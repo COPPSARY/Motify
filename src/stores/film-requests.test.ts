@@ -5,7 +5,6 @@ import type { FilmRequest } from "../cloud/projects-api";
 import { filmRequest } from "./film-requests.fixture";
 import {
   activeFilmRequest,
-  filmRequestReply,
   fulfillmentMode,
   isTelegramContact,
   loadProjectFilmRequest,
@@ -90,23 +89,5 @@ describe("loadProjectFilmRequest", () => {
     answer([]);
     await loading;
     expect(get(activeFilmRequest)?.id).toBe("just-sent");
-  });
-});
-
-describe("filmRequestReply", () => {
-  it("says where the film goes and the place in the queue", () => {
-    expect(filmRequestReply(filmRequest())).toBe(
-      "Our team is making this one by hand and will send the finished video to Telegram (+85512345678). You're #4 of 15 in the queue.",
-    );
-    expect(
-      filmRequestReply(
-        filmRequest({
-          telegram: { contact: "@dara", connected: true, connectUrl: null },
-          queue: null,
-        }),
-      ),
-    ).toBe(
-      "Our team is making this one by hand and will send the finished video to your Telegram.",
-    );
   });
 });

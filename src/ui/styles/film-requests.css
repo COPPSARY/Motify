@@ -1,4 +1,4 @@
-/* Films made by hand: the Telegram field, the queue card and the contact dialog. */
+/* Films made by hand: the send-to-team popup and the queue card. */
 
 .code-editor-scope .film-telegram-field {
   display: flex;
@@ -49,50 +49,97 @@
   color: #ff8589;
 }
 
-/* In the chat composer: one slim row above the prompt. */
-.code-editor-scope .ai-telegram-row {
+/* ------------------------------------------------------- send-to-team popup */
+
+.code-editor-scope .film-send {
+  width: min(400px, calc(100vw - 32px));
+}
+
+.code-editor-scope .film-send__form {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  padding: 6px 6px 6px 10px;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.code-editor-scope .film-send__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
   border: 1px solid var(--sl-border-strong);
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--sl-bg);
+  text-align: left;
+}
+
+.code-editor-scope .film-send__summary q {
+  color: var(--sl-text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.code-editor-scope .film-send__summary small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sl-muted);
+  font-size: 12px;
+}
+
+.code-editor-scope .film-telegram-field em {
+  color: var(--sl-muted);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.code-editor-scope .film-telegram-field input[readonly] {
   color: var(--sl-text-soft);
+  cursor: default;
+}
+
+.code-editor-scope .film-send p strong {
+  color: var(--sl-text);
+}
+
+.code-editor-scope .me-out-of-credits .film-send__error {
+  margin: 0;
+  color: #ff8589;
   font-size: 12.5px;
+  text-align: left;
 }
 
-.code-editor-scope .ai-telegram-row.is-invalid {
-  border-color: #e5484d;
+.code-editor-scope .me-out-of-credits__upgrade:disabled {
+  opacity: 0.65;
+  cursor: progress;
 }
 
-.code-editor-scope .ai-telegram-row input {
-  flex: 1;
-  min-width: 0;
-  padding: 2px 0;
+.code-editor-scope .film-send__done {
+  background: rgba(48, 164, 108, 0.16);
+  color: #3dd68c;
+}
+
+.code-editor-scope .film-send__note {
+  margin: 8px 0 0;
+  color: var(--sl-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .film-send__secondary {
+  margin-top: 12px;
+  padding: 6px 12px;
   border: 0;
   background: transparent;
-  color: var(--sl-text);
+  color: var(--sl-text-soft);
   font: inherit;
   font-size: 13px;
+  cursor: pointer;
 }
 
-.code-editor-scope .ai-telegram-row input:focus {
-  outline: none;
-}
-
-.code-editor-scope .ai-telegram-row input::placeholder {
-  color: var(--sl-faint);
-}
-
-.code-editor-scope .film-contact {
-  width: min(380px, calc(100vw - 32px));
-}
-
-.code-editor-scope .film-contact__field {
-  width: 100%;
-  margin: 0 0 16px;
+.code-editor-scope .film-send__secondary:hover {
+  color: var(--sl-text);
 }
 
 /* ------------------------------------------------------------ queue card */

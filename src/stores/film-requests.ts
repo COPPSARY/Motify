@@ -29,6 +29,7 @@ export const telegramContact = writable<string>(readStoredContact());
 telegramContact.subscribe((value) => {
   try {
     if (value.trim()) localStorage.setItem(TELEGRAM_KEY, value.trim());
+    else localStorage.removeItem(TELEGRAM_KEY);
   } catch {
     // Storage can be off; the field is just empty next time.
   }
@@ -111,15 +112,4 @@ export async function loadProjectFilmRequest(
 
 export function isOpenFilmRequest(request: FilmRequest | null): boolean {
   return request?.status === "queued" || request?.status === "in_progress";
-}
-
-/** The line Tiffy answers a film request with in the chat. */
-export function filmRequestReply(request: FilmRequest): string {
-  const where = request.telegram.connected
-    ? "your Telegram"
-    : `Telegram (${request.telegram.contact})`;
-  const place = request.queue
-    ? ` You're #${request.queue.position} of ${request.queue.total} in the queue.`
-    : "";
-  return `Our team is making this one by hand and will send the finished video to ${where}.${place}`;
 }

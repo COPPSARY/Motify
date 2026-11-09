@@ -226,7 +226,8 @@ export interface FilmRequest {
   /** Their place and the queue's length while it is queued. */
   queue: { position: number; total: number } | null;
   telegram: {
-    contact: string;
+    /** Null when they left Telegram out; the film is then emailed. */
+    contact: string | null;
     /** Whether the person has opened the bot, so the film is sent there. */
     connected: boolean;
     /** Opens a chat with the bot and connects it; null when the bot is unknown. */
@@ -245,8 +246,8 @@ export type FilmRequestInput = Omit<
   MotionMessageInput,
   "revision" | "runtimeError" | "frames"
 > & {
-  /** Phone number or @username on Telegram. */
-  telegram: string;
+  /** Phone number or @username on Telegram; without it the film is emailed. */
+  telegram?: string;
 };
 
 export interface MotionMessageInput {
