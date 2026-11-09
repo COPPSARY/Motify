@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   runMotionMessage: vi.fn(),
-  submitFilmRequest: vi.fn(),
   getSource: vi.fn(),
   getProject: vi.fn(),
 }));
@@ -27,89 +26,38 @@ vi.mock("../stores/credits", () => ({
 
 import { get } from "svelte/store";
 import { CloudApiError } from "../cloud/projects-api";
-import {
-  fulfillmentMode,
-  setFulfillmentMode,
-  telegramContact,
-} from "../stores/film-requests";
-import {
-  BackendConversationResponse,
-  FilmRequestQueued,
-  generateWithDirectAi,
-  TelegramContactRequired,
-} from "./direct-ai";
-
-const queued = {
-  id: "request-1",
-  projectId: "project-1",
-  status: "queued",
-  queue: { position: 4, total: 15 },
-};
+import { fulfillmentMode, setFulfillmentMode } from "../stores/film-requests";
+import { generateWithDirectAi, SendToTeamInstead } from "./direct-ai";
 
 const send = () =>
   generateWithDirectAi("A launch film for our cold brew", {
     backendProjectId: "project-1",
     brandId: null,
     model: "flash",
-    tool: { id: "product-launch", seconds: 20, language: "en" },
     assets: [],
   } as never);
 
-describe("generateWithDirectAi while our team makes films", () => {
+describe("generateWithDirectAi when our team takes over", () => {
   beforeEach(() => {
     api.runMotionMessage.mockReset();
-    api.submitFilmRequest.mockReset();
-    telegramContact.set("+855 12 345 678");
-  });
-
-  it("sends the message to the team with the Telegram contact instead of the AI", async () => {
-    setFulfillmentMode("manual");
-    api.submitFilmRequest.mockResolvedValue(queued);
-
-    const error = await send().catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(FilmRequestQueued);
-    expect((error as FilmRequestQueued).request).toEqual(queued);
-    expect(api.runMotionMessage).not.toHaveBeenCalled();
-    expect(api.submitFilmRequest).toHaveBeenCalledWith("project-1", {
-      brandId: null,
-      message: "A launch film for our cold brew",
-      model: "flash",
-      tool: { id: "product-launch", seconds: 20, language: "en" },
-      assets: [],
-      telegram: "+855 12 345 678",
-    });
-  });
-
-  it("asks for a Telegram contact rather than sending without one", async () => {
-    setFulfillmentMode("manual");
-    telegramContact.set("");
-    await expect(send()).rejects.toBeInstanceOf(TelegramContactRequired);
-    expect(api.submitFilmRequest).not.toHaveBeenCalled();
-  });
-
-  it("goes to the team when the API says it took over since the page loaded", async () => {
     setFulfillmentMode("ai");
+  });
+
+  it("hands the message back for the team when the API says the team makes films now", async () => {
     api.runMotionMessage.mockRejectedValue(
       new CloudApiError(409, "FULFILLMENT_MANUAL", "Made by our team"),
     );
-    api.submitFilmRequest.mockResolvedValue(queued);
 
-    await expect(send()).rejects.toBeInstanceOf(FilmRequestQueued);
+    await expect(send()).rejects.toBeInstanceOf(SendToTeamInstead);
     expect(get(fulfillmentMode)).toBe("manual");
   });
 
-  it("goes back to the AI when the API says the AI makes films again", async () => {
-    setFulfillmentMode("manual");
-    api.submitFilmRequest.mockRejectedValue(
-      new CloudApiError(409, "FULFILLMENT_AI", "Made by the AI"),
+  it("leaves other failures as they are", async () => {
+    api.runMotionMessage.mockRejectedValue(
+      new CloudApiError(500, "INTERNAL", "Something broke"),
     );
-    api.runMotionMessage.mockResolvedValue({
-      type: "chat",
-      response: "Hello!",
-    });
 
-    await expect(send()).rejects.toBeInstanceOf(BackendConversationResponse);
-    expect(api.runMotionMessage).toHaveBeenCalled();
+    await expect(send()).rejects.not.toBeInstanceOf(SendToTeamInstead);
     expect(get(fulfillmentMode)).toBe("ai");
   });
 });

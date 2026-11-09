@@ -5,9 +5,8 @@
  */
 export {
   BackendConversationResponse,
-  FilmRequestQueued,
   generateWithDirectAi,
-  TelegramContactRequired,
+  SendToTeamInstead,
 } from "./direct-ai";
 export {
   isFatalRenderFailure,
