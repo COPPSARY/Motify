@@ -45,7 +45,7 @@ describe("FilmQueueCard", () => {
     let { card } = show(
       filmRequest({ status: "in_progress", queue: null, telegram: connected }),
     );
-    expect(card.textContent).toContain("Our team is making your film");
+    expect(card.textContent).toContain("Your film is generating");
     expect(card.textContent).toContain("Telegram connected");
     expect(card.querySelector(".film-queue__connect")).toBeNull();
     expect(card.querySelector(".film-queue__cancel")).toBeNull();

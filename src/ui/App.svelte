@@ -3673,7 +3673,7 @@ Voice over direction: ${voiceNote}`
           assets: assetsInFlight ?? [],
           audio: audioInFlight ?? [],
         });
-        return "Our team is making films by hand right now. Send this to them from the form, and they'll send you the film.";
+        return "Lots of videos are generating right now, so new requests join a queue. Send yours from the form and we'll send you the film once it's finished.";
       }
       throw error;
     }
