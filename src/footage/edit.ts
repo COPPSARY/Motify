@@ -157,6 +157,11 @@ export interface FootageMusic {
 
 /** What an overlay shows: another clip (B-roll), a picture, or a card. */
 export type FootageCutawayKind = "clip" | "image" | "card";
+/**
+ * "full" covers the frame; "top" fills the top half (the left in 16:9) while the
+ * speaker zooms out and moves down to stay in view below, the talking-head split.
+ */
+export type FootageCutawayLayout = "full" | "top";
 
 /**
  * An overlay over talk: B-roll, a picture or a card covers the video while the
@@ -172,6 +177,8 @@ export interface FootageCutaway {
   duration: number;
   /** A clip (the default), a picture or a card. */
   kind?: FootageCutawayKind;
+  /** Full frame (the default), or the top half with the speaker below; not for cards. */
+  layout?: FootageCutawayLayout;
   /** The clip shown, from `in` seconds; the picture's asset for an image; "" for a card. */
   assetId: string;
   in: number;
@@ -206,6 +213,8 @@ export interface FootageEdit {
   fps: number;
   title?: string;
   brief?: string;
+  /** The business's name from its Brand Kit, spelled exactly so on cards and titles. */
+  business?: string;
   theme: { accent: string; ink: string; font: string };
   clips: FootageClip[];
   segments: FootageSegment[];
@@ -268,7 +277,7 @@ export function addCutaway(
   assetId: string,
   clipIn = 0,
   seconds = 2.5,
-  extra: Pick<FootageCutaway, "kind" | "card"> = {},
+  extra: Pick<FootageCutaway, "kind" | "card" | "layout"> = {},
 ): FootageEdit {
   const placed = placeSegments(edit).find(
     (item) => !item.segment.card && at >= item.start && at < item.end,
@@ -297,6 +306,9 @@ export function addCutaway(
         from,
         duration,
         ...(extra.kind && extra.kind !== "clip" ? { kind: extra.kind } : {}),
+        ...(extra.layout === "top" && extra.kind !== "card"
+          ? { layout: "top" as const }
+          : {}),
         assetId,
         in: round(Math.max(0, clipIn)),
         ...(extra.card ? { card: extra.card } : {}),
@@ -316,7 +328,11 @@ export function overlayTime(edit: FootageEdit, at: number): number | null {
   return best === null ? null : round(best);
 }
 
-/** A picture (a logo, a product photo) over the talk at `at`, full frame. */
+/**
+ * A picture (a logo, a product photo, a screenshot) over the talk at `at`: in
+ * the top half above the speaker in a vertical or square video, full frame in a
+ * wide one.
+ */
 export function addPicture(
   edit: FootageEdit,
   at: number,
@@ -326,7 +342,10 @@ export function addPicture(
   const time = overlayTime(edit, at);
   return time === null
     ? edit
-    : addCutaway(edit, time, assetId, 0, seconds, { kind: "image" });
+    : addCutaway(edit, time, assetId, 0, seconds, {
+        kind: "image",
+        ...(edit.format === "16:9" ? {} : { layout: "top" as const }),
+      });
 }
 
 export function updateCutaway(
@@ -361,6 +380,7 @@ export function moveCutaway(
   const moved = addCutaway(without, at, cut.assetId, cut.in, cut.duration, {
     ...(cut.kind ? { kind: cut.kind } : {}),
     ...(cut.card ? { card: cut.card } : {}),
+    ...(cut.layout ? { layout: cut.layout } : {}),
   });
   if (moved === without) return edit;
   const added = moved.cutaways![moved.cutaways!.length - 1]!;

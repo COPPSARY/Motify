@@ -139,7 +139,14 @@ async function inlineImages(
       const target = cloneImages[index];
       const url = image.currentSrc || image.src;
       if (!target || !url || url.startsWith("data:")) return;
-      target.src = await embeddedPictureDataUrl(url, maxEdge);
+      try {
+        target.src = await embeddedPictureDataUrl(url, maxEdge);
+      } catch (error) {
+        // One picture that cannot be read leaves a gap, not a failed export.
+        console.warn("[Export] a picture was left out", url, error);
+        target.removeAttribute("src");
+        return;
+      }
       // A picture sized by its own pixels would shrink with them: pin it to
       // the size it is laid out at now, which changes nothing for the rest.
       const laid = (image.ownerDocument.defaultView ?? window).getComputedStyle(

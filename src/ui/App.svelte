@@ -253,12 +253,12 @@
     editByInstruction,
     loadCardFilm,
     motionCardStatus,
+    registerCardFilm,
     roughCut,
     seedLocalClip,
     startMotionCard,
     type InstructionFocus,
   } from "../footage/api";
-  import { setCardFilm } from "../footage/films";
   import { clipStatuses, whenClipsReady } from "../footage/clips";
   import "../footage/footage.css";
   import "../footage/footage-editor.css";
@@ -4856,8 +4856,13 @@ Voice over direction: ${voiceNote}`
   async function generateMotionCards(
     ids?: string[],
     assetIds: string[] = [],
+    /**
+     * The edit just made. `footageEdit` follows the project's files only on
+     * Svelte's next update, so right after a cut it still holds the old one.
+     */
+    latest?: FootageEdit,
   ): Promise<void> {
-    const edit = footageEdit;
+    const edit = latest ?? footageEdit;
     const project = cloudProject;
     if (!edit || !project) return;
     const targets = footageCards(edit).filter(({ id, card }) =>
@@ -4940,7 +4945,7 @@ Voice over direction: ${voiceNote}`
       try {
         const status = await motionCardStatus(film.projectId);
         if (status.status === "ready" && status.film) {
-          setCardFilm(film.projectId, status.film.html);
+          await registerCardFilm(film.projectId, status.film.html);
           const duration = status.film.duration;
           // A ready card cut in runs as long as its film, within a card's limits.
           changes.set(id, (current) => ({
@@ -5155,7 +5160,7 @@ Voice over direction: ${voiceNote}`
       );
       await applyFootageEdit(result.edit, instruction.slice(0, 40));
       // Cards the instruction added are made by Motify's generator, with any attached pictures.
-      void generateMotionCards(undefined, assetIds);
+      void generateMotionCards(undefined, assetIds, result.edit);
       assistantMessages = [
         ...assistantMessages,
         {
@@ -5220,7 +5225,13 @@ Voice over direction: ${voiceNote}`
           }
         : clip;
     });
-    let edit: FootageEdit = { ...emptyEdit(input.format), brief: input.brief };
+    let edit: FootageEdit = {
+      ...emptyEdit(input.format),
+      brief: input.brief,
+      ...(brandName && brandName !== "Your brand"
+        ? { business: brandName.slice(0, 120) }
+        : {}),
+    };
     for (const clip of clips) edit = addClip(edit, clip);
     for (const clip of clips) edit = appendClip(edit, clip.assetId);
 
@@ -5279,7 +5290,7 @@ Voice over direction: ${voiceNote}`
       .join(",");
     const mounted = mountFootage(edit);
     scheduleFootageSave();
-    void generateMotionCards(undefined, input.pictures);
+    void generateMotionCards(undefined, input.pictures, edit);
     captureEvent("footage project created", {
       clips: input.clips.length,
       seconds: input.seconds,

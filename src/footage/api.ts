@@ -1,3 +1,4 @@
+import { hydrateCloudAssetTokens } from "../api/assets";
 import { fetchApi } from "../api/client";
 import { isRawFilm } from "../composition/raw-film";
 import { cardFilmDocument, setCardFilm } from "./films";
@@ -370,6 +371,22 @@ export async function loadCardFilm(projectId: string): Promise<boolean> {
   const status = await motionCardStatus(projectId);
   if (status.status !== "ready" || !status.film) return false;
   if (!isRawFilm(status.film.timelineJs)) return false;
-  setCardFilm(projectId, status.film.html);
+  await registerCardFilm(projectId, status.film.html);
   return true;
+}
+
+/**
+ * A generated card's film, ready to play. The generator names the Brand Kit's
+ * logo and attached pictures by `motify-asset://` tokens, which neither the
+ * card's frame nor the export can load, so they become local copies first
+ * (kept for the session, like the clips).
+ */
+export async function registerCardFilm(
+  projectId: string,
+  html: string,
+): Promise<void> {
+  const hydrated = /motify-(?:asset|audio):\/\//.test(html)
+    ? (await hydrateCloudAssetTokens(html)).source
+    : html;
+  setCardFilm(projectId, hydrated);
 }

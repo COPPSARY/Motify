@@ -567,6 +567,27 @@
               Covers the picture while {clipOf(edit, cutaway.over)?.name ??
                 "the talk"} keeps playing its sound and captions underneath.
             </p>
+            <label
+              >Layout
+              <select
+                value={cutaway.layout ?? "full"}
+                on:change={(e) =>
+                  cutaway &&
+                  onChange(
+                    updateCutaway(edit, cutaway.id, {
+                      layout: text(e) === "top" ? ("top" as const) : undefined,
+                    }),
+                    "Overlay layout",
+                  )}
+              >
+                <option value="top"
+                  >{edit.format === "16:9"
+                    ? "Left half, speaker on the right"
+                    : "Top half, speaker below"}</option
+                >
+                <option value="full">Full frame</option>
+              </select>
+            </label>
             <div class="fx-grid2">
               <label hidden={picture}
                 >From (s) in the clip<input

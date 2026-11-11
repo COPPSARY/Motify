@@ -4,6 +4,7 @@ import {
   addCutaway,
   addPicture,
   updateCard,
+  updateCutaway,
   placeCutaways,
   removeFillers,
   appendClip,
@@ -245,11 +246,12 @@ describe("cards", () => {
 describe("pictures over talk", () => {
   const LOGO = "33333333-3333-4333-8333-333333333333";
 
-  it("shows a picture full frame over the talk at the playhead", () => {
+  it("puts a picture in the top half above the speaker, at the playhead", () => {
     const edit = addPicture(twoClips(), 1, LOGO);
     expect(edit.cutaways).toEqual([
       expect.objectContaining({
         kind: "image",
+        layout: "top",
         over: A,
         from: 3,
         duration: 3,
@@ -258,7 +260,26 @@ describe("pictures over talk", () => {
     ]);
     const html = footageFiles(edit).files["composition.html"];
     expect(html).toContain(
-      `<div class="fx-cut-shot fx-pic" id="fx-cut-0"><img class="fx-pic-fill" src="motify-asset://${LOGO}" alt=""><img class="fx-pic-main" src="motify-asset://${LOGO}" alt=""></div>`,
+      `<div class="fx-cut-shot fx-pic fx-cut--top" id="fx-cut-0"><img class="fx-pic-fill" src="motify-asset://${LOGO}" alt=""><img class="fx-pic-main" src="motify-asset://${LOGO}" alt=""></div>`,
+    );
+  });
+
+  it("covers the whole frame in a wide video, or when set to full", () => {
+    const wide = addPicture({ ...twoClips(), format: "16:9" }, 1, LOGO);
+    expect(wide.cutaways![0]!.layout).toBeUndefined();
+    const split = addPicture(twoClips(), 1, LOGO);
+    const full = updateCutaway(split, split.cutaways![0]!.id, {
+      layout: undefined,
+    });
+    expect(footageFiles(full).files["composition.html"]).toContain(
+      '<div class="fx-cut-shot fx-pic" id="fx-cut-0">',
+    );
+  });
+
+  it("frames B-roll in the top half in its own holder", () => {
+    const edit = addCutaway(twoClips(), 1, B, 0.5, 2, { layout: "top" });
+    expect(footageFiles(edit).files["composition.html"]).toContain(
+      '<div class="fx-cut-shot fx-cut--top" id="fx-cut-0"><video data-motify-video',
     );
   });
 
