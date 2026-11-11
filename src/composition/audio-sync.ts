@@ -6,6 +6,12 @@
  * snapshot instead of driving playback, so Play, Pause, scrubbing, and restart
  * behave the same for sound as for motion, and `timelineJs` never touches it.
  */
+import {
+  envelopeGain,
+  trackPlacement,
+  type TrackPlacement,
+} from "./audio-envelope";
+
 export interface AudioSyncSnapshot {
   time: number;
   playing: boolean;
@@ -14,6 +20,8 @@ export interface AudioSyncSnapshot {
 interface SyncedTrack {
   element: HTMLAudioElement;
   start: number;
+  /** Trim, length and loudness envelope (see audio-envelope.ts). */
+  placement: TrackPlacement;
   retryAt: number;
 }
 
@@ -33,18 +41,16 @@ export class AudioSync {
     for (const element of root.querySelectorAll<HTMLAudioElement>(
       "audio[data-motify-audio]",
     )) {
-      const start = Number.parseFloat(element.dataset["start"] ?? "0");
-      const volume = Number.parseFloat(element.dataset["volume"] ?? "1");
+      const placement = trackPlacement(element);
       element.autoplay = false;
       element.loop = false;
       element.controls = false;
       element.preload = "auto";
-      element.volume = Number.isFinite(volume)
-        ? Math.min(1, Math.max(0, volume))
-        : 1;
+      element.volume = placement.volume * envelopeGain(placement.envelope, 0);
       this.tracks.push({
         element,
-        start: Number.isFinite(start) ? Math.max(0, start) : 0,
+        start: placement.start,
+        placement,
         retryAt: 0,
       });
     }
@@ -131,23 +137,36 @@ export class AudioSync {
   }
 
   private seekTrack(track: SyncedTrack, time: number): void {
-    const local = Math.max(0, time - track.start);
+    const local = track.placement.trim + Math.max(0, time - track.start);
     if (Math.abs(track.element.currentTime - local) > SCRUB_EPSILON) {
       track.element.currentTime = local;
     }
   }
 
   private syncTrack(track: SyncedTrack, time: number, playing: boolean): void {
-    const { element } = track;
-    const local = time - track.start;
+    const { element, placement } = track;
+    const elapsed = time - track.start;
+    // Where in the file the track is: a trimmed track starts part-way in.
+    const local = placement.trim + elapsed;
     const duration = element.duration;
-    const ended = Number.isFinite(duration) && local >= duration;
+    const ended =
+      elapsed >= placement.duration ||
+      (Number.isFinite(duration) && local >= duration);
 
-    if (local < 0 || ended) {
+    if (elapsed < 0 || ended) {
       element.pause();
-      if (local < 0 && element.currentTime > 0) element.currentTime = 0;
+      if (
+        elapsed < 0 &&
+        Math.abs(element.currentTime - placement.trim) > SCRUB_EPSILON
+      )
+        element.currentTime = placement.trim;
       return;
     }
+    if (placement.envelope.length > 0)
+      element.volume = Math.min(
+        1,
+        placement.volume * envelopeGain(placement.envelope, elapsed),
+      );
 
     if (!playing) {
       element.pause();

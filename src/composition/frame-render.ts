@@ -164,13 +164,15 @@ async function inlineImages(
  * editor's typeface and the kit's default.
  */
 function embeddedFilmFont(font: FilmFont): Promise<string> {
-  let css = embeddedFontCss.get(font.family);
+  // A family split into script files has one entry per file.
+  const key = `${font.family}|${font.url}`;
+  let css = embeddedFontCss.get(key);
   if (!css) {
     css = embeddedImageDataUrl(font.url)
       .then((url) => filmFontFaceCss([font], () => url))
       // A missing face degrades to the system font, exactly as before.
       .catch(() => "");
-    embeddedFontCss.set(font.family, css);
+    embeddedFontCss.set(key, css);
   }
   return css;
 }
@@ -277,8 +279,16 @@ export function snapshotCanvases(source: ParentNode, clone: ParentNode): void {
  * `source` shows right now. An SVG image cannot play a video, so without this
  * every clip exports empty. The image keeps the clip's attributes, and its
  * laid-out size and fit, so it sits exactly where the clip did.
+ *
+ * Encoding a frame is most of an export's time, so a clip that is not visible
+ * right now (a footage edit has one per segment) is not drawn at all, and a
+ * visible one is drawn no larger than it appears in the output at `scale`.
  */
-export function snapshotVideos(source: ParentNode, clone: ParentNode): void {
+export function snapshotVideos(
+  source: ParentNode,
+  clone: ParentNode,
+  scale = Number.POSITIVE_INFINITY,
+): void {
   const sources = Array.from(source.querySelectorAll("video"));
   const targets = Array.from(clone.querySelectorAll("video"));
   sources.forEach((video, index) => {
@@ -286,13 +296,23 @@ export function snapshotVideos(source: ParentNode, clone: ParentNode): void {
     if (!target) return;
     const width = video.clientWidth || video.videoWidth;
     const height = video.clientHeight || video.videoHeight;
+    const view = video.ownerDocument.defaultView ?? window;
+    const shown = view.getComputedStyle(video).visibility !== "hidden";
     let url = "";
-    if (video.videoWidth > 0 && video.readyState >= 2) {
+    if (shown && video.videoWidth > 0 && video.readyState >= 2) {
+      // The covering side keeps every pixel the output can show.
+      const fit = Math.min(
+        1,
+        Math.max(
+          (width * scale) / video.videoWidth,
+          (height * scale) / video.videoHeight,
+        ),
+      );
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = Math.max(1, Math.round(video.videoWidth * fit));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * fit));
       try {
-        context2d(canvas).drawImage(video, 0, 0);
+        context2d(canvas).drawImage(video, 0, 0, canvas.width, canvas.height);
         url = canvas.toDataURL("image/jpeg", 0.92);
       } catch {
         // A clip from another origin cannot be read; it exports empty.
@@ -319,6 +339,43 @@ export function snapshotVideos(source: ParentNode, clone: ParentNode): void {
 }
 
 /**
+ * Each footage card made by Motify's generator (a raw film in an iframe inside
+ * the film) replaced by a picture of the frame it shows now. An SVG image
+ * cannot draw an iframe; a hidden one is simply dropped.
+ */
+async function snapshotCardFilms(
+  source: ParentNode,
+  clone: ParentNode,
+  scale: number,
+): Promise<void> {
+  const frames = Array.from(
+    source.querySelectorAll<HTMLIFrameElement>("iframe[data-motify-card-film]"),
+  );
+  const targets = Array.from(
+    clone.querySelectorAll<HTMLIFrameElement>("iframe[data-motify-card-film]"),
+  );
+  await Promise.all(
+    frames.map(async (frame, index) => {
+      const target = targets[index];
+      if (!target) return;
+      const view = frame.ownerDocument.defaultView ?? window;
+      const inner = frame.contentDocument;
+      if (!inner || view.getComputedStyle(frame).visibility === "hidden") {
+        target.remove();
+        return;
+      }
+      const width = frame.clientWidth || 1080;
+      const height = frame.clientHeight || 1920;
+      const canvas = await renderRawFrame(inner, width, height, scale);
+      const image = target.ownerDocument.createElement("img");
+      image.setAttribute("src", canvas.toDataURL("image/jpeg", 0.92));
+      image.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
+      target.replaceWith(image);
+    }),
+  );
+}
+
+/**
  * A raw film's frame: its whole document, as the iframe shows it now, drawn
  * through the same SVG image as any other film, so it exports what preview
  * shows. Scripts and audio are left out; images, canvases and fonts are inlined.
@@ -334,7 +391,7 @@ async function renderRawFrame(
   // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(live, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(live, clone);
-  snapshotVideos(live, clone);
+  snapshotVideos(live, clone, scale);
   clone
     .querySelectorAll("script, audio, noscript, style[data-motify-fonts]")
     .forEach((node) => node.remove());
@@ -374,7 +431,8 @@ export async function renderAuthoredFrame(
   // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(runtime.root, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(runtime.root, clone);
-  snapshotVideos(runtime.root, clone);
+  snapshotVideos(runtime.root, clone, scale);
+  await snapshotCardFilms(runtime.root, clone, scale);
   await inlineFontFaces(clone);
   const fontCss = await exportFontCss(clone.outerHTML);
   if (fontCss) {

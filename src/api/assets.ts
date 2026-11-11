@@ -1,3 +1,4 @@
+import { hydrateFootageTokens } from "../footage/api";
 import { hydrateAudioTokens } from "./audio-tokens";
 import { fetchApi } from "./client";
 
@@ -10,7 +11,11 @@ export async function hydrateCloudAssetTokens(
   const assetIds = [...source.matchAll(MOTIFY_ASSET_TOKEN)].flatMap((match) =>
     match[1] ? [match[1]] : [],
   );
-  let hydrated = source;
+  // A footage edit's clips are cached for the session (footage/api.ts), so
+  // they are not among the URLs the caller revokes on its next mount.
+  let hydrated = /motify-(?:footage|sfx):\/\//.test(source)
+    ? await hydrateFootageTokens(source)
+    : source;
   const objectUrls: string[] = [];
 
   for (const assetId of new Set(assetIds)) {
@@ -55,7 +60,8 @@ const VIDEO_CONTENT_TYPES: Record<string, string> = {
 
 export const VIDEO_ACCEPT =
   "video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov";
-export const VIDEO_MAX_BYTES = 100_000_000;
+/** What storage accepts per file (Supabase, 50 MB); larger uploads fail with a 400. */
+export const VIDEO_MAX_BYTES = 50_000_000;
 
 function videoExtension(fileName: string): string {
   const dot = fileName.lastIndexOf(".");
@@ -105,6 +111,11 @@ export async function uploadAsset(
     },
   );
   const { data: uploadInfo } = await createResponse.json();
+  // The workspace already has these exact bytes: nothing is sent again.
+  if (uploadInfo.existing) {
+    onProgress?.(100);
+    return uploadInfo.assetId as string;
+  }
 
   // 3. Put Bytes. Supabase signed-upload endpoints expect multipart form data
   // and must be called directly rather than through the Motify API base URL.

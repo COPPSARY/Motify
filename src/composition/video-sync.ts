@@ -4,7 +4,9 @@ import { RAW_FILM_FRAME_SELECTOR } from "./raw-film";
  * Plays a film's clips in step with the timeline playhead.
  *
  * A generated film places an attached clip as
- * `<video data-motify-video src=... data-start="2" data-trim="0" [loop]>`.
+ * `<video data-motify-video src=... data-start="2" data-trim="0" [data-end="6"] [loop]>`.
+ * A clip with `data-end` (a footage edit's segment) stops there and is left
+ * alone until the playhead comes back.
  * The timeline is the single clock: while it plays, each clip plays and is
  * pulled back when it drifts; while paused, scrubbing or exporting, each clip
  * is placed on the exact frame. The film's own script never touches a clip.
@@ -68,6 +70,21 @@ function clipOf(video: HTMLVideoElement) {
   };
 }
 
+/** Film time a clip stops at, from `data-end`; Infinity when it plays on. */
+function endOf(video: HTMLVideoElement): number {
+  const end = Number.parseFloat(video.dataset["end"] ?? "");
+  return Number.isFinite(end) ? end : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Whether a clip matters at `time`: inside its span, or about to start (so
+ * its first frame is ready). A segment far from the playhead is not touched.
+ */
+function nearPlayhead(video: HTMLVideoElement, time: number): boolean {
+  const start = seconds(video.dataset["start"]);
+  return time >= start - 1.5 && time <= endOf(video) + 0.05;
+}
+
 /** Sound is the soundtrack's job; a clip only ever shows pictures. */
 function prepare(video: HTMLVideoElement): void {
   if (video.dataset["motifyPrepared"] === "") return;
@@ -87,11 +104,16 @@ export class VideoSync {
   sync({ time, playing }: VideoSyncSnapshot): void {
     for (const video of filmVideos(this.root)) {
       prepare(video);
+      if (!nearPlayhead(video, time)) {
+        if (!video.paused) video.pause();
+        continue;
+      }
       const clip = clipOf(video);
       const target = clipTime(clip, time);
       const running =
         playing &&
         time >= clip.start &&
+        time < endOf(video) &&
         (clip.loop ||
           !Number.isFinite(clip.duration) ||
           target < clip.duration - 0.05);
@@ -146,15 +168,22 @@ export async function seekVideosExactly(
   time: number,
 ): Promise<void> {
   await Promise.all(
-    filmVideos(root).map(async (video) => {
-      prepare(video);
-      if (!video.paused) video.pause();
-      if (video.readyState < HTMLMediaElement.HAVE_METADATA)
+    // Each export frame waits for its clips to decode: only those on screen.
+    filmVideos(root)
+      .filter(
+        (video) =>
+          time >= seconds(video.dataset["start"]) - 0.05 &&
+          time <= endOf(video) + 0.05,
+      )
+      .map(async (video) => {
+        prepare(video);
+        if (!video.paused) video.pause();
+        if (video.readyState < HTMLMediaElement.HAVE_METADATA)
+          await settled(video);
+        const target = clipTime(clipOf(video), time);
+        if (Math.abs(video.currentTime - target) > SCRUB_EPSILON)
+          video.currentTime = target;
         await settled(video);
-      const target = clipTime(clipOf(video), time);
-      if (Math.abs(video.currentTime - target) > SCRUB_EPSILON)
-        video.currentTime = target;
-      await settled(video);
-    }),
+      }),
   );
 }

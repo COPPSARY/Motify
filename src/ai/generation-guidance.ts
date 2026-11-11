@@ -108,7 +108,13 @@ export interface GenerationTechnique {
   registryReference: string;
   motionlyPresets: readonly string[];
   sustainedMotion: string;
-  handoff: "morph" | "match-cut" | "particle-reassemble" | "beat-cut" | "blur-dissolve" | "final-hold";
+  handoff:
+    | "morph"
+    | "match-cut"
+    | "particle-reassemble"
+    | "beat-cut"
+    | "blur-dissolve"
+    | "final-hold";
 }
 
 export interface SceneDirection {

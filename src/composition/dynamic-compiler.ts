@@ -1,5 +1,6 @@
 import gsap from "gsap";
-import * as presets from "./presets";
+import * as presetLibrary from "./presets";
+import { footageTimeline } from "./footage-runtime";
 import { isRawFilm, mountRawFilm } from "./raw-film";
 import { mountSceneKit } from "./scene-kit";
 import { scopeFilmStyles } from "./scope-css";
@@ -8,6 +9,14 @@ import type {
   CompositionDefinition,
   SceneDefinition,
 } from "./types";
+
+/**
+ * What a timeline.js can call by name: the motion presets, and the footage
+ * runtime a footage edit's timeline hands its edit to (footage/render.ts).
+ * The footage runtime stays out of presets.ts, which is also the AI's
+ * reference for writing films.
+ */
+const presets = { ...presetLibrary, footageTimeline };
 
 export interface DynamicCompositionOptions {
   id?: string;

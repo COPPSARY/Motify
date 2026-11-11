@@ -19,6 +19,9 @@ describe("film fonts", () => {
       "Fraunces",
       "JetBrains Mono",
       "Oswald",
+      // Khmer and Latin files of the one Khmer family, split by script.
+      "Kantumruy Pro",
+      "Kantumruy Pro",
     ]);
   });
 

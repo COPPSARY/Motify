@@ -18,11 +18,7 @@ import type { SceneDefinition } from "../composition/types";
  * the markup, and watched at render time.
  */
 export type SeamMechanism =
-  | "morph"
-  | "match-cut"
-  | "particle-reassemble"
-  | "beat-cut"
-  | "blur-dissolve";
+  "morph" | "match-cut" | "particle-reassemble" | "beat-cut" | "blur-dissolve";
 
 export interface SeamDirection {
   /** Scene id the carrier leaves. */

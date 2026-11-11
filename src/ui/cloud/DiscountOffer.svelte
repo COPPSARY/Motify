@@ -142,8 +142,8 @@
       >
       <h2 id="discount-title">Leave 50% on the table?</h2>
       <p id="discount-description" class="me-discount__lede">
-        {DISCOUNT_CODE} is only around for a limited time. Once it’s gone, it’s
-        full price.
+        {DISCOUNT_CODE} is only around for a limited time. Once it’s gone, it’s full
+        price.
       </p>
       <button
         type="button"

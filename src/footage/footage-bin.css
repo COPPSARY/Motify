@@ -1,0 +1,373 @@
+/* The clip library on the left: one large card per clip, details folded away. */
+
+.fx-upload-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  border: 1px dashed var(--sl-border-strong);
+  border-radius: 10px;
+  background: var(--sl-surface);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fx-upload-btn:hover,
+.fx-upload-btn.fx-over {
+  border-color: var(--fx-ui);
+  background: rgba(39, 82, 201, 0.1);
+}
+
+.fx-bin {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fx-asset {
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--sl-border);
+  border-radius: 12px;
+  background: var(--sl-surface);
+}
+
+.fx-asset--open {
+  border-color: var(--sl-border-strong);
+}
+
+.fx-asset__thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: #000 center / cover no-repeat;
+}
+
+.fx-asset__state,
+.fx-asset__used,
+.fx-asset__duration {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #f2f2f2;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+.fx-asset__state {
+  top: 8px;
+  left: 8px;
+}
+
+.fx-asset__state--bad {
+  color: #ffb4a8;
+}
+
+.fx-asset__used {
+  top: 8px;
+  right: 8px;
+  background: rgba(39, 82, 201, 1);
+  color: #111;
+}
+
+.fx-asset__duration {
+  right: 8px;
+  bottom: 8px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-asset__add {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--fx-ui);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  cursor: pointer;
+}
+
+.fx-asset:hover .fx-asset__add,
+.fx-asset__add:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.fx-asset__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  padding: 9px 8px 9px 12px;
+}
+
+.fx-asset__name {
+  overflow: hidden;
+  color: var(--sl-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-asset__tags {
+  display: flex;
+  gap: 8px;
+  grid-row: 2;
+  color: var(--sl-muted);
+  font-size: 11.5px;
+}
+
+.fx-asset__more {
+  display: inline-grid;
+  place-items: center;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.fx-asset__more:hover {
+  background: var(--sl-surface-hover);
+}
+
+.fx-asset--open .fx-asset__more {
+  transform: rotate(180deg);
+}
+
+.fx-asset__details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.fx-asset__summary,
+.fx-asset__issues {
+  margin: 0;
+  color: var(--sl-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fx-asset__issues {
+  color: var(--sl-muted);
+}
+
+.fx-asset__label {
+  margin-top: 2px;
+  color: var(--sl-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fx-moment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fx-moment-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 6px 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fx-moment-list button:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.fx-moment-time {
+  color: var(--fx-ui-text);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-moment-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fx-link:hover {
+  color: var(--sl-text);
+}
+
+.fx-empty-bin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px 12px;
+  border: 1px dashed var(--sl-border-strong);
+  border-radius: 12px;
+  color: var(--sl-muted);
+  text-align: center;
+}
+
+.fx-empty-bin strong {
+  color: var(--sl-text);
+}
+
+/* Stock B-roll search under the upload button. */
+.fx-stock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+
+.fx-stock__row {
+  display: flex;
+  gap: 6px;
+}
+
+.fx-stock__row input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.fx-stock__row button {
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--sl-surface-active);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fx-stock__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.fx-stock__item {
+  position: relative;
+  aspect-ratio: 9 / 14;
+  overflow: hidden;
+  border: 1px solid var(--sl-border);
+  border-radius: 8px;
+  background: #000 center / cover no-repeat;
+  cursor: pointer;
+}
+
+.fx-stock__item:hover:not(:disabled) {
+  border-color: var(--fx-ui);
+}
+
+.fx-stock__item .fx-asset__duration {
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.fx-stock__busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.fx-stock a {
+  color: inherit;
+}
+
+/* A card in the timeline: no filmstrip, its own colour. */
+.fx-seg.fx-seg--card {
+  background: linear-gradient(135deg, #1b2747, #253d7a);
+  border-color: rgba(39, 82, 201, 0.56);
+}
+
+/* B-roll over talk, on its own lane above the video. */
+.fx-chip--broll {
+  background-color: #1f3a44;
+  background-repeat: no-repeat;
+  color: #d9f3ff;
+  cursor: grab;
+}
+
+.fx-chip--broll .fx-chip__text {
+  text-shadow: 0 1px 3px #000;
+}
