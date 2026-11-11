@@ -371,3 +371,14 @@
 .fx-chip--broll .fx-chip__text {
   text-shadow: 0 1px 3px #000;
 }
+
+/* A card or a picture over talk, in the Overlay lane. */
+.fx-chip--broll.fx-chip--card {
+  background: linear-gradient(135deg, #1b2747, #253d7a);
+  color: #dfe7ff;
+}
+
+.fx-chip--broll.fx-chip--picture {
+  background: linear-gradient(135deg, #3a2a4a, #5a3b6e);
+  color: #f3e6ff;
+}

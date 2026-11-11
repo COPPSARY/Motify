@@ -279,22 +279,59 @@ export function footageTimeline(
     }
   });
 
-  // B-roll over talk: on for its moment, with a slow push so it is never still.
+  // Overlays over talk: on for their moment. B-roll and pictures keep a slow
+  // push so they are never still; a card plays its own motion.
   placeCutaways(edit).forEach((placed, index) => {
-    const video = byId(root, `fx-cut-${index}`);
-    if (!video) return;
-    timeline.set(video, { autoAlpha: 1 }, placed.start);
-    timeline.set(video, { autoAlpha: 0 }, placed.end);
+    const layer = byId(root, `fx-cut-${index}`);
+    if (!layer) return;
+    const { start, end } = placed;
+    timeline.set(layer, { autoAlpha: 1 }, start);
+    timeline.set(layer, { autoAlpha: 0 }, end);
+    if (placed.cutaway.kind === "card") {
+      animateCard(timeline, layer, start, end);
+      const film = layer.querySelector<HTMLElement>(".fx-card-film");
+      if (film) mountCardFilm(timeline, film, start, end);
+      // It arrives with a quick rise and leaves with a fade, over the talk.
+      timeline.fromTo(
+        layer,
+        { yPercent: 6, autoAlpha: 0 },
+        {
+          yPercent: 0,
+          autoAlpha: 1,
+          duration: Math.min(0.3, (end - start) / 3),
+          ease: "power3.out",
+          immediateRender: false,
+        },
+        start,
+      );
+      return;
+    }
+    const moving =
+      placed.cutaway.kind === "image"
+        ? (layer.querySelector<HTMLElement>(".fx-pic-main") ?? layer)
+        : layer;
+    if (placed.cutaway.kind === "image")
+      timeline.fromTo(
+        layer,
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          duration: Math.min(0.2, (end - start) / 4),
+          ease: "power1.out",
+          immediateRender: false,
+        },
+        start,
+      );
     timeline.fromTo(
-      video,
-      { scale: 1.02 },
+      moving,
+      { scale: placed.cutaway.kind === "image" ? 0.96 : 1.02 },
       {
-        scale: 1.08,
-        duration: placed.end - placed.start,
+        scale: placed.cutaway.kind === "image" ? 1.04 : 1.08,
+        duration: end - start,
         ease: "none",
         immediateRender: false,
       },
-      placed.start,
+      start,
     );
   });
 

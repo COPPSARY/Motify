@@ -3,6 +3,7 @@
   import {
     Check,
     Loader2,
+    Mic,
     Music,
     Plus,
     Sparkles,
@@ -35,6 +36,10 @@
       format: FootageFormat;
       captionLanguage: string;
       music: boolean;
+      /** A voice-over read by Kiri, for clips nobody speaks in. */
+      voiceover: boolean;
+      /** Pictures to use: a logo, product photos. */
+      pictures: string[];
     },
     onProgress: (step: "clips" | "cut" | "open") => void,
   ) => Promise<void>;
@@ -51,6 +56,9 @@
     /** The file, when this browser can play it: the editor shows it until the server's copy is ready. */
     file?: File;
     clip?: FootageClip;
+    /** A picture (a logo, a product photo) rather than a clip: its asset. */
+    picture?: string;
+    image?: boolean;
     error?: string;
   }
 
@@ -61,6 +69,7 @@
   let format: FootageFormat = "9:16";
   let captionLanguage = "km";
   let music = true;
+  let voiceover = false;
   let creating = false;
   let error = "";
   let dragOver = false;
@@ -87,8 +96,11 @@
     },
   ];
 
-  $: uploading = items.some((item) => !item.clip && !item.error);
+  $: uploading = items.some(
+    (item) => !item.clip && !item.picture && !item.error,
+  );
   $: ready = items.filter((item) => item.clip).map((item) => item.clip!);
+  $: pictures = items.flatMap((item) => (item.picture ? [item.picture] : []));
   $: canCreate = ready.length > 0 && !uploading && !creating;
 
   onDestroy(() => items.forEach((item) => URL.revokeObjectURL(item.preview)));
@@ -121,14 +133,39 @@
   }
 
   async function add(files: FileList | null): Promise<void> {
-    const videos = Array.from(files ?? []).filter(isVideoFile);
-    if (videos.length === 0) {
-      error = "Choose .mp4, .mov or .webm videos.";
+    const all = Array.from(files ?? []);
+    const videos = all.filter(isVideoFile);
+    const images = all.filter((file) =>
+      /^image\/(png|jpeg|webp|gif)$/.test(file.type),
+    );
+    if (videos.length === 0 && images.length === 0) {
+      error =
+        "Choose .mp4, .mov or .webm videos, or .png, .jpg or .webp pictures.";
       return;
     }
     error = "";
-    await Promise.all(
-      videos.map(async (raw) => {
+    await Promise.all([
+      ...images.slice(0, 6).map(async (file) => {
+        const item: Item = {
+          key: `${file.name}-${file.size}-${Math.random()}`,
+          name: file.name,
+          preview: URL.createObjectURL(file),
+          progress: 0,
+          image: true,
+        };
+        items = [...items, item];
+        try {
+          item.picture = await uploadAsset(workspaceId, file, (progress) => {
+            item.progress = progress;
+            items = [...items];
+          });
+        } catch (failure) {
+          item.error =
+            failure instanceof Error ? failure.message : "Upload failed";
+        }
+        items = [...items];
+      }),
+      ...videos.map(async (raw) => {
         const file = withVideoType(raw);
         const item: Item = {
           key: `${file.name}-${file.size}-${Math.random()}`,
@@ -154,7 +191,7 @@
         }
         items = [...items];
       }),
-    );
+    ]);
     if (fileInput) fileInput.value = "";
   }
 
@@ -181,6 +218,8 @@
           format,
           captionLanguage,
           music,
+          voiceover,
+          pictures,
           localFiles,
         },
         (next) => (step = next),
@@ -243,7 +282,7 @@
           <strong>Drop your videos here</strong>
           <small
             >or click to choose · .mp4 .mov .webm · up to 50 MB each · phone
-            footage is fine</small
+            footage is fine · add your logo or product photos too</small
           >
         </button>
       {:else}
@@ -255,16 +294,23 @@
         >
           {#each items as item (item.key)}
             <li class="fs-clip" class:fs-clip--error={item.error}>
-              <!-- The first frame stands for the clip; it never plays here. -->
-              <video
-                src={`${item.preview}#t=0.5`}
-                muted
-                playsinline
-                preload="metadata"
-              ></video>
+              {#if item.image}
+                <img src={item.preview} alt="" />
+              {:else}
+                <!-- The first frame stands for the clip; it never plays here. -->
+                <video
+                  src={`${item.preview}#t=0.5`}
+                  muted
+                  playsinline
+                  preload="metadata"
+                ></video>
+              {/if}
               <span class="fs-clip__state">
                 {#if item.error}<X size={12} />
-                  {item.error}{:else if item.clip}{@const status =
+                  {item.error}{:else if item.picture}<Check size={12} /> Picture{:else if item.image}<Loader2
+                    size={12}
+                    class="fx-spin"
+                  /> Uploading {item.progress}%{:else if item.clip}{@const status =
                     $clipStatuses[
                       item.clip.assetId
                     ]}{#if status?.status === "ready"}<Check size={12} />
@@ -277,7 +323,7 @@
                     ]}…{/if}{:else}<Loader2 size={12} class="fx-spin" /> Uploading
                   {item.progress}%{/if}
               </span>
-              {#if !item.clip && !item.error}<span
+              {#if !item.clip && !item.picture && !item.error}<span
                   class="fs-clip__bar"
                   style:width={`${item.progress}%`}
                 ></span>{/if}
@@ -303,7 +349,7 @@
       <input
         bind:this={fileInput}
         type="file"
-        accept={VIDEO_ACCEPT}
+        accept={`${VIDEO_ACCEPT},image/png,image/jpeg,image/webp,image/gif`}
         multiple
         hidden
         on:change={(event) =>
@@ -381,6 +427,13 @@
         <label class="fs-option fs-switch">
           <span><Music size={14} /> Background music</span>
           <input type="checkbox" role="switch" bind:checked={music} />
+        </label>
+        <label
+          class="fs-option fs-switch"
+          title="For clips nobody speaks in: a narrator reads a script the AI writes, in the subtitle language"
+        >
+          <span><Mic size={14} /> Voice-over</span>
+          <input type="checkbox" role="switch" bind:checked={voiceover} />
         </label>
       </div>
     </div>
