@@ -38,6 +38,7 @@
     addTitle,
     appendClip,
     clipOf,
+    cutawayMaxLength,
     editDuration,
     newId,
     placeCues,
@@ -615,12 +616,15 @@
                   type="number"
                   step="0.1"
                   min="0.3"
-                  max="8"
+                  max={fmt(cutawayMaxLength(edit, cutaway))}
                   value={fmt(cutaway.duration)}
                   on:change={(e) =>
                     onChange(
                       updateCutaway(edit, cutaway.id, {
-                        duration: Math.max(0.3, Math.min(8, num(e))),
+                        duration: Math.max(
+                          0.3,
+                          Math.min(cutawayMaxLength(edit, cutaway), num(e)),
+                        ),
                       }),
                       "B-roll length",
                     )}

@@ -18,7 +18,9 @@
   import { footageFileUrl } from "./api";
   import {
     clipOf,
+    cutawayMaxLength,
     editDuration,
+    trimCutawayStart,
     moveSegment,
     placeCues,
     placeCutaways,
@@ -110,7 +112,12 @@
         x0: number;
         dx: number;
       }
-    | { kind: "cut-move" | "cut-length"; id: string; x0: number; dx: number }
+    | {
+        kind: "cut-move" | "cut-start" | "cut-length";
+        id: string;
+        x0: number;
+        dx: number;
+      }
     | { kind: "seek"; x0: number; dx: number; lane: boolean };
   let drag: Drag | null = null;
 
@@ -239,6 +246,20 @@
         }
         break;
       }
+      case "cut-start": {
+        const cutaway = cutaways.find(
+          (item) => item.cutaway.id === finished.id,
+        );
+        if (cutaway) {
+          const next = trimCutawayStart(
+            edit,
+            finished.id,
+            Math.max(0, cutaway.start + seconds),
+          );
+          if (next !== edit) onChange(next, "Overlay start");
+        }
+        break;
+      }
       case "cut-length": {
         const cutaway = cutaways.find(
           (item) => item.cutaway.id === finished.id,
@@ -246,15 +267,19 @@
         if (cutaway)
           onChange(
             updateCutaway(edit, finished.id, {
+              // From what it shows now, so one cut short by a card grows from there.
               duration:
                 Math.round(
                   Math.max(
                     0.3,
-                    Math.min(8, cutaway.cutaway.duration + seconds),
+                    Math.min(
+                      cutawayMaxLength(edit, cutaway.cutaway),
+                      cutaway.end - cutaway.start + seconds,
+                    ),
                   ) * 100,
                 ) / 100,
             }),
-            "B-roll length",
+            "Overlay length",
           );
         break;
       }
@@ -316,6 +341,14 @@
     let boxWidth = (item.end - item.start) * pps;
     if (current && "id" in current && current.id === item.cutaway.id) {
       if (current.kind === "cut-move") left = Math.max(0, left + current.dx);
+      if (current.kind === "cut-start") {
+        const shift = Math.max(
+          -left,
+          Math.min(current.dx, boxWidth - 0.3 * pps),
+        );
+        left += shift;
+        boxWidth -= shift;
+      }
       if (current.kind === "cut-length")
         boxWidth = Math.max(0.3 * pps, boxWidth + current.dx);
     }
@@ -629,6 +662,20 @@
                   dx: 0,
                 })}
             >
+              <span
+                class="fx-handle fx-handle--in"
+                role="slider"
+                aria-label="Overlay start"
+                aria-valuenow={item.start}
+                tabindex="-1"
+                on:pointerdown={(event) =>
+                  start(event, {
+                    kind: "cut-start",
+                    id: item.cutaway.id,
+                    x0: event.clientX,
+                    dx: 0,
+                  })}
+              ></span>
               <span class="fx-chip__text">{cutawayName(item)}</span>
               <span
                 class="fx-handle fx-handle--out"

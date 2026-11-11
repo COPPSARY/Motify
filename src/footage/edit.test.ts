@@ -21,7 +21,9 @@ import {
   trimSegment,
   updateCue,
   updateSegment,
+  trimCutawayStart,
   type FootageEdit,
+  type FootageSegment,
 } from "./edit";
 import { footageFiles, isFootageTimeline, readFootageEdit } from "./render";
 
@@ -370,12 +372,66 @@ describe("B-roll over talk", () => {
     // Splitting through it shows it across both pieces, unbroken.
     const split = splitAt(edit, 2);
     expect(placeCutaways(split).map(({ start, end }) => [start, end])).toEqual([
-      [1, 2],
-      [2, 3],
+      [1, 3],
     ]);
     // Moving the talk to the end takes it along.
     edit = moveSegment(edit, edit.segments[0]!.id, 1);
     expect(placeCutaways(edit)[0]).toMatchObject({ start: 4, end: 6 });
+  });
+
+  it("runs on past the end of its scene, up to a card or the video's end", () => {
+    // The talk is 0-4 s and the next clip 4-7 s; an overlay from 1 s runs 5 s.
+    const edit = addCutaway(twoClips(), 1, B, 0, 5, { kind: "image" });
+    expect(edit.cutaways![0]!.duration).toBe(5);
+    expect(placeCutaways(edit)[0]).toMatchObject({ start: 1, end: 6 });
+    // Asked for longer than the video, it stops at the end.
+    const long = updateCutaway(edit, edit.cutaways![0]!.id, { duration: 20 });
+    expect(placeCutaways(long)[0]).toMatchObject({ start: 1, end: 7 });
+    // A card cut in after the talk fills the frame, so the overlay stops there.
+    const card: FootageSegment = {
+      id: "card",
+      assetId: "",
+      in: 0,
+      out: 2,
+      volume: 0,
+      transition: "cut",
+      audioLead: 0,
+      audioTail: 0,
+      zoom: 1,
+      card: { template: "statement", theme: "dark", title: "Hi" },
+    };
+    const withCard = {
+      ...edit,
+      segments: [edit.segments[0]!, card, edit.segments[1]!],
+    };
+    expect(placeCutaways(withCard)[0]).toMatchObject({ start: 1, end: 4 });
+  });
+
+  it("can have its start pulled earlier or later while its end stays", () => {
+    const edit = addCutaway(twoClips(), 2, B, 1, 3);
+    const id = edit.cutaways![0]!.id;
+    expect(placeCutaways(edit)[0]).toMatchObject({ start: 2, end: 5, trim: 1 });
+    // Earlier shows more of the clip from before.
+    const earlier = trimCutawayStart(edit, id, 1.5);
+    expect(placeCutaways(earlier)[0]).toMatchObject({
+      start: 1.5,
+      end: 5,
+      trim: 0.5,
+    });
+    // Not before the clip's first frame.
+    expect(placeCutaways(trimCutawayStart(edit, id, 0))[0]).toMatchObject({
+      start: 1,
+      end: 5,
+      trim: 0,
+    });
+    // Later shows less, and keeps its id.
+    const later = trimCutawayStart(edit, id, 3);
+    expect(placeCutaways(later)[0]).toMatchObject({
+      start: 3,
+      end: 5,
+      trim: 2,
+    });
+    expect(later.cutaways![0]!.id).toBe(id);
   });
 
   it("is never laid over a card, or over its own clip", () => {
