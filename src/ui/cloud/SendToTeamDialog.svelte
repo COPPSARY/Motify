@@ -9,14 +9,14 @@
 
   /** True while the dialog is on screen. */
   export let open = false;
-  /** The account's email; the film goes here unless a Telegram is given. */
+  /** The account's email, shown alongside the Telegram the film is sent to. */
   export let email: string;
   /** What they asked for, so they can see what is being sent. */
   export let summary = "";
   /** Pictures and videos going with it. */
   export let attachments = 0;
-  /** Sends the request to the team, with the Telegram contact if one was given. */
-  export let send: (telegram: string | undefined) => Promise<FilmRequest>;
+  /** Sends the request to the team with the Telegram contact, which is required. */
+  export let send: (telegram: string) => Promise<FilmRequest>;
   /** Called once the dialog closes; `sent` says whether the request went. */
   export let onClose: (sent: boolean) => void = () => undefined;
 
@@ -24,6 +24,7 @@
   let input: HTMLInputElement;
   let telegram = "";
   let tried = false;
+  let flashing = false;
   let sending = false;
   let error = "";
   let sent: FilmRequest | null = null;
@@ -32,6 +33,7 @@
     if (open && !dialog.open) {
       telegram = $telegramContact;
       tried = false;
+      flashing = false;
       sending = false;
       error = "";
       sent = null;
@@ -40,22 +42,31 @@
     } else if (!open && dialog.open) dialog.close();
   }
 
-  $: invalid = tried && telegram.trim() !== "" && !isTelegramContact(telegram);
+  $: missing = tried && telegram.trim() === "";
+  $: invalid = missing || (tried && !isTelegramContact(telegram));
   $: preview =
     summary.length > 180 ? `${summary.slice(0, 180).trimEnd()}…` : summary;
+
+  /** Replays the red flash on the field each time a send is refused. */
+  async function flash(): Promise<void> {
+    flashing = false;
+    await tick();
+    flashing = true;
+  }
 
   async function submit(): Promise<void> {
     if (sending) return;
     tried = true;
     const contact = telegram.trim();
-    if (contact && !isTelegramContact(contact)) {
+    if (!isTelegramContact(contact)) {
       input?.focus();
+      void flash();
       return;
     }
     sending = true;
     error = "";
     try {
-      sent = await send(contact || undefined);
+      sent = await send(contact);
       telegramContact.set(contact);
     } catch (caught) {
       error =
@@ -167,8 +178,13 @@
           <span>Email</span>
           <input type="email" value={email} readonly />
         </label>
-        <label class="film-telegram-field" class:is-invalid={invalid}>
-          <span>Telegram <em>(optional)</em></span>
+        <label
+          class="film-telegram-field"
+          class:is-invalid={invalid}
+          class:is-flashing={flashing}
+          on:animationend={() => (flashing = false)}
+        >
+          <span>Telegram <b class="film-telegram-field__required" aria-hidden="true">*</b></span>
           <input
             bind:this={input}
             bind:value={telegram}
@@ -176,13 +192,17 @@
             inputmode="tel"
             autocomplete="tel"
             placeholder="+855 12 345 678 or @username"
+            required
+            aria-required="true"
             aria-invalid={invalid}
             disabled={sending}
           />
           <small role={invalid ? "alert" : undefined}
-            >{invalid
-              ? "Enter the number or @username you use on Telegram."
-              : "Add it and we'll send your film on Telegram. Otherwise we'll email it."}</small
+            >{missing
+              ? "Add your Telegram number or @username so we can send your film."
+              : invalid
+                ? "Enter the number or @username you use on Telegram."
+                : "Your number or @username. We'll send your film there."}</small
           >
         </label>
         {#if error}<p class="film-send__error" role="alert">{error}</p>{/if}

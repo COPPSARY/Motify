@@ -49,6 +49,35 @@
   color: #ff8589;
 }
 
+.code-editor-scope .film-telegram-field__required {
+  color: #ff8589;
+  font-weight: 600;
+}
+
+/* A refused send flashes the field red so the missing Telegram is obvious. */
+.code-editor-scope .film-telegram-field.is-flashing input {
+  animation: film-telegram-flash 600ms ease-out;
+}
+
+@keyframes film-telegram-flash {
+  0%,
+  40% {
+    border-color: #e5484d;
+    background: rgba(229, 72, 77, 0.22);
+    box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.35);
+  }
+  100% {
+    background: var(--sl-bg);
+    box-shadow: 0 0 0 0 rgba(229, 72, 77, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-editor-scope .film-telegram-field.is-flashing input {
+    animation-duration: 1ms;
+  }
+}
+
 /* ------------------------------------------------------- send-to-team popup */
 
 .code-editor-scope .film-send {
@@ -86,12 +115,6 @@
   gap: 5px;
   color: var(--sl-muted);
   font-size: 12px;
-}
-
-.code-editor-scope .film-telegram-field em {
-  color: var(--sl-muted);
-  font-style: normal;
-  font-weight: 500;
 }
 
 .code-editor-scope .film-telegram-field input[readonly] {

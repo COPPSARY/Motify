@@ -71,28 +71,39 @@ describe("SendToTeamDialog", () => {
     ).toBe("dara@example.com");
     expect(text(dialog)).toContain("A launch film for our cold brew");
     expect(text(dialog)).toContain("2 files attached");
-    expect(text(dialog)).toContain("Telegram (optional)");
+    expect(text(dialog)).toContain("Telegram *");
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[inputmode="tel"]')
+        ?.required,
+    ).toBe(true);
   });
 
-  it("sends without Telegram, and says the film will be emailed", async () => {
-    const { dialog, submit, send, onClose } = render(
-      vi.fn().mockResolvedValue(
-        filmRequest({
-          telegram: { contact: null, connected: false, connectUrl: null },
-        }),
-      ),
-    );
+  it("won't send without Telegram, and flashes the field red", async () => {
+    const { dialog, submit, send } = render();
     await submit();
-    expect(send).toHaveBeenCalledWith(undefined);
+    expect(send).not.toHaveBeenCalled();
+    const field = dialog.querySelector(".film-telegram-field.is-invalid");
+    expect(field).not.toBeNull();
+    await tick();
+    flushSync();
+    expect(field?.classList.contains("is-flashing")).toBe(true);
+    expect(text(dialog)).toContain(
+      "Add your Telegram number or @username so we can send your film.",
+    );
+  });
+
+  it("sends with Telegram, says where it goes, and closing reports it sent", async () => {
+    const { dialog, telegram, submit, send, onClose } = render(
+      vi.fn().mockResolvedValue(filmRequest()),
+    );
+    telegram.value = "@dara_k";
+    telegram.dispatchEvent(new Event("input"));
+    await submit();
+    expect(send).toHaveBeenCalledWith("@dara_k");
     expect(text(dialog)).toContain("Got it! Your request is in.");
     expect(text(dialog)).toContain("You're #4 of 15 in line.");
-    expect(text(dialog)).toContain(
-      "We'll email your film to dara@example.com.",
-    );
 
-    dialog
-      .querySelector<HTMLButtonElement>(".me-out-of-credits__upgrade")
-      ?.click();
+    dialog.querySelector<HTMLButtonElement>(".film-send__secondary")?.click();
     flushSync();
     expect(onClose).toHaveBeenCalledWith(true);
   });
@@ -127,11 +138,13 @@ describe("SendToTeamDialog", () => {
   });
 
   it("keeps the form and says why when sending fails, and closing reports nothing sent", async () => {
-    const { dialog, submit, onClose } = render(
+    const { dialog, telegram, submit, onClose } = render(
       vi
         .fn()
         .mockRejectedValue(new Error("You have 3 films in the queue already.")),
     );
+    telegram.value = "@dara_k";
+    telegram.dispatchEvent(new Event("input"));
     await submit();
     expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
       "You have 3 films in the queue already.",
