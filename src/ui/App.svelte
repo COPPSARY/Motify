@@ -487,7 +487,6 @@
   /** The plan as last read, for the Billing page; null before it loads. */
   let activeSubscription: WorkspaceSubscription | null = null;
   let exportWithoutWatermark = false;
-  let subscriptionChecked = mode === "local";
   let maxExportHeight = FREE_MAX_HEIGHT;
   let promotionBanner: PromotionBannerData | null = null;
   /** The longest film this account can make, in seconds; null for no limit. The server enforces it too. */
@@ -956,7 +955,6 @@
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
         else {
-          subscriptionChecked = true;
           if (pendingLandingPrompt) openAuthDialog("signup");
           // A receipt link from an email: sign in, then the receipt opens.
           else if (receiptPaymentId) openAuthDialog("signin");
@@ -4000,7 +3998,6 @@ Voice over direction: ${voiceNote}`
   async function handleAuthenticated(user: MotionlyUser): Promise<void> {
     currentUser = user;
     authChecked = true;
-    subscriptionChecked = false;
     identifyDatadogUser(user);
     identifyAnalyticsUser(user);
     void refreshCredits();
@@ -4040,7 +4037,6 @@ Voice over direction: ${voiceNote}`
     activePlan = null;
     activeSubscription = null;
     exportWithoutWatermark = false;
-    subscriptionChecked = true;
     maxExportHeight = FREE_MAX_HEIGHT;
     brand = null;
     brandProfiles = [];
@@ -4668,7 +4664,6 @@ Voice over direction: ${voiceNote}`
 
   function handleCloudReady(event: CustomEvent<{ workspaceId: string }>): void {
     workspaceId = event.detail.workspaceId;
-    if (currentUser) subscriptionChecked = false;
     void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
@@ -4684,7 +4679,6 @@ Voice over direction: ${voiceNote}`
       activeSubscription = null;
       exportWithoutWatermark = false;
       maxExportHeight = FREE_MAX_HEIGHT;
-      if (authChecked && !currentUser) subscriptionChecked = true;
       return;
     }
     try {
@@ -4699,11 +4693,9 @@ Voice over direction: ${voiceNote}`
         subscription.status === "active";
       maxExportHeight =
         subscription.entitlements?.maxExportHeight ?? FREE_MAX_HEIGHT;
-      subscriptionChecked = true;
     } catch {
       // Keep the last plan we read: a network blip must not watermark a
       // subscriber's export.
-      subscriptionChecked = true;
     }
   }
 

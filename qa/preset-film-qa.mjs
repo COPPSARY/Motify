@@ -63,7 +63,9 @@ try {
             8.5, 9.85, 10.25, 10.7, 11.2, 12.6, 16.6, 19.8, 20.2, 20.6, 21.2,
             22.5, 25.5, 30.5, 32.8, 36.6, 38.6, 39.8, 40.5, 41.8, 42.8, 46.5,
           ]
-        : preset === "tessera" ? [5, 8.6, 9.6, 10.2, 10.8, 11.5, 12.2, 13.2, 14.8, 16, 18.8] : [2.5,4.8,7.6,10.6,12.5,14.8,16.2,17.6,19.6,21.6,24.5];
+        : preset === "tessera"
+          ? [5, 8.6, 9.6, 10.2, 10.8, 11.5, 12.2, 13.2, 14.8, 16, 18.8]
+          : [2.5, 4.8, 7.6, 10.6, 12.5, 14.8, 16.2, 17.6, 19.6, 21.6, 24.5];
     const seek = (time) =>
       page.evaluate(async (time) => {
         window.runtime.seek(time);
@@ -92,33 +94,62 @@ try {
       await seek(time);
       const before = await state();
       if (preset === "KiriTTS" && time === 19.8) {
-        const actor = id => before.find(a => a.id === id);
-        const player = actor("kiriVoiceCarrier"), controls = actor("kiriComposerTools"), footer = actor("kiriGenerateButton");
-        assert.ok(player.y - controls.y - controls.h >= 24, "Generated player overlaps Paragraph/Pause controls");
-        assert.ok(footer.y - player.y - player.h >= 24, "Generated player overlaps footer");
+        const actor = (id) => before.find((a) => a.id === id);
+        const player = actor("kiriVoiceCarrier"),
+          controls = actor("kiriComposerTools"),
+          footer = actor("kiriGenerateButton");
+        assert.ok(
+          player.y - controls.y - controls.h >= 24,
+          "Generated player overlaps Paragraph/Pause controls",
+        );
+        assert.ok(
+          footer.y - player.y - player.h >= 24,
+          "Generated player overlaps footer",
+        );
       }
 
       const contained = (actor) => {
-        assert.ok(actor.x >= 0 && actor.y >= 0 && actor.x + actor.w <= 1920 && actor.y + actor.h <= 1080, `${preset}@${time}: ${actor.id} is cropped`);
+        assert.ok(
+          actor.x >= 0 &&
+            actor.y >= 0 &&
+            actor.x + actor.w <= 1920 &&
+            actor.y + actor.h <= 1080,
+          `${preset}@${time}: ${actor.id} is cropped`,
+        );
       };
       if (preset === "KiriTTS" && time >= 39) {
-        const mark = before.find(a => a.id === "kiriBrandMark");
+        const mark = before.find((a) => a.id === "kiriBrandMark");
         contained(mark);
-        assert.ok(mark.w < 320 && mark.h < 320, "Reused logo returned as a large panel");
+        assert.ok(
+          mark.w < 320 && mark.h < 320,
+          "Reused logo returned as a large panel",
+        );
       }
       if (preset === "tessera" && time >= 14.8 && time <= 16) {
-        const records = before.filter(a => /^tessRecord(One|Two|Three|Four|Five)$/.test(a.id));
+        const records = before.filter((a) =>
+          /^tessRecord(One|Two|Three|Four|Five)$/.test(a.id),
+        );
         records.forEach(contained);
-        records.forEach((a, i) => records.slice(i + 1).forEach(b => {
-          assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, `${a.id} overlaps ${b.id} in the final comparison`);
-        }));
+        records.forEach((a, i) =>
+          records.slice(i + 1).forEach((b) => {
+            assert.ok(
+              a.x + a.w <= b.x ||
+                b.x + b.w <= a.x ||
+                a.y + a.h <= b.y ||
+                b.y + b.h <= a.y,
+              `${a.id} overlaps ${b.id} in the final comparison`,
+            );
+          }),
+        );
       }
       await page.screenshot({
         path: `${out}/${preset}-${time}.jpg`,
         type: "jpeg",
         quality: 88,
       });
-      await seek(preset === "KiriTTS" ? 47.99 : preset === "tessera" ? 19.99 : 25.99);
+      await seek(
+        preset === "KiriTTS" ? 47.99 : preset === "tessera" ? 19.99 : 25.99,
+      );
       await seek(0);
       await seek(time);
       const after = await state();

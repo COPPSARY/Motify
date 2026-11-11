@@ -85,7 +85,9 @@ function ensureFonts(root: HTMLElement): void {
 }
 
 function byId(root: HTMLElement, id: string): HTMLElement | null {
-  return root.querySelector<HTMLElement>(`[id="${id.replace(/"/g, '\\"')}"]`);
+  return root.querySelector<HTMLElement>(
+    `[id="${id.replace(/[\\"]/g, "\\$&")}"]`,
+  );
 }
 
 export function footageTimeline(

@@ -505,6 +505,7 @@
     </div>
   </div>
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="fx-timeline__scroll"
     bind:this={scroller}
