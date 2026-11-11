@@ -327,8 +327,9 @@
     const { cutaway } = item;
     if (cutaway.kind === "card")
       return `◆ ${cutaway.card?.title || cutaway.card?.big || "Card"}`;
-    if (cutaway.kind === "image") return "▣ Picture";
-    return clipOf(edit, cutaway.assetId)?.name ?? "B-roll";
+    const half = cutaway.layout === "top" ? " · split" : "";
+    if (cutaway.kind === "image") return `▣ Picture${half}`;
+    return `${clipOf(edit, cutaway.assetId)?.name ?? "B-roll"}${half}`;
   }
 
   function cutawayStrip(item: (typeof cutaways)[number]): string {

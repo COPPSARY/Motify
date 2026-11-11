@@ -183,6 +183,69 @@ export interface ExportVideoResult {
 
 const PREVIEW_FRAME_INTERVAL = 6;
 const ETA_WARMUP_FRAMES = 3;
+/** Frames the encoder may hold before the next one waits for it. */
+const MAX_ENCODE_QUEUE = 8;
+/** How long the encoder may take nothing before the export gives up on it. */
+const ENCODER_STALL_MS = 45_000;
+
+export class EncoderStalledError extends Error {
+  constructor() {
+    super(
+      "The video encoder stopped responding. Try the export again, or choose a lower resolution.",
+    );
+    this.name = "EncoderStalledError";
+  }
+}
+
+/**
+ * Waits until the encoder holds at most `size` frames. It takes frames at its
+ * own pace (its `dequeue` event); calling `flush()` to make room instead
+ * forces it to finish everything it is holding every few frames, and in
+ * Chrome such a flush has been seen never to resolve, leaving the export
+ * stuck near its end. An encoder that takes nothing for a long time fails the
+ * export rather than hanging it.
+ */
+async function waitForEncoderRoom(
+  encoder: VideoEncoder,
+  size: number,
+): Promise<void> {
+  let lastSize = encoder.encodeQueueSize;
+  let lastProgress = performance.now();
+  while (encoder.encodeQueueSize > size) {
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        encoder.removeEventListener("dequeue", done);
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, 100);
+      encoder.addEventListener("dequeue", done);
+    });
+    if (encoder.encodeQueueSize < lastSize) {
+      lastSize = encoder.encodeQueueSize;
+      lastProgress = performance.now();
+    } else if (performance.now() - lastProgress > ENCODER_STALL_MS) {
+      throw new EncoderStalledError();
+    }
+  }
+}
+
+/** The encoder's final flush, which fails the export instead of hanging it. */
+function flushWithin(encoder: VideoEncoder, ms: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new EncoderStalledError()), ms);
+    encoder.flush().then(
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 export async function exportVideo(
   runtime: CompositionRuntime,
@@ -392,7 +455,7 @@ export async function exportVideo(
       });
       frame.close();
 
-      if (encoder.encodeQueueSize > 8) await encoder.flush();
+      await waitForEncoderRoom(encoder, MAX_ENCODE_QUEUE);
       if (encoderError) throw encoderError;
 
       const completedFrames = frameIndex + 1;
@@ -409,7 +472,7 @@ export async function exportVideo(
       );
     }
 
-    await encoder.flush();
+    await flushWithin(encoder, ENCODER_STALL_MS + totalFrames * 50);
     if (encoderError) throw encoderError;
     if (signal?.aborted) throw new ExportCancelledError();
     const blob = finalize();

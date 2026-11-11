@@ -309,8 +309,8 @@ export function footageTimeline(
     const moving =
       placed.cutaway.kind === "image"
         ? (layer.querySelector<HTMLElement>(".fx-pic-main") ?? layer)
-        : layer;
-    if (placed.cutaway.kind === "image")
+        : (layer.querySelector<HTMLElement>("video") ?? layer);
+    if (placed.cutaway.kind === "image" && placed.cutaway.layout !== "top")
       timeline.fromTo(
         layer,
         { autoAlpha: 0 },
@@ -335,6 +335,8 @@ export function footageTimeline(
     );
   });
 
+  splitReveals(root, timeline, edit);
+
   // Captions are plain text: each line simply appears for as long as it is said.
   placeCues(edit).forEach((placed, index) => {
     const cue = byId(root, `fx-cue-${index}`);
@@ -347,6 +349,97 @@ export function footageTimeline(
 
   // The film lasts exactly as long as the cut.
   timeline.set({}, {}, total);
+}
+
+/**
+ * The talking-head split: while an overlay fills the top half (the left in a
+ * wide video), the speaker's shots move down (right) by a quarter of the frame
+ * so their face stays in view below, and back when it ends. The overlay slides
+ * in from the top edge and out again; back-to-back ones share one reveal.
+ */
+function splitReveals(
+  root: HTMLElement,
+  timeline: gsap.core.Timeline,
+  edit: FootageEdit,
+): void {
+  const shots = root.querySelector<HTMLElement>(".fx-shots");
+  const tops = placeCutaways(edit)
+    .map((placed, index) => ({ ...placed, index }))
+    .filter(
+      ({ cutaway }) => cutaway.layout === "top" && cutaway.kind !== "card",
+    );
+  if (!shots || tops.length === 0) return;
+  const axis = edit.format === "16:9" ? "xPercent" : "yPercent";
+  const spans: Array<{
+    start: number;
+    end: number;
+    first: number;
+    last: number;
+  }> = [];
+  for (const top of tops) {
+    const last = spans[spans.length - 1];
+    if (last && top.start - last.end < 0.4) {
+      last.end = Math.max(last.end, top.end);
+      last.last = top.index;
+    } else
+      spans.push({
+        start: top.start,
+        end: top.end,
+        first: top.index,
+        last: top.index,
+      });
+  }
+  for (const span of spans) {
+    const move = Math.min(0.45, (span.end - span.start) / 3);
+    timeline.fromTo(
+      shots,
+      { [axis]: 0 },
+      {
+        [axis]: 25,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.start,
+    );
+    timeline.fromTo(
+      shots,
+      { [axis]: 25 },
+      {
+        [axis]: 0,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.end - move,
+    );
+    const enter = byId(root, `fx-cut-${span.first}`);
+    if (enter)
+      timeline.fromTo(
+        enter,
+        { [axis]: -100 },
+        {
+          [axis]: 0,
+          duration: move,
+          ease: "power3.inOut",
+          immediateRender: false,
+        },
+        span.start,
+      );
+    const leave = byId(root, `fx-cut-${span.last}`);
+    if (leave)
+      timeline.fromTo(
+        leave,
+        { [axis]: 0 },
+        {
+          [axis]: -100,
+          duration: move,
+          ease: "power3.inOut",
+          immediateRender: false,
+        },
+        span.end - move,
+      );
+  }
 }
 
 /**
