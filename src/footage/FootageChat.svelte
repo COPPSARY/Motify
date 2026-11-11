@@ -52,7 +52,8 @@
   export let onInstruct: (instruction: string, assetIds: string[]) => void;
   export let onRoughCut: (options: {
     brief: string;
-    seconds: number;
+    /** The length asked for; null lets the AI choose it. */
+    seconds: number | null;
     captionLanguage: string;
     music: boolean;
     voiceover: boolean;
@@ -63,7 +64,7 @@
   let list: HTMLDivElement;
   let recutOpen = !hasCut;
   let recutBrief = brief;
-  let seconds = 30;
+  let seconds: number | null = null;
   let captionLanguage = "km";
   let music = true;
   let voiceover = false;
@@ -234,11 +235,15 @@
         ></textarea>
         <div class="fx-recut__row">
           <div class="fx-pills" role="group" aria-label="Length">
-            {#each [15, 30, 45, 60] as option (option)}
+            {#each [null, 15, 30, 45, 60] as option (option ?? "auto")}
               <button
                 type="button"
                 class:fx-on={seconds === option}
-                on:click={() => (seconds = option)}>{option}s</button
+                title={option === null
+                  ? "The AI picks the length your footage needs"
+                  : undefined}
+                on:click={() => (seconds = option)}
+                >{option === null ? "Auto" : `${option}s`}</button
               >
             {/each}
           </div>
