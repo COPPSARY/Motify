@@ -1,3 +1,5 @@
+import { FORMAT_SIZE, editDuration } from "../footage/edit";
+import { readFootageEdit } from "../footage/render";
 import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
 import type { SceneDefinition } from "../composition/types";
@@ -861,6 +863,8 @@ export class ProjectsApi {
           revision: input.revision,
           compositionHtml: combineCompositionSource(input.files),
           timelineJs: input.files["timeline.js"],
+          // A footage edit's length and format change as it is cut.
+          ...footageDimensions(input.files["timeline.js"]),
         },
       },
     );
@@ -979,4 +983,19 @@ export class ProjectsApi {
   private async ensureCsrfToken(): Promise<void> {
     if (!this.csrfToken) await this.getSession();
   }
+}
+
+/** The size and length a footage edit's project must carry; nothing for any other film. */
+function footageDimensions(
+  timelineJs: string,
+): { width: number; height: number; duration: number; fps: number } | object {
+  const edit = readFootageEdit(timelineJs);
+  if (!edit) return {};
+  const { width, height } = FORMAT_SIZE[edit.format];
+  return {
+    width,
+    height,
+    fps: edit.fps,
+    duration: Math.max(0.5, editDuration(edit)),
+  };
 }

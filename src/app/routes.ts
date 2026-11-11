@@ -13,6 +13,7 @@ export function isBrandRoute(pathname: string): boolean {
  * and an open video is `/p/:id`; these are the rest.
  */
 export const HOME_PAGES = [
+  "footage",
   "videos",
   "films",
   "templates",

@@ -1,3 +1,8 @@
+import {
+  envelopeGain,
+  trackPlacement,
+  type EnvelopePoint,
+} from "./audio-envelope";
 import type { ExportRange } from "./export-options";
 
 /**
@@ -13,6 +18,12 @@ export interface ExportAudioTrack {
   /** Film time, in seconds, at which the track starts. */
   start: number;
   volume: number;
+  /** Where in the file it begins (`data-trim`). */
+  trim?: number;
+  /** How long it plays (`data-duration`); to the file's end when absent. */
+  duration?: number;
+  /** Loudness over the track's own time (`data-envelope`). */
+  envelope?: EnvelopePoint[];
 }
 
 export interface EncodedExportAudio {
@@ -36,13 +47,19 @@ export function exportAudioTracks(root: ParentNode): ExportAudioTrack[] {
   ).flatMap((element) => {
     const src = element.currentSrc || element.src;
     if (!src) return [];
-    const start = Number.parseFloat(element.dataset["start"] ?? "0");
-    const volume = Number.parseFloat(element.dataset["volume"] ?? "1");
+    const placement = trackPlacement(element);
     return [
       {
         src,
-        start: Number.isFinite(start) ? Math.max(0, start) : 0,
-        volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1,
+        start: placement.start,
+        volume: placement.volume,
+        ...(placement.trim > 0 ? { trim: placement.trim } : {}),
+        ...(Number.isFinite(placement.duration)
+          ? { duration: placement.duration }
+          : {}),
+        ...(placement.envelope.length > 0
+          ? { envelope: placement.envelope }
+          : {}),
       },
     ];
   });
@@ -60,26 +77,58 @@ export async function mixExportAudio(
   const frames = Math.max(1, Math.ceil(seconds * SAMPLE_RATE));
   const context = new OfflineAudioContext(CHANNELS, frames, SAMPLE_RATE);
   let placed = 0;
-  for (const track of tracks) {
-    let buffer: AudioBuffer;
-    try {
-      const response = await fetch(track.src);
-      buffer = await context.decodeAudioData(await response.arrayBuffer());
-    } catch (error) {
-      // A track that cannot be read leaves the rest of the mix intact.
-      console.warn("Export could not read an audio track.", error);
-      continue;
+  // A footage edit plays one clip's sound in many places: decode each file once.
+  const decoded = new Map<string, Promise<AudioBuffer | null>>();
+  const decode = (src: string) => {
+    let pending = decoded.get(src);
+    if (!pending) {
+      pending = fetch(src)
+        .then((response) => response.arrayBuffer())
+        .then((bytes) => context.decodeAudioData(bytes))
+        .catch((error: unknown) => {
+          // A track that cannot be read leaves the rest of the mix intact.
+          console.warn("Export could not read an audio track.", error);
+          return null;
+        });
+      decoded.set(src, pending);
     }
+    return pending;
+  };
+  for (const track of tracks) {
+    const buffer = await decode(track.src);
+    if (!buffer) continue;
+    const trim = track.trim ?? 0;
+    const length = Math.min(
+      track.duration ?? Number.POSITIVE_INFINITY,
+      buffer.duration - trim,
+    );
+    const end = track.start + length;
+    if (length <= 0 || end <= range.start || track.start >= range.end) continue;
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = speed;
     const gain = context.createGain();
-    gain.gain.value = track.volume;
-    source.connect(gain).connect(context.destination);
     const when = Math.max(0, (track.start - range.start) / speed);
-    const offset = Math.max(0, range.start - track.start);
-    if (offset >= buffer.duration) continue;
-    source.start(when, offset);
+    // How far into the track the export begins, in track time.
+    const skipped = Math.max(0, range.start - track.start);
+    if (track.envelope && track.envelope.length > 0) {
+      const at = (time: number) => when + Math.max(0, time - skipped) / speed;
+      gain.gain.setValueAtTime(
+        track.volume * envelopeGain(track.envelope, skipped),
+        when,
+      );
+      for (const point of track.envelope) {
+        if (point.time <= skipped) continue;
+        gain.gain.linearRampToValueAtTime(
+          track.volume * point.gain,
+          at(point.time),
+        );
+      }
+    } else {
+      gain.gain.value = track.volume;
+    }
+    source.connect(gain).connect(context.destination);
+    source.start(when, trim + skipped, Math.max(0.001, length - skipped));
     placed += 1;
   }
   return placed > 0 ? context.startRendering() : null;

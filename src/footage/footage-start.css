@@ -1,0 +1,569 @@
+/* The footage editor's start page (/footage), in the app's cobalt. */
+
+.fs {
+  --fs-blue: var(--sl-brand-cobalt, #1f45b0);
+  --fs-blue-hover: var(--sl-brand-cobalt-hover, #2752c9);
+  --fs-blue-soft: rgba(39, 82, 201, 0.14);
+  --fs-blue-text: #8fb0ff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 36px 24px 56px;
+  box-sizing: border-box;
+  color: var(--sl-text, #ededed);
+}
+
+.fs-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--fs-blue-soft);
+  color: var(--fs-blue-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fs-head h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.fs-head p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--sl-text-soft, #b4b4b4);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.fs-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 16px;
+  background: var(--sl-panel, #111);
+}
+
+.fs-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fs-step span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--fs-blue);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.fs-step strong {
+  font-size: 15px;
+}
+
+.fs-step small {
+  margin-left: auto;
+  color: var(--sl-muted, #858585);
+  font-size: 12px;
+}
+
+.fs-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  border: 1.5px dashed var(--sl-border-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 14px;
+  background: var(--sl-surface, #1a1a1a);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.fs-drop:hover,
+.fs-drop.fs-over {
+  border-color: var(--fs-blue-hover);
+  background: var(--fs-blue-soft);
+}
+
+.fs-drop__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--fs-blue);
+  color: #fff;
+}
+
+.fs-drop strong {
+  font-size: 15px;
+}
+
+.fs-drop small {
+  color: var(--sl-muted, #858585);
+}
+
+.fs-clips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-clip {
+  position: relative;
+  aspect-ratio: 9 / 14;
+  overflow: hidden;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  background: #000;
+}
+
+.fs-clip--error {
+  border-color: rgba(255, 120, 110, 0.6);
+}
+
+.fs-clip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fs-clip__state {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 44px);
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fs-clip__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--fs-blue-hover);
+  transition: width 0.2s ease;
+}
+
+.fs-clip__name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  padding: 18px 8px 7px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: #fff;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-clip__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.fs-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  aspect-ratio: 9 / 14;
+  border: 1.5px dashed var(--sl-border-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  background: transparent;
+  color: var(--sl-text-soft, #b4b4b4);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.fs-add:hover {
+  border-color: var(--fs-blue-hover);
+  color: var(--fs-blue-text);
+}
+
+.fs textarea,
+.fs select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: var(--sl-bg, #0a0a0a);
+  color: inherit;
+  font: inherit;
+  font-family: "Kantumruy Pro", Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.fs textarea {
+  resize: vertical;
+}
+
+.fs textarea:focus,
+.fs select:focus {
+  border-color: var(--fs-blue-hover);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--fs-blue-soft);
+}
+
+.fs-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--sl-muted, #858585);
+  font-size: 12px;
+}
+
+.fs-examples button {
+  padding: 5px 11px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft, #b4b4b4);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fs-examples button:hover {
+  border-color: var(--fs-blue-hover);
+  color: var(--fs-blue-text);
+}
+
+.fs-formats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fs-format {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-format strong {
+  font-size: 13.5px;
+}
+
+.fs-format strong small {
+  color: var(--sl-muted, #858585);
+  font-weight: 500;
+}
+
+.fs-format > small {
+  grid-column: 2;
+  color: var(--sl-muted, #858585);
+  font-size: 11.5px;
+}
+
+.fs-format.fs-on {
+  border-color: var(--fs-blue-hover);
+  background: var(--fs-blue-soft);
+}
+
+.fs-shape {
+  grid-row: 1 / span 2;
+  justify-self: center;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  color: var(--sl-text-soft, #b4b4b4);
+}
+
+.fs-on .fs-shape {
+  color: var(--fs-blue-text);
+}
+
+.fs-shape--9x16 {
+  width: 16px;
+  height: 28px;
+}
+
+.fs-shape--1x1 {
+  width: 24px;
+  height: 24px;
+}
+
+.fs-shape--16x9 {
+  width: 30px;
+  height: 18px;
+}
+
+.fs-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fs-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--sl-text-soft, #b4b4b4);
+  font-size: 12.5px;
+}
+
+.fs-option > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fs-option select {
+  padding: 9px 12px;
+  font-family: inherit;
+}
+
+.fs-segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--sl-surface, #1a1a1a);
+}
+
+.fs-segmented button {
+  flex: 1;
+  padding: 7px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft, #b4b4b4);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fs-segmented button.fs-on {
+  background: var(--fs-blue);
+  color: #fff;
+}
+
+.fs-switch {
+  justify-content: space-between;
+}
+
+.fs-switch input {
+  appearance: none;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  margin: 4px 0 0;
+  border-radius: 999px;
+  background: var(--sl-surface-active, #262626);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.fs-switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.fs-switch input:checked {
+  background: var(--fs-blue);
+}
+
+.fs-switch input:checked::after {
+  transform: translateX(18px);
+}
+
+.fs-error {
+  margin: 0;
+  color: #ffb4a8;
+}
+
+.fs-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.fs-foot small {
+  color: var(--sl-muted, #858585);
+}
+
+.fs-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--fs-blue, #1f45b0);
+  color: #fff;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.fs-primary:hover:not(:disabled) {
+  background: var(--fs-blue-hover, #2752c9);
+}
+
+.fs-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fs-signin {
+  align-items: flex-start;
+}
+
+@media (max-width: 720px) {
+  .fs-formats,
+  .fs-options {
+    grid-template-columns: 1fr;
+  }
+
+  .fs-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}
+
+.fs-progress {
+  padding: 18px;
+  border: 1px solid rgba(39, 82, 201, 0.45);
+  border-radius: 16px;
+  background:
+    radial-gradient(
+      120% 140% at 0% 0%,
+      rgba(39, 82, 201, 0.18),
+      transparent 60%
+    ),
+    var(--sl-panel, #111);
+}
+
+.fs-progress ol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-progress li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  opacity: 0.45;
+}
+
+.fs-progress li.fs-now,
+.fs-progress li.fs-done {
+  opacity: 1;
+}
+
+.fs-progress li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fs-progress small {
+  color: var(--sl-muted, #858585);
+}
+
+.fs-dot {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--sl-border-strong, rgba(255, 255, 255, 0.14));
+  color: #fff;
+}
+
+.fs-now .fs-dot {
+  border-color: var(--fs-blue-hover);
+  color: var(--fs-blue-text);
+}
+
+.fs-done .fs-dot {
+  border-color: var(--fs-blue);
+  background: var(--fs-blue);
+}
+
+.fs-foot[hidden] {
+  display: none;
+}

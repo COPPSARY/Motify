@@ -19,6 +19,7 @@ export type MotionlyAnalyticsEvent =
   | "onboarding tour step viewed"
   | "preset loaded"
   | "project saved"
+  | "footage project created"
   | "project started"
   | "project version restored"
   | "video exported";

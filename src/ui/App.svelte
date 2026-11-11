@@ -37,6 +37,7 @@
     Eye,
     EyeOff,
     FileText,
+    Film,
     FolderOpen,
     Gift,
     Image as ImageIcon,
@@ -231,6 +232,37 @@
   import "./styles/out-of-credits.css";
   import "./styles/film-requests.css";
   import OutOfCreditsDialog from "./cloud/OutOfCreditsDialog.svelte";
+  import FootagePanel from "../footage/FootagePanel.svelte";
+  import FootageTimeline from "../footage/FootageTimeline.svelte";
+  import FootageStart from "../footage/FootageStart.svelte";
+  import FootageChat from "../footage/FootageChat.svelte";
+  import FootageTopBar from "../footage/FootageTopBar.svelte";
+  import FootageTransport from "../footage/FootageTransport.svelte";
+  import {
+    addClip,
+    appendClip,
+    emptyEdit,
+    placeCues,
+    type FootageClip,
+    type FootageEdit,
+    type FootageFormat,
+  } from "../footage/edit";
+  import { footageFiles, readFootageEdit } from "../footage/render";
+  import {
+    editByInstruction,
+    loadCardFilm,
+    motionCardStatus,
+    roughCut,
+    seedLocalClip,
+    startMotionCard,
+    type InstructionFocus,
+  } from "../footage/api";
+  import { setCardFilm } from "../footage/films";
+  import { clipStatuses, whenClipsReady } from "../footage/clips";
+  import "../footage/footage.css";
+  import "../footage/footage-editor.css";
+  import "../footage/footage-bin.css";
+  import "../footage/footage-start.css";
   import SendToTeamDialog from "./cloud/SendToTeamDialog.svelte";
   import {
     fulfillmentMode,
@@ -615,7 +647,8 @@
   // A /p/:id link opens straight into its video, so the editor (not the
   // create page) is shown while that project loads.
   let projectStarted =
-    mode === "local" || /^\/p\/[^/]+\/?$/.test(window.location.pathname);
+    mode === "local" ||
+    /^\/(?:p|editor)\/[^/]+\/?$/.test(window.location.pathname);
   /** Manual edits not yet saved to the cloud project. */
   let sourceDirty = false;
 
@@ -631,6 +664,235 @@
     mode === "cloud" ? (page ?? (hasEditorProject ? null : "create")) : null;
   // The Design panel is off: films are raw HTML documents with no editable layers.
   const showInspector = false;
+
+  // ---- footage: a video cut from the person's own clips (src/footage) ----
+  /** The open project's footage edit, or null for any other film. */
+  $: footageEdit =
+    mode === "cloud" && hasEditorProject
+      ? readFootageEdit(cloudFiles["timeline.js"] ?? "")
+      : null;
+  /** The footage tools take the right column and the timeline under the preview. */
+  $: footageMode = Boolean(footageEdit) && !centerPage;
+  /** Selected segment, title and caption ids; an instruction is about them. */
+  let footageSelection: string[] = [];
+  /** What the AI is doing, for the chat. */
+  let footageActivity = "";
+  let footagePast: FootageEdit[] = [];
+  let footageFuture: FootageEdit[] = [];
+  let footageBusy = false;
+  let footageProjectId: string | undefined;
+  let footageMountSequence = 0;
+  /** True while a footage mount is downloading its clips. */
+  let footageLoading = false;
+  $: footagePreparing = footageEdit
+    ? footageEdit.clips.filter(
+        (clip) => $clipStatuses[clip.assetId]?.status !== "ready",
+      ).length
+    : 0;
+  $: footageOverlay = !footageMode
+    ? ""
+    : footageBusy
+      ? `${footageActivity || "Working"}…`
+      : footagePreparing > 0
+        ? `Preparing ${footagePreparing === 1 ? "a clip" : `${footagePreparing} clips`}…`
+        : footageLoading
+          ? "Loading your clips…"
+          : "";
+  let footageSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let footageSaving: Promise<void> | null = null;
+  $: footageClipsReady = footageEdit
+    ? footageEdit.clips.filter(
+        (clip) => $clipStatuses[clip.assetId]?.status === "ready",
+      ).length
+    : 0;
+  $: footageSaveState = (
+    footageSaving ? "saving" : sourceDirty ? "unsaved" : "saved"
+  ) as "saved" | "saving" | "unsaved";
+  /** The selection as the chat shows it. */
+  $: footageSelectionChips = footageEdit
+    ? footageChips(footageEdit, footageSelection)
+    : [];
+
+  interface FootageChip {
+    id: string;
+    kind: "clip" | "title" | "caption";
+    label: string;
+  }
+
+  function footageChips(
+    edit: FootageEdit,
+    ids: readonly string[],
+  ): FootageChip[] {
+    return ids.flatMap((id): FootageChip[] => {
+      const segmentIndex = edit.segments.findIndex((item) => item.id === id);
+      if (segmentIndex !== -1) {
+        const segment = edit.segments[segmentIndex]!;
+        if (segment.card)
+          return [
+            {
+              id,
+              kind: "clip",
+              label: `Card · ${segment.card.title || segment.card.big || "card"}`,
+            },
+          ];
+        const clip = edit.clips.find(
+          (item) => item.assetId === segment.assetId,
+        );
+        return [
+          {
+            id,
+            kind: "clip",
+            label: `Clip ${segmentIndex + 1} · ${clip?.name ?? "clip"}`,
+          },
+        ];
+      }
+      const cutaway = (edit.cutaways ?? []).find((item) => item.id === id);
+      if (cutaway)
+        return [
+          {
+            id,
+            kind: "clip",
+            label: `B-roll · ${edit.clips.find((item) => item.assetId === cutaway.assetId)?.name ?? "clip"}`,
+          },
+        ];
+      const title = edit.titles.find((item) => item.id === id);
+      if (title) return [{ id, kind: "title", label: title.text }];
+      const cue = edit.captions.cues.find((item) => item.id === id);
+      if (cue) return [{ id, kind: "caption", label: cue.text }];
+      return [];
+    });
+  }
+
+  /** Selected parts that an edit removed drop out of the selection. */
+  function pruneFootageSelection(edit: FootageEdit): void {
+    if (footageSelection.length === 0) return;
+    const kept = footageChips(edit, footageSelection).map((chip) => chip.id);
+    if (kept.length !== footageSelection.length) footageSelection = kept;
+  }
+  // An open footage project keeps its own address.
+  $: if (mode === "cloud" && cloudProject && footageMode)
+    keepEditorRoute(cloudProject.id);
+
+  function keepEditorRoute(projectId: string): void {
+    const editor = `/editor/${encodeURIComponent(projectId)}`;
+    if (window.location.pathname === `/p/${encodeURIComponent(projectId)}`)
+      window.history.replaceState({}, "", editor);
+  }
+
+  /** A click picks one part; with Ctrl, Cmd or Shift it adds or removes one. */
+  function selectFootage(id: string, additive: boolean): void {
+    if (!id) {
+      footageSelection = [];
+      return;
+    }
+    if (!additive) {
+      footageSelection = [id];
+      return;
+    }
+    footageSelection = footageSelection.includes(id)
+      ? footageSelection.filter((item) => item !== id)
+      : [...footageSelection, id];
+  }
+
+  /** What was clicked in the footage preview: a title, a caption, or the shot under it. */
+  function selectFootageAt(event: MouseEvent): void {
+    const edit = footageEdit;
+    if (!edit) return;
+    const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+    const target = event.target instanceof Element ? event.target : null;
+    const title = target?.closest<HTMLElement>(".fx-title");
+    if (title?.id.startsWith("fx-title-")) {
+      selectFootage(title.id.slice("fx-title-".length), additive);
+      return;
+    }
+    const cue = target?.closest<HTMLElement>(".fx-cue");
+    if (cue?.id.startsWith("fx-cue-")) {
+      const placed = placeCues(edit)[Number(cue.id.slice("fx-cue-".length))];
+      if (placed) {
+        selectFootage(placed.cue.id, additive);
+        return;
+      }
+    }
+    let at = 0;
+    for (const segment of edit.segments) {
+      const end = at + (segment.out - segment.in);
+      if (snapshot.time >= at && snapshot.time < end) {
+        selectFootage(segment.id, additive);
+        return;
+      }
+      at = end;
+    }
+  }
+
+  /** Outlines of the selected parts visible in the preview, in stage coordinates. */
+  let footageOutlines: Array<{
+    id: string;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }> = [];
+  $: footageOutlines = computeFootageOutlines(
+    footageSelection,
+    snapshot.time,
+    footageMode,
+    editorRevision,
+    fitScale,
+    zoom,
+  );
+  function computeFootageOutlines(
+    selection: string[],
+    ..._changed: unknown[]
+  ): typeof footageOutlines {
+    if (
+      !footageMode ||
+      !previewStage ||
+      !previewRoot ||
+      selection.length === 0 ||
+      exporting
+    )
+      return [];
+    const stage = previewStage.getBoundingClientRect();
+    const edit = footageEdit;
+    if (!edit) return [];
+    const cues = placeCues(edit);
+    const outlines: typeof footageOutlines = [];
+    const add = (id: string, element: Element | null) => {
+      if (!element) return;
+      const style = getComputedStyle(element);
+      if (style.visibility === "hidden") return;
+      const box = (
+        element.querySelector(".fx-title-box, .fx-line") ?? element
+      ).getBoundingClientRect();
+      if (box.width < 1 || box.height < 1) return;
+      outlines.push({
+        id,
+        left: box.left - stage.left,
+        top: box.top - stage.top,
+        width: box.width,
+        height: box.height,
+      });
+    };
+    for (const id of selection) {
+      if (edit.titles.some((title) => title.id === id))
+        add(id, previewRoot.querySelector(`[id="fx-title-${id}"]`));
+      cues.forEach((placed, index) => {
+        if (placed.cue.id === id)
+          add(id, previewRoot.querySelector(`#fx-cue-${index}`));
+      });
+      if (edit.segments.some((segment) => segment.id === id))
+        add(id, previewRoot.querySelector(`[id="fx-shot-${id}"]`));
+    }
+    return outlines;
+  }
+
+  // Another project's history never carries over.
+  $: if ((cloudProject?.id ?? undefined) !== footageProjectId) {
+    footageProjectId = cloudProject?.id ?? undefined;
+    footagePast = [];
+    footageFuture = [];
+    footageSelection = [];
+  }
   $: projectTitle =
     (cloudProject?.name ?? localProjectName) ||
     activeComposition.title ||
@@ -924,12 +1186,17 @@
   }
 
   function projectIdFromRoute(): string | null {
-    const match = /^\/p\/([^/]+)\/?$/.exec(window.location.pathname);
+    const match = /^\/(?:p|editor)\/([^/]+)\/?$/.exec(window.location.pathname);
     return match ? decodeURIComponent(match[1] ?? "") : null;
   }
 
-  function setProjectRoute(projectId: string, replace = false): void {
-    const pathname = `/p/${encodeURIComponent(projectId)}`;
+  /** A footage edit opens in its own editor, at /editor/:id; any other film at /p/:id. */
+  function setProjectRoute(
+    projectId: string,
+    replace = false,
+    editor = Boolean(readFootageEdit(cloudFiles["timeline.js"] ?? "")),
+  ): void {
+    const pathname = `/${editor ? "editor" : "p"}/${encodeURIComponent(projectId)}`;
     if (window.location.pathname === pathname) return;
     window.history[replace ? "replaceState" : "pushState"]({}, "", pathname);
   }
@@ -1622,6 +1889,10 @@
   }
 
   function selectFromPreview(event: MouseEvent): void {
+    if (footageMode) {
+      selectFootageAt(event);
+      return;
+    }
     if (
       event.target instanceof Element &&
       event.target.closest(".me-selection-overlay")
@@ -1665,7 +1936,7 @@
    * starts from the same hit test a click uses.
    */
   function pressPreview(event: PointerEvent): void {
-    if (event.button !== 0 || !runtime) return;
+    if (event.button !== 0 || !runtime || footageMode) return;
     if (
       event.target instanceof Element &&
       event.target.closest(".me-selection-overlay")
@@ -4031,6 +4302,12 @@ Voice over direction: ${voiceNote}`
         : undefined);
     if (!prompt || $generationStore.isActive) return;
     if (!requireAccount(prompt, aspectRatio)) return;
+    // A footage project is edited, not regenerated: the message is an instruction to its cut.
+    if (footageEdit && cloudProject && !scoped) {
+      assistantDraft = "";
+      void runFootageInstruction(prompt);
+      return;
+    }
     // Our team makes films by hand right now: a popup sends it to them.
     if (mode === "cloud" && $fulfillmentMode === "manual") {
       void openTeamSend(
@@ -4453,6 +4730,529 @@ Voice over direction: ${voiceNote}`
     promotionBanner = null;
   }
 
+  /**
+   * Mounts a footage edit: its project files are written from it and the film
+   * is rebuilt on the same runtime, keeping the playhead where it was.
+   */
+  async function mountFootage(edit: FootageEdit): Promise<void> {
+    const built = footageFiles(edit, cloudProject?.id ?? "footage");
+    cloudFiles = built.files;
+    const time = snapshot.time;
+    const sequence = ++footageMountSequence;
+    footageLoading = true;
+    try {
+      await Promise.all(
+        edit.segments.flatMap((segment) =>
+          segment.card?.film?.state === "ready"
+            ? [loadCardFilm(segment.card.film.projectId).catch(() => false)]
+            : [],
+        ),
+      );
+      const hydrated = await hydrateCloudAssetTokens(
+        combineCompositionSource(built.files),
+      );
+      if (sequence !== footageMountSequence) {
+        hydrated.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      assetObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+      assetObjectUrls = hydrated.objectUrls;
+      mountComposition(
+        createDynamicComposition(hydrated.source, built.files["timeline.js"], {
+          id: cloudProject?.id ?? "footage",
+          title: edit.title ?? cloudProject?.name ?? "Footage edit",
+          width: built.width,
+          height: built.height,
+          fps: built.fps,
+          duration: built.duration,
+          scenes: [],
+        }),
+      );
+      runtime?.seek(Math.max(0, Math.min(time, built.duration - 0.01)));
+    } catch (error) {
+      // The edit is already applied and saving; only the preview failed to load.
+      console.error("[Footage] preview failed to load", error);
+      if (sequence === footageMountSequence)
+        showNotice(
+          `The preview could not load: ${error instanceof Error ? error.message : "unknown error"}. Your edit is saved.`,
+          6000,
+        );
+    } finally {
+      if (sequence === footageMountSequence) footageLoading = false;
+    }
+  }
+
+  // When a clip finishes being prepared, the preview switches to the server's copy
+  // (and shows clips the browser could not play from the file itself).
+  let footageReadyKey = "";
+  $: footageReadyNow = footageEdit
+    ? footageEdit.clips
+        .filter((clip) => $clipStatuses[clip.assetId]?.status === "ready")
+        .map((clip) => clip.assetId)
+        .sort()
+        .join(",")
+    : "";
+  $: if (footageMode && footageEdit && footageReadyNow !== footageReadyKey) {
+    const changed = footageReadyKey !== "" || footageReadyNow !== "";
+    footageReadyKey = footageReadyNow;
+    if (changed && !exporting) void mountFootage(footageEdit);
+  }
+
+  /**
+   * Motify's generator makes each card (all without a film, or the ones named):
+   * it runs on the server, the template card stands in, and the poller below
+   * swaps the generated film in when it is ready.
+   */
+  async function generateMotionCards(
+    segmentIds?: string[],
+    assetIds: string[] = [],
+  ): Promise<void> {
+    const edit = footageEdit;
+    const project = cloudProject;
+    if (!edit || !project) return;
+    const targets = edit.segments.filter(
+      (segment) =>
+        segment.card &&
+        (segmentIds
+          ? segmentIds.includes(segment.id)
+          : !segment.card.film || segment.card.film.state === "failed"),
+    );
+    if (targets.length === 0) return;
+    const started = await Promise.all(
+      targets.map(async (segment) => {
+        const card = segment.card!;
+        try {
+          const projectId = await startMotionCard(project.id, {
+            format: edit.format,
+            seconds: Math.max(1.5, Math.min(8, segment.out - segment.in)),
+            ...(edit.brief ? { brief: edit.brief } : {}),
+            card: {
+              title: card.title,
+              ...(card.eyebrow ? { eyebrow: card.eyebrow } : {}),
+              ...(card.label ? { label: card.label } : {}),
+              ...(card.big ? { big: card.big } : {}),
+              ...(card.items?.length ? { items: card.items } : {}),
+            },
+            ...(assetIds.length > 0 ? { assetIds } : {}),
+          });
+          return [segment.id, projectId] as const;
+        } catch (error) {
+          showNotice(
+            error instanceof Error
+              ? error.message
+              : "A motion card could not be started.",
+            6000,
+          );
+          return null;
+        }
+      }),
+    );
+    const byId = new Map(started.flatMap((entry) => (entry ? [entry] : [])));
+    if (byId.size === 0 || !footageEdit) return;
+    await applyFootageEdit(
+      {
+        ...footageEdit,
+        segments: footageEdit.segments.map((segment) =>
+          byId.has(segment.id) && segment.card
+            ? {
+                ...segment,
+                card: {
+                  ...segment.card,
+                  film: {
+                    projectId: byId.get(segment.id)!,
+                    state: "generating" as const,
+                  },
+                },
+              }
+            : segment,
+        ),
+      },
+      "",
+    );
+  }
+
+  /** Cards being generated, followed until each is ready or failed. */
+  let cardPoll: ReturnType<typeof setInterval> | null = null;
+  $: footageGeneratingCards = footageEdit
+    ? footageEdit.segments.filter(
+        (segment) => segment.card?.film?.state === "generating",
+      ).length
+    : 0;
+  $: if (footageGeneratingCards > 0 && !cardPoll) {
+    cardPoll = setInterval(() => void pollMotionCards(), 5000);
+  } else if (footageGeneratingCards === 0 && cardPoll) {
+    clearInterval(cardPoll);
+    cardPoll = null;
+  }
+
+  async function pollMotionCards(): Promise<void> {
+    const edit = footageEdit;
+    if (!edit) return;
+    const updates = new Map<
+      string,
+      { state: "ready" | "failed"; duration?: number }
+    >();
+    for (const segment of edit.segments) {
+      const film = segment.card?.film;
+      if (film?.state !== "generating") continue;
+      try {
+        const status = await motionCardStatus(film.projectId);
+        if (status.status === "ready" && status.film) {
+          setCardFilm(film.projectId, status.film.html);
+          updates.set(segment.id, {
+            state: "ready",
+            duration: status.film.duration,
+          });
+        } else if (status.status === "failed") {
+          updates.set(segment.id, { state: "failed" });
+          showNotice(
+            status.error
+              ? `A motion card failed: ${status.error}`
+              : "A motion card failed; its simple card stays.",
+            6000,
+          );
+        }
+      } catch {
+        // One missed look; the next poll asks again.
+      }
+    }
+    if (updates.size === 0 || !footageEdit) return;
+    void refreshCredits();
+    await applyFootageEdit(
+      {
+        ...footageEdit,
+        segments: footageEdit.segments.map((segment) => {
+          const update = updates.get(segment.id);
+          if (!update || !segment.card?.film) return segment;
+          const film = {
+            ...segment.card.film,
+            state: update.state,
+            ...(update.duration ? { duration: update.duration } : {}),
+          };
+          // A ready card runs as long as its film, within a card's limits.
+          const length =
+            update.state === "ready" && update.duration
+              ? Math.max(1.5, Math.min(8, update.duration))
+              : segment.out - segment.in;
+          return {
+            ...segment,
+            in: 0,
+            out: Math.round(length * 1000) / 1000,
+            card: { ...segment.card, film },
+          };
+        }),
+      },
+      "",
+    );
+  }
+
+  /** A change to the edit: kept for Undo (unless `label` is empty), shown, then saved. */
+  async function applyFootageEdit(
+    next: FootageEdit,
+    label: string,
+  ): Promise<void> {
+    const current = footageEdit;
+    if (label && current) {
+      footagePast = [...footagePast.slice(-59), current];
+      footageFuture = [];
+    }
+    // The edit takes effect and starts saving at once; the preview catches up.
+    const mounted = mountFootage(next);
+    pruneFootageSelection(next);
+    scheduleFootageSave();
+    await mounted;
+  }
+
+  async function undoFootage(): Promise<void> {
+    const previous = footagePast[footagePast.length - 1];
+    if (!previous || !footageEdit) return;
+    footagePast = footagePast.slice(0, -1);
+    footageFuture = [footageEdit, ...footageFuture];
+    await mountFootage(previous);
+    pruneFootageSelection(previous);
+    scheduleFootageSave();
+  }
+
+  async function redoFootage(): Promise<void> {
+    const next = footageFuture[0];
+    if (!next || !footageEdit) return;
+    footageFuture = footageFuture.slice(1);
+    footagePast = [...footagePast, footageEdit];
+    await mountFootage(next);
+    pruneFootageSelection(next);
+    scheduleFootageSave();
+  }
+
+  /** Edits save themselves shortly after the last change, as one revision. */
+  function scheduleFootageSave(): void {
+    sourceDirty = true;
+    if (footageSaveTimer) clearTimeout(footageSaveTimer);
+    footageSaveTimer = setTimeout(() => void saveFootage(), 1200);
+  }
+
+  async function saveFootage(): Promise<void> {
+    footageSaveTimer = null;
+    if (footageSaving) {
+      await footageSaving;
+      if (sourceDirty) scheduleFootageSave();
+      return;
+    }
+    const project = cloudProject;
+    if (!project || !readFootageEdit(cloudFiles["timeline.js"] ?? "")) return;
+    const files = { ...cloudFiles };
+    footageSaving = (async () => {
+      try {
+        // Saved directly, not through the gallery: its save remounts the
+        // film, which would throw the playhead back to the start on every edit.
+        const saved = await new ProjectsApi().saveSource(project.id, {
+          revision: project.revision,
+          files,
+        });
+        if (cloudProject?.id === project.id) cloudProject = saved.project;
+        cloudProjects?.setFiles(files);
+        await cloudProjects?.registerActiveProject(saved.project);
+        if (cloudFiles["timeline.js"] === files["timeline.js"])
+          sourceDirty = false;
+      } catch (error) {
+        showNotice(
+          error instanceof Error
+            ? `Not saved: ${error.message}`
+            : "Your edit could not be saved.",
+        );
+      }
+    })();
+    await footageSaving;
+    footageSaving = null;
+  }
+
+  async function runFootageCut(options: {
+    brief: string;
+    seconds: number;
+    captionLanguage: string;
+    music: boolean;
+  }): Promise<void> {
+    if (!footageEdit || !cloudProject || footageBusy) return;
+    footageBusy = true;
+    footageActivity = "Watching and listening to your clips";
+    const projectId = cloudProject.id;
+    assistantMessages = [
+      ...assistantMessages,
+      {
+        role: "user",
+        text: options.brief.trim() || "Cut my video",
+      },
+    ];
+    try {
+      const pending = footageEdit.clips.map((clip) => clip.assetId);
+      await whenClipsReady(pending);
+      // Clip lengths were corrected as they were read: cut the latest edit.
+      const base = footageEdit;
+      if (!base || cloudProject?.id !== projectId) return;
+      footageActivity = "Cutting your video";
+      const result = await roughCut(projectId, {
+        edit: { ...base, brief: options.brief },
+        ...options,
+      });
+      await applyFootageEdit(result.edit, "AI cut");
+      runtime?.seek(0);
+      assistantMessages = [
+        ...assistantMessages,
+        {
+          role: "assistant",
+          text: result.summary || "Your first cut is ready.",
+          ...(result.credits ? { credits: result.credits.charged } : {}),
+        },
+      ];
+      if (result.credits) void refreshCredits();
+    } catch (error) {
+      assistantMessages = [
+        ...assistantMessages,
+        {
+          role: "assistant",
+          text:
+            error instanceof Error
+              ? error.message
+              : "The cut could not be made.",
+        },
+      ];
+    } finally {
+      footageBusy = false;
+    }
+  }
+
+  async function runFootageInstruction(
+    instruction: string,
+    assetIds: string[] = [],
+  ): Promise<void> {
+    if (!footageEdit || !cloudProject || footageBusy) return;
+    footageBusy = true;
+    footageActivity = "Editing";
+    // An instruction given with a selection is about those parts only.
+    const edit = footageEdit;
+    const focus: InstructionFocus = {
+      // B-roll is described with the segments, so its ids travel with them.
+      segmentIds: footageSelection.filter(
+        (id) =>
+          edit.segments.some((item) => item.id === id) ||
+          (edit.cutaways ?? []).some((item) => item.id === id),
+      ),
+      titleIds: footageSelection.filter((id) =>
+        edit.titles.some((item) => item.id === id),
+      ),
+      cueIds: footageSelection.filter((id) =>
+        edit.captions.cues.some((item) => item.id === id),
+      ),
+    };
+    const scoped = footageSelectionChips.length > 0;
+    assistantMessages = [
+      ...assistantMessages,
+      {
+        role: "user",
+        text: scoped
+          ? `${instruction}\n— about: ${footageSelectionChips.map((chip) => chip.label).join(", ")}`
+          : instruction,
+      },
+    ];
+    try {
+      await whenClipsReady(edit.clips.map((clip) => clip.assetId));
+      const result = await editByInstruction(
+        cloudProject.id,
+        edit,
+        instruction,
+        scoped ? focus : undefined,
+        assetIds,
+      );
+      await applyFootageEdit(result.edit, instruction.slice(0, 40));
+      // Cards the instruction added are made by Motify's generator, with any attached pictures.
+      void generateMotionCards(undefined, assetIds);
+      assistantMessages = [
+        ...assistantMessages,
+        {
+          role: "assistant",
+          text: `${result.summary || "Done."} (Undo with Ctrl+Z.)`,
+          ...(result.credits ? { credits: result.credits.charged } : {}),
+        },
+      ];
+      if (result.credits) void refreshCredits();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "That change could not be made.";
+      assistantMessages = [
+        ...assistantMessages,
+        { role: "assistant", text: message },
+      ];
+    } finally {
+      footageBusy = false;
+    }
+  }
+
+  /** The start dialog's result: a new project holding the clips, then the AI's first cut. */
+  /**
+   * The start page's result. Clips are prepared and the first cut is made
+   * before the editor opens, so the editor never shows an empty or half-read
+   * video; `onProgress` tells the start page which step it is on.
+   */
+  async function createFootageProject(
+    input: {
+      clips: FootageClip[];
+      /** The person's own files, played until the server's copies are ready. */
+      localFiles?: Record<string, File>;
+      brief: string;
+      seconds: number;
+      format: FootageFormat;
+      captionLanguage: string;
+      music: boolean;
+    },
+    onProgress: (step: "clips" | "cut" | "open") => void = () => undefined,
+  ): Promise<void> {
+    if (!workspaceId) throw new Error("Sign in to make a video.");
+    for (const [assetId, file] of Object.entries(input.localFiles ?? {}))
+      seedLocalClip(assetId, file);
+
+    onProgress("clips");
+    await whenClipsReady(input.clips.map((clip) => clip.assetId));
+    // What the server read is the truth about each clip's length and sound.
+    const statuses = get(clipStatuses);
+    const clips = input.clips.map((clip) => {
+      const media = statuses[clip.assetId]?.media;
+      return media
+        ? {
+            ...clip,
+            duration: media.durationMs / 1000,
+            width: media.width,
+            height: media.height,
+            hasAudio: media.hasAudio,
+          }
+        : clip;
+    });
+    let edit: FootageEdit = { ...emptyEdit(input.format), brief: input.brief };
+    for (const clip of clips) edit = addClip(edit, clip);
+    for (const clip of clips) edit = appendClip(edit, clip.assetId);
+
+    onProgress("cut");
+    const name =
+      input.brief.trim().split("\n")[0]?.slice(0, 60) || "Footage video";
+    const built = footageFiles(edit);
+    const created = await new ProjectsApi().createProject(workspaceId, {
+      name,
+      width: built.width,
+      height: built.height,
+      fps: built.fps,
+      duration: built.duration,
+      files: built.files,
+    });
+    let summary = "";
+    let charged: number | undefined;
+    try {
+      const result = await roughCut(created.id, {
+        edit: { ...edit, brief: input.brief },
+        brief: input.brief,
+        seconds: input.seconds,
+        captionLanguage: input.captionLanguage,
+        music: input.music,
+      });
+      edit = result.edit;
+      summary = result.summary;
+      charged = result.credits?.charged;
+      if (result.credits) void refreshCredits();
+    } catch (error) {
+      // The clips still open, end to end, and the chat says what went wrong.
+      summary = `The first cut could not be made: ${error instanceof Error ? error.message : "unknown error"}. Your clips are in the timeline; ask again in the chat.`;
+    }
+
+    onProgress("open");
+    cloudProject = created;
+    backendGenerationProjectId = created.id;
+    projectStarted = true;
+    page = null;
+    cloudFiles = footageFiles(edit, created.id).files;
+    setProjectRoute(created.id, false, true);
+    void cloudProjects?.registerActiveProject(created);
+    assistantMessages = [
+      { role: "user", text: input.brief.trim() || "Cut my video" },
+      {
+        role: "assistant",
+        text: summary || "Your first cut is ready.",
+        ...(charged ? { credits: charged } : {}),
+      },
+    ];
+    footageReadyKey = edit.clips
+      .map((clip) => clip.assetId)
+      .sort()
+      .join(",");
+    const mounted = mountFootage(edit);
+    scheduleFootageSave();
+    void generateMotionCards();
+    captureEvent("footage project created", {
+      clips: input.clips.length,
+      seconds: input.seconds,
+      format: input.format,
+    });
+    await mounted;
+  }
+
   async function saveSource(): Promise<void> {
     if (!hasEditorProject) return;
     if (mode === "local") {
@@ -4772,16 +5572,49 @@ Voice over direction: ${voiceNote}`
     <div class="me-motion-editor" style="--timeline-height: 218px;">
       <div
         class="me-workbench"
-        class:me-no-inspector={!showInspector}
-        class:me-has-chat={mode === "cloud" && hasEditorProject}
+        class:me-no-inspector={!showInspector && !footageMode}
+        class:me-footage={footageMode}
+        class:fx-editor={footageMode}
+        class:me-has-chat={mode === "cloud" && hasEditorProject && !footageMode}
       >
+        {#if footageMode && footageEdit}
+          <FootageTopBar
+            title={cloudProject?.name ?? footageEdit.title ?? ""}
+            saveState={footageSaveState}
+            {exporting}
+            exportLabel={exportStatus}
+            showCredits={Boolean(currentUser)}
+            onBack={() => void returnHome()}
+            onExport={() => void openExportDialog()}
+          />
+        {/if}
         {#if mode === "cloud"}
           <aside
             class="me-left-panel"
             class:me-home-sidebar={!hasEditorProject}
             class:me-mobile-sidebar-open={mobileSidebarOpen}
           >
-            {#if hasEditorProject}
+            {#if footageMode && footageEdit}
+              <FootagePanel
+                edit={footageEdit}
+                {workspaceId}
+                projectId={cloudProject?.id ?? ""}
+                onGenerateCard={(segmentId) =>
+                  void generateMotionCards([segmentId])}
+                time={snapshot.time}
+                selectedIds={footageSelection}
+                onChange={(next, label) => void applyFootageEdit(next, label)}
+                onSeek={(time) => runtime?.seek(time)}
+                onSelect={selectFootage}
+                onNotice={(message) => showNotice(message)}
+                listSongs={async () =>
+                  (
+                    await musicApi.listAudioTracks(workspaceId, {
+                      scope: "system",
+                    })
+                  ).tracks}
+              />
+            {:else if hasEditorProject}
               {@render tiffy("panel")}
             {:else}
               <nav
@@ -4812,6 +5645,16 @@ Voice over direction: ${voiceNote}`
                     on:click={() => openPage("create")}
                   >
                     <SquarePen size={16} /><span>Create</span>
+                  </button>
+                  <button
+                    class="me-sidebar-link"
+                    class:me-active={centerPage === "footage"}
+                    aria-current={centerPage === "footage" ? "page" : undefined}
+                    on:click={() => openPage("footage")}
+                  >
+                    <Film size={16} /><span>Edit footage</span><span
+                      class="fx-beta">Beta</span
+                    >
                   </button>
                   <button
                     class="me-sidebar-link"
@@ -5139,6 +5982,37 @@ Voice over direction: ${voiceNote}`
                 <div class="me-create" class:me-create--guide={guideOpen}>
                   <div class="me-create-composer" hidden={guideOpen}>
                     {@render tiffy("hero")}
+                    {#if mode === "cloud"}
+                      <button
+                        type="button"
+                        class="fx-entry"
+                        on:click={() => openPage("footage")}
+                      >
+                        <span class="fx-entry__art" aria-hidden="true">
+                          <span class="fx-entry__clips"
+                            ><i></i><i></i><i></i></span
+                          >
+                          <span class="fx-entry__arrow"></span>
+                          <span class="fx-entry__video"
+                            ><b></b><em></em><em></em></span
+                          >
+                        </span>
+                        <span class="fx-entry__text">
+                          <span class="fx-entry__tag">Clips → video</span>
+                          <strong
+                            >Try our new video editor <span class="fx-beta"
+                              >Beta</span
+                            ></strong
+                          >
+                          <small
+                            >Upload your own clips. Motify cuts them into a
+                            video with Khmer subtitles, cards and music, and you
+                            edit it by chatting.</small
+                          >
+                        </span>
+                        <span class="fx-entry__go">Start →</span>
+                      </button>
+                    {/if}
                   </div>
                   <GuidedStart
                     bind:open={guideOpen}
@@ -5153,6 +6027,12 @@ Voice over direction: ${voiceNote}`
                     onUpgrade={openPricing}
                   />
                 </div>
+              {:else if centerPage === "footage"}
+                <FootageStart
+                  {workspaceId}
+                  onCreate={createFootageProject}
+                  onSignIn={() => openAuthDialog("signin")}
+                />
               {:else if centerPage === "films"}
                 <section class="me-page-body" aria-labelledby="templates-title">
                   <header class="me-page-header">
@@ -5444,7 +6324,7 @@ Voice over direction: ${voiceNote}`
               {/if}
             </div>
           {/if}
-          <header class="me-center-toolbar">
+          <header class="me-center-toolbar" hidden={footageMode}>
             {#if mode === "local"}
               <div
                 class="me-local-controls"
@@ -5568,6 +6448,25 @@ Voice over direction: ${voiceNote}`
               on:click|capture={selectFromPreview}
               on:keydown={handlePreviewKey}
             >
+              {#if footageMode && footageOverlay}
+                <div class="fx-stage-wait" role="status">
+                  <span class="me-spinner me-spinner--large" aria-hidden="true"
+                  ></span>
+                  <strong>{footageOverlay}</strong>
+                </div>
+              {/if}
+              {#if footageMode}
+                {#each footageOutlines as outline (outline.id)}
+                  <span
+                    class="fx-outline"
+                    style:left={`${outline.left}px`}
+                    style:top={`${outline.top}px`}
+                    style:width={`${outline.width}px`}
+                    style:height={`${outline.height}px`}
+                    aria-hidden="true"
+                  ></span>
+                {/each}
+              {/if}
               <div
                 class="me-canvas-shell"
                 style:width={`${canvasView.width}px`}
@@ -5717,7 +6616,40 @@ Voice over direction: ${voiceNote}`
               </div>
             {/if}
           </main>
-          <section class="me-scene-bar" aria-label="Scenes">
+          {#if footageMode && footageEdit}
+            <FootageTransport
+              edit={footageEdit}
+              time={snapshot.time}
+              duration={activeComposition.duration}
+              playing={snapshot.playing}
+              muted={soundMuted}
+              onTogglePlay={() => void togglePlayback()}
+              onSeek={(time) => runtime?.seek(time)}
+              onToggleMute={toggleSound}
+              onFit={fitPreview}
+              onFormat={(format) =>
+                void applyFootageEdit(
+                  { ...footageEdit!, format },
+                  `Format ${format}`,
+                )}
+              onToggleCaptions={() =>
+                void applyFootageEdit(
+                  {
+                    ...footageEdit!,
+                    captions: {
+                      ...footageEdit!.captions,
+                      enabled: !footageEdit!.captions.enabled,
+                    },
+                  },
+                  "Captions on/off",
+                )}
+            />
+          {/if}
+          <section
+            class="me-scene-bar"
+            aria-label="Scenes"
+            hidden={footageMode}
+          >
             <div class="me-scene-bar__transport">
               <button
                 class="me-scene-bar__play"
@@ -5782,8 +6714,22 @@ Voice over direction: ${voiceNote}`
               ></span>
             </div>
           </section>
+          {#if footageMode && footageEdit}
+            <FootageTimeline
+              edit={footageEdit}
+              time={snapshot.time}
+              selectedIds={footageSelection}
+              canUndo={footagePast.length > 0}
+              canRedo={footageFuture.length > 0}
+              onChange={(next, label) => void applyFootageEdit(next, label)}
+              onSeek={(time) => runtime?.seek(time)}
+              onSelect={selectFootage}
+              onUndo={() => void undoFootage()}
+              onRedo={() => void redoFootage()}
+            />
+          {/if}
           <!-- The timeline panel is off with its toggle: raw films have no tweens or layers to show. -->
-          {#if timelineOpen && hasEditorProject}
+          {#if timelineOpen && hasEditorProject && !footageMode}
             <section bind:this={timelinePanel} class="me-timeline-panel">
               <button class="me-timeline-resizer" aria-label="Resize timeline"
                 ><span></span></button
@@ -5941,6 +6887,24 @@ Voice over direction: ${voiceNote}`
           {/if}
         </div>
 
+        {#if footageMode && footageEdit}
+          <FootageChat
+            messages={assistantMessages}
+            busy={footageBusy}
+            activity={footageActivity}
+            clipCount={footageEdit.clips.length}
+            clipsReady={footageClipsReady}
+            hasCut={footageEdit.segments.length > 0}
+            brief={footageEdit.brief ?? ""}
+            selection={footageSelectionChips}
+            onDeselect={(id) => selectFootage(id, true)}
+            onClearSelection={() => (footageSelection = [])}
+            {workspaceId}
+            onInstruct={(text, assetIds) =>
+              void runFootageInstruction(text, assetIds)}
+            onRoughCut={(options) => void runFootageCut(options)}
+          />
+        {/if}
         {#if showInspector}
           <aside class="me-properties-panel">
             <div class="me-inspector-head">

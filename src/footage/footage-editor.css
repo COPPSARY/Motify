@@ -1,0 +1,669 @@
+/* The footage editor's UI colour: the app's cobalt, never the video's own accent. */
+:root {
+  --fx-ui: #2752c9;
+  --fx-ui-strong: #1f45b0;
+  --fx-ui-text: #8fb0ff;
+}
+
+/* The footage editor (/editor/:id): top bar, tools on the left, preview with its
+   transport and timeline in the middle, the chat on the right. */
+
+.code-editor-scope .me-workbench.fx-editor {
+  grid-template-columns: minmax(300px, 344px) minmax(0, 1fr) minmax(
+      340px,
+      396px
+    );
+  grid-template-rows: 56px minmax(0, 1fr);
+  gap: 0;
+  background: #0b0b0c;
+}
+
+.code-editor-scope .me-workbench.fx-editor > .fx-topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.code-editor-scope .me-workbench.fx-editor > .me-left-panel {
+  grid-column: 1;
+  grid-row: 2;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--sl-border);
+  background: var(--sl-panel);
+}
+
+.code-editor-scope .me-workbench.fx-editor > .me-center-column {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.code-editor-scope .me-workbench.fx-editor > .fx-chat-column {
+  grid-column: 3;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--sl-border);
+  background: var(--sl-panel);
+}
+
+/* The motion-graphics toolbar and scene bar have nothing to say about clips. */
+.code-editor-scope .fx-editor .me-center-toolbar,
+.code-editor-scope .fx-editor .me-scene-bar {
+  display: none !important;
+}
+
+.code-editor-scope .fx-editor .me-preview-container {
+  flex: 1;
+  min-height: 0;
+  background: #070708;
+}
+
+.code-editor-scope .fx-editor .fx-timeline {
+  height: 250px;
+  background: #0e0e10;
+}
+
+@media (max-width: 1180px) {
+  .code-editor-scope .me-workbench.fx-editor {
+    grid-template-columns: 280px minmax(0, 1fr) 320px;
+  }
+}
+
+@media (max-width: 900px) {
+  .code-editor-scope .me-workbench.fx-editor {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 56px minmax(0, 1fr) auto auto;
+  }
+  .code-editor-scope .me-workbench.fx-editor > .me-center-column {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .code-editor-scope .me-workbench.fx-editor > .me-left-panel {
+    display: flex;
+    position: static;
+    grid-column: 1;
+    grid-row: 3;
+    max-height: 40vh;
+  }
+  .code-editor-scope .me-workbench.fx-editor > .fx-chat-column {
+    grid-column: 1;
+    grid-row: 4;
+    max-height: 50vh;
+  }
+}
+
+/* ---- top bar ---- */
+
+.fx-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--sl-border);
+  background: #0e0e10;
+  color: var(--sl-text);
+}
+
+.fx-topbar__left,
+.fx-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fx-topbar__logo {
+  flex: none;
+}
+
+.fx-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: 6px;
+  color: var(--sl-muted);
+  font-size: 13px;
+}
+
+.fx-crumbs strong {
+  overflow: hidden;
+  max-width: 280px;
+  color: var(--sl-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-topbar__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.fx-topbar__icon:hover:not(:disabled) {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.fx-topbar__icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fx-topbar__upload,
+.fx-topbar__export {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.fx-topbar__upload {
+  background: var(--sl-surface-active);
+  color: var(--sl-text);
+}
+
+.fx-topbar__upload:hover {
+  background: var(--sl-surface-hover);
+}
+
+.fx-topbar__export {
+  background: var(--fx-ui);
+  color: #fff;
+}
+
+.fx-topbar__export:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.fx-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sl-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fx-save--busy {
+  color: var(--sl-text-soft);
+}
+
+/* ---- left: rail + library ---- */
+
+.fx-panel {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--sl-text);
+  font-size: 13px;
+}
+
+.fx-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-right: 1px solid var(--sl-border);
+}
+
+.fx-rail button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  padding: 9px 0 7px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--sl-muted);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.fx-rail button:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.fx-rail button.fx-on {
+  background: rgba(39, 82, 201, 0.19);
+  color: var(--fx-ui-text);
+}
+
+.fx-library {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fx-library__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 14px 10px;
+}
+
+.fx-library__head strong {
+  font-size: 15px;
+}
+
+.fx-library__head small {
+  color: var(--sl-muted);
+  font-size: 11.5px;
+}
+
+.fx-library .fx-panel__body {
+  padding-top: 0;
+}
+
+/* ---- center: transport ---- */
+
+.fx-transport {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 8px 14px;
+  border-top: 1px solid var(--sl-border);
+  background: #0e0e10;
+  color: var(--sl-text-soft);
+}
+
+.fx-transport__side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fx-transport__side--end {
+  justify-content: flex-end;
+}
+
+.fx-transport__center {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.fx-timecode {
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: rgba(39, 82, 201, 0.13);
+  color: var(--fx-ui-text);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.fx-duration {
+  color: var(--sl-muted);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.fx-transport__buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-transport__icon,
+.fx-transport__play {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.fx-transport__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.fx-transport__icon:hover {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.fx-transport__icon.fx-on {
+  color: var(--fx-ui-text);
+}
+
+.fx-transport__play {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ededed;
+  color: #111;
+}
+
+.fx-transport__formats {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--sl-surface);
+}
+
+.fx-transport__formats button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sl-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.fx-transport__formats button.fx-on {
+  background: var(--sl-surface-active);
+  color: var(--sl-text);
+}
+
+/* ---- preview selection ---- */
+
+.fx-outline {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  border: 2px solid var(--fx-ui);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* ---- right: chat ---- */
+
+.code-editor-scope .fx-chat-column .fx-chat {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.fx-recut-toggle {
+  margin-left: auto;
+}
+
+.fx-recut {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 12px;
+  background: var(--sl-surface);
+}
+
+.fx-recut__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.fx-recut__head small {
+  color: var(--sl-muted);
+  font-size: 11.5px;
+}
+
+.fx-recut textarea,
+.fx-recut select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+  background: var(--sl-bg);
+  color: var(--sl-text);
+  font: inherit;
+  font-family: "Kantumruy Pro", Inter, system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.fx-recut__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fx-recut__row select {
+  flex: 1;
+}
+
+.fx-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 12px 8px;
+}
+
+.fx-suggestions button {
+  padding: 5px 9px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.fx-suggestions button:hover {
+  border-color: var(--fx-ui);
+  color: var(--sl-text);
+}
+
+.fx-focus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 2px 8px;
+}
+
+.fx-focus__label {
+  color: var(--sl-muted);
+  font-size: 11px;
+}
+
+.fx-focus__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 4px 3px 7px;
+  border: 1px solid rgba(39, 82, 201, 0.72);
+  border-radius: 7px;
+  background: rgba(39, 82, 201, 0.13);
+  color: var(--fx-ui-text);
+  font-size: 11.5px;
+}
+
+.fx-focus__chip span {
+  overflow: hidden;
+  max-width: 180px;
+  font-family: "Kantumruy Pro", Inter, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-focus__chip button,
+.fx-focus__clear {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.fx-focus__clear {
+  color: var(--sl-muted);
+  text-decoration: underline;
+}
+
+/* The footage editor is new: a small Beta tag wherever it is entered. */
+.fx-beta {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(39, 82, 201, 0.18);
+  color: var(--fx-ui-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+.fx-price {
+  margin: 0;
+  padding: 0 14px 6px;
+  color: var(--sl-muted);
+  font-size: 11px;
+}
+
+/* While clips load or the AI works, the preview says so instead of looking empty. */
+.fx-stage-wait {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(7, 7, 8, 0.72);
+  color: var(--sl-text);
+  font-size: 14px;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+/* Pictures attached to a chat message. */
+.fx-pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 2px 8px;
+}
+
+.fx-picture {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 8px;
+}
+
+.fx-picture--error {
+  border-color: rgba(255, 120, 110, 0.7);
+}
+
+.fx-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fx-picture__busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.fx-picture button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+
+.fx-attach {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-soft);
+  cursor: pointer;
+}
+
+.fx-attach:hover:not(:disabled) {
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
+}
+
+.fx-attach:disabled {
+  opacity: 0.4;
+}
+
+/* A card's motion-graphic status in the Selected tab. */
+.fx-motion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(39, 82, 201, 0.1);
+}
+
+.fx-motion > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sl-text-soft);
+  font-size: 12px;
+}
