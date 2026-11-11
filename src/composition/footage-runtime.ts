@@ -279,24 +279,63 @@ export function footageTimeline(
     }
   });
 
-  // B-roll over talk: on for its moment, with a slow push so it is never still.
+  // Overlays over talk: on for their moment. B-roll and pictures keep a slow
+  // push so they are never still; a card plays its own motion.
   placeCutaways(edit).forEach((placed, index) => {
-    const video = byId(root, `fx-cut-${index}`);
-    if (!video) return;
-    timeline.set(video, { autoAlpha: 1 }, placed.start);
-    timeline.set(video, { autoAlpha: 0 }, placed.end);
+    const layer = byId(root, `fx-cut-${index}`);
+    if (!layer) return;
+    const { start, end } = placed;
+    timeline.set(layer, { autoAlpha: 1 }, start);
+    timeline.set(layer, { autoAlpha: 0 }, end);
+    if (placed.cutaway.kind === "card") {
+      animateCard(timeline, layer, start, end);
+      const film = layer.querySelector<HTMLElement>(".fx-card-film");
+      if (film) mountCardFilm(timeline, film, start, end);
+      // It arrives with a quick rise and leaves with a fade, over the talk.
+      timeline.fromTo(
+        layer,
+        { yPercent: 6, autoAlpha: 0 },
+        {
+          yPercent: 0,
+          autoAlpha: 1,
+          duration: Math.min(0.3, (end - start) / 3),
+          ease: "power3.out",
+          immediateRender: false,
+        },
+        start,
+      );
+      return;
+    }
+    const moving =
+      placed.cutaway.kind === "image"
+        ? (layer.querySelector<HTMLElement>(".fx-pic-main") ?? layer)
+        : (layer.querySelector<HTMLElement>("video") ?? layer);
+    if (placed.cutaway.kind === "image" && placed.cutaway.layout !== "top")
+      timeline.fromTo(
+        layer,
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          duration: Math.min(0.2, (end - start) / 4),
+          ease: "power1.out",
+          immediateRender: false,
+        },
+        start,
+      );
     timeline.fromTo(
-      video,
-      { scale: 1.02 },
+      moving,
+      { scale: placed.cutaway.kind === "image" ? 0.96 : 1.02 },
       {
-        scale: 1.08,
-        duration: placed.end - placed.start,
+        scale: placed.cutaway.kind === "image" ? 1.04 : 1.08,
+        duration: end - start,
         ease: "none",
         immediateRender: false,
       },
-      placed.start,
+      start,
     );
   });
+
+  splitReveals(root, timeline, edit);
 
   // Captions are plain text: each line simply appears for as long as it is said.
   placeCues(edit).forEach((placed, index) => {
@@ -310,6 +349,97 @@ export function footageTimeline(
 
   // The film lasts exactly as long as the cut.
   timeline.set({}, {}, total);
+}
+
+/**
+ * The talking-head split: while an overlay fills the top half (the left in a
+ * wide video), the speaker's shots move down (right) by a quarter of the frame
+ * so their face stays in view below, and back when it ends. The overlay slides
+ * in from the top edge and out again; back-to-back ones share one reveal.
+ */
+function splitReveals(
+  root: HTMLElement,
+  timeline: gsap.core.Timeline,
+  edit: FootageEdit,
+): void {
+  const shots = root.querySelector<HTMLElement>(".fx-shots");
+  const tops = placeCutaways(edit)
+    .map((placed, index) => ({ ...placed, index }))
+    .filter(
+      ({ cutaway }) => cutaway.layout === "top" && cutaway.kind !== "card",
+    );
+  if (!shots || tops.length === 0) return;
+  const axis = edit.format === "16:9" ? "xPercent" : "yPercent";
+  const spans: Array<{
+    start: number;
+    end: number;
+    first: number;
+    last: number;
+  }> = [];
+  for (const top of tops) {
+    const last = spans[spans.length - 1];
+    if (last && top.start - last.end < 0.4) {
+      last.end = Math.max(last.end, top.end);
+      last.last = top.index;
+    } else
+      spans.push({
+        start: top.start,
+        end: top.end,
+        first: top.index,
+        last: top.index,
+      });
+  }
+  for (const span of spans) {
+    const move = Math.min(0.45, (span.end - span.start) / 3);
+    timeline.fromTo(
+      shots,
+      { [axis]: 0 },
+      {
+        [axis]: 25,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.start,
+    );
+    timeline.fromTo(
+      shots,
+      { [axis]: 25 },
+      {
+        [axis]: 0,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.end - move,
+    );
+    const enter = byId(root, `fx-cut-${span.first}`);
+    if (enter)
+      timeline.fromTo(
+        enter,
+        { [axis]: -100 },
+        {
+          [axis]: 0,
+          duration: move,
+          ease: "power3.inOut",
+          immediateRender: false,
+        },
+        span.start,
+      );
+    const leave = byId(root, `fx-cut-${span.last}`);
+    if (leave)
+      timeline.fromTo(
+        leave,
+        { [axis]: 0 },
+        {
+          [axis]: -100,
+          duration: move,
+          ease: "power3.inOut",
+          immediateRender: false,
+        },
+        span.end - move,
+      );
+  }
 }
 
 /**

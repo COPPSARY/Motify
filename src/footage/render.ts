@@ -132,6 +132,12 @@ function soundEffects(edit: FootageEdit): string {
         `<audio data-motify-audio src="motify-sfx://pop" data-start="${n(start + 0.1)}" data-volume="0.4"></audio>`,
       );
   }
+  // A card over talk lands with a softer pop, under the voice.
+  for (const placed of placeCutaways(edit))
+    if (placed.cutaway.kind === "card")
+      cues.push(
+        `<audio data-motify-audio src="motify-sfx://pop" data-start="${n(placed.start + 0.1)}" data-volume="0.28"></audio>`,
+      );
   return cues.join("\n  ");
 }
 
@@ -162,6 +168,15 @@ export const FOOTAGE_CSS = `
 .fx-card-film iframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .fx-cutaways { position: absolute; inset: 0; pointer-events: none; }
 .fx-cutaway { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; visibility: hidden; opacity: 0; transform-origin: 50% 50%; }
+.fx-shots { position: absolute; inset: 0; will-change: transform; }
+.fx-cut-shot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; opacity: 0; }
+.fx-cut-shot > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 50%; }
+.fx-cut--top { bottom: auto; height: 50%; -webkit-mask-image: linear-gradient(to bottom, #000 86%, transparent); mask-image: linear-gradient(to bottom, #000 86%, transparent); }
+.fx--wide .fx-cut--top { right: auto; width: 50%; height: 100%; bottom: 0; -webkit-mask-image: linear-gradient(to right, #000 86%, transparent); mask-image: linear-gradient(to right, #000 86%, transparent); }
+.fx-cut-shot.fx-cardshot { visibility: hidden; }
+.fx-pic { background: #0d0d0f; }
+.fx-pic-fill { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(calc(48px * var(--fx-unit))) saturate(1.2) brightness(.7); }
+.fx-pic-main { position: absolute; inset: 7%; width: 86%; height: 86%; object-fit: contain; transform-origin: 50% 50%; filter: drop-shadow(0 calc(24px * var(--fx-unit)) calc(48px * var(--fx-unit)) rgba(0,0,0,.45)); }
 .fx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; visibility: hidden; pointer-events: none; }
 .fx-titles, .fx-captions { position: absolute; inset: 0; pointer-events: none; }
 .fx-title { position: absolute; left: 0; right: 0; display: flex; justify-content: center; padding: 0 calc(70px * var(--fx-unit)); visibility: hidden; }
@@ -272,13 +287,38 @@ export function footageFiles(
       return `<div class="fx-shot fx-shot--split" id="fx-shot-${id}"><div class="fx-half fx-half--a">${clipVideo(overlay.assetId, start, overlay.in, end, false)}</div><div class="fx-half fx-half--b">${main}</div></div>`;
     })
     .join("\n    ");
-  // B-roll over talk: its own layer above the shots; the talk's sound plays on below.
+  // Overlays over talk: their own layer above the shots; the talk's sound plays on below.
   const cutaways = placeCutaways(edit)
-    .map(
-      (placed, index) =>
-        `<video class="fx-cutaway" id="fx-cut-${index}" data-motify-video src="${footageToken(placed.cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"></video>`,
-    )
+    .map((placed, index) => {
+      const { cutaway } = placed;
+      if (cutaway.kind === "card" && cutaway.card) {
+        if (cutaway.card.film?.state === "ready")
+          return `<div class="fx-cut-shot fx-cardshot fx-filmshot" id="fx-cut-${index}"><div class="fx-card-film" data-card-film="${escapeHtml(cutaway.card.film.projectId)}"></div></div>`;
+        return cardMarkup(`cut-${index}`, cutaway.card)
+          .replace('class="fx-shot ', 'class="fx-cut-shot ')
+          .replace(`id="fx-shot-cut-${index}"`, `id="fx-cut-${index}"`);
+      }
+      const top = cutaway.layout === "top" ? " fx-cut--top" : "";
+      if (cutaway.kind === "image") {
+        const src = `motify-asset://${escapeHtml(cutaway.assetId)}`;
+        // The picture whole, on a blurred copy of itself: a logo or a product photo of any shape.
+        return `<div class="fx-cut-shot fx-pic${top}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`;
+      }
+      const video = `data-motify-video src="${footageToken(cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"`;
+      // In the top half the clip sits in a frame of its own, which the speaker is revealed under.
+      if (top)
+        return `<div class="fx-cut-shot${top}" id="fx-cut-${index}"><video ${video}></video></div>`;
+      return `<video class="fx-cutaway" id="fx-cut-${index}" ${video}></video>`;
+    })
     .join("\n    ");
+  // The voice-over: each line Kiri read, at its place.
+  const voice = (edit.voiceover?.lines ?? [])
+    .filter((line) => line.start < total)
+    .map(
+      (line) =>
+        `<audio data-motify-audio src="motify-audio://${escapeHtml(line.trackId)}" data-start="${n(line.start)}" data-duration="${n(Math.min(line.duration, total - line.start))}" data-volume="${n(Math.min(1, edit.voiceover?.volume ?? 1))}"></audio>`,
+    )
+    .join("\n  ");
   const effects = edit.sfx === false ? "" : soundEffects(edit);
   const sounds = placeSounds(edit)
     .map(
@@ -315,6 +355,7 @@ export function footageFiles(
     ${titleMarkup(edit)}
   </div>
   ${sounds}
+  ${voice}
   ${effects}
   ${music}
 </div>

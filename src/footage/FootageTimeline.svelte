@@ -322,7 +322,18 @@
     return { left, width: boxWidth };
   }
 
+  /** What an overlay is called in the lane: its clip, "Picture", or its card's words. */
+  function cutawayName(item: (typeof cutaways)[number]): string {
+    const { cutaway } = item;
+    if (cutaway.kind === "card")
+      return `◆ ${cutaway.card?.title || cutaway.card?.big || "Card"}`;
+    const half = cutaway.layout === "top" ? " · split" : "";
+    if (cutaway.kind === "image") return `▣ Picture${half}`;
+    return `${clipOf(edit, cutaway.assetId)?.name ?? "B-roll"}${half}`;
+  }
+
   function cutawayStrip(item: (typeof cutaways)[number]): string {
+    if (item.cutaway.kind && item.cutaway.kind !== "clip") return "";
     const url = strips[item.cutaway.assetId];
     const clip = clipOf(edit, item.cutaway.assetId);
     if (!url || !clip) return "";
@@ -603,11 +614,13 @@
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="fx-chip fx-chip--broll"
+              class:fx-chip--card={item.cutaway.kind === "card"}
+              class:fx-chip--picture={item.cutaway.kind === "image"}
               class:fx-selected={selectedIds.includes(item.cutaway.id)}
               style:left={`${box.left}px`}
               style:width={`${box.width}px`}
               style={cutawayStrip(item)}
-              title={`${clipOf(edit, item.cutaway.assetId)?.name ?? "B-roll"} overlay: covers the picture; the talk underneath keeps playing`}
+              title={`${cutawayName(item)}: covers the picture; the talk underneath keeps playing`}
               on:pointerdown={(event) =>
                 start(event, {
                   kind: "cut-move",
@@ -616,13 +629,11 @@
                   dx: 0,
                 })}
             >
-              <span class="fx-chip__text"
-                >{clipOf(edit, item.cutaway.assetId)?.name ?? "B-roll"}</span
-              >
+              <span class="fx-chip__text">{cutawayName(item)}</span>
               <span
                 class="fx-handle fx-handle--out"
                 role="slider"
-                aria-label="B-roll length"
+                aria-label="Overlay length"
                 aria-valuenow={item.end - item.start}
                 tabindex="-1"
                 on:pointerdown={(event) =>

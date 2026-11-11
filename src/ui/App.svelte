@@ -243,6 +243,7 @@
     appendClip,
     emptyEdit,
     placeCues,
+    type FootageCard,
     type FootageClip,
     type FootageEdit,
     type FootageFormat,
@@ -252,12 +253,12 @@
     editByInstruction,
     loadCardFilm,
     motionCardStatus,
+    registerCardFilm,
     roughCut,
     seedLocalClip,
     startMotionCard,
     type InstructionFocus,
   } from "../footage/api";
-  import { setCardFilm } from "../footage/films";
   import { clipStatuses, whenClipsReady } from "../footage/clips";
   import "../footage/footage.css";
   import "../footage/footage-editor.css";
@@ -4734,9 +4735,9 @@ Voice over direction: ${voiceNote}`
     footageLoading = true;
     try {
       await Promise.all(
-        edit.segments.flatMap((segment) =>
-          segment.card?.film?.state === "ready"
-            ? [loadCardFilm(segment.card.film.projectId).catch(() => false)]
+        footageCards(edit).flatMap(({ card }) =>
+          card.film?.state === "ready"
+            ? [loadCardFilm(card.film.projectId).catch(() => false)]
             : [],
         ),
       );
@@ -4795,28 +4796,85 @@ Voice over direction: ${voiceNote}`
    * it runs on the server, the template card stands in, and the poller below
    * swaps the generated film in when it is ready.
    */
+  /** Every card in the edit, cut in or over talk, with how long it plays. */
+  function footageCards(
+    edit: FootageEdit,
+  ): Array<{ id: string; card: FootageCard; seconds: number }> {
+    return [
+      ...edit.segments.flatMap((segment) =>
+        segment.card
+          ? [
+              {
+                id: segment.id,
+                card: segment.card,
+                seconds: segment.out - segment.in,
+              },
+            ]
+          : [],
+      ),
+      ...(edit.cutaways ?? []).flatMap((cut) =>
+        cut.card ? [{ id: cut.id, card: cut.card, seconds: cut.duration }] : [],
+      ),
+    ];
+  }
+
+  /**
+   * The edit with each named card changed. A card cut in may also change its
+   * length (`seconds`); one over talk keeps the moment it covers.
+   */
+  function withCards(
+    edit: FootageEdit,
+    changes: Map<
+      string,
+      (card: FootageCard) => { card: FootageCard; seconds?: number }
+    >,
+  ): FootageEdit {
+    return {
+      ...edit,
+      segments: edit.segments.map((segment) => {
+        const change = segment.card ? changes.get(segment.id) : undefined;
+        if (!change || !segment.card) return segment;
+        const { card, seconds } = change(segment.card);
+        return seconds
+          ? { ...segment, card, in: 0, out: Math.round(seconds * 1000) / 1000 }
+          : { ...segment, card };
+      }),
+      cutaways: (edit.cutaways ?? []).map((cut) => {
+        const change = cut.card ? changes.get(cut.id) : undefined;
+        return change && cut.card
+          ? { ...cut, card: change(cut.card).card }
+          : cut;
+      }),
+    };
+  }
+
+  /**
+   * Motify's generator makes each card (all without a film, or the ones named):
+   * it runs on the server, the template card stands in, and the poller below
+   * swaps the generated film in when it is ready.
+   */
   async function generateMotionCards(
-    segmentIds?: string[],
+    ids?: string[],
     assetIds: string[] = [],
+    /**
+     * The edit just made. `footageEdit` follows the project's files only on
+     * Svelte's next update, so right after a cut it still holds the old one.
+     */
+    latest?: FootageEdit,
   ): Promise<void> {
-    const edit = footageEdit;
+    const edit = latest ?? footageEdit;
     const project = cloudProject;
     if (!edit || !project) return;
-    const targets = edit.segments.filter(
-      (segment) =>
-        segment.card &&
-        (segmentIds
-          ? segmentIds.includes(segment.id)
-          : !segment.card.film || segment.card.film.state === "failed"),
+    const targets = footageCards(edit).filter(({ id, card }) =>
+      ids ? ids.includes(id) : !card.film || card.film.state === "failed",
     );
     if (targets.length === 0) return;
     const started = await Promise.all(
-      targets.map(async (segment) => {
-        const card = segment.card!;
+      targets.map(async ({ id, card, seconds }) => {
         try {
           const projectId = await startMotionCard(project.id, {
             format: edit.format,
-            seconds: Math.max(1.5, Math.min(8, segment.out - segment.in)),
+            seconds: Math.max(1.5, Math.min(8, seconds)),
             ...(edit.brief ? { brief: edit.brief } : {}),
             card: {
               title: card.title,
@@ -4827,7 +4885,7 @@ Voice over direction: ${voiceNote}`
             },
             ...(assetIds.length > 0 ? { assetIds } : {}),
           });
-          return [segment.id, projectId] as const;
+          return [id, projectId] as const;
         } catch (error) {
           showNotice(
             error instanceof Error
@@ -4842,23 +4900,20 @@ Voice over direction: ${voiceNote}`
     const byId = new Map(started.flatMap((entry) => (entry ? [entry] : [])));
     if (byId.size === 0 || !footageEdit) return;
     await applyFootageEdit(
-      {
-        ...footageEdit,
-        segments: footageEdit.segments.map((segment) =>
-          byId.has(segment.id) && segment.card
-            ? {
-                ...segment,
-                card: {
-                  ...segment.card,
-                  film: {
-                    projectId: byId.get(segment.id)!,
-                    state: "generating" as const,
-                  },
-                },
-              }
-            : segment,
+      withCards(
+        footageEdit,
+        new Map(
+          [...byId].map(([id, projectId]) => [
+            id,
+            (card: FootageCard) => ({
+              card: {
+                ...card,
+                film: { projectId, state: "generating" as const },
+              },
+            }),
+          ]),
         ),
-      },
+      ),
       "",
     );
   }
@@ -4866,8 +4921,8 @@ Voice over direction: ${voiceNote}`
   /** Cards being generated, followed until each is ready or failed. */
   let cardPoll: ReturnType<typeof setInterval> | null = null;
   $: footageGeneratingCards = footageEdit
-    ? footageEdit.segments.filter(
-        (segment) => segment.card?.film?.state === "generating",
+    ? footageCards(footageEdit).filter(
+        ({ card }) => card.film?.state === "generating",
       ).length
     : 0;
   $: if (footageGeneratingCards > 0 && !cardPoll) {
@@ -4880,23 +4935,36 @@ Voice over direction: ${voiceNote}`
   async function pollMotionCards(): Promise<void> {
     const edit = footageEdit;
     if (!edit) return;
-    const updates = new Map<
+    const changes = new Map<
       string,
-      { state: "ready" | "failed"; duration?: number }
+      (card: FootageCard) => { card: FootageCard; seconds?: number }
     >();
-    for (const segment of edit.segments) {
-      const film = segment.card?.film;
+    for (const { id, card } of footageCards(edit)) {
+      const film = card.film;
       if (film?.state !== "generating") continue;
       try {
         const status = await motionCardStatus(film.projectId);
         if (status.status === "ready" && status.film) {
-          setCardFilm(film.projectId, status.film.html);
-          updates.set(segment.id, {
-            state: "ready",
-            duration: status.film.duration,
-          });
+          await registerCardFilm(film.projectId, status.film.html);
+          const duration = status.film.duration;
+          // A ready card cut in runs as long as its film, within a card's limits.
+          changes.set(id, (current) => ({
+            card: {
+              ...current,
+              film: {
+                ...film,
+                state: "ready",
+                ...(duration ? { duration } : {}),
+              },
+            },
+            ...(duration
+              ? { seconds: Math.max(1.5, Math.min(8, duration)) }
+              : {}),
+          }));
         } else if (status.status === "failed") {
-          updates.set(segment.id, { state: "failed" });
+          changes.set(id, (current) => ({
+            card: { ...current, film: { ...film, state: "failed" } },
+          }));
           showNotice(
             status.error
               ? `A motion card failed: ${status.error}`
@@ -4908,34 +4976,9 @@ Voice over direction: ${voiceNote}`
         // One missed look; the next poll asks again.
       }
     }
-    if (updates.size === 0 || !footageEdit) return;
+    if (changes.size === 0 || !footageEdit) return;
     void refreshCredits();
-    await applyFootageEdit(
-      {
-        ...footageEdit,
-        segments: footageEdit.segments.map((segment) => {
-          const update = updates.get(segment.id);
-          if (!update || !segment.card?.film) return segment;
-          const film = {
-            ...segment.card.film,
-            state: update.state,
-            ...(update.duration ? { duration: update.duration } : {}),
-          };
-          // A ready card runs as long as its film, within a card's limits.
-          const length =
-            update.state === "ready" && update.duration
-              ? Math.max(1.5, Math.min(8, update.duration))
-              : segment.out - segment.in;
-          return {
-            ...segment,
-            in: 0,
-            out: Math.round(length * 1000) / 1000,
-            card: { ...segment.card, film },
-          };
-        }),
-      },
-      "",
-    );
+    await applyFootageEdit(withCards(footageEdit, changes), "");
   }
 
   /** A change to the edit: kept for Undo (unless `label` is empty), shown, then saved. */
@@ -5022,6 +5065,7 @@ Voice over direction: ${voiceNote}`
     seconds: number;
     captionLanguage: string;
     music: boolean;
+    voiceover: boolean;
   }): Promise<void> {
     if (!footageEdit || !cloudProject || footageBusy) return;
     footageBusy = true;
@@ -5116,7 +5160,7 @@ Voice over direction: ${voiceNote}`
       );
       await applyFootageEdit(result.edit, instruction.slice(0, 40));
       // Cards the instruction added are made by Motify's generator, with any attached pictures.
-      void generateMotionCards(undefined, assetIds);
+      void generateMotionCards(undefined, assetIds, result.edit);
       assistantMessages = [
         ...assistantMessages,
         {
@@ -5156,6 +5200,8 @@ Voice over direction: ${voiceNote}`
       format: FootageFormat;
       captionLanguage: string;
       music: boolean;
+      voiceover: boolean;
+      pictures: string[];
     },
     onProgress: (step: "clips" | "cut" | "open") => void = () => undefined,
   ): Promise<void> {
@@ -5179,7 +5225,13 @@ Voice over direction: ${voiceNote}`
           }
         : clip;
     });
-    let edit: FootageEdit = { ...emptyEdit(input.format), brief: input.brief };
+    let edit: FootageEdit = {
+      ...emptyEdit(input.format),
+      brief: input.brief,
+      ...(brandName && brandName !== "Your brand"
+        ? { business: brandName.slice(0, 120) }
+        : {}),
+    };
     for (const clip of clips) edit = addClip(edit, clip);
     for (const clip of clips) edit = appendClip(edit, clip.assetId);
 
@@ -5204,6 +5256,8 @@ Voice over direction: ${voiceNote}`
         seconds: input.seconds,
         captionLanguage: input.captionLanguage,
         music: input.music,
+        voiceover: input.voiceover,
+        ...(input.pictures.length > 0 ? { assetIds: input.pictures } : {}),
       });
       edit = result.edit;
       summary = result.summary;
@@ -5236,7 +5290,7 @@ Voice over direction: ${voiceNote}`
       .join(",");
     const mounted = mountFootage(edit);
     scheduleFootageSave();
-    void generateMotionCards();
+    void generateMotionCards(undefined, input.pictures, edit);
     captureEvent("footage project created", {
       clips: input.clips.length,
       seconds: input.seconds,

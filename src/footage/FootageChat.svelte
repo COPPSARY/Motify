@@ -55,6 +55,7 @@
     seconds: number;
     captionLanguage: string;
     music: boolean;
+    voiceover: boolean;
   }) => void;
 
   let draft = "";
@@ -65,6 +66,7 @@
   let seconds = 30;
   let captionLanguage = "km";
   let music = true;
+  let voiceover = false;
 
   const SUGGESTIONS = [
     "Make the intro shorter",
@@ -112,12 +114,45 @@
     }
   }
 
+  /**
+   * The pictures on the clipboard. A screenshot or a picture copied from a page
+   * comes as a file item; some browsers leave `files` empty for it.
+   */
+  function clipboardPictures(data: DataTransfer | null): File[] {
+    if (!data) return [];
+    const fromItems = [...data.items]
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .flatMap((item) => item.getAsFile() ?? []);
+    return fromItems.length > 0
+      ? fromItems
+      : [...data.files].filter((file) => file.type.startsWith("image/"));
+  }
+
   function paste(event: ClipboardEvent): void {
-    const files = [...(event.clipboardData?.files ?? [])];
-    if (files.some((file) => file.type.startsWith("image/"))) {
-      event.preventDefault();
-      void attach(files);
-    }
+    const files = clipboardPictures(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    void attach(files);
+  }
+
+  /**
+   * Ctrl+V anywhere in the editor attaches a copied picture to the next
+   * message, not only with the cursor in the message box.
+   */
+  function pasteAnywhere(event: ClipboardEvent): void {
+    if (event.defaultPrevented || busy) return;
+    const target = event.target as HTMLElement | null;
+    // Text being pasted into another field stays there.
+    if (
+      target?.closest("input, textarea, [contenteditable]") &&
+      target !== input
+    )
+      return;
+    const files = clipboardPictures(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    void attach(files);
+    input?.focus();
   }
 
   function detach(picture: Picture): void {
@@ -153,10 +188,18 @@
 
   function recut(): void {
     if (busy || clipCount === 0) return;
-    onRoughCut({ brief: recutBrief, seconds, captionLanguage, music });
+    onRoughCut({
+      brief: recutBrief,
+      seconds,
+      captionLanguage,
+      music,
+      voiceover,
+    });
     recutOpen = false;
   }
 </script>
+
+<svelte:window on:paste={pasteAnywhere} />
 
 <aside class="me-properties-panel fx-chat-column" aria-label="Edit with AI">
   <section class="ai-chat-panel fx-chat">
@@ -210,6 +253,11 @@
           </select>
           <label class="fx-check"
             ><input type="checkbox" bind:checked={music} /> Music</label
+          >
+          <label
+            class="fx-check"
+            title="A narrator reads a script the AI writes, for clips nobody speaks in"
+            ><input type="checkbox" bind:checked={voiceover} /> Voice-over</label
           >
         </div>
         <button

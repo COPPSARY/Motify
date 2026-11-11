@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   addCard,
   addCutaway,
+  addPicture,
+  updateCard,
+  updateCutaway,
   placeCutaways,
   removeFillers,
   appendClip,
@@ -165,6 +168,12 @@ describe("footage edit", () => {
   });
 });
 
+/** The two clips with the first one's own sound off, as B-roll would be. */
+function quietFirst(): FootageEdit {
+  const edit = twoClips();
+  return updateSegment(edit, edit.segments[0]!.id, { volume: 0 });
+}
+
 describe("cards", () => {
   const card = {
     template: "spotlight" as const,
@@ -175,74 +184,145 @@ describe("cards", () => {
     big: "5.5",
   };
 
-  it("cuts a card in after the clip at the playhead, without sound or captions", () => {
-    const edit = addCard(twoClips(), 1, card, 2);
+  it("cuts a card in after a clip that plays no sound of its own", () => {
+    const edit = addCard(quietFirst(), 1, card, 2);
     expect(
       edit.segments.map((segment) => (segment.card ? "card" : segment.assetId)),
     ).toEqual([A, "card", B]);
     expect(editDuration(edit)).toBe(9);
+    expect(placeSounds(edit).map((sound) => sound.assetId)).toEqual([B]);
+  });
+
+  it("goes over the talk when the clip at the playhead is talking, so the voice never stops", () => {
+    const edit = addCard(twoClips(), 1, card, 2);
+    expect(edit.segments).toHaveLength(2);
+    expect(edit.cutaways).toEqual([
+      expect.objectContaining({
+        kind: "card",
+        over: A,
+        from: 3,
+        duration: 2,
+        assetId: "",
+        card,
+      }),
+    ]);
     expect(placeSounds(edit).map((sound) => sound.assetId)).toEqual([A, B]);
     expect(placeCues(edit).map(({ start }) => start)).toEqual([0.5]);
-    expect(addCard(twoClips(), 0, card).segments[0]!.card).toBeDefined();
+    // Its words change like a cut-in card's.
+    const id = edit.cutaways![0]!.id;
+    expect(
+      updateCard(edit, id, { title: "Opus" }).cutaways![0]!.card,
+    ).toMatchObject({ title: "Opus" });
   });
 
   it("is trimmed up to eight seconds but never split", () => {
-    const edit = addCard(twoClips(), 1, card, 2);
+    const edit = addCard(quietFirst(), 1, card, 2);
     const id = edit.segments[1]!.id;
     expect(trimSegment(edit, id, { out: 20 }).segments[1]!.out).toBe(8);
     expect(splitAt(edit, 5)).toBe(edit);
   });
 
-  it("renders its words in a panel", () => {
-    const html = footageFiles(addCard(twoClips(), 1, card, 2)).files[
+  it("renders its words in a panel, cut in or over talk", () => {
+    const words =
+      '<div class="fx-k-anim fx-k-eyebrow fx-k-km">ប្រើប្រាស់</div><div class="fx-k-anim fx-k-title">Claude</div><div class="fx-k-anim fx-k-label">OPUS</div><div class="fx-k-anim fx-k-big">5.5</div>';
+    const cutIn = footageFiles(addCard(quietFirst(), 1, card, 2)).files[
       "composition.html"
     ];
-    expect(html).toContain(
+    expect(cutIn).toContain(
       'class="fx-shot fx-cardshot fx-k--spotlight fx-kt--paper"',
     );
-    expect(html).toContain(
-      '<div class="fx-k-anim fx-k-eyebrow fx-k-km">ប្រើប្រាស់</div><div class="fx-k-anim fx-k-title">Claude</div><div class="fx-k-anim fx-k-label">OPUS</div><div class="fx-k-anim fx-k-big">5.5</div>',
+    expect(cutIn).toContain(words);
+    const over = footageFiles(addCard(twoClips(), 1, card, 2)).files[
+      "composition.html"
+    ];
+    expect(over).toContain(
+      'class="fx-cut-shot fx-cardshot fx-k--spotlight fx-kt--paper" id="fx-cut-0"',
     );
+    expect(over).toContain(words);
+    expect(over).toContain('src="motify-sfx://pop" data-start="1.1"');
   });
 });
 
-describe("cards", () => {
-  const card = {
-    template: "spotlight" as const,
-    theme: "paper" as const,
-    eyebrow: "ប្រើប្រាស់",
-    title: "Claude",
-    label: "OPUS",
-    big: "5.5",
-  };
+describe("pictures over talk", () => {
+  const LOGO = "33333333-3333-4333-8333-333333333333";
 
-  it("cuts a card in after the clip at the playhead, without sound or captions", () => {
-    const edit = addCard(twoClips(), 1, card, 2);
-    expect(
-      edit.segments.map((segment) => (segment.card ? "card" : segment.assetId)),
-    ).toEqual([A, "card", B]);
-    expect(editDuration(edit)).toBe(9);
-    expect(placeSounds(edit).map((sound) => sound.assetId)).toEqual([A, B]);
-    expect(placeCues(edit).map(({ start }) => start)).toEqual([0.5]);
-    expect(addCard(twoClips(), 0, card).segments[0]!.card).toBeDefined();
-  });
-
-  it("is trimmed up to eight seconds but never split", () => {
-    const edit = addCard(twoClips(), 1, card, 2);
-    const id = edit.segments[1]!.id;
-    expect(trimSegment(edit, id, { out: 20 }).segments[1]!.out).toBe(8);
-    expect(splitAt(edit, 5)).toBe(edit);
-  });
-
-  it("renders its words in a panel", () => {
-    const html = footageFiles(addCard(twoClips(), 1, card, 2)).files[
-      "composition.html"
-    ];
+  it("puts a picture in the top half above the speaker, at the playhead", () => {
+    const edit = addPicture(twoClips(), 1, LOGO);
+    expect(edit.cutaways).toEqual([
+      expect.objectContaining({
+        kind: "image",
+        layout: "top",
+        over: A,
+        from: 3,
+        duration: 3,
+        assetId: LOGO,
+      }),
+    ]);
+    const html = footageFiles(edit).files["composition.html"];
     expect(html).toContain(
-      'class="fx-shot fx-cardshot fx-k--spotlight fx-kt--paper"',
+      `<div class="fx-cut-shot fx-pic fx-cut--top" id="fx-cut-0"><img class="fx-pic-fill" src="motify-asset://${LOGO}" alt=""><img class="fx-pic-main" src="motify-asset://${LOGO}" alt=""></div>`,
     );
-    expect(html).toContain(
-      '<div class="fx-k-anim fx-k-eyebrow fx-k-km">ប្រើប្រាស់</div><div class="fx-k-anim fx-k-title">Claude</div><div class="fx-k-anim fx-k-label">OPUS</div><div class="fx-k-anim fx-k-big">5.5</div>',
+  });
+
+  it("covers the whole frame in a wide video, or when set to full", () => {
+    const wide = addPicture({ ...twoClips(), format: "16:9" }, 1, LOGO);
+    expect(wide.cutaways![0]!.layout).toBeUndefined();
+    const split = addPicture(twoClips(), 1, LOGO);
+    const full = updateCutaway(split, split.cutaways![0]!.id, {
+      layout: undefined,
+    });
+    expect(footageFiles(full).files["composition.html"]).toContain(
+      '<div class="fx-cut-shot fx-pic" id="fx-cut-0">',
+    );
+  });
+
+  it("frames B-roll in the top half in its own holder", () => {
+    const edit = addCutaway(twoClips(), 1, B, 0.5, 2, { layout: "top" });
+    expect(footageFiles(edit).files["composition.html"]).toContain(
+      '<div class="fx-cut-shot fx-cut--top" id="fx-cut-0"><video data-motify-video',
+    );
+  });
+
+  it("goes to the nearest clip when the playhead is on a card", () => {
+    const withCard = addCard(
+      quietFirst(),
+      0,
+      { template: "statement", theme: "dark", title: "Hi" },
+      2,
+    );
+    const edit = addPicture(withCard, 0.5, LOGO);
+    expect(edit.cutaways).toHaveLength(1);
+    expect(placeCutaways(edit)[0]!.start).toBeCloseTo(2);
+  });
+});
+
+describe("voice-over", () => {
+  it("plays each line and shows it as captions instead of the clips' words", () => {
+    const edit: FootageEdit = {
+      ...twoClips(),
+      voiceover: {
+        voice: "Maly",
+        volume: 1,
+        lines: [
+          {
+            id: "v1",
+            trackId: "44444444-4444-4444-8444-444444444444",
+            text: "Fresh coffee every morning, made the way you like it.",
+            start: 0.2,
+            duration: 3,
+          },
+        ],
+      },
+    };
+    const cues = placeCues(edit);
+    expect(cues.length).toBeGreaterThan(1);
+    expect(cues[0]!.start).toBe(0.2);
+    expect(cues[cues.length - 1]!.end).toBeCloseTo(3.2);
+    expect(cues.map((cue) => cue.cue.text).join(" ")).toBe(
+      "Fresh coffee every morning, made the way you like it.",
+    );
+    expect(footageFiles(edit).files["composition.html"]).toContain(
+      '<audio data-motify-audio src="motify-audio://44444444-4444-4444-8444-444444444444" data-start="0.2" data-duration="3" data-volume="1"></audio>',
     );
   });
 });
@@ -300,7 +380,7 @@ describe("B-roll over talk", () => {
 
   it("is never laid over a card, or over its own clip", () => {
     const withCard = addCard(
-      twoClips(),
+      quietFirst(),
       0,
       { template: "statement", theme: "dark", title: "Hi" },
       2,
@@ -333,7 +413,7 @@ describe("fillers and sound effects", () => {
 
   it("whooshes under moving transitions and pops on cards, unless turned off", () => {
     let edit = addCard(
-      twoClips(),
+      quietFirst(),
       1,
       { template: "statement", theme: "dark", title: "Hi" },
       2,
