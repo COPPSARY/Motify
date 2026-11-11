@@ -32,7 +32,8 @@
       clips: FootageClip[];
       localFiles?: Record<string, File>;
       brief: string;
-      seconds: number;
+      /** The length asked for; null lets the AI choose it. */
+      seconds: number | null;
       format: FootageFormat;
       captionLanguage: string;
       music: boolean;
@@ -65,7 +66,8 @@
   let fileInput: HTMLInputElement;
   let items: Item[] = [];
   let brief = "";
-  let seconds = 30;
+  /** Auto (null) by default: the AI picks the length the footage needs. */
+  let seconds: number | null = null;
   let format: FootageFormat = "9:16";
   let captionLanguage = "km";
   let music = true;
@@ -404,12 +406,16 @@
         <div class="fs-option">
           <span>Length</span>
           <div class="fs-segmented" role="group" aria-label="Length">
-            {#each [15, 30, 60] as option (option)}
+            {#each [null, 15, 30, 60] as option (option ?? "auto")}
               <button
                 type="button"
                 class:fs-on={seconds === option}
                 aria-pressed={seconds === option}
-                on:click={() => (seconds = option)}>{option}s</button
+                title={option === null
+                  ? "The AI picks the length your footage needs"
+                  : undefined}
+                on:click={() => (seconds = option)}
+                >{option === null ? "Auto" : `${option}s`}</button
               >
             {/each}
           </div>

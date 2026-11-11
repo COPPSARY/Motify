@@ -79,7 +79,8 @@ export async function roughCut(
   input: {
     edit: FootageEdit;
     brief: string;
-    seconds: number;
+    /** The length asked for; null lets the AI choose it. */
+    seconds: number | null;
     captionLanguage: string;
     music: boolean;
     /** A voice-over read by Kiri; off unless asked for. */

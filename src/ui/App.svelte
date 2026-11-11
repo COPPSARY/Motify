@@ -5062,7 +5062,7 @@ Voice over direction: ${voiceNote}`
 
   async function runFootageCut(options: {
     brief: string;
-    seconds: number;
+    seconds: number | null;
     captionLanguage: string;
     music: boolean;
     voiceover: boolean;
@@ -5196,7 +5196,7 @@ Voice over direction: ${voiceNote}`
       /** The person's own files, played until the server's copies are ready. */
       localFiles?: Record<string, File>;
       brief: string;
-      seconds: number;
+      seconds: number | null;
       format: FootageFormat;
       captionLanguage: string;
       music: boolean;
@@ -5293,7 +5293,7 @@ Voice over direction: ${voiceNote}`
     void generateMotionCards(undefined, input.pictures, edit);
     captureEvent("footage project created", {
       clips: input.clips.length,
-      seconds: input.seconds,
+      seconds: input.seconds ?? "auto",
       format: input.format,
     });
     await mounted;
