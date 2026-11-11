@@ -187,6 +187,8 @@ const ETA_WARMUP_FRAMES = 3;
 const MAX_ENCODE_QUEUE = 8;
 /** How long the encoder may take nothing before the export gives up on it. */
 const ENCODER_STALL_MS = 45_000;
+/** Times one export reopens an encoder that closed under it before failing. */
+const MAX_ENCODER_RESTARTS = 5;
 
 export class EncoderStalledError extends Error {
   constructor() {
@@ -411,14 +413,48 @@ export async function exportVideo(
     };
   }
 
+  const frameDuration = Math.round(1_000_000 / fps);
   let encoderError: Error | undefined;
-  const encoder = new VideoEncoder({
-    output: (chunk, metadata) => addChunk(chunk, metadata),
-    error: (error) => {
-      encoderError = error;
-    },
-  });
-  encoder.configure(config);
+  /** The last frame the muxer has, so a reopened encoder resumes after it. */
+  let lastSavedFrame = -1;
+  const openEncoder = (): VideoEncoder => {
+    const opened: VideoEncoder = new VideoEncoder({
+      output: (chunk, metadata) => {
+        addChunk(chunk, metadata);
+        lastSavedFrame = Math.round(chunk.timestamp / frameDuration);
+      },
+      error: (error) => {
+        if (opened === encoder) encoderError = error;
+      },
+    });
+    opened.configure(config);
+    return opened;
+  };
+  let encoder = openEncoder();
+  let restarts = 0;
+  let frameIndex = 0;
+  let keyFrameNext = true;
+  /**
+   * The encoder closed under the export: Chrome reclaims one in a tab left in
+   * the background, and a hardware encoder can fail mid-stream. Every frame
+   * the muxer already has is kept; a fresh encoder starts again, on a key
+   * frame, from the first one it lacks.
+   */
+  const reopenEncoder = () => {
+    const cause = encoderError ?? new Error("The video encoder closed.");
+    if (restarts >= MAX_ENCODER_RESTARTS) throw cause;
+    restarts++;
+    console.warn(
+      `[Export] the video encoder closed at frame ${frameIndex}; resuming from frame ${lastSavedFrame + 1}.`,
+      cause,
+    );
+    encoderError = undefined;
+    encoder = openEncoder();
+    frameIndex = lastSavedFrame + 1;
+    keyFrameNext = true;
+  };
+  const encoderClosed = () =>
+    encoderError !== undefined || encoder.state === "closed";
 
   const initialTime = runtime.time;
   const wasPlaying = runtime.snapshot.playing;
@@ -428,53 +464,69 @@ export async function exportVideo(
     1,
     Math.ceil(((range.end - range.start) / speed) * fps),
   );
-  const frameDuration = Math.round(1_000_000 / fps);
   const label = format === "webm" ? "WebM" : "MP4";
   const startedAt = performance.now();
 
   try {
-    for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+    for (;;) {
+      while (frameIndex < totalFrames) {
+        if (signal?.aborted) throw new ExportCancelledError();
+        if (encoderClosed()) reopenEncoder();
+        runtime.seek(
+          Math.min(duration, range.start + (frameIndex / fps) * speed),
+        );
+
+        const frameCanvas = await renderCompositionFrame(
+          runtime,
+          scale,
+          options.watermark ?? false,
+        );
+        // Drawing the frame awaits; the encoder may have closed meanwhile.
+        if (encoderClosed()) continue;
+        context.drawImage(frameCanvas, 0, 0, width, height);
+
+        const frame = new VideoFrame(canvas, {
+          timestamp: frameIndex * frameDuration,
+          duration: frameDuration,
+        });
+        try {
+          encoder.encode(frame, {
+            keyFrame: keyFrameNext || frameIndex % (fps * 2) === 0,
+          });
+        } finally {
+          frame.close();
+        }
+        keyFrameNext = false;
+
+        await waitForEncoderRoom(encoder, MAX_ENCODE_QUEUE);
+        if (encoderClosed()) continue;
+
+        frameIndex++;
+        const completedFrames = frameIndex;
+        if ((completedFrames - 1) % PREVIEW_FRAME_INTERVAL === 0)
+          options.onFrame?.(canvas);
+        const elapsed = (performance.now() - startedAt) / 1000;
+        const eta =
+          completedFrames >= ETA_WARMUP_FRAMES
+            ? (elapsed / completedFrames) * (totalFrames - completedFrames)
+            : undefined;
+        options.onProgress?.(
+          completedFrames / totalFrames,
+          `Encoding ${label} at ${fps} FPS... ${Math.round((completedFrames / totalFrames) * 100)}%`,
+          eta,
+        );
+      }
+
+      try {
+        await flushWithin(encoder, ENCODER_STALL_MS + totalFrames * 50);
+      } catch (error) {
+        // A flush the closing encoder rejected is resumed like any other close.
+        if (!encoderClosed()) throw error;
+      }
       if (signal?.aborted) throw new ExportCancelledError();
-      runtime.seek(
-        Math.min(duration, range.start + (frameIndex / fps) * speed),
-      );
-
-      const frameCanvas = await renderCompositionFrame(
-        runtime,
-        scale,
-        options.watermark ?? false,
-      );
-      context.drawImage(frameCanvas, 0, 0, width, height);
-
-      const frame = new VideoFrame(canvas, {
-        timestamp: frameIndex * frameDuration,
-        duration: frameDuration,
-      });
-      encoder.encode(frame, {
-        keyFrame: frameIndex % (fps * 2) === 0,
-      });
-      frame.close();
-
-      await waitForEncoderRoom(encoder, MAX_ENCODE_QUEUE);
-      if (encoderError) throw encoderError;
-
-      const completedFrames = frameIndex + 1;
-      if (frameIndex % PREVIEW_FRAME_INTERVAL === 0) options.onFrame?.(canvas);
-      const elapsed = (performance.now() - startedAt) / 1000;
-      const eta =
-        completedFrames >= ETA_WARMUP_FRAMES
-          ? (elapsed / completedFrames) * (totalFrames - completedFrames)
-          : undefined;
-      options.onProgress?.(
-        completedFrames / totalFrames,
-        `Encoding ${label} at ${fps} FPS... ${Math.round((completedFrames / totalFrames) * 100)}%`,
-        eta,
-      );
+      if (!encoderClosed()) break;
+      reopenEncoder();
     }
-
-    await flushWithin(encoder, ENCODER_STALL_MS + totalFrames * 50);
-    if (encoderError) throw encoderError;
-    if (signal?.aborted) throw new ExportCancelledError();
     const blob = finalize();
     return {
       blob,
