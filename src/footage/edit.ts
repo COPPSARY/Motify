@@ -246,25 +246,74 @@ export interface PlacedCutaway {
   trim: number;
 }
 
-/** B-roll on the video's clock: each cutaway wherever the talk it covers plays. */
+/**
+ * Overlays on the video's clock. Each starts at the moment of the talk it is
+ * pinned to (or, when that moment was cut, where the talk picks up again) and
+ * then runs its length on the video's clock, across cuts into later scenes. It
+ * stops early only at a card cut in, which already fills the frame, at the end
+ * of the video, or when the clip it shows runs out.
+ */
 export function placeCutaways(edit: FootageEdit): PlacedCutaway[] {
+  const shots = placeSegments(edit);
+  const total = shots.length > 0 ? shots[shots.length - 1]!.end : 0;
   const placed: PlacedCutaway[] = [];
-  for (const { segment, start } of placeSegments(edit)) {
-    if (segment.card) continue;
-    for (const cutaway of edit.cutaways ?? []) {
-      if (cutaway.over !== segment.assetId) continue;
-      const from = Math.max(cutaway.from, segment.in);
-      const to = Math.min(cutaway.from + cutaway.duration, segment.out);
-      if (to - from < 0.15) continue;
-      placed.push({
-        cutaway,
-        start: round(start + (from - segment.in)),
-        end: round(start + (to - segment.in)),
-        trim: round(cutaway.in + (from - cutaway.from)),
-      });
+  for (const cutaway of edit.cutaways ?? []) {
+    const talk = shots.filter(
+      ({ segment }) => !segment.card && segment.assetId === cutaway.over,
+    );
+    let start: number | undefined;
+    let skipped = 0;
+    const holding = talk.find(
+      ({ segment }) =>
+        cutaway.from >= segment.in && cutaway.from < segment.out - 0.15,
+    );
+    if (holding) start = holding.start + (cutaway.from - holding.segment.in);
+    else {
+      const next = talk.find(
+        ({ segment }) =>
+          segment.in > cutaway.from &&
+          segment.in < cutaway.from + cutaway.duration - 0.15,
+      );
+      if (next) {
+        start = next.start;
+        skipped = next.segment.in - cutaway.from;
+      }
     }
+    if (start === undefined) continue;
+    let end = Math.min(total, start + cutaway.duration - skipped);
+    const card = shots.find(
+      (shot) => shot.segment.card && shot.start >= start! - 0.001,
+    );
+    if (card) end = Math.min(end, card.start);
+    const trim = cutaway.in + skipped;
+    if (!cutaway.kind || cutaway.kind === "clip") {
+      const shown = clipOf(edit, cutaway.assetId);
+      if (shown) end = Math.min(end, start + shown.duration - trim);
+    }
+    if (end - start < 0.15) continue;
+    placed.push({
+      cutaway,
+      start: round(start),
+      end: round(end),
+      trim: round(trim),
+    });
   }
   return placed.sort((a, b) => a.start - b.start);
+}
+
+/** The longest `cutaway` may run: its clip's rest, a card's limit, or the video. */
+export function cutawayMaxLength(
+  edit: FootageEdit,
+  cutaway: Pick<FootageCutaway, "kind" | "assetId" | "in">,
+): number {
+  if (cutaway.kind === "card") return MAX_CARD_SECONDS;
+  const total = editDuration(edit);
+  if (cutaway.kind === "image") return Math.max(0.3, total);
+  const shown = clipOf(edit, cutaway.assetId);
+  return Math.max(
+    0.3,
+    Math.min(total, (shown?.duration ?? total) - cutaway.in),
+  );
 }
 
 /**
@@ -286,12 +335,13 @@ export function addCutaway(
   const clipShown = !extra.kind || extra.kind === "clip";
   const from = round(placed.segment.in + (at - placed.start));
   const shown = clipShown ? clipOf(edit, assetId) : undefined;
+  // It may run on past this scene into the next ones, up to the video's end.
   const duration = round(
     Math.max(
       0.3,
       Math.min(
         seconds,
-        placed.segment.out - from,
+        editDuration(edit) - at,
         (shown?.duration ?? seconds) - clipIn,
       ),
     ),
@@ -387,6 +437,51 @@ export function moveCutaway(
   return {
     ...moved,
     cutaways: [...without.cutaways!, { ...added, id: cut.id }],
+  };
+}
+
+/**
+ * Pulls an overlay's start to `at` on the video's clock while its end stays
+ * put: earlier shows more of its clip from before, later less. It cannot start
+ * on a card, before its clip's first frame, or within 0.3 s of its end.
+ */
+export function trimCutawayStart(
+  edit: FootageEdit,
+  id: string,
+  at: number,
+): FootageEdit {
+  const placed = placeCutaways(edit).find((item) => item.cutaway.id === id);
+  if (!placed) return edit;
+  const cut = placed.cutaway;
+  const clipShown = !cut.kind || cut.kind === "clip";
+  let start = Math.min(at, placed.end - 0.3);
+  if (clipShown) start = Math.max(start, placed.start - placed.trim);
+  const snapped = overlayTime(edit, Math.max(0, start));
+  if (snapped === null || snapped >= placed.end - 0.3) return edit;
+  const shift = snapped - placed.start;
+  const without = removeCutaway(edit, id);
+  const moved = addCutaway(
+    without,
+    snapped,
+    cut.assetId,
+    clipShown ? placed.trim + shift : cut.in,
+    Math.min(
+      placed.end - snapped,
+      cut.kind === "card" ? MAX_CARD_SECONDS : Number.POSITIVE_INFINITY,
+    ),
+    {
+      ...(cut.kind ? { kind: cut.kind } : {}),
+      ...(cut.card ? { card: cut.card } : {}),
+      ...(cut.layout ? { layout: cut.layout } : {}),
+    },
+  );
+  if (moved === without) return edit;
+  const added = moved.cutaways![moved.cutaways!.length - 1]!;
+  return {
+    ...moved,
+    cutaways: (edit.cutaways ?? []).map((item) =>
+      item.id === id ? { ...added, id } : item,
+    ),
   };
 }
 
