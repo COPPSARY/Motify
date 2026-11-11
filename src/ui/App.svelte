@@ -914,7 +914,55 @@
     height: 0,
   };
 
+  // ---- a new version was deployed while this tab was open ----
+  /**
+   * Code is split into files named after their contents (the exporter, for
+   * one), loaded when first needed. After a deploy, a tab opened on the old
+   * build asks for files that no longer exist, and Vite reports it with
+   * `vite:preloadError`. The page then reloads onto the new version, but only
+   * once nothing is left to save; until then the person is told why.
+   */
+  const RELOADED_FOR_UPDATE_KEY = "motify:reloaded-for-update";
+  let newVersionDeployed = false;
+  function handleStaleBuild(): void {
+    if (newVersionDeployed) return;
+    let lastReload = 0;
+    try {
+      lastReload = Number(sessionStorage.getItem(RELOADED_FOR_UPDATE_KEY)) || 0;
+    } catch {
+      // Storage may be blocked; reloading once more is still right.
+    }
+    // A reload a moment ago did not help: say so rather than reload in a loop.
+    if (Date.now() - lastReload < 60_000) {
+      showNotice(
+        "Part of Motify could not load. Refresh the page; your work is saved.",
+        10000,
+      );
+      return;
+    }
+    newVersionDeployed = true;
+    showNotice(
+      "Motify was just updated. Reloading to the new version as soon as your work is saved…",
+      10000,
+    );
+  }
+  $: if (
+    newVersionDeployed &&
+    !sourceDirty &&
+    !footageSaving &&
+    !footageSaveTimer &&
+    !exporting
+  ) {
+    try {
+      sessionStorage.setItem(RELOADED_FOR_UPDATE_KEY, String(Date.now()));
+    } catch {
+      // The reload still goes ahead.
+    }
+    window.location.reload();
+  }
+
   onMount(() => {
+    window.addEventListener("vite:preloadError", handleStaleBuild);
     const url = new URL(window.location.href);
     templateInterests = mode === "cloud" ? takeInterests(localStorage) : [];
     const storedAspect = sessionStorage.getItem(PENDING_ASPECT_KEY);
@@ -1022,6 +1070,7 @@
       }, 15_000);
     }
     return () => {
+      window.removeEventListener("vite:preloadError", handleStaleBuild);
       runtimeUnsubscribe?.();
       audioSync?.dispose();
       videoSync?.dispose();
