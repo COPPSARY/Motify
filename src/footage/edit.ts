@@ -155,10 +155,14 @@ export interface FootageMusic {
   duck: boolean;
 }
 
+/** What an overlay shows: another clip (B-roll), a picture, or a card. */
+export type FootageCutawayKind = "clip" | "image" | "card";
+
 /**
- * B-roll over talk: another clip's picture covers the video while the clip
- * underneath keeps its sound and captions. Pinned to the moment it illustrates,
- * in the covered clip's own time, so trims, splits and cut pauses keep it there.
+ * An overlay over talk: B-roll, a picture or a card covers the video while the
+ * clip underneath keeps its sound and captions. Pinned to the moment it
+ * illustrates, in the covered clip's own time, so trims, splits and cut pauses
+ * keep it there.
  */
 export interface FootageCutaway {
   id: string;
@@ -166,9 +170,33 @@ export interface FootageCutaway {
   over: string;
   from: number;
   duration: number;
-  /** The clip shown, from `in` seconds. */
+  /** A clip (the default), a picture or a card. */
+  kind?: FootageCutawayKind;
+  /** The clip shown, from `in` seconds; the picture's asset for an image; "" for a card. */
   assetId: string;
   in: number;
+  /** For a card: what it says (and its generated film). */
+  card?: FootageCard;
+}
+
+/** One line of a voice-over: Kiri's reading of `text`, on the video's clock. */
+export interface FootageVoiceLine {
+  id: string;
+  /** The narration's audio track (motify-audio://). */
+  trackId: string;
+  text: string;
+  start: number;
+  duration: number;
+}
+
+/**
+ * A voice-over read by Kiri TTS. Its lines are the captions while it is on,
+ * and the clips' own sound plays quietly under it.
+ */
+export interface FootageVoiceover {
+  voice: string;
+  volume: number;
+  lines: FootageVoiceLine[];
 }
 
 export interface FootageEdit {
@@ -192,8 +220,10 @@ export interface FootageEdit {
   };
   titles: FootageTitle[];
   music: FootageMusic | null;
-  /** B-roll over talk. */
+  /** Overlays over talk: B-roll, pictures and cards. */
   cutaways?: FootageCutaway[];
+  /** A voice-over; see FootageVoiceover. */
+  voiceover?: FootageVoiceover | null;
   /** A whoosh on moving transitions and a pop on cards; on unless false. */
   sfx?: boolean;
 }
@@ -228,20 +258,25 @@ export function placeCutaways(edit: FootageEdit): PlacedCutaway[] {
   return placed.sort((a, b) => a.start - b.start);
 }
 
-/** B-roll over whatever is playing at `at`; the talk underneath keeps going. */
+/**
+ * An overlay over whatever is playing at `at` (B-roll by default; a picture or
+ * a card with `extra`); the talk underneath keeps going.
+ */
 export function addCutaway(
   edit: FootageEdit,
   at: number,
   assetId: string,
   clipIn = 0,
   seconds = 2.5,
+  extra: Pick<FootageCutaway, "kind" | "card"> = {},
 ): FootageEdit {
   const placed = placeSegments(edit).find(
     (item) => !item.segment.card && at >= item.start && at < item.end,
   );
   if (!placed || placed.segment.assetId === assetId) return edit;
+  const clipShown = !extra.kind || extra.kind === "clip";
   const from = round(placed.segment.in + (at - placed.start));
-  const shown = clipOf(edit, assetId);
+  const shown = clipShown ? clipOf(edit, assetId) : undefined;
   const duration = round(
     Math.max(
       0.3,
@@ -261,11 +296,37 @@ export function addCutaway(
         over: placed.segment.assetId,
         from,
         duration,
+        ...(extra.kind && extra.kind !== "clip" ? { kind: extra.kind } : {}),
         assetId,
         in: round(Math.max(0, clipIn)),
+        ...(extra.card ? { card: extra.card } : {}),
       },
     ],
   };
+}
+
+/** The time of the nearest moment a clip (not a card) plays, for an overlay. */
+export function overlayTime(edit: FootageEdit, at: number): number | null {
+  let best: number | null = null;
+  for (const { segment, start, end } of placeSegments(edit)) {
+    if (segment.card || end - start < 0.4) continue;
+    const time = Math.min(Math.max(at, start), end - 0.35);
+    if (best === null || Math.abs(time - at) < Math.abs(best - at)) best = time;
+  }
+  return best === null ? null : round(best);
+}
+
+/** A picture (a logo, a product photo) over the talk at `at`, full frame. */
+export function addPicture(
+  edit: FootageEdit,
+  at: number,
+  assetId: string,
+  seconds = 3,
+): FootageEdit {
+  const time = overlayTime(edit, at);
+  return time === null
+    ? edit
+    : addCutaway(edit, time, assetId, 0, seconds, { kind: "image" });
 }
 
 export function updateCutaway(
@@ -297,7 +358,10 @@ export function moveCutaway(
   const cut = (edit.cutaways ?? []).find((item) => item.id === id);
   if (!cut) return edit;
   const without = removeCutaway(edit, id);
-  const moved = addCutaway(without, at, cut.assetId, cut.in, cut.duration);
+  const moved = addCutaway(without, at, cut.assetId, cut.in, cut.duration, {
+    ...(cut.kind ? { kind: cut.kind } : {}),
+    ...(cut.card ? { card: cut.card } : {}),
+  });
   if (moved === without) return edit;
   const added = moved.cutaways![moved.cutaways!.length - 1]!;
   return {
@@ -533,9 +597,59 @@ export function placeSounds(edit: FootageEdit): PlacedSound[] {
   });
 }
 
-/** Captions on the video's clock: each cue shown inside every segment that plays its words. */
+const KHMER = /[\u1780-\u17FF\u19E0-\u19FF]/;
+
+/** A voice-over line as caption lines short enough to read at a glance, timed by their length. */
+function voiceCues(line: FootageVoiceLine): PlacedCue[] {
+  const khmer = KHMER.test(line.text);
+  const limit = khmer ? 26 : 36;
+  const words =
+    typeof Intl.Segmenter === "function"
+      ? Array.from(
+          new Intl.Segmenter(khmer ? "km" : undefined, {
+            granularity: "word",
+          }).segment(line.text),
+          (piece) => piece.segment,
+        )
+      : line.text.split(/(\s+)/);
+  const chunks: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current && (current + word).trim().length > limit && word.trim()) {
+      chunks.push(current.trim());
+      current = word;
+    } else current += word;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0) || 1;
+  let at = line.start;
+  return chunks.map((text, index) => {
+    const length = (line.duration * text.length) / size;
+    const placed: PlacedCue = {
+      cue: {
+        id: `${line.id}-${index}`,
+        assetId: "",
+        start: at,
+        end: at + length,
+        text,
+      },
+      start: round(at),
+      end: round(at + length),
+      words: [],
+    };
+    at += length;
+    return placed;
+  });
+}
+
+/**
+ * Captions on the video's clock: each cue shown inside every segment that plays
+ * its words, or the voice-over's lines while there is one.
+ */
 export function placeCues(edit: FootageEdit): PlacedCue[] {
   if (!edit.captions.enabled) return [];
+  if (edit.voiceover && edit.voiceover.lines.length > 0)
+    return edit.voiceover.lines.flatMap(voiceCues);
   const result: PlacedCue[] = [];
   for (const { segment, start } of placeSegments(edit)) {
     // Captions are what is heard: a muted shot's words are not shown.
@@ -768,13 +882,29 @@ export function removeSilences(
   return withSegments(edit, segments);
 }
 
-/** A card cut in after the segment playing at `at` (first when `at` is before everything). */
+/**
+ * A card at `at`. Over a clip that plays its sound it goes over the talk, so
+ * the voice never stops for it; elsewhere it is cut in after the segment
+ * playing at `at` (first when `at` is before everything).
+ */
 export function addCard(
   edit: FootageEdit,
   at: number,
   card: FootageCard,
   seconds = 2.5,
 ): FootageEdit {
+  const playing = placeSegments(edit).find(
+    (item) => at >= item.start && at < item.end,
+  );
+  if (
+    playing &&
+    !playing.segment.card &&
+    playing.segment.volume > 0 &&
+    clipOf(edit, playing.segment.assetId)?.hasAudio
+  ) {
+    const over = addCutaway(edit, at, "", 0, seconds, { kind: "card", card });
+    if (over !== edit) return over;
+  }
   const segment: FootageSegment = {
     id: newId("k"),
     assetId: "",
@@ -796,12 +926,13 @@ export function addCard(
   return withSegments(edit, segments);
 }
 
+/** Changes a card, cut in (a segment) or over talk (an overlay). */
 export function updateCard(
   edit: FootageEdit,
   id: string,
   patch: Partial<FootageCard>,
 ): FootageEdit {
-  return withSegments(
+  const next = withSegments(
     edit,
     edit.segments.map((segment) =>
       segment.id === id && segment.card
@@ -809,6 +940,16 @@ export function updateCard(
         : segment,
     ),
   );
+  if (!(edit.cutaways ?? []).some((cut) => cut.id === id && cut.card))
+    return next;
+  return {
+    ...next,
+    cutaways: (edit.cutaways ?? []).map((cut) =>
+      cut.id === id && cut.card
+        ? { ...cut, card: { ...cut.card, ...patch } }
+        : cut,
+    ),
+  };
 }
 
 export function updateCue(

@@ -81,6 +81,10 @@ export async function roughCut(
     seconds: number;
     captionLanguage: string;
     music: boolean;
+    /** A voice-over read by Kiri; off unless asked for. */
+    voiceover?: boolean;
+    /** Pictures to use: a logo, product photos. */
+    assetIds?: string[];
   },
 ): Promise<FootageEditResult> {
   return data(

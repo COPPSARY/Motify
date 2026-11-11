@@ -34,6 +34,7 @@
     addClip,
     addCard,
     addCutaway,
+    addPicture,
     addTitle,
     appendClip,
     clipOf,
@@ -130,6 +131,12 @@
   $: selectedId = selectedIds.length === 1 ? selectedIds[0]! : "";
   $: segment = edit.segments.find((item) => item.id === selectedId);
   $: cutaway = (edit.cutaways ?? []).find((item) => item.id === selectedId);
+  /** The selected card: cut in (a segment) or over talk (an overlay). */
+  $: cardHost = segment?.card
+    ? { id: segment.id, card: segment.card, overlay: false }
+    : cutaway?.kind === "card" && cutaway.card
+      ? { id: cutaway.id, card: cutaway.card, overlay: true }
+      : null;
   $: title = edit.titles.find((item) => item.id === selectedId);
   $: cue = edit.captions.cues.find((item) => item.id === selectedId);
   $: total = editDuration(edit);
@@ -185,7 +192,14 @@
       (item) => !edit.segments.some((old) => old.id === item.id),
     );
     onChange(next, "Add card");
-    if (added) {
+    // Over talk, it is an overlay at the playhead; select it there.
+    const overlay = (next.cutaways ?? []).find(
+      (item) => !(edit.cutaways ?? []).some((old) => old.id === item.id),
+    );
+    if (overlay) {
+      onSelect(overlay.id, false);
+      onSeek(time + 0.6);
+    } else if (added) {
       onSelect(added.id, false);
       let at = 0;
       for (const item of next.segments) {
@@ -329,9 +343,20 @@
   }
 
   async function addFiles(files: FileList | null): Promise<void> {
-    const videos = Array.from(files ?? []).filter(isVideoFile);
+    const all = Array.from(files ?? []);
+    const videos = all.filter(isVideoFile);
+    const images = all.filter((file) =>
+      /^image\/(png|jpeg|webp|gif)$/.test(file.type),
+    );
+    if (videos.length === 0 && images.length === 0) {
+      onNotice(
+        "Choose .mp4, .mov or .webm videos, or .png, .jpg or .webp pictures.",
+      );
+      return;
+    }
+    if (images.length > 0) await addPictures(images);
     if (videos.length === 0) {
-      onNotice("Choose .mp4, .mov or .webm videos.");
+      if (fileInput) fileInput.value = "";
       return;
     }
     let next = edit;
@@ -364,6 +389,36 @@
     );
     if (next !== edit) onChange(next, "Add clips");
     if (fileInput) fileInput.value = "";
+  }
+
+  /** Pictures (a logo, a product photo), each full frame over the talk at the playhead. */
+  async function addPictures(images: File[]): Promise<void> {
+    let next = edit;
+    let at = time;
+    for (const file of images.slice(0, 6)) {
+      const entry = { name: file.name, progress: 0 };
+      uploads = [...uploads, entry];
+      try {
+        const assetId = await uploadAsset(workspaceId, file, (progress) => {
+          entry.progress = progress;
+          uploads = [...uploads];
+        });
+        const added = addPicture(next, at, assetId);
+        if (added === next) throw new Error("Add a clip first");
+        next = added;
+        at += 3;
+        uploads = uploads.filter((item) => item !== entry);
+      } catch (error) {
+        (entry as { error?: string }).error =
+          error instanceof Error ? error.message : "Upload failed";
+        uploads = [...uploads];
+      }
+    }
+    if (next !== edit) {
+      onChange(next, images.length > 1 ? "Add pictures" : "Add picture");
+      const added = next.cutaways?.[next.cutaways.length - 1];
+      if (added) onSelect(added.id, false);
+    }
   }
 
   function localVideoInfo(
@@ -497,20 +552,23 @@
     </header>
     <div class="fx-panel__body">
       {#if tab === "edit"}
-        {#if cutaway}
+        {#if cutaway && !cardHost}
           {@const shown = clipOf(edit, cutaway.assetId)}
+          {@const picture = cutaway.kind === "image"}
           <section class="fx-card fx-card--selected">
             <header>
-              <strong>B-roll · {shown?.name ?? "clip"}</strong><small
-                >{fmt(cutaway.duration)} s</small
-              >
+              <strong
+                >{picture
+                  ? "Picture"
+                  : `B-roll · ${shown?.name ?? "clip"}`}</strong
+              ><small>{fmt(cutaway.duration)} s</small>
             </header>
             <p class="fx-hint">
               Covers the picture while {clipOf(edit, cutaway.over)?.name ??
                 "the talk"} keeps playing its sound and captions underneath.
             </p>
             <div class="fx-grid2">
-              <label
+              <label hidden={picture}
                 >From (s) in the clip<input
                   type="number"
                   step="0.1"
@@ -552,17 +610,31 @@
               type="button"
               class="fx-link fx-danger"
               on:click={() => {
-                onChange(removeCutaway(edit, cutaway.id), "Delete B-roll");
+                onChange(
+                  removeCutaway(edit, cutaway.id),
+                  picture ? "Delete picture" : "Delete B-roll",
+                );
                 onSelect("", false);
-              }}><Trash2 size={12} /> Remove this B-roll</button
+              }}
+              ><Trash2 size={12} /> Remove this {picture
+                ? "picture"
+                : "B-roll"}</button
             >
           </section>
-        {:else if segment?.card}
-          {@const card = segment.card}
+        {:else if cardHost}
+          {@const card = cardHost.card}
+          {@const cardId = cardHost.id}
           <section class="fx-card fx-card--selected">
             <header>
-              <strong>Card</strong><small
-                >{fmt(segment.out - segment.in)} s</small
+              <strong>{cardHost.overlay ? "Card over talk" : "Card"}</strong
+              ><small
+                >{fmt(
+                  cutaway && cardHost.overlay
+                    ? cutaway.duration
+                    : segment
+                      ? segment.out - segment.in
+                      : 0,
+                )} s</small
               >
             </header>
             <div class="fx-motion">
@@ -577,7 +649,7 @@
                 <button
                   type="button"
                   class="fx-link"
-                  on:click={() => onGenerateCard(segment.id)}
+                  on:click={() => onGenerateCard(cardId)}
                   ><RefreshCw size={12} /> Make another</button
                 >
               {:else}
@@ -589,7 +661,7 @@
                 <button
                   type="button"
                   class="fx-primary"
-                  on:click={() => onGenerateCard(segment.id)}
+                  on:click={() => onGenerateCard(cardId)}
                   ><Sparkles size={13} /> Make it with Motify AI</button
                 >
               {/if}
@@ -605,7 +677,7 @@
                   value={card.template}
                   on:change={(e) =>
                     onChange(
-                      updateCard(edit, segment.id, {
+                      updateCard(edit, cardId, {
                         template: text(e) as FootageCard["template"],
                       }),
                       "Card layout",
@@ -622,7 +694,7 @@
                   value={card.theme}
                   on:change={(e) =>
                     onChange(
-                      updateCard(edit, segment.id, {
+                      updateCard(edit, cardId, {
                         theme: text(e) as FootageCard["theme"],
                       }),
                       "Card look",
@@ -641,7 +713,7 @@
                 value={card.eyebrow ?? ""}
                 on:change={(e) =>
                   onChange(
-                    updateCard(edit, segment.id, {
+                    updateCard(edit, cardId, {
                       eyebrow: text(e) || undefined,
                     }),
                     "Card text",
@@ -655,7 +727,7 @@
                 value={card.title}
                 on:change={(e) =>
                   onChange(
-                    updateCard(edit, segment.id, { title: text(e) }),
+                    updateCard(edit, cardId, { title: text(e) }),
                     "Card text",
                   )}
               /></label
@@ -667,7 +739,7 @@
                 value={card.label ?? ""}
                 on:change={(e) =>
                   onChange(
-                    updateCard(edit, segment.id, {
+                    updateCard(edit, cardId, {
                       label: text(e) || undefined,
                     }),
                     "Card text",
@@ -681,7 +753,7 @@
                   value={card.big ?? ""}
                   on:change={(e) =>
                     onChange(
-                      updateCard(edit, segment.id, {
+                      updateCard(edit, cardId, {
                         big: text(e) || undefined,
                       }),
                       "Card text",
@@ -697,7 +769,7 @@
                   value={(card.items ?? []).join("\n")}
                   on:change={(e) =>
                     onChange(
-                      updateCard(edit, segment.id, {
+                      updateCard(edit, cardId, {
                         items: (e.currentTarget as HTMLTextAreaElement).value
                           .split("\n")
                           .map((line) => line.trim())
@@ -709,42 +781,75 @@
                 ></textarea></label
               >
             {/if}
-            <div class="fx-grid2">
+            {#if cardHost.overlay && cutaway}
+              <p class="fx-hint">
+                Covers the picture while the talk underneath keeps playing its
+                sound and captions.
+              </p>
               <label
                 >Length (s)<input
                   type="number"
                   step="0.1"
                   min="0.6"
                   max="8"
-                  value={fmt(segment.out - segment.in)}
+                  value={fmt(cutaway.duration)}
                   on:change={(e) =>
+                    cutaway &&
                     onChange(
-                      updateSegment(edit, segment.id, {
-                        in: 0,
-                        out: Math.min(8, Math.max(0.6, num(e))),
+                      updateCutaway(edit, cutaway.id, {
+                        duration: Math.max(0.6, Math.min(8, num(e))),
                       }),
                       "Card length",
                     )}
                 /></label
               >
-              <label
-                >Transition in
-                <select
-                  value={segment.transition}
-                  on:change={(e) =>
-                    onChange(
-                      updateSegment(edit, segment.id, {
-                        transition: text(e) as typeof segment.transition,
-                      }),
-                      "Transition",
-                    )}
+              <button
+                type="button"
+                class="fx-link fx-danger"
+                on:click={() => {
+                  if (cutaway)
+                    onChange(removeCutaway(edit, cutaway.id), "Delete card");
+                  onSelect("", false);
+                }}><Trash2 size={12} /> Remove this card</button
+              >
+            {:else if segment}
+              <div class="fx-grid2">
+                <label
+                  >Length (s)<input
+                    type="number"
+                    step="0.1"
+                    min="0.6"
+                    max="8"
+                    value={fmt(segment.out - segment.in)}
+                    on:change={(e) =>
+                      onChange(
+                        updateSegment(edit, segment.id, {
+                          in: 0,
+                          out: Math.min(8, Math.max(0.6, num(e))),
+                        }),
+                        "Card length",
+                      )}
+                  /></label
                 >
-                  {#each FOOTAGE_TRANSITIONS as option (option)}<option
-                      value={option}>{option}</option
-                    >{/each}
-                </select>
-              </label>
-            </div>
+                <label
+                  >Transition in
+                  <select
+                    value={segment.transition}
+                    on:change={(e) =>
+                      onChange(
+                        updateSegment(edit, segment.id, {
+                          transition: text(e) as typeof segment.transition,
+                        }),
+                        "Transition",
+                      )}
+                  >
+                    {#each FOOTAGE_TRANSITIONS as option (option)}<option
+                        value={option}>{option}</option
+                      >{/each}
+                  </select>
+                </label>
+              </div>
+            {/if}
           </section>
         {:else if segment}
           {@const clip = clipOf(edit, segment.assetId)}
@@ -1103,12 +1208,12 @@
           on:drop|preventDefault={(e) => {
             dragOver = false;
             void addFiles(e.dataTransfer?.files ?? null);
-          }}><Upload size={15} /> Upload videos</button
+          }}><Upload size={15} /> Upload videos or pictures</button
         >
         <input
           bind:this={fileInput}
           type="file"
-          accept={VIDEO_ACCEPT}
+          accept={`${VIDEO_ACCEPT},image/png,image/jpeg,image/webp,image/gif`}
           multiple
           hidden
           on:change={(e) =>
