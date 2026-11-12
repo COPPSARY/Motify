@@ -1,9 +1,13 @@
 import {
+  FORMAT_SIZE,
+  cutawayFrame,
   editDuration,
   placeCues,
   placeCutaways,
   placeSegments,
+  sameBox,
   type FootageEdit,
+  type FootageSpeakerBox,
   type FootageTitle,
 } from "../footage/edit";
 import { FILM_FONTS, filmFontFaceCss } from "./film-fonts";
@@ -310,7 +314,35 @@ export function footageTimeline(
       placed.cutaway.kind === "image"
         ? (layer.querySelector<HTMLElement>(".fx-pic-main") ?? layer)
         : (layer.querySelector<HTMLElement>("video") ?? layer);
-    if (placed.cutaway.kind === "image" && placed.cutaway.layout !== "top")
+    const frame = cutawayFrame(placed.cutaway);
+    if (frame.box) {
+      // A window pops in over the speaker and shrinks away again.
+      const pop = Math.min(0.25, (end - start) / 4);
+      timeline.fromTo(
+        layer,
+        { autoAlpha: 0, scale: 0.9 },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          duration: pop,
+          ease: "power3.out",
+          immediateRender: false,
+        },
+        start,
+      );
+      timeline.fromTo(
+        layer,
+        { autoAlpha: 1, scale: 1 },
+        {
+          autoAlpha: 0,
+          scale: 0.94,
+          duration: pop,
+          ease: "power2.in",
+          immediateRender: false,
+        },
+        end - pop,
+      );
+    } else if (placed.cutaway.kind === "image" && !frame.top)
       timeline.fromTo(
         layer,
         { autoAlpha: 0 },
@@ -336,6 +368,7 @@ export function footageTimeline(
   });
 
   splitReveals(root, timeline, edit);
+  speakerWindows(root, timeline, edit);
 
   // Captions are plain text: each line simply appears for as long as it is said.
   placeCues(edit).forEach((placed, index) => {
@@ -365,9 +398,7 @@ function splitReveals(
   const shots = root.querySelector<HTMLElement>(".fx-shots");
   const tops = placeCutaways(edit)
     .map((placed, index) => ({ ...placed, index }))
-    .filter(
-      ({ cutaway }) => cutaway.layout === "top" && cutaway.kind !== "card",
-    );
+    .filter(({ cutaway }) => cutawayFrame(cutaway).top);
   if (!shots || tops.length === 0) return;
   const axis = edit.format === "16:9" ? "xPercent" : "yPercent";
   const spans: Array<{
@@ -439,6 +470,73 @@ function splitReveals(
         },
         span.end - move,
       );
+  }
+}
+
+/**
+ * The speaker in a box of their own: while an overlay that asks for it is on,
+ * the shots shrink into that box, cropped to its shape, and grow back to the
+ * whole frame when it ends. An overlay they stand in front of was placed under
+ * the shots, so shrinking them is what reveals it. Back-to-back overlays with
+ * the same box share one move.
+ */
+function speakerWindows(
+  root: HTMLElement,
+  timeline: gsap.core.Timeline,
+  edit: FootageEdit,
+): void {
+  const shots = root.querySelector<HTMLElement>(".fx-shots");
+  if (!shots) return;
+  const spans: Array<{ start: number; end: number; box: FootageSpeakerBox }> =
+    [];
+  for (const placed of placeCutaways(edit)) {
+    const box = cutawayFrame(placed.cutaway).speaker;
+    if (!box) continue;
+    const last = spans[spans.length - 1];
+    if (last && placed.start - last.end < 0.4 && sameBox(last.box, box))
+      last.end = Math.max(last.end, placed.end);
+    else spans.push({ start: placed.start, end: placed.end, box });
+  }
+  const frame = FORMAT_SIZE[edit.format];
+  const short = Math.min(frame.width, frame.height);
+  const whole = {
+    left: "0%",
+    top: "0%",
+    width: "100%",
+    height: "100%",
+    borderRadius: "0px",
+  };
+  for (const span of spans) {
+    const move = Math.min(0.45, (span.end - span.start) / 3);
+    const boxed = {
+      left: `${span.box.x * 100}%`,
+      top: `${span.box.y * 100}%`,
+      width: `${span.box.w * 100}%`,
+      height: `${span.box.h * 100}%`,
+      borderRadius: `${(span.box.radius ?? 0) * short}px`,
+    };
+    timeline.fromTo(
+      shots,
+      whole,
+      {
+        ...boxed,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.start,
+    );
+    timeline.fromTo(
+      shots,
+      boxed,
+      {
+        ...whole,
+        duration: move,
+        ease: "power3.inOut",
+        immediateRender: false,
+      },
+      span.end - move,
+    );
   }
 }
 

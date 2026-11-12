@@ -140,6 +140,8 @@ export async function startMotionCard(
     };
     assetIds?: string[];
     note?: string;
+    /** The video's creative direction for its cards. */
+    look?: string;
   },
 ): Promise<string> {
   const result = await data<{ cardProjectId: string }>(

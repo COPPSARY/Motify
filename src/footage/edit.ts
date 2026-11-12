@@ -164,6 +164,202 @@ export type FootageCutawayKind = "clip" | "image" | "card";
 export type FootageCutawayLayout = "full" | "top";
 
 /**
+ * A box in the frame: `x`, `y`, `w` and `h` are fractions of the frame's width
+ * and height, `radius` a fraction of its short side. Whatever is put in it
+ * fills it, cropped to its shape.
+ */
+export interface FootageBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  radius?: number;
+}
+
+/** Where the speaker goes while an overlay is on; `front` draws them above it. */
+export interface FootageSpeakerBox extends FootageBox {
+  front?: boolean;
+}
+
+export type FootageCorner =
+  "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type FootageWindowSize = "small" | "medium" | "large";
+export const FOOTAGE_CORNERS: readonly FootageCorner[] = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+];
+export const FOOTAGE_WINDOW_SIZES: readonly FootageWindowSize[] = [
+  "small",
+  "medium",
+  "large",
+];
+
+/**
+ * The named placements: the two layouts, an overlay in a small window over the
+ * speaker, and the speaker in a small window over a full-frame overlay. Any
+ * other pair of boxes is "custom", the person's own.
+ */
+export type FootagePlacementName =
+  "full" | "top" | "window" | "speaker-window" | "custom";
+export interface FootagePlacement {
+  name: FootagePlacementName;
+  corner?: FootageCorner;
+  size?: FootageWindowSize;
+}
+
+/** A window's width, as a fraction of the frame's. */
+const WINDOW_WIDTH: Record<
+  "overlay" | "speaker",
+  Record<FootageFormat, Record<FootageWindowSize, number>>
+> = {
+  overlay: {
+    "9:16": { small: 0.34, medium: 0.44, large: 0.58 },
+    "1:1": { small: 0.3, medium: 0.4, large: 0.52 },
+    "16:9": { small: 0.24, medium: 0.32, large: 0.42 },
+  },
+  speaker: {
+    "9:16": { small: 0.3, medium: 0.38, large: 0.48 },
+    "1:1": { small: 0.26, medium: 0.34, large: 0.44 },
+    "16:9": { small: 0.16, medium: 0.2, large: 0.26 },
+  },
+};
+/** A window's width over its height. */
+const WINDOW_ASPECT: Record<
+  "overlay" | "speaker",
+  Record<FootageFormat, number>
+> = {
+  overlay: { "9:16": 4 / 5, "1:1": 1, "16:9": 16 / 9 },
+  speaker: { "9:16": 4 / 5, "1:1": 1, "16:9": 1 },
+};
+const WINDOW_RADIUS = 0.03;
+export const DEFAULT_WINDOW_CORNER: Record<
+  "overlay" | "speaker",
+  FootageCorner
+> = { overlay: "top-right", speaker: "top-left" };
+
+const fraction = (value: number) => Math.round(value * 10_000) / 10_000;
+
+/**
+ * A small rounded window in a corner of the frame, a margin in from the edges
+ * (further from the top of a vertical video, where the apps put their own
+ * buttons). `who` is what goes in it: an overlay, or the speaker.
+ */
+export function windowBox(
+  format: FootageFormat,
+  who: "overlay" | "speaker",
+  corner: FootageCorner = DEFAULT_WINDOW_CORNER[who],
+  size: FootageWindowSize = "medium",
+): FootageBox {
+  const frame = FORMAT_SIZE[format];
+  const margin = 0.05 * Math.min(frame.width, frame.height);
+  const w = WINDOW_WIDTH[who][format][size];
+  const h = (w * frame.width) / WINDOW_ASPECT[who][format] / frame.height;
+  const marginX = margin / frame.width;
+  const marginBottom = margin / frame.height;
+  const marginTop = format === "9:16" ? 0.08 : marginBottom;
+  return {
+    x: fraction(corner.endsWith("left") ? marginX : 1 - marginX - w),
+    y: fraction(corner.startsWith("top") ? marginTop : 1 - marginBottom - h),
+    w: fraction(w),
+    h: fraction(h),
+    radius: WINDOW_RADIUS,
+  };
+}
+
+/** A box kept inside the frame, at least a twentieth of it each way. */
+export function cleanBox<T extends FootageBox>(box: T): T {
+  const within = (value: number, min: number, max: number) =>
+    Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
+  const w = within(box.w, 0.05, 1);
+  const h = within(box.h, 0.05, 1);
+  const radius = within(box.radius ?? 0, 0, 0.5);
+  const { radius: _radius, ...rest } = box;
+  return {
+    ...rest,
+    x: fraction(within(box.x, 0, 1 - w)),
+    y: fraction(within(box.y, 0, 1 - h)),
+    w: fraction(w),
+    h: fraction(h),
+    ...(radius > 0 ? { radius: fraction(radius) } : {}),
+  } as T;
+}
+
+export function sameBox(a: FootageBox, b: FootageBox): boolean {
+  return (
+    Math.abs(a.x - b.x) < 0.004 &&
+    Math.abs(a.y - b.y) < 0.004 &&
+    Math.abs(a.w - b.w) < 0.004 &&
+    Math.abs(a.h - b.h) < 0.004
+  );
+}
+
+/** The boxes a named placement stands for; "full", "top" and "custom" have none of their own. */
+export function placementBoxes(
+  format: FootageFormat,
+  placement: FootagePlacement,
+): Pick<FootageCutaway, "layout" | "box" | "speaker"> {
+  if (placement.name === "top") return { layout: "top" };
+  if (placement.name === "window")
+    return {
+      box: windowBox(format, "overlay", placement.corner, placement.size),
+    };
+  if (placement.name === "speaker-window")
+    return {
+      speaker: {
+        ...windowBox(format, "speaker", placement.corner, placement.size),
+        front: true,
+      },
+    };
+  return {};
+}
+
+/** The name of an overlay's placement: one of the named ones when its boxes are exactly theirs. */
+export function placementOf(
+  format: FootageFormat,
+  cutaway: Pick<FootageCutaway, "layout" | "box" | "speaker">,
+): FootagePlacement {
+  if (!cutaway.box && !cutaway.speaker)
+    return { name: cutaway.layout === "top" ? "top" : "full" };
+  const who =
+    cutaway.box && !cutaway.speaker
+      ? ("overlay" as const)
+      : !cutaway.box && cutaway.speaker?.front
+        ? ("speaker" as const)
+        : null;
+  const box = who === "overlay" ? cutaway.box : cutaway.speaker;
+  if (who && box)
+    for (const corner of FOOTAGE_CORNERS)
+      for (const size of FOOTAGE_WINDOW_SIZES)
+        if (sameBox(box, windowBox(format, who, corner, size)))
+          return {
+            name: who === "overlay" ? "window" : "speaker-window",
+            corner,
+            size,
+          };
+  return { name: "custom" };
+}
+
+/**
+ * How an overlay is drawn: in the top half with the speaker slid below (`top`),
+ * in a box of its own, and with the speaker moved into a box of theirs. A card
+ * always fills the frame.
+ */
+export function cutawayFrame(
+  cutaway: Pick<FootageCutaway, "kind" | "layout" | "box" | "speaker">,
+): { top: boolean; box?: FootageBox; speaker?: FootageSpeakerBox } {
+  if (cutaway.kind === "card") return { top: false };
+  if (cutaway.box || cutaway.speaker)
+    return {
+      top: false,
+      ...(cutaway.box ? { box: cutaway.box } : {}),
+      ...(cutaway.speaker ? { speaker: cutaway.speaker } : {}),
+    };
+  return { top: cutaway.layout === "top" };
+}
+
+/**
  * An overlay over talk: B-roll, a picture or a card covers the video while the
  * clip underneath keeps its sound and captions. Pinned to the moment it
  * illustrates, in the covered clip's own time, so trims, splits and cut pauses
@@ -179,6 +375,10 @@ export interface FootageCutaway {
   kind?: FootageCutawayKind;
   /** Full frame (the default), or the top half with the speaker below; not for cards. */
   layout?: FootageCutawayLayout;
+  /** Where it sits instead, anywhere in the frame; `layout` is then not used. Not for cards. */
+  box?: FootageBox;
+  /** Where the speaker goes while it is on; absent, they stay where they are, under it. */
+  speaker?: FootageSpeakerBox;
   /** The clip shown, from `in` seconds; the picture's asset for an image; "" for a card. */
   assetId: string;
   in: number;
@@ -215,6 +415,15 @@ export interface FootageEdit {
   brief?: string;
   /** The business's name from its Brand Kit, spelled exactly so on cards and titles. */
   business?: string;
+  /**
+   * The creative director's call when the video was first cut: its idea,
+   * whether it gets motion graphic cards, and how those should look.
+   */
+  direction?: {
+    idea: string;
+    motion: "none" | "ending" | "some";
+    look?: string;
+  };
   theme: { accent: string; ink: string; font: string };
   clips: FootageClip[];
   segments: FootageSegment[];
@@ -326,7 +535,10 @@ export function addCutaway(
   assetId: string,
   clipIn = 0,
   seconds = 2.5,
-  extra: Pick<FootageCutaway, "kind" | "card" | "layout"> = {},
+  extra: Pick<
+    FootageCutaway,
+    "kind" | "card" | "layout" | "box" | "speaker"
+  > = {},
 ): FootageEdit {
   const placed = placeSegments(edit).find(
     (item) => !item.segment.card && at >= item.start && at < item.end,
@@ -358,6 +570,10 @@ export function addCutaway(
         ...(extra.kind && extra.kind !== "clip" ? { kind: extra.kind } : {}),
         ...(extra.layout === "top" && extra.kind !== "card"
           ? { layout: "top" as const }
+          : {}),
+        ...(extra.box && extra.kind !== "card" ? { box: extra.box } : {}),
+        ...(extra.speaker && extra.kind !== "card"
+          ? { speaker: extra.speaker }
           : {}),
         assetId,
         in: round(Math.max(0, clipIn)),
@@ -431,6 +647,8 @@ export function moveCutaway(
     ...(cut.kind ? { kind: cut.kind } : {}),
     ...(cut.card ? { card: cut.card } : {}),
     ...(cut.layout ? { layout: cut.layout } : {}),
+    ...(cut.box ? { box: cut.box } : {}),
+    ...(cut.speaker ? { speaker: cut.speaker } : {}),
   });
   if (moved === without) return edit;
   const added = moved.cutaways![moved.cutaways!.length - 1]!;
@@ -473,6 +691,8 @@ export function trimCutawayStart(
       ...(cut.kind ? { kind: cut.kind } : {}),
       ...(cut.card ? { card: cut.card } : {}),
       ...(cut.layout ? { layout: cut.layout } : {}),
+      ...(cut.box ? { box: cut.box } : {}),
+      ...(cut.speaker ? { speaker: cut.speaker } : {}),
     },
   );
   if (moved === without) return edit;
