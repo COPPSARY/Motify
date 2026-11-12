@@ -15,6 +15,8 @@
   export let summary = "";
   /** Pictures and videos going with it. */
   export let attachments = 0;
+  /** On the free plan: a footnote says paid plans skip the queue. */
+  export let free = false;
   /** Sends the request to the team with the Telegram contact, which is required. */
   export let send: (telegram: string) => Promise<FilmRequest>;
   /** Called once the dialog closes; `sent` says whether the request went. */
@@ -118,6 +120,8 @@
       >
       <h2 id="film-send-title">Got it! Your request is in.</h2>
       <p id="film-send-description">
+        {#if sent.priority}Your plan skips the queue.
+        {/if}
         {#if sent.queue}You're <strong>#{sent.queue.position}</strong> of
           {sent.queue.total} in line.
         {/if}
@@ -212,6 +216,11 @@
           disabled={sending}
           aria-busy={sending}>{sending ? "Sending…" : "Send request"}</button
         >
+        {#if free}
+          <small class="film-send__note film-send__premium"
+            >Premium users skip the queue.</small
+          >
+        {/if}
       </form>
     {/if}
   </div>

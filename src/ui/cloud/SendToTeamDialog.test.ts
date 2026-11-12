@@ -34,7 +34,7 @@ describe("SendToTeamDialog", () => {
     document.body.innerHTML = "";
   });
 
-  function render(send = vi.fn(), onClose = vi.fn()) {
+  function render(send = vi.fn(), onClose = vi.fn(), free = false) {
     const target = document.createElement("div");
     document.body.append(target);
     component = mount(SendToTeamDialog, {
@@ -44,6 +44,7 @@ describe("SendToTeamDialog", () => {
         email: "dara@example.com",
         summary: "A launch film for our cold brew",
         attachments: 2,
+        free,
         send,
         onClose,
       },
@@ -124,6 +125,27 @@ describe("SendToTeamDialog", () => {
       dialog.querySelector<HTMLAnchorElement>("a.me-out-of-credits__upgrade")
         ?.href,
     ).toBe("https://t.me/MotifyBot?start=abc");
+  });
+
+  it("tells a free account that premium users skip the queue", () => {
+    expect(text(render(vi.fn(), vi.fn(), true).dialog)).toContain(
+      "Premium users skip the queue.",
+    );
+  });
+
+  it("leaves the note out for a paid account, and says their request skipped the queue", async () => {
+    const { dialog, telegram, submit } = render(
+      vi.fn().mockResolvedValue(
+        filmRequest({ priority: true, queue: { position: 1, total: 9 } }),
+      ),
+    );
+    expect(text(dialog)).not.toContain("Premium users skip the queue.");
+    telegram.value = "@dara_k";
+    telegram.dispatchEvent(new Event("input"));
+    await submit();
+    expect(text(dialog)).toContain(
+      "Your plan skips the queue. You're #1 of 9 in line.",
+    );
   });
 
   it("refuses a Telegram that is neither a number nor a username", async () => {

@@ -7536,6 +7536,7 @@ Voice over direction: ${voiceNote}`
       email={currentUser?.email ?? ""}
       summary={teamSend?.message.text ?? ""}
       attachments={teamSend?.assets.length ?? 0}
+      free={activeSubscription !== null && !activePlan}
       send={sendToTeam}
       onClose={closeTeamSend}
     />

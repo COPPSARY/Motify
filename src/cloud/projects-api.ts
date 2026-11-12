@@ -227,6 +227,8 @@ export interface FilmRequest {
   status: FilmRequestStatus;
   /** Their place and the queue's length while it is queued. */
   queue: { position: number; total: number } | null;
+  /** Sent on a paid plan (Starter, Pro), so it skipped the queue. */
+  priority?: boolean;
   telegram: {
     /** Null when they left Telegram out; the film is then emailed. */
     contact: string | null;
