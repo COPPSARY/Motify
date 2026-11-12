@@ -29,11 +29,13 @@ vi.mock("./frame-render", () => ({
     new Promise((resolve) =>
       setTimeout(() => resolve(document.createElement("canvas")), 1),
     ),
+  releaseExportFrameCache: () => {},
 }));
 
 import { exportVideo, findSupportedAvcConfig } from "./exporter";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   muxed.chunks.length = 0;
@@ -155,4 +157,85 @@ it("reopens an encoder that closes mid-export and keeps every frame once", async
   // The reopened encoder starts on a key frame.
   expect(muxed.chunks[3]!.type).toBe("key");
   expect(openFrames).toBe(0);
+});
+
+it("hands frames over unpainted, and paints them first once the encoder stops taking them", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  let encoded = 0;
+  /** Frames painted before they were encoded, by frame number. */
+  const painted: number[] = [];
+  class FakeEncoder {
+    static isConfigSupported = async (config: VideoEncoderConfig) => ({
+      supported: true,
+      config,
+    });
+    state: CodecState = "unconfigured";
+    stuckSince: number | undefined;
+    constructor(private init: VideoEncoderInit) {}
+    /** Full from the third frame on, for five seconds, then free again. */
+    get encodeQueueSize() {
+      if (encoded !== 3) return 0;
+      this.stuckSince ??= performance.now();
+      return performance.now() - this.stuckSince < 5_000 ? 9 : 0;
+    }
+    configure() {
+      this.state = "configured";
+    }
+    encode(frame: { timestamp: number }, options?: VideoEncoderEncodeOptions) {
+      encoded++;
+      this.init.output(
+        {
+          timestamp: frame.timestamp,
+          type: options?.keyFrame ? "key" : "delta",
+        } as EncodedVideoChunk,
+        undefined,
+      );
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    flush() {
+      return Promise.resolve();
+    }
+    close() {
+      this.state = "closed";
+    }
+  }
+  vi.stubGlobal("VideoEncoder", FakeEncoder);
+  vi.stubGlobal(
+    "VideoFrame",
+    class {
+      close() {}
+    },
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage() {},
+    getImageData() {
+      painted.push(encoded);
+    },
+  } as unknown as CanvasRenderingContext2D);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "info").mockImplementation(() => {});
+
+  const runtime = {
+    definition: { duration: 0.6, fps: 10 },
+    canvasDimensions: { width: 160, height: 90 },
+    time: 0,
+    snapshot: { playing: false },
+    root: document.createElement("div"),
+    pause() {},
+    play() {},
+    seek() {},
+  } as unknown as CompositionRuntime;
+
+  const exporting = exportVideo(runtime, { format: "mp4" });
+  await vi.advanceTimersByTimeAsync(10_000);
+  const result = await exporting;
+
+  expect(muxed.chunks).toHaveLength(6);
+  // The first three went in as drawn; after the stall, each is painted first.
+  expect(painted).toEqual([3, 4, 5]);
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringContaining("stopped taking frames"),
+  );
+  expect(result.profile["encoder wait"]?.count).toBe(6);
 });

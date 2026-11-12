@@ -34,6 +34,30 @@ describe("export fonts", () => {
     expect(css).toMatch(/src:url\(data:/);
   });
 
+  it("leaves out a face the film declares but sets nothing in", async () => {
+    stubFetch();
+    // The scene kit declares every bundled face in each film.
+    const css = await exportFontCss(
+      `<style>@font-face{font-family:"Oswald";src:url(/oswald.woff2)}@font-face{font-family:"Oswald Variable";src:url(/oswald.woff2)}h1{font-family:"Fraunces"}</style><h1>x</h1>`,
+    );
+    expect(css).toContain('font-family:"Fraunces"');
+    expect(css).not.toContain("Oswald");
+  });
+
+  it("declares a family's fontsource name only for a film that uses it", async () => {
+    stubFetch();
+    const plain = await exportFontCss(
+      `<p style="font-family:Fraunces, serif">x</p>`,
+    );
+    expect(plain).toContain('font-family:"Fraunces"');
+    expect(plain).not.toContain('font-family:"Fraunces Variable"');
+    const variable = await exportFontCss(
+      `<p style="font-family:'Fraunces Variable', serif">x</p>`,
+    );
+    expect(variable).toContain('font-family:"Fraunces"');
+    expect(variable).toContain('font-family:"Fraunces Variable"');
+  });
+
   it("inlines a brand's own @font-face files, which an SVG image cannot fetch", async () => {
     const fetch = stubFetch();
     const clone = document.createElement("div");

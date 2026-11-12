@@ -2,12 +2,39 @@ import {
   FILM_FONTS,
   filmFontFaceCss,
   filmFontsUsedIn,
+  namesFamily,
+  variableFamily,
+  withoutFontFaceRules,
   type FilmFont,
 } from "./film-fonts";
 import type { FrameLayout } from "./canvas-frame";
+import { counterpart, emptyHolders, planDirectClips } from "./direct-clips";
+import { profileCount, profileNow, profileStage } from "./export-profile";
 import { rawFilmDocument } from "./raw-film";
 import type { CompositionRuntime } from "./runtime";
 import { seekVideosExactly } from "./video-sync";
+
+/** A clip's decoded frame, as the export's clip reader hands it over. */
+export interface ClipPicture {
+  readonly displayWidth: number;
+  readonly displayHeight: number;
+  draw(
+    context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    dx: number,
+    dy: number,
+    dWidth: number,
+    dHeight: number,
+  ): void;
+}
+export type ClipPictures = Map<HTMLVideoElement, ClipPicture>;
+
+/** Where an export gets its clips' frames (export-clip-frames.ts). */
+export interface ExportClipPictures {
+  /** Every clip on screen at `time`: decoded, or else placed on its <video>. */
+  place(root: ParentNode, time: number): Promise<ClipPictures>;
+  /** False puts every clip into the page image; true (the default) draws plain ones straight onto the canvas. */
+  direct?: boolean;
+}
 
 /**
  * Rasterizes the mounted film into canvases: the authored frame on its own,
@@ -127,6 +154,31 @@ function embeddedPictureDataUrl(url: string, maxEdge: number): Promise<string> {
   return embedded;
 }
 
+/** One transparent pixel, standing in for a picture nobody can see. */
+const BLANK_PICTURE =
+  "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+/**
+ * Whether `element` can put anything on the page right now: neither it nor
+ * anything it sits in is undisplayed, hidden or fully transparent. A browser
+ * that cannot say is taken to show everything.
+ */
+export function showsNow(element: Element): boolean {
+  const check = (
+    element as Element & {
+      checkVisibility?: (options?: Record<string, boolean>) => boolean;
+    }
+  ).checkVisibility;
+  if (typeof check !== "function") return true;
+  return check.call(element, {
+    // The same two questions under their older and newer names.
+    checkOpacity: true,
+    checkVisibilityCSS: true,
+    opacityProperty: true,
+    visibilityProperty: true,
+  });
+}
+
 async function inlineImages(
   source: Element,
   clone: Element,
@@ -138,15 +190,23 @@ async function inlineImages(
     sourceImages.map(async (image, index) => {
       const target = cloneImages[index];
       const url = image.currentSrc || image.src;
-      if (!target || !url || url.startsWith("data:")) return;
-      try {
-        target.src = await embeddedPictureDataUrl(url, maxEdge);
-      } catch (error) {
-        // One picture that cannot be read leaves a gap, not a failed export.
-        console.warn("[Export] a picture was left out", url, error);
-        target.removeAttribute("src");
-        return;
-      }
+      if (!target || !url) return;
+      // A film keeps every scene's pictures on the page and shows a few at a
+      // time. One that is not showing goes in as a blank of the same size:
+      // put in whole, each of them was megabytes for the frame to carry and
+      // read, for nothing.
+      const shown = showsNow(image);
+      if (url.startsWith("data:") && shown) return;
+      if (!shown) target.src = BLANK_PICTURE;
+      else
+        try {
+          target.src = await embeddedPictureDataUrl(url, maxEdge);
+        } catch (error) {
+          // One picture that cannot be read leaves a gap, not a failed export.
+          console.warn("[Export] a picture was left out", url, error);
+          target.removeAttribute("src");
+          return;
+        }
       // A picture sized by its own pixels would shrink with them: pin it to
       // the size it is laid out at now, which changes nothing for the rest.
       const laid = (image.ownerDocument.defaultView ?? window).getComputedStyle(
@@ -170,13 +230,24 @@ async function inlineImages(
  * one form the image is allowed to use. Inter is always included, as the
  * editor's typeface and the kit's default.
  */
-function embeddedFilmFont(font: FilmFont): Promise<string> {
+function embeddedFilmFont(font: FilmFont, variable: boolean): Promise<string> {
   // A family split into script files has one entry per file.
-  const key = `${font.family}|${font.url}`;
+  const key = `${font.family}|${font.url}|${variable}`;
   let css = embeddedFontCss.get(key);
   if (!css) {
     css = embeddedImageDataUrl(font.url)
-      .then((url) => filmFontFaceCss([font], () => url))
+      .then((url) =>
+        filmFontFaceCss(
+          [font],
+          () => url,
+          // Each name carries the whole file again, so the fontsource name
+          // is only declared for a film that sets something in it.
+          () =>
+            variable
+              ? [font.family, variableFamily(font.family)]
+              : [font.family],
+        ),
+      )
       // A missing face degrades to the system font, exactly as before.
       .catch(() => "");
     embeddedFontCss.set(key, css);
@@ -185,11 +256,52 @@ function embeddedFilmFont(font: FilmFont): Promise<string> {
 }
 
 export async function exportFontCss(source: string): Promise<string> {
-  const used = filmFontsUsedIn(source);
+  // Only what the film sets text in: every face it merely declares would be
+  // embedded in, and read back out of, each frame.
+  const styled = withoutFontFaceRules(source);
+  const used = filmFontsUsedIn(styled);
   const fonts = used.some((font) => font.family === "Inter")
     ? used
     : [FILM_FONTS[0]!, ...used];
-  return (await Promise.all(fonts.map(embeddedFilmFont))).join("");
+  return (
+    await Promise.all(
+      fonts.map((font) =>
+        embeddedFilmFont(
+          font,
+          namesFamily(styled, variableFamily(font.family)),
+        ),
+      ),
+    )
+  ).join("");
+}
+
+/**
+ * The embedded faces for a whole export, found once for the film and once for
+ * each card film in it. A film names its fonts in its styles, which do not
+ * change from frame to frame, and looking for them means reading the whole
+ * page.
+ */
+const exportFonts = new WeakMap<
+  ExportClipPictures,
+  WeakMap<Element, Promise<string>>
+>();
+
+function fontCssFor(
+  clips: ExportClipPictures | undefined,
+  live: Element,
+): Promise<string> {
+  if (!clips) return exportFontCss(live.outerHTML);
+  let found = exportFonts.get(clips);
+  if (!found) {
+    found = new WeakMap();
+    exportFonts.set(clips, found);
+  }
+  let css = found.get(live);
+  if (!css) {
+    css = exportFontCss(live.outerHTML);
+    found.set(live, css);
+  }
+  return css;
 }
 
 const BUNDLED_FONT_URLS = new Set(FILM_FONTS.map((font) => font.url));
@@ -225,12 +337,152 @@ export async function inlineFontFaces(clone: Element): Promise<void> {
   );
 }
 
+/**
+ * The last page image an export drew, kept as pixels. With its clips drawn
+ * straight onto the canvas, an export's page image is the captions, titles
+ * and cards alone, and most frames show the same ones as the frame before:
+ * that frame's pixels are used again instead of drawing the page anew, which
+ * is most of a frame's time.
+ */
+let lastOverlay:
+  | { svg: string; width: number; height: number; pixels: HTMLCanvasElement }
+  | undefined;
+
+/**
+ * The canvases an export draws each frame on, kept from one frame to the
+ * next. A new full-size canvas for every frame is a new surface on the GPU
+ * for every frame, and the old ones are only let go when the collector gets
+ * to them: on integrated graphics that alone was most of a frame's time.
+ */
+const frameCanvases = new Map<string, HTMLCanvasElement>();
+
+function frameCanvas(
+  name: string,
+  width: number,
+  height: number,
+  reuse: boolean,
+): HTMLCanvasElement {
+  let canvas = reuse ? frameCanvases.get(name) : undefined;
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    if (reuse) frameCanvases.set(name, canvas);
+  }
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  } else if (reuse) {
+    const context = context2d(canvas);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, width, height);
+  }
+  return canvas;
+}
+
+/** Lets go of what the last export kept between frames. */
+export function releaseExportFrameCache(): void {
+  if (lastOverlay) lastOverlay.pixels.width = 0;
+  lastOverlay = undefined;
+  for (const canvas of frameCanvases.values()) canvas.width = 0;
+  frameCanvases.clear();
+}
+
+async function overlayPixels(
+  svg: string,
+  width: number,
+  height: number,
+): Promise<CanvasImageSource> {
+  if (
+    lastOverlay &&
+    lastOverlay.svg === svg &&
+    lastOverlay.width === width &&
+    lastOverlay.height === height
+  ) {
+    profileCount("page image reused");
+    return lastOverlay.pixels;
+  }
+  const image = await imageFromSvg(svg);
+  // Kept on a canvas: an ImageBitmap made from this image taints any canvas
+  // it is drawn on, and a tainted frame cannot be encoded.
+  const pixels = document.createElement("canvas");
+  pixels.width = width;
+  pixels.height = height;
+  context2d(pixels).drawImage(image, 0, 0, width, height);
+  profileCount("page image drawn");
+  if (lastOverlay) lastOverlay.pixels.width = 0;
+  lastOverlay = { svg, width, height, pixels };
+  return pixels;
+}
+
+/**
+ * Elements that paint nothing now and take no room in their layout: those
+ * not displayed, and invisible ones (opacity 0) positioned out of the flow.
+ * An export leaves them out of the page image so it has less to lay out, and
+ * their animation does not change the image from frame to frame.
+ */
+const KEPT_TAGS = new Set([
+  "STYLE",
+  "SCRIPT",
+  "TEMPLATE",
+  "LINK",
+  "META",
+  "TITLE",
+  "HEAD",
+]);
+
+function unseenElements(root: HTMLElement): HTMLElement[] {
+  const view = root.ownerDocument.defaultView ?? window;
+  const unseen: HTMLElement[] = [];
+  const walk = (element: Element) => {
+    for (const child of Array.from(element.children)) {
+      if (!(child instanceof HTMLElement)) continue;
+      // A style sheet is "not displayed" too, and must stay.
+      if (KEPT_TAGS.has(child.tagName)) continue;
+      const style = view.getComputedStyle(child);
+      if (
+        style.display === "none" ||
+        (parseFloat(style.opacity) === 0 &&
+          (style.position === "absolute" || style.position === "fixed"))
+      ) {
+        unseen.push(child);
+        continue;
+      }
+      walk(child);
+    }
+  };
+  walk(root);
+  return unseen;
+}
+
+let inertDocument: Document | undefined;
+
+/**
+ * A copy of `element` and everything in it, in a document that loads nothing.
+ *
+ * A plain `cloneNode` copy belongs to the page, and the page starts loading
+ * every <video>, <audio> and <img> in it the moment it exists, attached or
+ * not: for each frame of an export, each clip in the film was fetched again
+ * and given a decoder of its own, only to be thrown away. A film cut from a
+ * dozen shots spent nearly all of its export on that. A document with no
+ * window loads nothing, and its elements serialize exactly the same.
+ */
+export function inertClone<T extends Element>(element: T): T {
+  inertDocument ??= document.implementation.createHTMLDocument("");
+  return inertDocument.importNode(element, true);
+}
+
+/**
+ * An SVG document as an image address. Blob URLs containing foreignObject
+ * taint Chrome canvases, which prevents WebCodecs from constructing a
+ * VideoFrame. A data URL stays origin-clean.
+ */
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 async function imageFromSvg(svg: string): Promise<HTMLImageElement> {
   const image = new Image();
   image.decoding = "sync";
-  // Blob URLs containing foreignObject taint Chrome canvases, which prevents
-  // WebCodecs from constructing a VideoFrame. A data URL stays origin-clean.
-  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  image.src = svgDataUrl(svg);
   await image.decode();
   return image;
 }
@@ -265,7 +517,9 @@ export function snapshotCanvases(source: ParentNode, clone: ParentNode): void {
     if (!target) return;
     let url: string;
     try {
-      url = canvas.toDataURL("image/png");
+      // Reading a canvas back and encoding it is slow; one that is not
+      // showing is not worth it.
+      url = showsNow(canvas) ? canvas.toDataURL("image/png") : BLANK_PICTURE;
     } catch {
       // A canvas tainted by a cross-origin image cannot be read; leave it.
       return;
@@ -282,6 +536,79 @@ export function snapshotCanvases(source: ParentNode, clone: ParentNode): void {
 }
 
 /**
+ * The pixels a clip laid out `width` x `height` needs at `scale`: the
+ * covering side keeps every pixel the output can show, never more than the
+ * clip has.
+ */
+function pictureSize(
+  width: number,
+  height: number,
+  pixelWidth: number,
+  pixelHeight: number,
+  scale: number,
+): { width: number; height: number } {
+  const fit = Math.min(
+    1,
+    Math.max((width * scale) / pixelWidth, (height * scale) / pixelHeight),
+  );
+  return {
+    width: Math.max(1, Math.round(pixelWidth * fit)),
+    height: Math.max(1, Math.round(pixelHeight * fit)),
+  };
+}
+
+function blobAsDataUrlFast(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Read failed."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * The export's decoded clip frames that show, as JPEG data URLs for
+ * `snapshotVideos`. They are encoded off the page's thread, in parallel: a
+ * canvas encoded in place stalls behind the decoder's work, up to a second a
+ * frame. A clip that cannot be encoded here is left to `snapshotVideos`.
+ */
+export async function encodeClipPictures(
+  pictures: ClipPictures | undefined,
+  scale: number,
+): Promise<Map<HTMLVideoElement, string>> {
+  const urls = new Map<HTMLVideoElement, string>();
+  if (!pictures || typeof OffscreenCanvas !== "function") return urls;
+  await Promise.all(
+    [...pictures].map(async ([video, picture]) => {
+      const view = video.ownerDocument.defaultView ?? window;
+      if (view.getComputedStyle(video).visibility === "hidden") return;
+      if (picture.displayWidth <= 0 || picture.displayHeight <= 0) return;
+      const size = pictureSize(
+        video.clientWidth || picture.displayWidth,
+        video.clientHeight || picture.displayHeight,
+        picture.displayWidth,
+        picture.displayHeight,
+        scale,
+      );
+      try {
+        const canvas = new OffscreenCanvas(size.width, size.height);
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        picture.draw(context, 0, 0, size.width, size.height);
+        const blob = await canvas.convertToBlob({
+          type: "image/jpeg",
+          quality: 0.92,
+        });
+        urls.set(video, await blobAsDataUrlFast(blob));
+      } catch (error) {
+        console.warn("[Export] a clip frame could not be encoded", error);
+      }
+    }),
+  );
+  return urls;
+}
+
+/**
  * Each <video> in `clone` replaced by an image of the frame its counterpart in
  * `source` shows right now. An SVG image cannot play a video, so without this
  * every clip exports empty. The image keeps the clip's attributes, and its
@@ -295,6 +622,9 @@ export function snapshotVideos(
   source: ParentNode,
   clone: ParentNode,
   scale = Number.POSITIVE_INFINITY,
+  pictureUrls?: ReadonlyMap<HTMLVideoElement, string>,
+  /** Clips drawn on the canvas instead; the image leaves them out. */
+  leftOut?: ReadonlySet<HTMLVideoElement>,
 ): void {
   const sources = Array.from(source.querySelectorAll("video"));
   const targets = Array.from(clone.querySelectorAll("video"));
@@ -304,20 +634,25 @@ export function snapshotVideos(
     const width = video.clientWidth || video.videoWidth;
     const height = video.clientHeight || video.videoHeight;
     const view = video.ownerDocument.defaultView ?? window;
+    if (leftOut?.has(video)) {
+      // Drawn on the canvas: nothing of it (not even its moving style) goes into the image.
+      target.replaceWith(target.ownerDocument.createElement("i"));
+      return;
+    }
     const shown = view.getComputedStyle(video).visibility !== "hidden";
-    let url = "";
-    if (shown && video.videoWidth > 0 && video.readyState >= 2) {
-      // The covering side keeps every pixel the output can show.
-      const fit = Math.min(
-        1,
-        Math.max(
-          (width * scale) / video.videoWidth,
-          (height * scale) / video.videoHeight,
-        ),
+    // The export's decoded frame for this clip, already encoded, else the <video>'s own.
+    let url = (shown && pictureUrls?.get(video)) || "";
+    if (!url && shown && video.videoWidth > 0 && video.readyState >= 2) {
+      const size = pictureSize(
+        width,
+        height,
+        video.videoWidth,
+        video.videoHeight,
+        scale,
       );
       const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(video.videoWidth * fit));
-      canvas.height = Math.max(1, Math.round(video.videoHeight * fit));
+      canvas.width = size.width;
+      canvas.height = size.height;
       try {
         context2d(canvas).drawImage(video, 0, 0, canvas.width, canvas.height);
         url = canvas.toDataURL("image/jpeg", 0.92);
@@ -349,11 +684,17 @@ export function snapshotVideos(
  * Each footage card made by Motify's generator (a raw film in an iframe inside
  * the film) replaced by a picture of the frame it shows now. An SVG image
  * cannot draw an iframe; a hidden one is simply dropped.
+ *
+ * The picture is the card's own page as an SVG image, drawn with the rest of
+ * the frame. Drawing it first and handing the frame a JPEG of it meant
+ * drawing the card, reading it back from the graphics card, encoding it and
+ * decoding it again, for every frame the card is on.
  */
 async function snapshotCardFilms(
   source: ParentNode,
   clone: ParentNode,
   scale: number,
+  clips?: ExportClipPictures,
 ): Promise<void> {
   const frames = Array.from(
     source.querySelectorAll<HTMLIFrameElement>("iframe[data-motify-card-film]"),
@@ -373,9 +714,13 @@ async function snapshotCardFilms(
       }
       const width = frame.clientWidth || 1080;
       const height = frame.clientHeight || 1920;
-      const canvas = await renderRawFrame(inner, width, height, scale);
       const image = target.ownerDocument.createElement("img");
-      image.setAttribute("src", canvas.toDataURL("image/jpeg", 0.92));
+      image.setAttribute(
+        "src",
+        svgDataUrl(
+          await rawFrameSvg(inner, width, height, scale, undefined, clips),
+        ),
+      );
       image.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
       target.replaceWith(image);
     }),
@@ -383,39 +728,66 @@ async function snapshotCardFilms(
 }
 
 /**
- * A raw film's frame: its whole document, as the iframe shows it now, drawn
- * through the same SVG image as any other film, so it exports what preview
- * shows. Scripts and audio are left out; images, canvases and fonts are inlined.
+ * A raw film's frame as an SVG image's source: its whole document, as the
+ * iframe shows it now, so it exports what preview shows. Scripts and audio
+ * are left out; images, canvases and fonts are inlined.
  */
-async function renderRawFrame(
+async function rawFrameSvg(
   doc: Document,
   width: number,
   height: number,
   scale: number,
-): Promise<HTMLCanvasElement> {
+  pictures?: ClipPictures,
+  clips?: ExportClipPictures,
+): Promise<string> {
   const live = doc.documentElement;
-  const clone = live.cloneNode(true) as HTMLElement;
+  const clone = inertClone(live);
   // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(live, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(live, clone);
-  snapshotVideos(live, clone, scale);
+  snapshotVideos(live, clone, scale, await encodeClipPictures(pictures, scale));
   clone
     .querySelectorAll("script, audio, noscript, style[data-motify-fonts]")
     .forEach((node) => node.remove());
   await inlineFontFaces(clone);
-  const fontCss = await exportFontCss(live.outerHTML);
+  const fontCss = await fontCssFor(clips, live);
   if (fontCss) {
     const fontStyle = doc.createElement("style");
     fontStyle.textContent = fontCss;
     (clone.querySelector("head") ?? clone).append(fontStyle);
   }
   const serialized = new XMLSerializer().serializeToString(clone);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
-  const image = await imageFromSvg(svg);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  context2d(canvas).drawImage(image, 0, 0, canvas.width, canvas.height);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+}
+
+/**
+ * A raw film's frame, drawn through the same SVG image as any other film. An
+ * export keeps the last frame's pixels, so a moment the film holds still is
+ * drawn once.
+ */
+async function renderRawFrame(
+  doc: Document,
+  width: number,
+  height: number,
+  scale: number,
+  pictures?: ClipPictures,
+  clips?: ExportClipPictures,
+): Promise<HTMLCanvasElement> {
+  let at = profileNow();
+  const svg = await rawFrameSvg(doc, width, height, scale, pictures, clips);
+  at = profileStage("serialize", at);
+  const canvas = frameCanvas(
+    "authored",
+    Math.max(1, Math.round(width * scale)),
+    Math.max(1, Math.round(height * scale)),
+    Boolean(clips),
+  );
+  const page = clips
+    ? await overlayPixels(svg, canvas.width, canvas.height)
+    : await imageFromSvg(svg);
+  at = profileStage("page image", at);
+  context2d(canvas).drawImage(page, 0, 0, canvas.width, canvas.height);
+  profileStage("draw", at);
   return canvas;
 }
 
@@ -427,21 +799,66 @@ async function renderRawFrame(
 export async function renderAuthoredFrame(
   runtime: CompositionRuntime,
   scale = 1,
-  { seekVideos = true }: { seekVideos?: boolean } = {},
+  {
+    seekVideos = true,
+    clips,
+  }: { seekVideos?: boolean; clips?: ExportClipPictures } = {},
 ): Promise<HTMLCanvasElement> {
-  if (seekVideos) await seekVideosExactly(runtime.root, runtime.time);
+  let pictures: ClipPictures | undefined;
+  let at = profileNow();
+  // An export decodes its clips in order; anything else places each <video>.
+  if (clips) pictures = await clips.place(runtime.root, runtime.time);
+  else if (seekVideos) await seekVideosExactly(runtime.root, runtime.time);
+  at = profileStage("clip decode", at);
   // An adaptive film is mounted at the canvas size rather than its authored one.
   const { width, height } = runtime.mountedSize;
   const rawDocument = rawFilmDocument(runtime.root);
-  if (rawDocument) return renderRawFrame(rawDocument, width, height, scale);
-  const clone = runtime.root.cloneNode(true) as HTMLElement;
+  if (rawDocument)
+    return renderRawFrame(rawDocument, width, height, scale, pictures, clips);
+  const clone = inertClone(runtime.root);
+  // Plain clips are drawn straight onto the canvas, under the page (direct-clips.ts).
+  const direct =
+    clips?.direct === false ? null : planDirectClips(runtime.root, pictures);
+  // An export leaves out what paints nothing, and what only held the clips
+  // drawn on the canvas; found now, removed once the clone is done.
+  const liveUnseen = clips ? unseenElements(runtime.root) : [];
+  const unseen = [
+    ...liveUnseen,
+    ...(direct
+      ? emptyHolders(runtime.root, direct.clips, new Set(liveUnseen))
+      : []),
+  ]
+    .map((element) => counterpart(runtime.root, clone, element))
+    .filter((element): element is HTMLElement => element !== null);
+  if (direct)
+    for (const element of direct.blanked) {
+      const target =
+        element === runtime.root
+          ? clone
+          : counterpart(runtime.root, clone, element);
+      if (target) target.style.background = "transparent";
+    }
+  at = profileStage("plan", at);
+  const imagePictures = direct
+    ? new Map(
+        [...(pictures ?? [])].filter(([video]) => !direct.clips.has(video)),
+      )
+    : pictures;
   // Images pair up by position, so they are inlined before canvases and clips become images.
   await inlineImages(runtime.root, clone, pictureEdgeFor(width, height, scale));
   snapshotCanvases(runtime.root, clone);
-  snapshotVideos(runtime.root, clone, scale);
-  await snapshotCardFilms(runtime.root, clone, scale);
+  at = profileStage("inline pictures", at);
+  const clipUrls = await encodeClipPictures(imagePictures, scale);
+  if (clipUrls.size > 0) at = profileStage("clip to jpeg", at);
+  snapshotVideos(runtime.root, clone, scale, clipUrls, direct?.clips);
+  at = profileStage("snapshot clips", at);
+  await snapshotCardFilms(runtime.root, clone, scale, clips);
+  at = profileStage("card films", at);
+  for (const element of unseen) element.remove();
   await inlineFontFaces(clone);
-  const fontCss = await exportFontCss(clone.outerHTML);
+  // Read from the film as mounted: the copy by now carries its pictures inline.
+  const fontCss = await fontCssFor(clips, runtime.root);
+  at = profileStage("fonts", at);
   if (fontCss) {
     const fontStyle = document.createElement("style");
     fontStyle.textContent = fontCss;
@@ -459,11 +876,23 @@ export async function renderAuthoredFrame(
   clone.style.boxShadow = "none";
   const serialized = new XMLSerializer().serializeToString(clone);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${serialized}</div></foreignObject></svg>`;
-  const image = await imageFromSvg(svg);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  context2d(canvas).drawImage(image, 0, 0, canvas.width, canvas.height);
+  at = profileStage("serialize", at);
+  const canvas = frameCanvas(
+    "authored",
+    Math.max(1, Math.round(width * scale)),
+    Math.max(1, Math.round(height * scale)),
+    Boolean(clips),
+  );
+  const page = clips
+    ? await overlayPixels(svg, canvas.width, canvas.height)
+    : await imageFromSvg(svg);
+  at = profileStage("page image", at);
+  const context = context2d(canvas);
+  direct?.draw(context, canvas.width / width);
+  context.drawImage(page, 0, 0, canvas.width, canvas.height);
+  profileStage("draw", at);
+  if (!direct && pictures?.size)
+    profileCount("frames with clips in the page image");
   return canvas;
 }
 
@@ -546,15 +975,21 @@ export async function renderCompositionFrame(
   runtime: CompositionRuntime,
   scale = 1,
   watermark = false,
+  clips?: ExportClipPictures,
 ): Promise<HTMLCanvasElement> {
   const { width, height } = runtime.canvasDimensions;
   const layout: FrameLayout = runtime.frame;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
+  const canvas = frameCanvas(
+    "composition",
+    Math.max(1, Math.round(width * scale)),
+    Math.max(1, Math.round(height * scale)),
+    Boolean(clips),
+  );
   const context = context2d(canvas);
   // Rasterized at the size it is drawn, so text stays sharp.
-  const frame = await renderAuthoredFrame(runtime, layout.scale * scale);
+  const frame = await renderAuthoredFrame(runtime, layout.scale * scale, {
+    ...(clips ? { clips } : {}),
+  });
   context.fillStyle = "#000";
   context.fillRect(0, 0, canvas.width, canvas.height);
   // Wherever the placed frame may not reach, show the film's own surround.
