@@ -159,31 +159,44 @@ function settled(video: HTMLVideoElement): Promise<void> {
   });
 }
 
+/** The clips a frame at `time` can show: those inside their span. */
+export function videosOnScreen(
+  root: ParentNode,
+  time: number,
+): HTMLVideoElement[] {
+  return filmVideos(root).filter(
+    (video) =>
+      time >= seconds(video.dataset["start"]) - 0.05 &&
+      time <= endOf(video) + 0.05,
+  );
+}
+
+/** Where in its file `video` is at film time `time`. */
+export function clipSecondsAt(video: HTMLVideoElement, time: number): number {
+  return clipTime(clipOf(video), time);
+}
+
 /**
- * Places every clip on the exact frame for `time` and waits until each has
- * decoded it, so a captured frame shows the clip where the film says it is.
+ * Places every clip on screen (or just `videos`) on the exact frame for
+ * `time` and waits until each has decoded it, so a captured frame shows the
+ * clip where the film says it is.
  */
 export async function seekVideosExactly(
   root: ParentNode,
   time: number,
+  videos: HTMLVideoElement[] = videosOnScreen(root, time),
 ): Promise<void> {
   await Promise.all(
     // Each export frame waits for its clips to decode: only those on screen.
-    filmVideos(root)
-      .filter(
-        (video) =>
-          time >= seconds(video.dataset["start"]) - 0.05 &&
-          time <= endOf(video) + 0.05,
-      )
-      .map(async (video) => {
-        prepare(video);
-        if (!video.paused) video.pause();
-        if (video.readyState < HTMLMediaElement.HAVE_METADATA)
-          await settled(video);
-        const target = clipTime(clipOf(video), time);
-        if (Math.abs(video.currentTime - target) > SCRUB_EPSILON)
-          video.currentTime = target;
+    videos.map(async (video) => {
+      prepare(video);
+      if (!video.paused) video.pause();
+      if (video.readyState < HTMLMediaElement.HAVE_METADATA)
         await settled(video);
-      }),
+      const target = clipTime(clipOf(video), time);
+      if (Math.abs(video.currentTime - target) > SCRUB_EPSILON)
+        video.currentTime = target;
+      await settled(video);
+    }),
   );
 }

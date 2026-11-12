@@ -50,14 +50,26 @@ export const FILM_FONTS: readonly FilmFont[] = [
   },
 ];
 
-/** `@font-face` rules for `fonts`, each under its plain and its fontsource name. */
+/** A family's fontsource name, e.g. "Inter Variable". */
+export function variableFamily(family: string): string {
+  return `${family} Variable`;
+}
+
+/**
+ * `@font-face` rules for `fonts`, each under its plain and its fontsource
+ * name (or just the names `names` gives for it).
+ */
 export function filmFontFaceCss(
   fonts: readonly FilmFont[],
   source: (font: FilmFont) => string = (font) => font.url,
+  names: (font: FilmFont) => readonly string[] = (font) => [
+    font.family,
+    variableFamily(font.family),
+  ],
 ): string {
   return fonts
     .flatMap((font) =>
-      [font.family, `${font.family} Variable`].map(
+      names(font).map(
         (family) =>
           `@font-face{font-family:"${family}";font-style:normal;font-display:block;font-weight:${font.weight};src:url(${source(font)}) format("woff2");${font.unicodeRange ? `unicode-range:${font.unicodeRange};` : ""}}`,
       ),
@@ -71,10 +83,22 @@ export function filmFontFaceCss(
  * one more small file, so this errs toward including a face.
  */
 export function filmFontsUsedIn(source: string): FilmFont[] {
-  return FILM_FONTS.filter((font) =>
-    new RegExp(
-      `(?<![A-Za-z])${font.family.replace(/ /g, "\\s+")}(?![A-Za-z])`,
-      "i",
-    ).test(source),
-  );
+  return FILM_FONTS.filter((font) => namesFamily(source, font.family));
+}
+
+/** Whether `source` names `family` as a word of its own. */
+export function namesFamily(source: string, family: string): boolean {
+  return new RegExp(
+    `(?<![A-Za-z])${family.replace(/ /g, "\\s+")}(?![A-Za-z])`,
+    "i",
+  ).test(source);
+}
+
+/**
+ * `source` without its `@font-face` rules. A rule declares a family without
+ * using it: the scene kit declares every bundled face in each film, and none
+ * of that says the film sets a word in them.
+ */
+export function withoutFontFaceRules(source: string): string {
+  return source.replace(/@font-face\s*{[^}]*}/g, "");
 }

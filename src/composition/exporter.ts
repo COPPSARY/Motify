@@ -15,7 +15,18 @@ import {
   mixExportAudio,
   type EncodedExportAudio,
 } from "./export-audio";
-import { renderCompositionFrame } from "./frame-render";
+import { ExportClipFrames } from "./export-clip-frames";
+import {
+  finishExportProfile,
+  profileNow,
+  profileStage,
+  startExportProfile,
+  type ExportStageTime,
+} from "./export-profile";
+import {
+  releaseExportFrameCache,
+  renderCompositionFrame,
+} from "./frame-render";
 import type { CompositionRuntime } from "./runtime";
 
 export { renderCompositionFrame };
@@ -179,6 +190,8 @@ export interface ExportVideoResult {
   width: number;
   height: number;
   fps: number;
+  /** Where the time went, by stage, slowest first. */
+  profile: Record<string, ExportStageTime>;
 }
 
 const PREVIEW_FRAME_INTERVAL = 6;
@@ -187,6 +200,8 @@ const ETA_WARMUP_FRAMES = 3;
 const MAX_ENCODE_QUEUE = 8;
 /** How long the encoder may take nothing before the export gives up on it. */
 const ENCODER_STALL_MS = 45_000;
+/** How long it may take nothing before the export stops handing it frames unpainted. */
+const ENCODER_SLOW_MS = 4_000;
 /** Times one export reopens an encoder that closed under it before failing. */
 const MAX_ENCODER_RESTARTS = 5;
 
@@ -205,14 +220,16 @@ export class EncoderStalledError extends Error {
  * forces it to finish everything it is holding every few frames, and in
  * Chrome such a flush has been seen never to resolve, leaving the export
  * stuck near its end. An encoder that takes nothing for a long time fails the
- * export rather than hanging it.
+ * export rather than hanging it; `onSlow` is told once, well before that.
  */
 async function waitForEncoderRoom(
   encoder: VideoEncoder,
   size: number,
+  onSlow?: () => void,
 ): Promise<void> {
   let lastSize = encoder.encodeQueueSize;
   let lastProgress = performance.now();
+  let toldSlow = false;
   while (encoder.encodeQueueSize > size) {
     await new Promise<void>((resolve) => {
       const done = () => {
@@ -228,6 +245,12 @@ async function waitForEncoderRoom(
       lastProgress = performance.now();
     } else if (performance.now() - lastProgress > ENCODER_STALL_MS) {
       throw new EncoderStalledError();
+    } else if (
+      !toldSlow &&
+      performance.now() - lastProgress > ENCODER_SLOW_MS
+    ) {
+      toldSlow = true;
+      onSlow?.();
     }
   }
 }
@@ -435,6 +458,15 @@ export async function exportVideo(
   let frameIndex = 0;
   let keyFrameNext = true;
   /**
+   * Whether each frame is painted before it is handed to the encoder. A frame
+   * left to paint later holds on to the decoded clip frames drawn into it
+   * while it waits in the encoder's queue, and an encoder has been seen to
+   * stop for good behind that. Painting first means waiting for the graphics
+   * card on every frame, which halves the speed of an export, so it is only
+   * done once the encoder has stopped taking frames.
+   */
+  let paintBeforeEncode = false;
+  /**
    * The encoder closed under the export: Chrome reclaims one in a tab left in
    * the background, and a hardware encoder can fail mid-stream. Every frame
    * the muxer already has is kept; a fresh encoder starts again, on a key
@@ -466,24 +498,35 @@ export async function exportVideo(
   );
   const label = format === "webm" ? "WebM" : "MP4";
   const startedAt = performance.now();
+  // Clips are decoded in order rather than sought for every frame.
+  const clips = new ExportClipFrames();
+  startExportProfile();
 
   try {
     for (;;) {
       while (frameIndex < totalFrames) {
         if (signal?.aborted) throw new ExportCancelledError();
         if (encoderClosed()) reopenEncoder();
+        let at = profileNow();
         runtime.seek(
           Math.min(duration, range.start + (frameIndex / fps) * speed),
         );
+        at = profileStage("seek", at);
 
         const frameCanvas = await renderCompositionFrame(
           runtime,
           scale,
           options.watermark ?? false,
+          clips,
         );
         // Drawing the frame awaits; the encoder may have closed meanwhile.
         if (encoderClosed()) continue;
+        at = profileNow();
         context.drawImage(frameCanvas, 0, 0, width, height);
+        if (paintBeforeEncode) {
+          context.getImageData(0, 0, 1, 1);
+          at = profileStage("paint before encode", at);
+        }
 
         const frame = new VideoFrame(canvas, {
           timestamp: frameIndex * frameDuration,
@@ -497,8 +540,19 @@ export async function exportVideo(
           frame.close();
         }
         keyFrameNext = false;
+        at = profileStage("encode", at);
 
-        await waitForEncoderRoom(encoder, MAX_ENCODE_QUEUE);
+        await waitForEncoderRoom(encoder, MAX_ENCODE_QUEUE, () => {
+          if (paintBeforeEncode) return;
+          paintBeforeEncode = true;
+          console.warn(
+            `[Export] the encoder stopped taking frames at frame ${frameIndex}; painting each frame before it is encoded from here on.`,
+          );
+          // Every decoded frame the export holds is given back; clips reopen
+          // where they are next needed.
+          void clips.dispose();
+        });
+        profileStage("encoder wait", at);
         if (encoderClosed()) continue;
 
         frameIndex++;
@@ -528,6 +582,12 @@ export async function exportVideo(
       reopenEncoder();
     }
     const blob = finalize();
+    const profile = finishExportProfile();
+    const seconds = (performance.now() - startedAt) / 1000;
+    console.info(
+      `[Export] ${totalFrames} frames in ${seconds.toFixed(1)}s (${(totalFrames / seconds).toFixed(1)} a second)`,
+      profile,
+    );
     return {
       blob,
       mimeType: blob.type,
@@ -535,9 +595,13 @@ export async function exportVideo(
       width,
       height,
       fps,
+      profile,
     };
   } finally {
+    finishExportProfile();
     if (encoder.state !== "closed") encoder.close();
+    await clips.dispose();
+    releaseExportFrameCache();
     runtime.seek(initialTime);
     if (wasPlaying) runtime.play();
   }
