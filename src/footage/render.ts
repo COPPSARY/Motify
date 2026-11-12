@@ -4,11 +4,13 @@ import type { ProjectSourceFiles } from "../cloud/projects-api";
 import type { SceneDefinition } from "../composition/types";
 import {
   FORMAT_SIZE,
+  cutawayFrame,
   editDuration,
   placeCues,
   placeCutaways,
   placeSegments,
   placeSounds,
+  type FootageBox,
   type FootageCard,
   type FootageEdit,
 } from "./edit";
@@ -54,6 +56,14 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;");
 
 const n = (value: number) => String(Math.round(value * 1000) / 1000);
+
+/** A box as an element's place in the frame; its radius scales with the frame's short side. */
+function boxStyle(box: FootageBox): string {
+  const radius = box.radius
+    ? `border-radius:calc(${n(box.radius * 1080)}px * var(--fx-unit));`
+    : "";
+  return `left:${n(box.x * 100)}%;top:${n(box.y * 100)}%;width:${n(box.w * 100)}%;height:${n(box.h * 100)}%;${radius}`;
+}
 
 /** Where speech plays, on the video's clock, for music to dip under it. */
 function speechSpans(edit: FootageEdit): Array<{ start: number; end: number }> {
@@ -168,7 +178,8 @@ export const FOOTAGE_CSS = `
 .fx-card-film iframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .fx-cutaways { position: absolute; inset: 0; pointer-events: none; }
 .fx-cutaway { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; visibility: hidden; opacity: 0; transform-origin: 50% 50%; }
-.fx-shots { position: absolute; inset: 0; will-change: transform; }
+.fx-shots { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; will-change: transform; }
+.fx-cut--box { right: auto; bottom: auto; transform-origin: 50% 50%; }
 .fx-cut-shot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; opacity: 0; }
 .fx-cut-shot > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 50%; }
 .fx-cut--top { bottom: auto; height: 50%; -webkit-mask-image: linear-gradient(to bottom, #000 86%, transparent); mask-image: linear-gradient(to bottom, #000 86%, transparent); }
@@ -288,29 +299,56 @@ export function footageFiles(
     })
     .join("\n    ");
   // Overlays over talk: their own layer above the shots; the talk's sound plays on below.
-  const cutaways = placeCutaways(edit)
-    .map((placed, index) => {
-      const { cutaway } = placed;
-      if (cutaway.kind === "card" && cutaway.card) {
-        if (cutaway.card.film?.state === "ready")
-          return `<div class="fx-cut-shot fx-cardshot fx-filmshot" id="fx-cut-${index}"><div class="fx-card-film" data-card-film="${escapeHtml(cutaway.card.film.projectId)}"></div></div>`;
-        return cardMarkup(`cut-${index}`, cutaway.card)
+  // One the speaker stands in front of (in a window of their own) goes under the shots instead.
+  const overlays = placeCutaways(edit).map((placed, index) => {
+    const { cutaway } = placed;
+    const frame = cutawayFrame(cutaway);
+    const under = Boolean(frame.speaker?.front);
+    if (cutaway.kind === "card" && cutaway.card) {
+      if (cutaway.card.film?.state === "ready")
+        return {
+          under,
+          html: `<div class="fx-cut-shot fx-cardshot fx-filmshot" id="fx-cut-${index}"><div class="fx-card-film" data-card-film="${escapeHtml(cutaway.card.film.projectId)}"></div></div>`,
+        };
+      return {
+        under,
+        html: cardMarkup(`cut-${index}`, cutaway.card)
           .replace('class="fx-shot ', 'class="fx-cut-shot ')
-          .replace(`id="fx-shot-cut-${index}"`, `id="fx-cut-${index}"`);
-      }
-      const top = cutaway.layout === "top" ? " fx-cut--top" : "";
-      if (cutaway.kind === "image") {
-        const src = `motify-asset://${escapeHtml(cutaway.assetId)}`;
-        // The picture whole, on a blurred copy of itself: a logo or a product photo of any shape.
-        return `<div class="fx-cut-shot fx-pic${top}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`;
-      }
-      const video = `data-motify-video src="${footageToken(cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"`;
-      // In the top half the clip sits in a frame of its own, which the speaker is revealed under.
-      if (top)
-        return `<div class="fx-cut-shot${top}" id="fx-cut-${index}"><video ${video}></video></div>`;
-      return `<video class="fx-cutaway" id="fx-cut-${index}" ${video}></video>`;
-    })
-    .join("\n    ");
+          .replace(`id="fx-shot-cut-${index}"`, `id="fx-cut-${index}"`),
+      };
+    }
+    const top = frame.top ? " fx-cut--top" : "";
+    // In a box of its own it fills that box, cropped to its shape.
+    const boxed = frame.box
+      ? ` fx-cut--box" style="${boxStyle(frame.box)}`
+      : "";
+    if (cutaway.kind === "image") {
+      const src = `motify-asset://${escapeHtml(cutaway.assetId)}`;
+      // The picture whole, on a blurred copy of itself: a logo or a product photo of any shape.
+      return {
+        under,
+        html: `<div class="fx-cut-shot fx-pic${top}${boxed}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`,
+      };
+    }
+    const video = `data-motify-video src="${footageToken(cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"`;
+    // In the top half or a box the clip sits in a frame of its own.
+    if (top || boxed)
+      return {
+        under,
+        html: `<div class="fx-cut-shot${top}${boxed}" id="fx-cut-${index}"><video ${video}></video></div>`,
+      };
+    return {
+      under,
+      html: `<video class="fx-cutaway" id="fx-cut-${index}" ${video}></video>`,
+    };
+  });
+  const layer = (under: boolean) =>
+    overlays
+      .filter((overlay) => overlay.under === under)
+      .map((overlay) => overlay.html)
+      .join("\n    ");
+  const cutaways = layer(false);
+  const cutawaysUnder = layer(true);
   // The voice-over: each line Kiri read, at its place.
   const voice = (edit.voiceover?.lines ?? [])
     .filter((line) => line.start < total)
@@ -341,6 +379,9 @@ export function footageFiles(
     : "";
   const html = `<template data-footage>
 <div class="fx fx--${edit.format === "16:9" ? "wide" : "tall"}" style="--fx-accent:${escapeHtml(edit.theme.accent)};--fx-ink:${escapeHtml(edit.theme.ink)};--fx-font:'${escapeHtml(edit.theme.font)}';--fx-short:${Math.min(width, height)}">
+  <div class="fx-cutaways fx-cutaways--under">
+    ${cutawaysUnder}
+  </div>
   <div class="fx-shots">
     ${shots}
   </div>

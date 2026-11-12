@@ -38,8 +38,13 @@
     addTitle,
     appendClip,
     clipOf,
+    cleanBox,
     cutawayMaxLength,
     editDuration,
+    FOOTAGE_CORNERS,
+    FOOTAGE_WINDOW_SIZES,
+    placementBoxes,
+    placementOf,
     newId,
     placeCues,
     removeClip,
@@ -52,7 +57,11 @@
     updateTitle,
     type FootageEdit,
     type FootageCard,
+    type FootageCorner,
+    type FootageCutaway,
+    type FootagePlacement,
     type FootageTitleStyle,
+    type FootageWindowSize,
   } from "./edit";
 
   export let edit: FootageEdit;
@@ -518,6 +527,42 @@
   const text = (event: Event) =>
     (event.currentTarget as HTMLInputElement).value;
   const fmt = (value: number) => value.toFixed(1);
+
+  /** An overlay moved to a named placement: its own boxes replace whatever it had. */
+  function placePatch(placement: FootagePlacement): Partial<FootageCutaway> {
+    return {
+      layout: undefined,
+      box: undefined,
+      speaker: undefined,
+      ...placementBoxes(edit.format, placement),
+    };
+  }
+
+  /** One side of an overlay's box (or the speaker's) set by hand, in percent of the frame. */
+  function boxPatch(
+    cut: FootageCutaway,
+    field: "x" | "y" | "w" | "h" | "radius",
+    percent: number,
+  ): Partial<FootageCutaway> {
+    if (cut.box)
+      return { box: cleanBox({ ...cut.box, [field]: percent / 100 }) };
+    if (cut.speaker)
+      return { speaker: cleanBox({ ...cut.speaker, [field]: percent / 100 }) };
+    return {};
+  }
+
+  const CORNER_NAMES: Record<FootageCorner, string> = {
+    "top-left": "Top left",
+    "top-right": "Top right",
+    "bottom-left": "Bottom left",
+    "bottom-right": "Bottom right",
+  };
+  const BOX_FIELDS = [
+    ["x", "Left"],
+    ["y", "Top"],
+    ["w", "Width"],
+    ["h", "Height"],
+  ] as const;
 </script>
 
 <aside class="fx-panel" aria-label="Footage editor">
@@ -556,6 +601,8 @@
         {#if cutaway && !cardHost}
           {@const shown = clipOf(edit, cutaway.assetId)}
           {@const picture = cutaway.kind === "image"}
+          {@const placement = placementOf(edit.format, cutaway)}
+          {@const ownBox = cutaway.box ?? cutaway.speaker}
           <section class="fx-card fx-card--selected">
             <header>
               <strong
@@ -571,13 +618,18 @@
             <label
               >Layout
               <select
-                value={cutaway.layout ?? "full"}
+                value={placement.name}
                 on:change={(e) =>
                   cutaway &&
+                  text(e) !== "custom" &&
                   onChange(
-                    updateCutaway(edit, cutaway.id, {
-                      layout: text(e) === "top" ? ("top" as const) : undefined,
-                    }),
+                    updateCutaway(
+                      edit,
+                      cutaway.id,
+                      placePatch({
+                        name: text(e) as FootagePlacement["name"],
+                      }),
+                    ),
                     "Overlay layout",
                   )}
               >
@@ -587,8 +639,115 @@
                     : "Top half, speaker below"}</option
                 >
                 <option value="full">Full frame</option>
+                <option value="window">Small window over the speaker</option>
+                <option value="speaker-window"
+                  >Full frame, speaker in a small window</option
+                >
+                {#if placement.name === "custom"}
+                  <option value="custom">Custom</option>
+                {/if}
               </select>
             </label>
+            {#if placement.name === "window" || placement.name === "speaker-window"}
+              <div class="fx-grid2">
+                <label
+                  >Corner
+                  <select
+                    value={placement.corner}
+                    on:change={(e) =>
+                      cutaway &&
+                      onChange(
+                        updateCutaway(
+                          edit,
+                          cutaway.id,
+                          placePatch({
+                            ...placement,
+                            corner: text(e) as FootageCorner,
+                          }),
+                        ),
+                        "Overlay corner",
+                      )}
+                  >
+                    {#each FOOTAGE_CORNERS as corner (corner)}
+                      <option value={corner}>{CORNER_NAMES[corner]}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label
+                  >Size
+                  <select
+                    value={placement.size}
+                    on:change={(e) =>
+                      cutaway &&
+                      onChange(
+                        updateCutaway(
+                          edit,
+                          cutaway.id,
+                          placePatch({
+                            ...placement,
+                            size: text(e) as FootageWindowSize,
+                          }),
+                        ),
+                        "Overlay size",
+                      )}
+                  >
+                    {#each FOOTAGE_WINDOW_SIZES as size (size)}
+                      <option value={size}
+                        >{size[0]?.toUpperCase()}{size.slice(1)}</option
+                      >
+                    {/each}
+                  </select>
+                </label>
+              </div>
+            {/if}
+            {#if ownBox}
+              <p class="fx-hint">
+                {cutaway.box ? "The overlay's" : "The speaker's"} box, in percent
+                of the frame. Change any side to place it yourself.
+              </p>
+              <div class="fx-grid2">
+                {#each BOX_FIELDS as [field, label] (field)}
+                  <label
+                    >{label} (%)<input
+                      type="number"
+                      step="1"
+                      min="0"
+                      max="100"
+                      value={Math.round(ownBox[field] * 100)}
+                      on:change={(e) =>
+                        cutaway &&
+                        onChange(
+                          updateCutaway(
+                            edit,
+                            cutaway.id,
+                            boxPatch(cutaway, field, num(e)),
+                          ),
+                          "Overlay box",
+                        )}
+                    /></label
+                  >
+                {/each}
+                <label
+                  >Round corners (%)<input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="50"
+                    value={Math.round((ownBox.radius ?? 0) * 100)}
+                    on:change={(e) =>
+                      cutaway &&
+                      onChange(
+                        updateCutaway(
+                          edit,
+                          cutaway.id,
+                          boxPatch(cutaway, "radius", num(e)),
+                        ),
+                        "Overlay corners",
+                      )}
+                  /></label
+                >
+              </div>
+            {/if}
             <div class="fx-grid2">
               <label hidden={picture}
                 >From (s) in the clip<input

@@ -22,6 +22,12 @@ import {
   updateCue,
   updateSegment,
   trimCutawayStart,
+  cleanBox,
+  cutawayFrame,
+  moveCutaway,
+  placementBoxes,
+  placementOf,
+  windowBox,
   type FootageEdit,
   type FootageSegment,
 } from "./edit";
@@ -583,5 +589,76 @@ describe("footage project files", () => {
 
   it("is not read from other films", () => {
     expect(readFootageEdit("function buildTimeline(context) {}")).toBeNull();
+  });
+});
+
+describe("overlays in a box of their own", () => {
+  it("names a placement by its boxes, and anything else is the person's own", () => {
+    for (const format of ["9:16", "1:1", "16:9"] as const) {
+      expect(placementOf(format, {})).toEqual({ name: "full" });
+      expect(placementOf(format, { layout: "top" })).toEqual({ name: "top" });
+      for (const name of ["window", "speaker-window"] as const)
+        expect(
+          placementOf(
+            format,
+            placementBoxes(format, {
+              name,
+              corner: "bottom-left",
+              size: "large",
+            }),
+          ),
+        ).toEqual({ name, corner: "bottom-left", size: "large" });
+    }
+    expect(
+      placementOf("9:16", { box: { x: 0.1, y: 0.2, w: 0.5, h: 0.3 } }),
+    ).toEqual({ name: "custom" });
+    // A box set by hand stays inside the frame.
+    expect(cleanBox({ x: 0.9, y: -1, w: 0.5, h: 0.01, radius: 2 })).toEqual({
+      x: 0.5,
+      y: 0,
+      w: 0.5,
+      h: 0.05,
+      radius: 0.5,
+    });
+  });
+
+  it("draws a window over the speaker at its place in the frame", () => {
+    const box = windowBox("9:16", "overlay", "top-right", "medium");
+    const edit = addCutaway(twoClips(), 1, B, 0.5, 2, { box });
+    expect(cutawayFrame(edit.cutaways![0]!)).toEqual({ top: false, box });
+    const html = footageFiles(edit).files["composition.html"];
+    expect(html).toContain(
+      '<div class="fx-cut-shot fx-cut--box" style="left:51%;top:8%;width:44%;height:30.94%;border-radius:calc(32.4px * var(--fx-unit));" id="fx-cut-0"><video data-motify-video',
+    );
+    // It is above the shots, like any overlay.
+    expect(html.indexOf('id="fx-cut-0"')).toBeGreaterThan(
+      html.indexOf('<div class="fx-shots">'),
+    );
+    // A box wins over the old layout, and moving the overlay keeps it.
+    const both = updateCutaway(edit, edit.cutaways![0]!.id, { layout: "top" });
+    expect(cutawayFrame(both.cutaways![0]!).top).toBe(false);
+    expect(
+      moveCutaway(edit, edit.cutaways![0]!.id, 2).cutaways![0]!.box,
+    ).toEqual(box);
+  });
+
+  it("puts an overlay the speaker stands in front of under the shots", () => {
+    const speaker = {
+      ...windowBox("9:16", "speaker", "top-left", "medium"),
+      front: true,
+    };
+    const edit = addCutaway(twoClips(), 1, B, 0.5, 2, { speaker });
+    const html = footageFiles(edit).files["composition.html"];
+    // Full frame, in the layer before the shots: shrinking the speaker reveals it.
+    const under = html.indexOf('<div class="fx-cutaways fx-cutaways--under">');
+    const overlay = html.indexOf('<video class="fx-cutaway" id="fx-cut-0"');
+    const shots = html.indexOf('<div class="fx-shots">');
+    expect(under).toBeGreaterThan(-1);
+    expect(overlay).toBeGreaterThan(under);
+    expect(overlay).toBeLessThan(shots);
+    // A card always fills the frame, whatever boxes it carries.
+    expect(cutawayFrame({ kind: "card", box: speaker })).toEqual({
+      top: false,
+    });
   });
 });

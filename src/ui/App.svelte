@@ -4925,6 +4925,7 @@ Voice over direction: ${voiceNote}`
             format: edit.format,
             seconds: Math.max(1.5, Math.min(8, seconds)),
             ...(edit.brief ? { brief: edit.brief } : {}),
+            ...(edit.direction?.look ? { look: edit.direction.look } : {}),
             card: {
               title: card.title,
               ...(card.eyebrow ? { eyebrow: card.eyebrow } : {}),

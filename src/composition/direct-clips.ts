@@ -12,7 +12,8 @@ import type { ClipPicture, ClipPictures } from "./frame-render";
  * stay where they were.
  *
  * Only what can be drawn exactly is drawn this way: positioned boxes with 2D
- * transforms, opacity, overflow clipping, blur and object-fit. A clip under a
+ * transforms, opacity, overflow clipping (square or with round corners), blur
+ * and object-fit. A clip under a
  * mask, a clip path, a blend mode, or with anything painted beneath it (a
  * card, a picture, a clip that is not drawn this way) goes into the image as
  * before, and so does every clip after it, so stacking order is kept.
@@ -150,6 +151,38 @@ export function fitted(
     width: drawWidth,
     height: drawHeight,
   };
+}
+
+/**
+ * The corners of a box that clips, in px from the top left clockwise: empty
+ * when they are square, null when one is not a plain round corner in px (an
+ * ellipse, a percentage) or the canvas cannot draw round ones.
+ */
+export function cornerRadii(style: CSSStyleDeclaration): number[] | null {
+  const radii: number[] = [];
+  for (const corner of [
+    "top-left",
+    "top-right",
+    "bottom-right",
+    "bottom-left",
+  ]) {
+    const value = style.getPropertyValue(`border-${corner}-radius`).trim();
+    if (!value) {
+      radii.push(0);
+      continue;
+    }
+    const parts = value.split(/\s+/);
+    if (parts.length > 2 || !parts.every((part) => /^[\d.]+px$/.test(part)))
+      return null;
+    const [across = 0, down = across] = parts.map(parseFloat);
+    if (Math.abs(across - down) > 0.01) return null;
+    radii.push(across);
+  }
+  if (!radii.some((radius) => radius > 0)) return [];
+  const canRound =
+    typeof CanvasRenderingContext2D !== "undefined" &&
+    typeof CanvasRenderingContext2D.prototype.roundRect === "function";
+  return canRound ? radii : null;
 }
 
 /** A linear-gradient mask, in its element's own box. */
@@ -344,7 +377,7 @@ function clipDraw(
   if (chain[0]?.parentElement !== root) return null;
   const steps: Array<{
     matrix: DOMMatrix;
-    clip: { width: number; height: number } | null;
+    clip: { width: number; height: number; radii: number[] } | null;
   }> = [];
   let opacity = 1;
   let blur = 0;
@@ -420,10 +453,13 @@ function clipDraw(
       node === video ||
       style.overflowX !== "visible" ||
       style.overflowY !== "visible";
+    // A box that clips cuts its corners off too.
+    const radii = clips ? cornerRadii(style) : [];
+    if (!radii) return null;
     steps.push({
       matrix,
       clip: clips
-        ? { width: node.clientWidth, height: node.clientHeight }
+        ? { width: node.clientWidth, height: node.clientHeight, radii }
         : null,
     });
   }
@@ -444,7 +480,15 @@ function clipDraw(
       context.transform(a, b, c, d, e, f);
       if (step.clip) {
         context.beginPath();
-        context.rect(0, 0, step.clip.width, step.clip.height);
+        if (step.clip.radii.length > 0)
+          context.roundRect(
+            0,
+            0,
+            step.clip.width,
+            step.clip.height,
+            step.clip.radii,
+          );
+        else context.rect(0, 0, step.clip.width, step.clip.height);
         context.clip();
       }
     }

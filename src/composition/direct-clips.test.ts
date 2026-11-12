@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { fitted, gradientMask } from "./direct-clips";
+import { cornerRadii, fitted, gradientMask } from "./direct-clips";
 
 const picture = (displayWidth: number, displayHeight: number) => ({
   displayWidth,
@@ -110,4 +110,50 @@ it("refuses masks it cannot draw exactly", () => {
       10,
     ),
   ).toBeNull();
+});
+
+const corners = (values: Record<string, string>) =>
+  ({
+    getPropertyValue: (name: string) => values[name] ?? "0px",
+  }) as unknown as CSSStyleDeclaration;
+
+it("reads a window's round corners, and refuses ones it cannot draw", () => {
+  // Square corners need no rounding at all.
+  expect(cornerRadii(corners({}))).toEqual([]);
+  const prototype = { roundRect() {} };
+  const before = (globalThis as { CanvasRenderingContext2D?: unknown })
+    .CanvasRenderingContext2D;
+  (
+    globalThis as { CanvasRenderingContext2D?: unknown }
+  ).CanvasRenderingContext2D = { prototype };
+  try {
+    expect(
+      cornerRadii(
+        corners({
+          "border-top-left-radius": "32.4px",
+          "border-top-right-radius": "32.4px",
+          "border-bottom-right-radius": "32.4px 32.4px",
+          "border-bottom-left-radius": "8px",
+        }),
+      ),
+    ).toEqual([32.4, 32.4, 32.4, 8]);
+    // An ellipse or a percentage is left to the page image.
+    expect(
+      cornerRadii(corners({ "border-top-left-radius": "30px 10px" })),
+    ).toBeNull();
+    expect(
+      cornerRadii(corners({ "border-top-left-radius": "50%" })),
+    ).toBeNull();
+    // A canvas that cannot draw round corners leaves them to the page image too.
+    (
+      globalThis as { CanvasRenderingContext2D?: unknown }
+    ).CanvasRenderingContext2D = { prototype: {} };
+    expect(
+      cornerRadii(corners({ "border-top-left-radius": "32.4px" })),
+    ).toBeNull();
+  } finally {
+    (
+      globalThis as { CanvasRenderingContext2D?: unknown }
+    ).CanvasRenderingContext2D = before;
+  }
 });

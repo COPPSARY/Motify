@@ -18,6 +18,7 @@
   import { footageFileUrl } from "./api";
   import {
     clipOf,
+    cutawayFrame,
     cutawayMaxLength,
     editDuration,
     trimCutawayStart,
@@ -360,7 +361,14 @@
     const { cutaway } = item;
     if (cutaway.kind === "card")
       return `◆ ${cutaway.card?.title || cutaway.card?.big || "Card"}`;
-    const half = cutaway.layout === "top" ? " · split" : "";
+    const frame = cutawayFrame(cutaway);
+    const half = frame.top
+      ? " · split"
+      : frame.speaker
+        ? " · speaker window"
+        : frame.box
+          ? " · window"
+          : "";
     if (cutaway.kind === "image") return `▣ Picture${half}`;
     return `${clipOf(edit, cutaway.assetId)?.name ?? "B-roll"}${half}`;
   }
