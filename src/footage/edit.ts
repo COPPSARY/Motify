@@ -19,12 +19,42 @@ export type FootageTransition =
 export type FootageLayout = "full" | "split";
 export type FootageTitleStyle =
   "headline" | "kinetic" | "badge" | "lower-third" | "cta";
-/** How captions look: pop (accent text), box, clean (white), outline, glow, highlight (a box on the word being said). */
+/**
+ * How captions look: pop (accent text), box, clean (white), outline, glow,
+ * highlight (a box on the word being said), stack (the phrase builds up in
+ * stacked lines, its key words big, heavy and coloured, the small words in a
+ * serif between them), bold (heavy capitals with an outline), serif (an
+ * elegant serif), minimal (small, light and lower case).
+ */
 export type FootageCaptionStyle =
-  "pop" | "box" | "clean" | "outline" | "glow" | "highlight";
-/** How captions move: a line that just appears, fades or pops in, or words that arrive, light up or bounce as they are said. */
+  | "pop"
+  | "box"
+  | "clean"
+  | "outline"
+  | "glow"
+  | "highlight"
+  | "stack"
+  | "bold"
+  | "serif"
+  | "minimal";
+/**
+ * How captions move: a line that just appears, fades or pops in; words that
+ * arrive (words), blur into focus (blur), rise into place (rise), type on
+ * (typewriter) or slam down (slam) as they are said; or the word being said
+ * lights up (karaoke) or jumps (bounce).
+ */
 export type FootageCaptionAnimation =
-  "none" | "fade" | "pop" | "words" | "karaoke" | "bounce";
+  | "none"
+  | "fade"
+  | "pop"
+  | "words"
+  | "karaoke"
+  | "bounce"
+  | "blur"
+  | "rise"
+  | "typewriter"
+  | "slam";
+export type FootageCaptionPosition = "top" | "center" | "bottom";
 
 export const FOOTAGE_CAPTION_STYLES: readonly FootageCaptionStyle[] = [
   "clean",
@@ -33,6 +63,10 @@ export const FOOTAGE_CAPTION_STYLES: readonly FootageCaptionStyle[] = [
   "outline",
   "glow",
   "highlight",
+  "stack",
+  "bold",
+  "serif",
+  "minimal",
 ];
 export const FOOTAGE_CAPTION_ANIMATIONS: readonly FootageCaptionAnimation[] = [
   "none",
@@ -41,7 +75,189 @@ export const FOOTAGE_CAPTION_ANIMATIONS: readonly FootageCaptionAnimation[] = [
   "words",
   "karaoke",
   "bounce",
+  "blur",
+  "rise",
+  "typewriter",
+  "slam",
 ];
+export const FOOTAGE_CAPTION_POSITIONS: readonly FootageCaptionPosition[] = [
+  "top",
+  "center",
+  "bottom",
+];
+/** Animations in which each word arrives as it is said. */
+export const CAPTION_ARRIVALS: readonly FootageCaptionAnimation[] = [
+  "words",
+  "blur",
+  "rise",
+  "typewriter",
+  "slam",
+];
+/** The families a caption may be set in (all bundled film fonts). */
+export const CAPTION_FONTS = [
+  "Inter",
+  "Plus Jakarta Sans",
+  "Space Grotesk",
+  "Oswald",
+  "Fraunces",
+  "JetBrains Mono",
+  "Kantumruy Pro",
+] as const;
+export type CaptionFont = (typeof CAPTION_FONTS)[number];
+export const CAPTION_SHADOWS = ["none", "soft", "hard", "glow"] as const;
+export type CaptionShadow = (typeof CAPTION_SHADOWS)[number];
+
+/**
+ * A look of the person's own on top of the style: whatever is set here wins
+ * over the style's own choice, whatever is absent is the style's.
+ */
+export interface CaptionDesign {
+  font?: CaptionFont;
+  /** 100 to 900. */
+  weight?: number;
+  italic?: boolean;
+  case?: "upper" | "lower" | "none";
+  /** Outline width in px at 1080 px; 0 takes the style's outline away. */
+  stroke?: number;
+  strokeColor?: string;
+  shadow?: CaptionShadow;
+  /** A box behind each line. */
+  background?: string;
+  /** The colour of the word being said. */
+  highlight?: string;
+  /** Key words coloured in turn with these colours. */
+  keywords?: string[];
+}
+
+/** A CSS colour that cannot carry anything else: #hex, rgb()/hsl() or a plain name. */
+export function cssColor(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const color = value.trim().toLowerCase();
+  return /^#[0-9a-f]{3,8}$/.test(color) ||
+    /^(rgb|rgba|hsl|hsla)\([0-9.,%\s/deg]+\)$/.test(color) ||
+    /^[a-z]{3,20}$/.test(color)
+    ? color
+    : undefined;
+}
+
+/** The design with anything unusable dropped; undefined when nothing is left. */
+export function cleanCaptionDesign(
+  design: CaptionDesign | undefined,
+): CaptionDesign | undefined {
+  if (!design || typeof design !== "object") return undefined;
+  const out: CaptionDesign = {};
+  if (design.font && CAPTION_FONTS.includes(design.font))
+    out.font = design.font;
+  if (typeof design.weight === "number" && Number.isFinite(design.weight))
+    out.weight =
+      Math.round(Math.min(900, Math.max(100, design.weight)) / 100) * 100;
+  if (typeof design.italic === "boolean") out.italic = design.italic;
+  if (design.case && ["upper", "lower", "none"].includes(design.case))
+    out.case = design.case;
+  if (typeof design.stroke === "number" && Number.isFinite(design.stroke))
+    out.stroke = Math.round(Math.min(16, Math.max(0, design.stroke)) * 10) / 10;
+  if (design.shadow && CAPTION_SHADOWS.includes(design.shadow))
+    out.shadow = design.shadow;
+  for (const key of ["strokeColor", "background", "highlight"] as const) {
+    const color = cssColor(design[key]);
+    if (color) out[key] = color;
+  }
+  const keywords = (design.keywords ?? [])
+    .map(cssColor)
+    .filter((color): color is string => Boolean(color))
+    .slice(0, 6);
+  if (keywords.length > 0) out.keywords = keywords;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** The stack style's key words when no colours are given: white, then a colour, in turn. */
+export const STACK_TONES: readonly string[] = [
+  "#ffffff",
+  "#ff2d9b",
+  "#ffffff",
+  "#ffd60a",
+  "#ffffff",
+  "#b9b4ff",
+  "#ffffff",
+  "#5ef0a6",
+  "#ffffff",
+  "#ffb27a",
+];
+
+const SMALL_WORDS = new Set(
+  (
+    "a an the and or but nor so yet if then than that this these those to of in on at by for from with as into onto over under " +
+    "up out off about is am are was were be been being do does did have has had will would can could should shall may might must " +
+    "i me my mine you your yours he him his she her hers it its we us our they them their what which who whom whose when where " +
+    "how why not no just very too also all any some each every more most much many such own same only there here let lets " +
+    "i'm you're we're they're it's that's don't can't won't im youre dont cant gonna wanna got get really still"
+  ).split(" "),
+);
+const KHMER_SMALL = new Set(
+  "និង ជា នៅ ដែល ក្នុង ពី ទៅ របស់ នេះ នោះ ក៏ បាន គឺ ថា ឲ្យ អោយ ហើយ មួយ ទេ ណាស់ ផង ដល់ ដូច ពេល ខ្ញុំ យើង គាត់ វា បង អ្នក ឬ តែ ដើម្បី នឹង កំពុង ត្រូវ មាន ទាំង".split(
+    " ",
+  ),
+);
+const KHMER_LETTER = /[\u1780-\u17FF\u19E0-\u19FF]/;
+
+/**
+ * Which word pieces carry a caption: its longest words that are not small
+ * words, about one in three and at most three, never none.
+ */
+export function captionKeywords(pieces: readonly string[]): boolean[] {
+  const bare = pieces.map((piece) =>
+    piece
+      .toLowerCase()
+      .replace(/[\p{P}\p{S}]/gu, "")
+      .trim(),
+  );
+  const listed = bare.map((word, index) => ({ word, index }));
+  const candidates = listed.filter(
+    ({ word }) =>
+      word.length > 0 &&
+      !SMALL_WORDS.has(word) &&
+      !KHMER_SMALL.has(word) &&
+      (KHMER_LETTER.test(word)
+        ? word.length >= 2
+        : word.length >= 3 || /\d/.test(word)),
+  );
+  const limit = Math.max(1, Math.min(3, Math.round(pieces.length / 3)));
+  const chosen = new Set(
+    (candidates.length > 0
+      ? candidates
+      : listed.filter(({ word }) => word.length > 0)
+    )
+      .sort((a, b) => b.word.length - a.word.length || a.index - b.index)
+      .slice(0, limit)
+      .map(({ index }) => index),
+  );
+  return pieces.map((_, index) => chosen.has(index));
+}
+
+/**
+ * Where a stacked caption starts a new line: before each key word and before
+ * a run of small words of its own. A single small word sits beside the key
+ * word after it; one or two at the very end sit beside the last.
+ */
+export function stackBreaks(keys: readonly boolean[]): boolean[] {
+  return keys.map((key, index) => {
+    if (index === 0) return false;
+    if (key) {
+      // A lone small word just before it shares its line.
+      const lone =
+        keys[index - 1] === false && (index === 1 || keys[index - 2] === true);
+      return !lone;
+    }
+    if (!keys[index - 1]) return false;
+    let end = index;
+    while (end < keys.length && !keys[end]) end += 1;
+    const length = end - index;
+    if (end === keys.length) return length > 2;
+    // A lone small word goes down to the next key word's line.
+    return true;
+  });
+}
+
 /** Caption size as a multiple of the default (60 px on a 1080 px short side). */
 export const CAPTION_SIZE_MIN = 0.6;
 export const CAPTION_SIZE_MAX = 2;
@@ -465,13 +681,15 @@ export interface FootageEdit {
   captions: {
     enabled: boolean;
     style: FootageCaptionStyle;
-    position: "bottom" | "center";
+    position: FootageCaptionPosition;
     /** Caption colour; white (or the accent, for the yellow style) when absent. */
     color?: string;
     /** Size as a multiple of the default; 1 when absent. */
     size?: number;
     /** How the captions move; "none" (a line that just appears) when absent. */
     animation?: FootageCaptionAnimation;
+    /** A look of the person's own over the style's; see CaptionDesign. */
+    design?: CaptionDesign;
     language: string;
     cues: CaptionCue[];
   };

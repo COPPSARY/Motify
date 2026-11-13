@@ -121,3 +121,57 @@ describe("footage captions on the timeline", () => {
     ).toContain("--fx-caption-size:1.5");
   });
 });
+
+describe("styled captions", () => {
+  it("stacks a line around its key words, coloured in turn", () => {
+    const edit = talking({ style: "stack", animation: "blur" });
+    edit.captions.cues[0] = {
+      ...edit.captions.cues[0]!,
+      text: "do what you love and the rest will come",
+      words: undefined,
+    };
+    const { root, timeline, words } = mount(edit);
+    const keys = words().filter((word) => word.classList.contains("fx-key"));
+    expect(keys.map((word) => word.textContent)).toEqual([
+      "love",
+      "rest",
+      "come",
+    ]);
+    expect(keys.map((word) => word.style.getPropertyValue("--fx-key"))).toEqual(
+      ["#ffffff", "#ff2d9b", "#ffffff"],
+    );
+    expect(root.querySelectorAll("#fx-cue-0 .fx-break").length).toBe(4);
+    // Blur in: each word waits for its moment.
+    timeline.seek(0.6);
+    expect(words()[0]!.style.opacity).not.toBe("0");
+    expect(words()[8]!.style.visibility).toBe("hidden");
+    timeline.seek(1.99);
+    expect(words().every((word) => word.style.visibility !== "hidden")).toBe(
+      true,
+    );
+  });
+
+  it("writes a design of the person's own over the style, and drops unsafe values", () => {
+    const { root } = mount(
+      talking({
+        style: "outline",
+        design: {
+          font: "Oswald",
+          italic: true,
+          case: "upper",
+          stroke: 0,
+          shadow: "hard",
+          highlight: "red;background:url(x)",
+        },
+      }),
+    );
+    const layer = root.querySelector<HTMLElement>(".fx-captions")!;
+    const style = layer.getAttribute("style") ?? "";
+    expect(style).toContain("--fx-cap-font:'Oswald'");
+    expect(style).toContain("--fx-cap-italic:italic");
+    expect(style).toContain("--fx-cap-case:uppercase");
+    expect(style).toContain("--fx-cap-stroke:0px");
+    expect(style).not.toContain("url(");
+    expect(layer.dataset["shadow"]).toBe("hard");
+  });
+});
