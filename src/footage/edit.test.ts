@@ -14,6 +14,8 @@ import {
   moveSegment,
   placeCues,
   captionSize,
+  captionKeywords,
+  stackBreaks,
   cueWordTimes,
   placeSegments,
   placeSounds,
@@ -549,7 +551,7 @@ describe("footage project files", () => {
     // Music dips under speech (0.5..2) and fades out at the end.
     expect(html).toMatch(/data-envelope="0:0 0\.4:1 0\.4\d*:1 0\.6\d*:0\.35/);
     expect(html).toContain(
-      '<div class="fx-cue" id="fx-cue-0"><span class="fx-line">កាហ្វេថ្មី</span></div>',
+      '<div class="fx-cue" id="fx-cue-0" data-km><span class="fx-line">កាហ្វេថ្មី</span></div>',
     );
   });
 
@@ -710,5 +712,25 @@ describe("caption motion", () => {
     expect(captionSize(5)).toBe(2);
     expect(captionSize(0.1)).toBe(0.6);
     expect(captionSize(1.333)).toBe(1.33);
+  });
+});
+
+describe("caption key words", () => {
+  it("picks the words that carry a line, not the small ones", () => {
+    expect(captionKeywords(["always", "be", "willing", "to", "grow"])).toEqual([
+      true,
+      false,
+      true,
+      false,
+      false,
+    ]);
+    expect(captionKeywords(["hi"])).toEqual([true]);
+  });
+
+  it("stacks key words on their own lines with the small words tucked in", () => {
+    // do what you | love | and the | rest | will come
+    expect(
+      stackBreaks([false, false, false, true, false, false, true, false, true]),
+    ).toEqual([false, false, false, true, true, false, true, true, false]);
   });
 });

@@ -55,9 +55,16 @@
     updateCard,
     updateCutaway,
     updateTitle,
+    CAPTION_FONTS,
     CAPTION_SIZE_MAX,
     CAPTION_SIZE_MIN,
+    STACK_TONES,
     captionSize,
+    cleanCaptionDesign,
+    type CaptionDesign,
+    type FootageCaptionAnimation,
+    type FootageCaptionPosition,
+    type FootageCaptionStyle,
     type FootageEdit,
     type FootageCard,
     type FootageCorner,
@@ -476,6 +483,49 @@
 
   $: shownCues = placeCues(edit);
   let translating = false;
+  function setCaptions(
+    patch: Partial<FootageEdit["captions"]>,
+    label: string,
+  ): void {
+    onChange({ ...edit, captions: { ...edit.captions, ...patch } }, label);
+  }
+
+  /** One part of the captions' own design; an empty value gives it back to the style. */
+  function setDesign(patch: Partial<CaptionDesign>, label: string): void {
+    const merged: Record<string, unknown> = {
+      ...(edit.captions.design ?? {}),
+      ...patch,
+    };
+    for (const key of Object.keys(merged))
+      if (merged[key] === undefined || merged[key] === "") delete merged[key];
+    const design = cleanCaptionDesign(merged as CaptionDesign);
+    const { design: _old, ...rest } = edit.captions;
+    onChange({ ...edit, captions: design ? { ...rest, design } : rest }, label);
+  }
+
+  /** A new style starts from its own look; the stack style builds word by word. */
+  function pickStyle(style: FootageCaptionStyle): void {
+    const { design: _old, ...rest } = edit.captions;
+    const animation =
+      style === "stack" &&
+      (!edit.captions.animation || edit.captions.animation === "none")
+        ? "blur"
+        : edit.captions.animation;
+    onChange(
+      {
+        ...edit,
+        captions: {
+          ...rest,
+          style,
+          ...(animation ? { animation } : {}),
+        },
+      },
+      "Caption style",
+    );
+  }
+
+  $: captionDesign = edit.captions.design ?? {};
+
   async function translateAll(language: string): Promise<void> {
     if (translating || edit.captions.cues.length === 0) return;
     translating = true;
@@ -1689,17 +1739,7 @@
               >Style
               <select
                 value={edit.captions.style}
-                on:change={(e) =>
-                  onChange(
-                    {
-                      ...edit,
-                      captions: {
-                        ...edit.captions,
-                        style: text(e) as FootageEdit["captions"]["style"],
-                      },
-                    },
-                    "Caption style",
-                  )}
+                on:change={(e) => pickStyle(text(e) as FootageCaptionStyle)}
               >
                 <option value="clean">White</option>
                 <option value="pop">Accent</option>
@@ -1707,6 +1747,10 @@
                 <option value="outline">Bold outline</option>
                 <option value="glow">Glow</option>
                 <option value="highlight">Word highlight</option>
+                <option value="stack">Stacked (key words big)</option>
+                <option value="bold">Bold caps</option>
+                <option value="serif">Serif</option>
+                <option value="minimal">Minimal</option>
               </select>
             </label>
             <label
@@ -1714,16 +1758,8 @@
               <select
                 value={edit.captions.animation ?? "none"}
                 on:change={(e) =>
-                  onChange(
-                    {
-                      ...edit,
-                      captions: {
-                        ...edit.captions,
-                        animation: text(
-                          e,
-                        ) as FootageEdit["captions"]["animation"],
-                      },
-                    },
+                  setCaptions(
+                    { animation: text(e) as FootageCaptionAnimation },
                     "Caption animation",
                   )}
               >
@@ -1731,6 +1767,10 @@
                 <option value="fade">Fade up</option>
                 <option value="pop">Pop in</option>
                 <option value="words">Word by word</option>
+                <option value="blur">Blur in</option>
+                <option value="rise">Rise up</option>
+                <option value="typewriter">Typewriter</option>
+                <option value="slam">Slam</option>
                 <option value="karaoke">Karaoke</option>
                 <option value="bounce">Bounce</option>
               </select>
@@ -1744,14 +1784,8 @@
                 step="0.05"
                 value={captionSize(edit.captions.size)}
                 on:change={(e) =>
-                  onChange(
-                    {
-                      ...edit,
-                      captions: {
-                        ...edit.captions,
-                        size: captionSize(Number(text(e))),
-                      },
-                    },
+                  setCaptions(
+                    { size: captionSize(Number(text(e))) },
                     "Caption size",
                   )}
               /></label
@@ -1764,10 +1798,7 @@
                     ? edit.theme.accent
                     : "#ffffff")}
                 on:change={(e) =>
-                  onChange(
-                    { ...edit, captions: { ...edit.captions, color: text(e) } },
-                    "Caption colour",
-                  )}
+                  setCaptions({ color: text(e) }, "Caption colour")}
               /></label
             >
             <label
@@ -1775,22 +1806,168 @@
               <select
                 value={edit.captions.position}
                 on:change={(e) =>
-                  onChange(
-                    {
-                      ...edit,
-                      captions: {
-                        ...edit.captions,
-                        position: text(e) as "bottom" | "center",
-                      },
-                    },
+                  setCaptions(
+                    { position: text(e) as FootageCaptionPosition },
                     "Caption position",
                   )}
               >
-                <option value="bottom">bottom</option><option value="center"
-                  >center</option
-                >
+                <option value="top">top</option>
+                <option value="center">center</option>
+                <option value="bottom">bottom</option>
               </select>
             </label>
+            <label
+              >Font
+              <select
+                value={captionDesign.font ?? ""}
+                on:change={(e) =>
+                  setDesign(
+                    {
+                      font: (text(e) || undefined) as CaptionDesign["font"],
+                    },
+                    "Caption font",
+                  )}
+              >
+                <option value="">Style's own</option>
+                {#each CAPTION_FONTS as font}
+                  <option value={font}>{font}</option>
+                {/each}
+              </select>
+            </label>
+            <label
+              >Weight
+              <select
+                value={String(captionDesign.weight ?? "")}
+                on:change={(e) =>
+                  setDesign(
+                    { weight: text(e) ? Number(text(e)) : undefined },
+                    "Caption weight",
+                  )}
+              >
+                <option value="">Style's own</option>
+                <option value="300">Light</option>
+                <option value="400">Regular</option>
+                <option value="600">Semibold</option>
+                <option value="700">Bold</option>
+                <option value="900">Black</option>
+              </select>
+            </label>
+            <label
+              >Slant
+              <select
+                value={captionDesign.italic === undefined
+                  ? ""
+                  : captionDesign.italic
+                    ? "italic"
+                    : "upright"}
+                on:change={(e) =>
+                  setDesign(
+                    {
+                      italic: text(e) ? text(e) === "italic" : undefined,
+                    },
+                    "Caption slant",
+                  )}
+              >
+                <option value="">Style's own</option>
+                <option value="upright">Upright</option>
+                <option value="italic">Italic</option>
+              </select>
+            </label>
+            <label
+              >Case
+              <select
+                value={captionDesign.case ?? ""}
+                on:change={(e) =>
+                  setDesign(
+                    {
+                      case: (text(e) || undefined) as CaptionDesign["case"],
+                    },
+                    "Caption case",
+                  )}
+              >
+                <option value="">Style's own</option>
+                <option value="none">As said</option>
+                <option value="upper">ALL CAPS</option>
+                <option value="lower">lower case</option>
+              </select>
+            </label>
+            <label
+              >Outline {captionDesign.stroke ?? "style"}
+              <input
+                type="range"
+                min="0"
+                max="16"
+                step="1"
+                value={captionDesign.stroke ?? 0}
+                on:change={(e) =>
+                  setDesign({ stroke: Number(text(e)) }, "Caption outline")}
+              /></label
+            >
+            <label
+              >Shadow
+              <select
+                value={captionDesign.shadow ?? ""}
+                on:change={(e) =>
+                  setDesign(
+                    {
+                      shadow: (text(e) || undefined) as CaptionDesign["shadow"],
+                    },
+                    "Caption shadow",
+                  )}
+              >
+                <option value="">Style's own</option>
+                <option value="none">None</option>
+                <option value="soft">Soft</option>
+                <option value="hard">Hard</option>
+                <option value="glow">Glow</option>
+              </select>
+            </label>
+            <label
+              >Word being said<input
+                type="color"
+                value={captionDesign.highlight ?? edit.theme.accent}
+                on:change={(e) =>
+                  setDesign({ highlight: text(e) }, "Caption highlight")}
+              /></label
+            >
+            <label class="fx-check"
+              ><input
+                type="checkbox"
+                checked={Boolean(captionDesign.keywords)}
+                on:change={(e) =>
+                  setDesign(
+                    {
+                      keywords: (e.currentTarget as HTMLInputElement).checked
+                        ? STACK_TONES.filter(
+                            (tone) => tone !== "#ffffff",
+                          ).slice(0, 4)
+                        : undefined,
+                    },
+                    "Caption key words",
+                  )}
+              /> Colour key words</label
+            >
+            {#if edit.captions.design}
+              <button
+                type="button"
+                on:click={() =>
+                  setDesign(
+                    {
+                      font: undefined,
+                      weight: undefined,
+                      italic: undefined,
+                      case: undefined,
+                      stroke: undefined,
+                      strokeColor: undefined,
+                      shadow: undefined,
+                      background: undefined,
+                      highlight: undefined,
+                      keywords: undefined,
+                    },
+                    "Caption design reset",
+                  )}>Reset to style</button
+              >
+            {/if}
             <label
               >Translate to
               <select

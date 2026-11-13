@@ -13,6 +13,8 @@ import {
   type FootageBox,
   type FootageCard,
   captionSize,
+  cleanCaptionDesign,
+  cssColor,
   type FootageEdit,
 } from "./edit";
 
@@ -161,24 +163,48 @@ function titleMarkup(edit: FootageEdit): string {
     .join("\n    ");
 }
 
-/** The captions' colour and size as CSS variables, when set. */
+/**
+ * The captions' colour, size and design as CSS variables and attributes on
+ * their layer: a style sets the same variables, and these win over it.
+ */
 function captionVars(edit: FootageEdit): string {
+  const design = cleanCaptionDesign(edit.captions.design);
+  const color = cssColor(edit.captions.color);
   const vars = [
-    edit.captions.color
-      ? `--fx-caption-color:${escapeHtml(edit.captions.color)}`
-      : "",
+    color ? `--fx-caption-color:${color}` : "",
     edit.captions.size && edit.captions.size !== 1
       ? `--fx-caption-size:${captionSize(edit.captions.size)}`
       : "",
+    design?.font
+      ? `--fx-cap-font:'${design.font}','${design.font} Variable','Kantumruy Pro',sans-serif`
+      : "",
+    design?.weight ? `--fx-cap-weight:${design.weight}` : "",
+    design?.italic !== undefined
+      ? `--fx-cap-italic:${design.italic ? "italic" : "normal"}`
+      : "",
+    design?.case
+      ? `--fx-cap-case:${design.case === "upper" ? "uppercase" : design.case === "lower" ? "lowercase" : "none"}`
+      : "",
+    design?.stroke !== undefined ? `--fx-cap-stroke:${design.stroke}px` : "",
+    design?.strokeColor ? `--fx-cap-stroke-color:${design.strokeColor}` : "",
+    design?.background ? `--fx-cap-bg:${design.background}` : "",
+    design?.highlight ? `--fx-cap-hl:${design.highlight}` : "",
   ].filter(Boolean);
-  return vars.length > 0 ? ` style="${vars.join(";")}"` : "";
+  const attributes = [
+    vars.length > 0 ? ` style="${escapeHtml(vars.join(";"))}"` : "",
+    design?.shadow ? ` data-shadow="${design.shadow}"` : "",
+    design?.background ? " data-bg" : "",
+  ];
+  return attributes.join("");
 }
+
+const KHMER_TEXT = /[\u1780-\u17FF\u19E0-\u19FF]/;
 
 function captionMarkup(edit: FootageEdit): string {
   return placeCues(edit)
     .map(
       (placed, index) =>
-        `<div class="fx-cue" id="fx-cue-${index}"><span class="fx-line">${escapeHtml(placed.cue.text)}</span>${placed.cue.alt ? `<span class="fx-alt">${escapeHtml(placed.cue.alt)}</span>` : ""}</div>`,
+        `<div class="fx-cue" id="fx-cue-${index}"${KHMER_TEXT.test(placed.cue.text) ? " data-km" : ""}><span class="fx-line">${escapeHtml(placed.cue.text)}</span>${placed.cue.alt ? `<span class="fx-alt">${escapeHtml(placed.cue.alt)}</span>` : ""}</div>`,
     )
     .join("\n    ");
 }
@@ -234,21 +260,44 @@ export const FOOTAGE_CSS = `
 .fx-half--a { border-bottom: calc(4px * var(--fx-unit)) solid #000; }
 .fx--wide .fx-half--a { border-bottom: 0; border-right: calc(4px * var(--fx-unit)) solid #000; }
 .fx-captions--center .fx-cue { top: 50%; transform: translateY(-50%); }
-.fx-captions { --fx-cap: calc(var(--fx-unit) * var(--fx-caption-size, 1)); }
-.fx-line { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.5; font-size: calc(60px * var(--fx-cap)); text-wrap: balance; text-shadow: 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-cap)) rgba(0,0,0,.45); }
-.fx-alt { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.4; font-size: calc(56px * var(--fx-cap)); text-shadow: 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-cap)) rgba(0,0,0,.45); }
+.fx-captions--top .fx-cue { top: 13%; }
+.fx-captions { --fx-cap: calc(var(--fx-unit) * var(--fx-caption-size, 1)); --fx-cap-size: 60px; --fx-cap-weight: 700; --fx-cap-italic: normal; --fx-cap-case: none; --fx-cap-stroke: 0px; --fx-cap-stroke-color: #000; --fx-cap-spacing: 0em; --fx-cap-hl: var(--fx-accent); --fx-cap-shadow: 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-cap)) rgba(0,0,0,.45); }
+.fx-line, .fx-alt { font-family: var(--fx-cap-font, var(--fx-font), "Kantumruy Pro", "Inter", sans-serif); font-weight: var(--fx-cap-weight); font-style: var(--fx-cap-italic); text-transform: var(--fx-cap-case); letter-spacing: var(--fx-cap-spacing); color: var(--fx-caption-color, #fff); -webkit-text-stroke: calc(var(--fx-cap-stroke) * var(--fx-cap)) var(--fx-cap-stroke-color); paint-order: stroke fill; text-shadow: var(--fx-cap-shadow); }
+.fx-line { line-height: 1.5; font-size: calc(var(--fx-cap-size) * var(--fx-cap)); text-wrap: balance; }
+.fx-alt { line-height: 1.4; font-size: calc(var(--fx-cap-size) * .93 * var(--fx-cap)); }
+.fx-cue[data-km] .fx-line, .fx-cue[data-km] .fx-alt { font-style: normal; text-transform: none; letter-spacing: 0; }
 .fx-line .motionly-split-item { transform-origin: 50% 70%; }
+.fx-captions--pop { --fx-cap-hl: #fff; }
 .fx-captions--pop .fx-line, .fx-captions--pop .fx-alt { color: var(--fx-caption-color, var(--fx-accent)); }
-.fx-captions--pop .fx-line [data-on="1"] { color: #fff; }
-.fx-captions--box .fx-line { background: var(--fx-accent); color: var(--fx-ink); padding: calc(4px * var(--fx-cap)) calc(24px * var(--fx-cap)); border-radius: calc(16px * var(--fx-cap)); -webkit-box-decoration-break: clone; box-decoration-break: clone; text-shadow: none; }
-.fx-captions--box .fx-line [data-on="1"] { color: #fff; }
-.fx-captions--clean .fx-line [data-on="1"] { color: var(--fx-accent); }
-.fx-captions--outline .fx-line, .fx-captions--outline .fx-alt { font-weight: 800; -webkit-text-stroke: calc(7px * var(--fx-cap)) #000; paint-order: stroke fill; text-shadow: 0 calc(5px * var(--fx-cap)) 0 #000; }
-.fx-captions--outline .fx-line [data-on="1"] { color: var(--fx-accent); }
-.fx-captions--glow .fx-line, .fx-captions--glow .fx-alt { text-shadow: 0 0 calc(10px * var(--fx-cap)) var(--fx-accent), 0 0 calc(28px * var(--fx-cap)) var(--fx-accent), 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.6); }
-.fx-captions--glow .fx-line [data-on="1"] { color: var(--fx-accent); }
+.fx-captions--box { --fx-cap-hl: #fff; --fx-cap-shadow: none; }
+.fx-captions--box .fx-line { background: var(--fx-accent); color: var(--fx-caption-color, var(--fx-ink)); padding: calc(4px * var(--fx-cap)) calc(24px * var(--fx-cap)); border-radius: calc(16px * var(--fx-cap)); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.fx-captions--outline { --fx-cap-weight: 800; --fx-cap-stroke: 7px; --fx-cap-shadow: 0 calc(5px * var(--fx-cap)) 0 #000; }
+.fx-captions--glow { --fx-cap-shadow: 0 0 calc(10px * var(--fx-cap)) var(--fx-accent), 0 0 calc(28px * var(--fx-cap)) var(--fx-accent), 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.6); }
+.fx-captions--bold { --fx-cap-font: "Inter Variable", "Inter", "Kantumruy Pro", sans-serif; --fx-cap-size: 72px; --fx-cap-weight: 900; --fx-cap-italic: italic; --fx-cap-case: uppercase; --fx-cap-spacing: -.02em; --fx-cap-stroke: 8px; --fx-cap-shadow: 0 calc(7px * var(--fx-cap)) 0 #000; }
+.fx-captions--bold .fx-line { line-height: 1.15; }
+.fx-captions--serif { --fx-cap-font: "Fraunces Variable", "Fraunces", "Kantumruy Pro", serif; --fx-cap-size: 66px; --fx-cap-weight: 500; --fx-cap-spacing: -.01em; --fx-cap-hl: var(--fx-caption-color, #fff); --fx-cap-shadow: 0 calc(3px * var(--fx-cap)) calc(16px * var(--fx-cap)) rgba(0,0,0,.55); }
+.fx-captions--serif .fx-line { line-height: 1.25; }
+.fx-captions--serif .fx-line [data-on="1"] { font-style: italic; }
+.fx-captions--minimal { --fx-cap-font: "Inter Variable", "Inter", "Kantumruy Pro", sans-serif; --fx-cap-size: 40px; --fx-cap-weight: 400; --fx-cap-case: lowercase; --fx-cap-spacing: -.01em; --fx-cap-shadow: 0 calc(1px * var(--fx-cap)) calc(10px * var(--fx-cap)) rgba(0,0,0,.6); }
+.fx-captions--stack { --fx-cap-font: "Inter Variable", "Inter", "Kantumruy Pro", sans-serif; --fx-cap-size: 150px; --fx-cap-weight: 900; --fx-cap-italic: italic; --fx-cap-spacing: -.055em; --fx-cap-shadow: 0 calc(4px * var(--fx-cap)) calc(22px * var(--fx-cap)) rgba(0,0,0,.4); }
+.fx-captions--stack .fx-cue { left: calc(70px * var(--fx-unit)); right: calc(70px * var(--fx-unit)); }
+.fx-captions--stack .fx-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; column-gap: calc(12px * var(--fx-cap)); row-gap: 0; line-height: .86; font-size: calc(46px * var(--fx-cap)); }
+.fx-captions--stack .fx-line .fx-small { font-family: "Fraunces Variable", "Fraunces", "Kantumruy Pro", serif; font-weight: 400; font-style: normal; letter-spacing: 0; font-size: calc(46px * var(--fx-cap)); line-height: 1.05; }
+.fx-captions--stack .fx-line .fx-key { font-size: calc(min(var(--fx-cap-size), 1700px / var(--fx-len, 1)) * var(--fx-cap)); padding-right: .06em; }
+.fx-cue[data-km] .fx-line .fx-key { font-size: calc(min(var(--fx-cap-size) * .7, 1100px / var(--fx-len, 1)) * var(--fx-cap)); line-height: 1.3; }
+.fx-captions--stack .fx-alt { font-size: calc(40px * var(--fx-cap)); font-style: normal; font-weight: 600; letter-spacing: 0; }
+.fx-break { flex-basis: 100%; height: 0; }
+.fx-captions--stack .fx-space { display: none; }
+.fx-captions[data-shadow="none"] { --fx-cap-shadow: none; }
+.fx-captions[data-shadow="soft"] { --fx-cap-shadow: 0 calc(3px * var(--fx-cap)) calc(14px * var(--fx-cap)) rgba(0,0,0,.6); }
+.fx-captions[data-shadow="hard"] { --fx-cap-shadow: calc(4px * var(--fx-cap)) calc(6px * var(--fx-cap)) 0 rgba(0,0,0,.9); }
+.fx-captions[data-shadow="glow"] { --fx-cap-shadow: 0 0 calc(12px * var(--fx-cap)) var(--fx-cap-hl), 0 0 calc(30px * var(--fx-cap)) var(--fx-cap-hl); }
+.fx-captions[data-bg] .fx-line { background: var(--fx-cap-bg); padding: calc(4px * var(--fx-cap)) calc(24px * var(--fx-cap)); border-radius: calc(16px * var(--fx-cap)); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.fx-line .fx-key { color: var(--fx-key, inherit); }
+.fx-line [data-on="1"] { color: var(--fx-cap-hl); }
+.fx-captions--stack .fx-line [data-on="1"] { color: var(--fx-key, var(--fx-caption-color, #fff)); }
 .fx-captions--highlight .fx-line .motionly-split-item { padding: 0 calc(10px * var(--fx-cap)); border-radius: calc(12px * var(--fx-cap)); }
-.fx-captions--highlight .fx-line [data-on="1"] { background: var(--fx-accent); color: var(--fx-ink); text-shadow: none; }
+.fx-captions--highlight .fx-line [data-on="1"] { background: var(--fx-cap-hl); color: var(--fx-ink); text-shadow: none; -webkit-text-stroke: 0; }
 .fx .motionly-split-item { display: inline-block; }
 .fx-cardshot { display: flex; align-items: center; justify-content: center; background: var(--k-bg); --k-bg: #ebe4d6; --k-panel: #f8f4ec; --k-ink: #26221d; --k-soft: rgba(38,34,29,.38); --k-accent: #c96442; }
 .fx-kt--white { --k-bg: #ffffff; --k-panel: transparent; --k-ink: #15130f; --k-soft: rgba(21,19,15,.18); --k-accent: #e8322b; }

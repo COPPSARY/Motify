@@ -1,6 +1,11 @@
 import {
+  CAPTION_ARRIVALS,
   FORMAT_SIZE,
+  STACK_TONES,
+  captionKeywords,
+  cleanCaptionDesign,
   cueWordTimes,
+  stackBreaks,
   cutawayFrame,
   editDuration,
   placeCues,
@@ -61,7 +66,13 @@ export function splitIntoWords(
   for (const segment of segments) {
     if (/^\s+$/.test(segment)) {
       flush();
-      nodes.push(document.createTextNode(" "));
+      // A space of its own element: GSAP, measuring a word that is not laid
+      // out, puts it back before its next element, which a bare text node
+      // between words is not, and the space would slip away.
+      const space = document.createElement("span");
+      space.className = "fx-space";
+      space.textContent = " ";
+      nodes.push(space);
     } else if (/^[\p{P}\p{S}]+$/u.test(segment) && pending) {
       // Punctuation stays on its word, so a line never starts with it.
       pending += segment;
@@ -80,12 +91,8 @@ function ensureFonts(root: HTMLElement): void {
   if (root.querySelector("style[data-motify-footage-fonts]")) return;
   const style = document.createElement("style");
   style.dataset["motifyFootageFonts"] = "";
-  style.textContent = filmFontFaceCss(
-    // Kantumruy for Khmer and captions; Fraunces for cards' serif titles.
-    FILM_FONTS.filter(
-      (font) => font.family === "Kantumruy Pro" || font.family === "Fraunces",
-    ),
-  );
+  // Every bundled face: captions may be set in any of them.
+  style.textContent = filmFontFaceCss(FILM_FONTS);
   root.prepend(style);
 }
 
@@ -381,9 +388,12 @@ export function footageTimeline(
 
 /**
  * Captions on the clock. Each line shows for as long as it is said and, by the
- * edit's animation, fades or pops in, or its words arrive, light up or bounce
- * as each is said. Word times come from the transcript (cueWordTimes); every
- * tween is a fromTo on the timeline, so any frame can be sought for export.
+ * edit's animation, fades or pops in, or its words arrive (blurring into
+ * focus, rising, typing on, slamming down), light up or bounce as each is
+ * said. The stack style, and a design with key-word colours, mark each line's
+ * key words; the stack style also breaks the line into stacked rows. Word
+ * times come from the transcript (cueWordTimes); every tween is a fromTo on
+ * the timeline, so any frame can be sought for export.
  */
 function animateCaptions(
   root: HTMLElement,
@@ -391,13 +401,17 @@ function animateCaptions(
   edit: FootageEdit,
 ): void {
   const animation = edit.captions.animation ?? "none";
+  const style = edit.captions.style;
+  const design = cleanCaptionDesign(edit.captions.design);
+  const stack = style === "stack";
+  const tones = design?.keywords ?? (stack ? STACK_TONES : []);
   const lightsWords =
-    animation === "karaoke" ||
-    animation === "bounce" ||
-    edit.captions.style === "highlight";
-  const byWord = lightsWords || animation === "words";
+    animation === "karaoke" || animation === "bounce" || style === "highlight";
+  const arrives = CAPTION_ARRIVALS.includes(animation);
+  const byWord = lightsWords || arrives || stack || tones.length > 0;
   // Movement in percent of the text's own height, so it scales with the caption.
   const lift = 22;
+  let keyCount = 0;
   placeCues(edit).forEach((placed, index) => {
     const cue = byId(root, `fx-cue-${index}`);
     if (!cue) return;
@@ -438,15 +452,41 @@ function animateCaptions(
     const line = cue.querySelector<HTMLElement>(".fx-line");
     if (!byWord || !line) return;
     const pieces = splitIntoWords(line, placed.cue.text);
-    const times = cueWordTimes(
-      placed,
-      pieces.map((piece) => piece.textContent ?? ""),
-    );
+    const texts = pieces.map((piece) => piece.textContent ?? "");
+    const keys =
+      stack || tones.length > 0
+        ? captionKeywords(texts)
+        : pieces.map(() => false);
+    if (stack || tones.length > 0)
+      pieces.forEach((piece, at) => {
+        if (!keys[at]) {
+          piece.classList.add("fx-small");
+          return;
+        }
+        piece.classList.add("fx-key");
+        piece.style.setProperty(
+          "--fx-key",
+          tones[keyCount % tones.length] ?? "inherit",
+        );
+        piece.style.setProperty(
+          "--fx-len",
+          String(Math.max(4, Array.from(texts[at]!.trim()).length)),
+        );
+        keyCount += 1;
+      });
+    if (stack)
+      stackBreaks(keys).forEach((breaks, at) => {
+        if (!breaks) return;
+        const row = document.createElement("span");
+        row.className = "fx-break";
+        pieces[at]!.before(row);
+      });
+    const times = cueWordTimes(placed, texts);
     pieces.forEach((piece, at) => {
       const { start, end } = times[at]!;
+      const said = Math.max(placed.start, start - 0.04);
       // Hidden from the moment the line shows until the word is said.
-      if (animation === "words")
-        timeline.set(piece, { autoAlpha: 0 }, placed.start);
+      if (arrives) timeline.set(piece, { autoAlpha: 0 }, placed.start);
       if (animation === "words")
         timeline.fromTo(
           piece,
@@ -459,8 +499,67 @@ function animateCaptions(
             ease: "back.out(2.6)",
             immediateRender: false,
           },
-          Math.max(placed.start, start - 0.04),
+          said,
         );
+      else if (animation === "blur")
+        timeline.fromTo(
+          piece,
+          { autoAlpha: 0, yPercent: lift * 0.6, filter: "blur(14px)" },
+          {
+            autoAlpha: 1,
+            yPercent: 0,
+            filter: "blur(0px)",
+            duration: Math.min(0.32, span / 2),
+            ease: "power2.out",
+            immediateRender: false,
+          },
+          said,
+        );
+      else if (animation === "rise")
+        timeline.fromTo(
+          piece,
+          { autoAlpha: 0, yPercent: 80, rotation: 4 },
+          {
+            autoAlpha: 1,
+            yPercent: 0,
+            rotation: 0,
+            duration: Math.min(0.36, span / 2),
+            ease: "expo.out",
+            immediateRender: false,
+          },
+          said,
+        );
+      else if (animation === "slam")
+        timeline.fromTo(
+          piece,
+          { autoAlpha: 0, scale: 2.1 },
+          {
+            autoAlpha: 1,
+            scale: 1,
+            duration: Math.min(0.16, span / 2),
+            ease: "power4.in",
+            immediateRender: false,
+          },
+          said,
+        );
+      else if (animation === "typewriter") {
+        const letters = Math.max(1, Array.from(texts[at]!.trim()).length);
+        timeline.fromTo(
+          piece,
+          { autoAlpha: 1, clipPath: "inset(-30% 100% -30% -10%)" },
+          {
+            autoAlpha: 1,
+            clipPath: "inset(-30% -10% -30% -10%)",
+            duration: Math.max(
+              0.05,
+              Math.min(letters * 0.045, end - start, span / 2),
+            ),
+            ease: `steps(${letters})`,
+            immediateRender: false,
+          },
+          said,
+        );
+      }
       if (lightsWords) {
         timeline.set(piece, { attr: { "data-on": "1" } }, start);
         timeline.set(
