@@ -186,29 +186,30 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
-  it("opens a coming-soon card instead of the voice menu in production", async () => {
-    vi.stubEnv("VITE_DD_ENV", "prod");
+  it("sends a free user to pricing from a locked voice over", async () => {
+    const onUpgradeVoice = vi.fn();
     const target = document.createElement("div");
     document.body.append(target);
     const component = mount(TiffyPanel, {
       target,
-      props: panelProps({ narrationToggle: true }),
+      props: panelProps({
+        narrationToggle: true,
+        voiceLocked: true,
+        onUpgradeVoice,
+      }),
     });
 
     try {
-      must<HTMLButtonElement>('[data-tour="narration"]').click();
+      const chip = must<HTMLButtonElement>('[data-tour="narration"]');
+      expect(chip.getAttribute("aria-label")).toContain("Starter and Pro");
+      chip.click();
       await tick();
-      const card = must(".voice-soon-card");
-      expect(card.closest(".ai-chat-composer")).toBeNull();
+      expect(onUpgradeVoice).toHaveBeenCalledTimes(1);
       expect(
         document.querySelector('[aria-label="Voice over"][role="menu"]'),
       ).toBeNull();
-      must<HTMLButtonElement>(".voice-soon-action").click();
-      await tick();
-      expect(document.querySelector(".voice-soon-card")).toBeNull();
     } finally {
       await unmount(component);
-      vi.unstubAllEnvs();
     }
   });
 

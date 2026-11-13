@@ -3,6 +3,7 @@
   import {
     Check,
     Loader2,
+    Lock,
     Mic,
     Music,
     Plus,
@@ -45,6 +46,9 @@
     onProgress: (step: "clips" | "cut" | "open") => void,
   ) => Promise<void>;
   export let onSignIn: () => void;
+  /** Voice-over comes with Starter and Pro; without them the switch opens pricing. */
+  export let voiceLocked = false;
+  export let onUpgrade: () => void = () => undefined;
 
   /** After Create: which step the video is on, until the editor opens. */
   let step: "clips" | "cut" | "open" | null = null;
@@ -69,7 +73,7 @@
   /** Auto (null) by default: the AI picks the length the footage needs. */
   let seconds: number | null = null;
   let format: FootageFormat = "9:16";
-  let captionLanguage = "km";
+  let captionLanguage = "auto";
   let music = true;
   let voiceover = false;
   let creating = false;
@@ -177,7 +181,7 @@
         };
         items = [...items, item];
         try {
-          if (file.size > VIDEO_MAX_BYTES) throw new Error("Over 50 MB");
+          if (file.size > VIDEO_MAX_BYTES) throw new Error("Over 500 MB");
           const info = await localInfo(file);
           const assetId = await uploadAsset(workspaceId, file, (progress) => {
             item.progress = progress;
@@ -220,7 +224,7 @@
           format,
           captionLanguage,
           music,
-          voiceover,
+          voiceover: voiceover && !voiceLocked,
           pictures,
           localFiles,
         },
@@ -283,7 +287,7 @@
           <span class="fs-drop__icon"><Upload size={22} /></span>
           <strong>Drop your videos here</strong>
           <small
-            >or click to choose · .mp4 .mov .webm · up to 50 MB each · phone
+            >or click to choose · .mp4 .mov .webm · up to 500 MB each · phone
             footage is fine · add your logo or product photos too</small
           >
         </button>
@@ -434,13 +438,26 @@
           <span><Music size={14} /> Background music</span>
           <input type="checkbox" role="switch" bind:checked={music} />
         </label>
-        <label
-          class="fs-option fs-switch"
-          title="For clips nobody speaks in: a narrator reads a script the AI writes, in the subtitle language"
-        >
-          <span><Mic size={14} /> Voice-over</span>
-          <input type="checkbox" role="switch" bind:checked={voiceover} />
-        </label>
+        {#if voiceLocked}
+          <div class="fs-option fs-switch">
+            <span><Mic size={14} /> Voice-over</span>
+            <button
+              type="button"
+              class="fs-plan-lock"
+              title="A narrator reads a script the AI writes. Included in Starter and Pro."
+              on:click={onUpgrade}
+              ><Lock size={12} aria-hidden="true" /> Starter · Pro</button
+            >
+          </div>
+        {:else}
+          <label
+            class="fs-option fs-switch"
+            title="For clips nobody speaks in: a narrator reads a script the AI writes, in the subtitle language"
+          >
+            <span><Mic size={14} /> Voice-over</span>
+            <input type="checkbox" role="switch" bind:checked={voiceover} />
+          </label>
+        {/if}
       </div>
     </div>
 

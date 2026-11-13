@@ -568,3 +568,26 @@
 .fs-foot[hidden] {
   display: none;
 }
+
+/* Voice-over on a free plan: a link to the plans instead of the switch. */
+.fs-plan-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--sl-border, #2e2e2e);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text-soft, #b4b4b4);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fs-plan-lock:hover {
+  color: var(--sl-text, #fff);
+  border-color: var(--fs-blue);
+}

@@ -6,6 +6,7 @@
     Captions,
     ImagePlus,
     Loader2,
+    Lock,
     ChevronDown,
     Clapperboard,
     Film,
@@ -48,6 +49,9 @@
   export let onClearSelection: () => void = () => undefined;
   /** Where attached pictures are uploaded. */
   export let workspaceId = "";
+  /** Voice-over comes with Starter and Pro; without them the option opens pricing. */
+  export let voiceLocked = false;
+  export let onUpgrade: () => void = () => undefined;
   /** An instruction, with the pictures attached to it (a logo, a product photo). */
   export let onInstruct: (instruction: string, assetIds: string[]) => void;
   export let onRoughCut: (options: {
@@ -65,7 +69,7 @@
   let recutOpen = !hasCut;
   let recutBrief = brief;
   let seconds: number | null = null;
-  let captionLanguage = "km";
+  let captionLanguage = "auto";
   let music = true;
   let voiceover = false;
 
@@ -194,7 +198,7 @@
       seconds,
       captionLanguage,
       music,
-      voiceover,
+      voiceover: voiceover && !voiceLocked,
     });
     recutOpen = false;
   }
@@ -259,11 +263,21 @@
           <label class="fx-check"
             ><input type="checkbox" bind:checked={music} /> Music</label
           >
-          <label
-            class="fx-check"
-            title="A narrator reads a script the AI writes, for clips nobody speaks in"
-            ><input type="checkbox" bind:checked={voiceover} /> Voice-over</label
-          >
+          {#if voiceLocked}
+            <button
+              type="button"
+              class="fx-check fx-plan-lock"
+              title="A narrator reads a script the AI writes. Included in Starter and Pro."
+              on:click={onUpgrade}
+              ><Lock size={12} aria-hidden="true" /> Voice-over · Starter, Pro</button
+            >
+          {:else}
+            <label
+              class="fx-check"
+              title="A narrator reads a script the AI writes, for clips nobody speaks in"
+              ><input type="checkbox" bind:checked={voiceover} /> Voice-over</label
+            >
+          {/if}
         </div>
         <button
           type="submit"

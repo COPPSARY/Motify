@@ -12,6 +12,7 @@ import {
   placeSounds,
   type FootageBox,
   type FootageCard,
+  captionSize,
   type FootageEdit,
 } from "./edit";
 
@@ -160,6 +161,19 @@ function titleMarkup(edit: FootageEdit): string {
     .join("\n    ");
 }
 
+/** The captions' colour and size as CSS variables, when set. */
+function captionVars(edit: FootageEdit): string {
+  const vars = [
+    edit.captions.color
+      ? `--fx-caption-color:${escapeHtml(edit.captions.color)}`
+      : "",
+    edit.captions.size && edit.captions.size !== 1
+      ? `--fx-caption-size:${captionSize(edit.captions.size)}`
+      : "",
+  ].filter(Boolean);
+  return vars.length > 0 ? ` style="${vars.join(";")}"` : "";
+}
+
 function captionMarkup(edit: FootageEdit): string {
   return placeCues(edit)
     .map(
@@ -220,12 +234,21 @@ export const FOOTAGE_CSS = `
 .fx-half--a { border-bottom: calc(4px * var(--fx-unit)) solid #000; }
 .fx--wide .fx-half--a { border-bottom: 0; border-right: calc(4px * var(--fx-unit)) solid #000; }
 .fx-captions--center .fx-cue { top: 50%; transform: translateY(-50%); }
-.fx-line { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.5; font-size: calc(60px * var(--fx-unit)); text-wrap: balance; text-shadow: 0 calc(2px * var(--fx-unit)) calc(4px * var(--fx-unit)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-unit)) rgba(0,0,0,.45); }
-.fx-alt { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.4; font-size: calc(56px * var(--fx-unit)); text-shadow: 0 calc(2px * var(--fx-unit)) calc(4px * var(--fx-unit)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-unit)) rgba(0,0,0,.45); }
+.fx-captions { --fx-cap: calc(var(--fx-unit) * var(--fx-caption-size, 1)); }
+.fx-line { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.5; font-size: calc(60px * var(--fx-cap)); text-wrap: balance; text-shadow: 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-cap)) rgba(0,0,0,.45); }
+.fx-alt { font-weight: 700; color: var(--fx-caption-color, #fff); line-height: 1.4; font-size: calc(56px * var(--fx-cap)); text-shadow: 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.55), 0 0 calc(18px * var(--fx-cap)) rgba(0,0,0,.45); }
+.fx-line .motionly-split-item { transform-origin: 50% 70%; }
 .fx-captions--pop .fx-line, .fx-captions--pop .fx-alt { color: var(--fx-caption-color, var(--fx-accent)); }
-.fx-captions--pop .fx-line .fx-on { color: #fff; }
-.fx-captions--box .fx-line { background: var(--fx-accent); color: var(--fx-ink); padding: calc(4px * var(--fx-unit)) calc(24px * var(--fx-unit)); border-radius: calc(16px * var(--fx-unit)); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.fx-captions--clean .fx-line .fx-on { color: var(--fx-accent); }
+.fx-captions--pop .fx-line [data-on="1"] { color: #fff; }
+.fx-captions--box .fx-line { background: var(--fx-accent); color: var(--fx-ink); padding: calc(4px * var(--fx-cap)) calc(24px * var(--fx-cap)); border-radius: calc(16px * var(--fx-cap)); -webkit-box-decoration-break: clone; box-decoration-break: clone; text-shadow: none; }
+.fx-captions--box .fx-line [data-on="1"] { color: #fff; }
+.fx-captions--clean .fx-line [data-on="1"] { color: var(--fx-accent); }
+.fx-captions--outline .fx-line, .fx-captions--outline .fx-alt { font-weight: 800; -webkit-text-stroke: calc(7px * var(--fx-cap)) #000; paint-order: stroke fill; text-shadow: 0 calc(5px * var(--fx-cap)) 0 #000; }
+.fx-captions--outline .fx-line [data-on="1"] { color: var(--fx-accent); }
+.fx-captions--glow .fx-line, .fx-captions--glow .fx-alt { text-shadow: 0 0 calc(10px * var(--fx-cap)) var(--fx-accent), 0 0 calc(28px * var(--fx-cap)) var(--fx-accent), 0 calc(2px * var(--fx-cap)) calc(4px * var(--fx-cap)) rgba(0,0,0,.6); }
+.fx-captions--glow .fx-line [data-on="1"] { color: var(--fx-accent); }
+.fx-captions--highlight .fx-line .motionly-split-item { padding: 0 calc(10px * var(--fx-cap)); border-radius: calc(12px * var(--fx-cap)); }
+.fx-captions--highlight .fx-line [data-on="1"] { background: var(--fx-accent); color: var(--fx-ink); text-shadow: none; }
 .fx .motionly-split-item { display: inline-block; }
 .fx-cardshot { display: flex; align-items: center; justify-content: center; background: var(--k-bg); --k-bg: #ebe4d6; --k-panel: #f8f4ec; --k-ink: #26221d; --k-soft: rgba(38,34,29,.38); --k-accent: #c96442; }
 .fx-kt--white { --k-bg: #ffffff; --k-panel: transparent; --k-ink: #15130f; --k-soft: rgba(21,19,15,.18); --k-accent: #e8322b; }
@@ -389,7 +412,7 @@ export function footageFiles(
     ${cutaways}
   </div>
   <div class="fx-flash"></div>
-  <div class="fx-captions fx-captions--${edit.captions.style} fx-captions--${edit.captions.position}"${edit.captions.color ? ` style="--fx-caption-color:${escapeHtml(edit.captions.color)}"` : ""}>
+  <div class="fx-captions fx-captions--${edit.captions.style} fx-captions--${edit.captions.position}"${captionVars(edit)}>
     ${captionMarkup(edit)}
   </div>
   <div class="fx-titles">

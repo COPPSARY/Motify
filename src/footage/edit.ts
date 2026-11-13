@@ -19,7 +19,42 @@ export type FootageTransition =
 export type FootageLayout = "full" | "split";
 export type FootageTitleStyle =
   "headline" | "kinetic" | "badge" | "lower-third" | "cta";
-export type FootageCaptionStyle = "pop" | "box" | "clean";
+/** How captions look: pop (accent text), box, clean (white), outline, glow, highlight (a box on the word being said). */
+export type FootageCaptionStyle =
+  "pop" | "box" | "clean" | "outline" | "glow" | "highlight";
+/** How captions move: a line that just appears, fades or pops in, or words that arrive, light up or bounce as they are said. */
+export type FootageCaptionAnimation =
+  "none" | "fade" | "pop" | "words" | "karaoke" | "bounce";
+
+export const FOOTAGE_CAPTION_STYLES: readonly FootageCaptionStyle[] = [
+  "clean",
+  "pop",
+  "box",
+  "outline",
+  "glow",
+  "highlight",
+];
+export const FOOTAGE_CAPTION_ANIMATIONS: readonly FootageCaptionAnimation[] = [
+  "none",
+  "fade",
+  "pop",
+  "words",
+  "karaoke",
+  "bounce",
+];
+/** Caption size as a multiple of the default (60 px on a 1080 px short side). */
+export const CAPTION_SIZE_MIN = 0.6;
+export const CAPTION_SIZE_MAX = 2;
+
+/** A caption size inside the allowed range; 1 for anything unreadable. */
+export function captionSize(size: number | undefined): number {
+  if (typeof size !== "number" || !Number.isFinite(size)) return 1;
+  return (
+    Math.round(
+      Math.min(CAPTION_SIZE_MAX, Math.max(CAPTION_SIZE_MIN, size)) * 100,
+    ) / 100
+  );
+}
 
 export const FOOTAGE_FORMATS: readonly FootageFormat[] = [
   "9:16",
@@ -433,6 +468,10 @@ export interface FootageEdit {
     position: "bottom" | "center";
     /** Caption colour; white (or the accent, for the yellow style) when absent. */
     color?: string;
+    /** Size as a multiple of the default; 1 when absent. */
+    size?: number;
+    /** How the captions move; "none" (a line that just appears) when absent. */
+    animation?: FootageCaptionAnimation;
     language: string;
     cues: CaptionCue[];
   };
@@ -974,6 +1013,50 @@ function voiceCues(line: FootageVoiceLine): PlacedCue[] {
     };
     at += length;
     return placed;
+  });
+}
+
+/**
+ * When each word piece of a placed cue is said, on the video's clock: by the
+ * transcript's word timings where the cue has them (matched by characters, so
+ * a Khmer cue split into other words than the transcript's still lines up),
+ * otherwise spread over the cue by length.
+ */
+export function cueWordTimes(
+  placed: PlacedCue,
+  pieces: readonly string[],
+): Array<{ start: number; end: number }> {
+  const compact = (text: string) => text.replace(/\s+/g, "");
+  const sizes = pieces.map((piece) => Math.max(1, compact(piece).length));
+  const total = sizes.reduce((sum, size) => sum + size, 0) || 1;
+  const span = Math.max(0.01, placed.end - placed.start);
+  const said = placed.words.filter((word) => word.end > word.start);
+  const saidChars = said.map((word) => Math.max(1, compact(word.text).length));
+  const saidTotal = saidChars.reduce((sum, size) => sum + size, 0);
+  /** The moment a fraction of the cue's characters has been said. */
+  const at = (fraction: number): number => {
+    if (said.length === 0 || saidTotal === 0)
+      return placed.start + fraction * span;
+    let position = fraction * saidTotal;
+    for (let index = 0; index < said.length; index += 1) {
+      const size = saidChars[index]!;
+      const word = said[index]!;
+      if (position <= size || index === said.length - 1) {
+        const share = Math.min(1, position / size);
+        return word.start + share * (word.end - word.start);
+      }
+      position -= size;
+    }
+    return placed.end;
+  };
+  let done = 0;
+  return sizes.map((size) => {
+    const from = at(done / total);
+    done += size;
+    const to = at(done / total);
+    const start = Math.min(Math.max(from, placed.start), placed.end);
+    const end = Math.min(Math.max(to, start + 0.05), placed.end);
+    return { start: round(start), end: round(Math.max(end, start)) };
   });
 }
 

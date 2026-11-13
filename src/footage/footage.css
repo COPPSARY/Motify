@@ -991,3 +991,17 @@ dialog.fx-start::backdrop {
     display: none;
   }
 }
+
+/* Voice-over on a free plan: a link to the plans instead of the checkbox. */
+.fx-plan-lock {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fx-plan-lock:hover {
+  color: var(--sl-text, #fff);
+}

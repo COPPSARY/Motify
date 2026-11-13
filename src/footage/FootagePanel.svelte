@@ -55,6 +55,9 @@
     updateCard,
     updateCutaway,
     updateTitle,
+    CAPTION_SIZE_MAX,
+    CAPTION_SIZE_MIN,
+    captionSize,
     type FootageEdit,
     type FootageCard,
     type FootageCorner,
@@ -1385,7 +1388,7 @@
           type="button"
           class="fx-upload-btn"
           class:fx-over={dragOver}
-          title=".mp4, .mov or .webm, up to 50 MB each"
+          title=".mp4, .mov or .webm, up to 500 MB each"
           on:click={() => fileInput.click()}
           on:dragover|preventDefault={() => (dragOver = true)}
           on:dragleave={() => (dragOver = false)}
@@ -1698,11 +1701,61 @@
                     "Caption style",
                   )}
               >
-                <option value="clean">White</option><option value="pop"
-                  >Yellow</option
-                ><option value="box">Box</option>
+                <option value="clean">White</option>
+                <option value="pop">Accent</option>
+                <option value="box">Box</option>
+                <option value="outline">Bold outline</option>
+                <option value="glow">Glow</option>
+                <option value="highlight">Word highlight</option>
               </select>
             </label>
+            <label
+              >Animation
+              <select
+                value={edit.captions.animation ?? "none"}
+                on:change={(e) =>
+                  onChange(
+                    {
+                      ...edit,
+                      captions: {
+                        ...edit.captions,
+                        animation: text(
+                          e,
+                        ) as FootageEdit["captions"]["animation"],
+                      },
+                    },
+                    "Caption animation",
+                  )}
+              >
+                <option value="none">None</option>
+                <option value="fade">Fade up</option>
+                <option value="pop">Pop in</option>
+                <option value="words">Word by word</option>
+                <option value="karaoke">Karaoke</option>
+                <option value="bounce">Bounce</option>
+              </select>
+            </label>
+            <label
+              >Size {Math.round(captionSize(edit.captions.size) * 100)}%
+              <input
+                type="range"
+                min={CAPTION_SIZE_MIN}
+                max={CAPTION_SIZE_MAX}
+                step="0.05"
+                value={captionSize(edit.captions.size)}
+                on:change={(e) =>
+                  onChange(
+                    {
+                      ...edit,
+                      captions: {
+                        ...edit.captions,
+                        size: captionSize(Number(text(e))),
+                      },
+                    },
+                    "Caption size",
+                  )}
+              /></label
+            >
             <label
               >Colour<input
                 type="color"
