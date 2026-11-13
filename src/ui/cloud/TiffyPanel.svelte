@@ -1,6 +1,4 @@
 <script lang="ts">
-  import VoiceComingSoonCard from "./VoiceComingSoonCard.svelte";
-  import { isVoiceOverReleased } from "./voice-release";
   import { tick } from "svelte";
   import {
     ArrowLeft,
@@ -110,6 +108,9 @@
   export let generationVoiceNote = "";
   /** Cloud only: narration runs on the backend's speech service. */
   export let narrationToggle = false;
+  /** Voice over comes with Starter and Pro; without them the chip opens pricing. */
+  export let voiceLocked = false;
+  export let onUpgradeVoice: () => void = () => undefined;
   /** Cloud only: a local project runs on the browser's own provider key. */
   export let modelPicker = false;
   /** Pro needs a paid plan; locked, it is shown faded and opens pricing instead. */
@@ -153,9 +154,6 @@
   let addMenuOpen = false;
   let narrationMenuOpen = false;
   let voiceCustomOpen = false;
-  let voiceSoonOpen = false;
-  /** Voice over is not released yet; production opens a coming-soon card instead of the menu. */
-  const voiceComingSoon = !isVoiceOverReleased();
   let narrationWrap: HTMLDivElement;
   let addMenu: HTMLDivElement;
   let aspectMenuOpen = false;
@@ -803,17 +801,21 @@
         <div class="ai-brand-picker" bind:this={narrationWrap}>
           <button
             class="ai-brand-chip"
-            class:is-unset={!generationNarration}
+            class:is-unset={voiceLocked || !generationNarration}
             data-tour="narration"
             type="button"
-            aria-label="Voice over"
-            aria-haspopup="menu"
-            aria-expanded={narrationMenuOpen}
-            title="Turn the voice over on or off, or customize the voice"
+            aria-label={voiceLocked
+              ? "Voice over, included in Starter and Pro"
+              : "Voice over"}
+            aria-haspopup={voiceLocked ? undefined : "menu"}
+            aria-expanded={voiceLocked ? undefined : narrationMenuOpen}
+            title={voiceLocked
+              ? "Voice over is included in Starter and Pro"
+              : "Turn the voice over on or off, or customize the voice"}
             disabled={$generationStore.isActive}
             on:click={() => {
-              if (voiceComingSoon) {
-                voiceSoonOpen = true;
+              if (voiceLocked) {
+                onUpgradeVoice();
                 return;
               }
               narrationMenuOpen = !narrationMenuOpen;
@@ -827,13 +829,15 @@
               if (event.key === "Escape") narrationMenuOpen = false;
             }}
           >
-            {#if generationNarration}
+            {#if voiceLocked}
+              <Lock size={14} aria-hidden="true" />
+            {:else if generationNarration}
               <Volume2 size={14} aria-hidden="true" />
             {:else}
               <VolumeX size={14} aria-hidden="true" />
             {/if}
             <span>Voice over</span>
-            <ChevronDown size={12} aria-hidden="true" />
+            {#if !voiceLocked}<ChevronDown size={12} aria-hidden="true" />{/if}
           </button>
           {#if narrationMenuOpen}
             <div class="ai-brand-menu" role="menu" aria-label="Voice over">
@@ -881,9 +885,6 @@
                 />
               {/if}
             </div>
-          {/if}
-          {#if voiceSoonOpen}
-            <VoiceComingSoonCard onClose={() => (voiceSoonOpen = false)} />
           {/if}
         </div>
       {/if}

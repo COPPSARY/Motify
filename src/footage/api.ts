@@ -56,6 +56,8 @@ export interface FootageStatus {
 export interface FootageEditResult {
   edit: FootageEdit;
   summary: string;
+  /** The AI asked instead of editing: `summary` is the question; nothing changed or was charged. */
+  question?: boolean;
   credits?: { charged: number; remaining: number };
 }
 

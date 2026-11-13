@@ -60,8 +60,8 @@ const VIDEO_CONTENT_TYPES: Record<string, string> = {
 
 export const VIDEO_ACCEPT =
   "video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov";
-/** What storage accepts per file (Supabase, 50 MB); larger uploads fail with a 400. */
-export const VIDEO_MAX_BYTES = 50_000_000;
+/** What storage accepts per file (Supabase, 500 MB); larger uploads fail with a 400. */
+export const VIDEO_MAX_BYTES = 500_000_000;
 
 function videoExtension(fileName: string): string {
   const dot = fileName.lastIndexOf(".");

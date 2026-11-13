@@ -110,7 +110,6 @@
   import CloudProjectGallery from "../cloud/CloudProjectGallery.svelte";
   import { carryEditorState } from "../composition/editor-state-carry";
   import EarlyNoticeCard from "./EarlyNoticeCard.svelte";
-  import { isVoiceOverReleased } from "./cloud/voice-release";
   import PromotionBanner from "./PromotionBanner.svelte";
   import ExportDialog from "./ExportDialog.svelte";
   import TourCoach from "../onboarding/TourCoach.svelte";
@@ -485,6 +484,9 @@
   const PENDING_ASPECT_KEY = "motionly_pending_aspect";
   let workspaceId = "";
   let activePlan: BillingPlanId | null = null;
+  /** Voice-over (Kiri TTS) comes with Starter and Pro; the API refuses it otherwise too. */
+  $: voiceOverAllowed =
+    activeSubscription?.entitlements?.voiceOver ?? activePlan !== null;
   /** The plan as last read, for the Billing page; null before it loads. */
   let activeSubscription: WorkspaceSubscription | null = null;
   let exportWithoutWatermark = false;
@@ -680,6 +682,8 @@
   let footagePast: FootageEdit[] = [];
   let footageFuture: FootageEdit[] = [];
   let footageBusy = false;
+  /** The instruction the AI answered with a question; the next message is the answer to it. */
+  let footageQuestion: { instruction: string; question: string } | null = null;
   let footageProjectId: string | undefined;
   let footageMountSequence = 0;
   /** True while a footage mount is downloading its clips. */
@@ -3529,6 +3533,7 @@
     pinnedIntentIds.clear();
     selectedAudio.set([]);
     assistantMessages = [];
+    footageQuestion = null;
     assistantDraft = "";
     generationPlan = null;
   }
@@ -3586,7 +3591,7 @@
     if (!first) {
       showNotice(
         tooLong.length > 0
-          ? "Videos are limited to 100 MB."
+          ? "Videos are limited to 500 MB."
           : `A prompt can use up to ${MAX_PROMPT_VIDEOS} videos.`,
       );
       return stagedBySource;
@@ -3789,7 +3794,7 @@
       }
     };
 
-    const voiceOverEnabled = isVoiceOverReleased() && generationNarration;
+    const voiceOverEnabled = voiceOverAllowed && generationNarration;
     const voiceNote = generationVoiceNote.trim();
     const result = await ai.generateWithDirectAi(
       voiceOverEnabled && voiceNote
@@ -4281,7 +4286,7 @@ Voice over direction: ${voiceNote}`
         ...(message.tool ? { tool: message.tool } : {}),
         effort: generationEffort,
         model: generationModel,
-        tts: isVoiceOverReleased() && generationNarration,
+        tts: voiceOverAllowed && generationNarration,
         assets: pending.assets.flatMap((asset) =>
           asset.uploadId
             ? [
@@ -5199,15 +5204,33 @@ Voice over direction: ${voiceNote}`
           : instruction,
       },
     ];
+    // An answer to the AI's question goes back with what it was asked to do.
+    const asked = footageQuestion;
+    footageQuestion = null;
+    const sent = asked
+      ? `${asked.instruction.slice(0, 1400)}\nANSWERED: ${asked.question.slice(0, 300)} → ${instruction}`.slice(
+          0,
+          2000,
+        )
+      : instruction;
     try {
       await whenClipsReady(edit.clips.map((clip) => clip.assetId));
       const result = await editByInstruction(
         cloudProject.id,
         edit,
-        instruction,
+        sent,
         scoped ? focus : undefined,
         assetIds,
       );
+      if (result.question) {
+        // Nothing changed and nothing was charged: just the question.
+        footageQuestion = { instruction: sent, question: result.summary };
+        assistantMessages = [
+          ...assistantMessages,
+          { role: "assistant", text: result.summary },
+        ];
+        return;
+      }
       await applyFootageEdit(result.edit, instruction.slice(0, 40));
       // Cards the instruction added are made by Motify's generator, with any attached pictures.
       void generateMotionCards(undefined, assetIds, result.edit);
@@ -5748,7 +5771,7 @@ Voice over direction: ${voiceNote}`
                     aria-current={centerPage === "footage" ? "page" : undefined}
                     on:click={() => openPage("footage")}
                   >
-                    <Film size={16} /><span>Edit footage</span><span
+                    <Film size={16} /><span>AI Video Editor</span><span
                       class="fx-beta">Beta</span
                     >
                   </button>
@@ -6126,6 +6149,8 @@ Voice over direction: ${voiceNote}`
               {:else if centerPage === "footage"}
                 <FootageStart
                   {workspaceId}
+                  voiceLocked={!voiceOverAllowed}
+                  onUpgrade={openPricing}
                   onCreate={createFootageProject}
                   onSignIn={() => openAuthDialog("signin")}
                 />
@@ -6985,6 +7010,8 @@ Voice over direction: ${voiceNote}`
 
         {#if footageMode && footageEdit}
           <FootageChat
+            voiceLocked={!voiceOverAllowed}
+            onUpgrade={openPricing}
             messages={assistantMessages}
             busy={footageBusy}
             activity={footageActivity}
@@ -7632,6 +7659,8 @@ Voice over direction: ${voiceNote}`
     bind:generationNarration
     bind:generationVoiceNote
     narrationToggle={mode === "cloud"}
+    voiceLocked={!voiceOverAllowed}
+    onUpgradeVoice={openPricing}
     {generationModel}
     modelPicker={mode === "cloud"}
     modelLocked={!activePlan}

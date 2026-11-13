@@ -1,5 +1,6 @@
 import {
   FORMAT_SIZE,
+  cueWordTimes,
   cutawayFrame,
   editDuration,
   placeCues,
@@ -370,18 +371,133 @@ export function footageTimeline(
   splitReveals(root, timeline, edit);
   speakerWindows(root, timeline, edit);
 
-  // Captions are plain text: each line simply appears for as long as it is said.
-  placeCues(edit).forEach((placed, index) => {
-    const cue = byId(root, `fx-cue-${index}`);
-    if (!cue) return;
-    timeline.set(cue, { autoAlpha: 1 }, placed.start);
-    timeline.set(cue, { autoAlpha: 0 }, placed.end);
-  });
+  animateCaptions(root, timeline, edit);
 
   for (const title of edit.titles) animateTitle(root, timeline, title, total);
 
   // The film lasts exactly as long as the cut.
   timeline.set({}, {}, total);
+}
+
+/**
+ * Captions on the clock. Each line shows for as long as it is said and, by the
+ * edit's animation, fades or pops in, or its words arrive, light up or bounce
+ * as each is said. Word times come from the transcript (cueWordTimes); every
+ * tween is a fromTo on the timeline, so any frame can be sought for export.
+ */
+function animateCaptions(
+  root: HTMLElement,
+  timeline: gsap.core.Timeline,
+  edit: FootageEdit,
+): void {
+  const animation = edit.captions.animation ?? "none";
+  const lightsWords =
+    animation === "karaoke" ||
+    animation === "bounce" ||
+    edit.captions.style === "highlight";
+  const byWord = lightsWords || animation === "words";
+  // Movement in percent of the text's own height, so it scales with the caption.
+  const lift = 22;
+  placeCues(edit).forEach((placed, index) => {
+    const cue = byId(root, `fx-cue-${index}`);
+    if (!cue) return;
+    const span = Math.max(0.05, placed.end - placed.start);
+    timeline.set(cue, { autoAlpha: 1 }, placed.start);
+    timeline.set(cue, { autoAlpha: 0 }, placed.end);
+    // The cue itself may be centred with a transform, so its lines are what move.
+    const lines = Array.from(
+      cue.querySelectorAll<HTMLElement>(".fx-line, .fx-alt"),
+    );
+    const enter = Math.min(0.3, span / 3);
+    if (animation === "fade")
+      timeline.fromTo(
+        lines,
+        { autoAlpha: 0, yPercent: lift },
+        {
+          autoAlpha: 1,
+          yPercent: 0,
+          duration: enter,
+          ease: "power2.out",
+          immediateRender: false,
+        },
+        placed.start,
+      );
+    else if (animation === "pop")
+      timeline.fromTo(
+        lines,
+        { autoAlpha: 0, scale: 0.6 },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          duration: enter,
+          ease: "back.out(2.4)",
+          immediateRender: false,
+        },
+        placed.start,
+      );
+    const line = cue.querySelector<HTMLElement>(".fx-line");
+    if (!byWord || !line) return;
+    const pieces = splitIntoWords(line, placed.cue.text);
+    const times = cueWordTimes(
+      placed,
+      pieces.map((piece) => piece.textContent ?? ""),
+    );
+    pieces.forEach((piece, at) => {
+      const { start, end } = times[at]!;
+      // Hidden from the moment the line shows until the word is said.
+      if (animation === "words")
+        timeline.set(piece, { autoAlpha: 0 }, placed.start);
+      if (animation === "words")
+        timeline.fromTo(
+          piece,
+          { autoAlpha: 0, yPercent: lift * 1.5, scale: 0.7 },
+          {
+            autoAlpha: 1,
+            yPercent: 0,
+            scale: 1,
+            duration: Math.min(0.22, span / 2),
+            ease: "back.out(2.6)",
+            immediateRender: false,
+          },
+          Math.max(placed.start, start - 0.04),
+        );
+      if (lightsWords) {
+        timeline.set(piece, { attr: { "data-on": "1" } }, start);
+        timeline.set(
+          piece,
+          { attr: { "data-on": "0" } },
+          Math.max(start + 0.05, end),
+        );
+      }
+      if (animation === "bounce") {
+        const up = Math.min(0.12, (end - start) / 2);
+        timeline.fromTo(
+          piece,
+          { yPercent: 0, scale: 1 },
+          {
+            yPercent: -lift,
+            scale: 1.18,
+            duration: up,
+            ease: "power2.out",
+            immediateRender: false,
+          },
+          start,
+        );
+        timeline.fromTo(
+          piece,
+          { yPercent: -lift, scale: 1.18 },
+          {
+            yPercent: 0,
+            scale: 1,
+            duration: Math.min(0.18, Math.max(0.06, end - start - up)),
+            ease: "power2.inOut",
+            immediateRender: false,
+          },
+          start + up,
+        );
+      }
+    });
+  });
 }
 
 /**

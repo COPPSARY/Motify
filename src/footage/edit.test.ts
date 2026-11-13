@@ -13,6 +13,8 @@ import {
   emptyEdit,
   moveSegment,
   placeCues,
+  captionSize,
+  cueWordTimes,
   placeSegments,
   placeSounds,
   removeSegment,
@@ -660,5 +662,53 @@ describe("overlays in a box of their own", () => {
     expect(cutawayFrame({ kind: "card", box: speaker })).toEqual({
       top: false,
     });
+  });
+});
+
+describe("caption motion", () => {
+  const placed = {
+    cue: { id: "c1", assetId: "a", start: 0, end: 2, text: "hello big world" },
+    start: 10,
+    end: 12,
+    words: [
+      { text: "hello", start: 10, end: 10.5 },
+      { text: "big", start: 11, end: 11.3 },
+      { text: "world", start: 11.4, end: 12 },
+    ],
+  };
+
+  it("times each word piece by the transcript's words", () => {
+    expect(cueWordTimes(placed, ["hello", "big", "world"])).toEqual([
+      { start: 10, end: 10.5 },
+      { start: 10.5, end: 11.3 },
+      { start: 11.3, end: 12 },
+    ]);
+  });
+
+  it("matches pieces split differently from the transcript by characters", () => {
+    // Khmer is segmented by the browser, not as the transcript heard it.
+    const times = cueWordTimes(placed, ["hel", "lobig", "world"]);
+    expect(times).toHaveLength(3);
+    expect(times[0]!.start).toBe(10);
+    expect(times[2]!.end).toBe(12);
+    expect(
+      times.every(
+        (time, index) => index === 0 || time.start >= times[index - 1]!.start,
+      ),
+    ).toBe(true);
+  });
+
+  it("spreads words over a reworded cue by length", () => {
+    expect(cueWordTimes({ ...placed, words: [] }, ["ab", "ab"])).toEqual([
+      { start: 10, end: 11 },
+      { start: 11, end: 12 },
+    ]);
+  });
+
+  it("keeps caption sizes inside the range", () => {
+    expect(captionSize(undefined)).toBe(1);
+    expect(captionSize(5)).toBe(2);
+    expect(captionSize(0.1)).toBe(0.6);
+    expect(captionSize(1.333)).toBe(1.33);
   });
 });

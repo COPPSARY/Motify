@@ -44,6 +44,8 @@ export interface WorkspaceEntitlements {
   maxExportHeight: number;
   /** The longest film the account can make, in seconds; null on a paid plan. Absent on older API nodes. */
   maxFilmSeconds?: number | null;
+  /** Kiri TTS voice-over (film narration, footage voice-overs): Starter and Pro. Absent on older API nodes. */
+  voiceOver?: boolean;
 }
 
 export interface WorkspaceSubscription {
