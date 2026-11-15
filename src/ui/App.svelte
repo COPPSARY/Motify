@@ -1004,6 +1004,8 @@
           void refreshCredits();
           void refreshActivePlan();
           void loadBrand();
+          // A paid plan skips the team's queue: its films go to the AI.
+          void refreshFulfillmentMode();
         }
         // A prompt carried over from motionly.site is what the visitor came
         // for, so a guest is asked to make an account right away.
@@ -4060,6 +4062,8 @@ Voice over direction: ${voiceNote}`
     void refreshActivePlan();
     void refreshPromotionBanner();
     void loadBrand();
+    // A paid plan skips the team's queue, so ask before a held prompt is sent.
+    await refreshFulfillmentMode();
     const held = promptHeldForAuth;
     promptHeldForAuth = "";
     if (held) {
