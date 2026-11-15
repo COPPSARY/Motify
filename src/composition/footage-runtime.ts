@@ -3,6 +3,8 @@ import {
   FORMAT_SIZE,
   STACK_TONES,
   captionKeywords,
+  chartGeometry,
+  chartRises,
   cleanCaptionDesign,
   cueWordTimes,
   stackBreaks,
@@ -11,8 +13,13 @@ import {
   placeCues,
   placeCutaways,
   placeSegments,
+  markTime,
   sameBox,
+  spokenWords,
+  type CaptionWord,
+  type FootageCard,
   type FootageEdit,
+  type FootageFormat,
   type FootageSpeakerBox,
   type FootageTitle,
 } from "../footage/edit";
@@ -111,11 +118,24 @@ export function footageTimeline(
   const total = Math.max(0.5, editDuration(edit));
   const placed = placeSegments(edit);
   const flash = root.querySelector<HTMLElement>(".fx-flash");
+  // What is said when, for a card's highlight to land on its words.
+  const words = spokenWords(edit);
 
   placed.forEach(({ segment, start, end }, index) => {
     const shot = byId(root, `fx-shot-${segment.id}`);
     if (!shot) return;
-    if (segment.card) animateCard(timeline, shot, start, end);
+    if (segment.card) {
+      animateCard(timeline, shot, start, end);
+      animateStudioCard(
+        timeline,
+        shot,
+        segment.card,
+        edit.format,
+        start,
+        end,
+        words,
+      );
+    }
     const film = shot.querySelector<HTMLElement>(".fx-card-film");
     if (film) mountCardFilm(timeline, film, start, end);
     const video =
@@ -301,6 +321,16 @@ export function footageTimeline(
     timeline.set(layer, { autoAlpha: 0 }, end);
     if (placed.cutaway.kind === "card") {
       animateCard(timeline, layer, start, end);
+      if (placed.cutaway.card)
+        animateStudioCard(
+          timeline,
+          layer,
+          placed.cutaway.card,
+          edit.format,
+          start,
+          end,
+          words,
+        );
       const film = layer.querySelector<HTMLElement>(".fx-card-film");
       if (film) mountCardFilm(timeline, film, start, end);
       // It arrives with a quick rise and leaves with a fade, over the talk.
@@ -377,6 +407,7 @@ export function footageTimeline(
 
   splitReveals(root, timeline, edit);
   speakerWindows(root, timeline, edit);
+  bubbleRides(root, timeline, edit);
 
   animateCaptions(root, timeline, edit);
 
@@ -827,6 +858,263 @@ function animateCard(
   }
 }
 
+/** Quadratic ease in and out, and its inverse: shared by a chart's line and what follows it. */
+const easeInOut = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+const easeInOutInverse = (y: number) =>
+  y < 0.5 ? Math.sqrt(y / 2) : 1 - Math.sqrt((1 - y) / 2);
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+/** When a chart's line draws, inside the card's time. */
+export function chartTiming(
+  start: number,
+  end: number,
+): { drawStart: number; drawEnd: number } {
+  const span = Math.max(0.4, end - start);
+  const drawStart = start + Math.min(0.45, span * 0.12);
+  const drawEnd = Math.min(
+    end - 0.15,
+    drawStart + Math.max(0.8, Math.min(span * 0.6, 3.2)),
+  );
+  return { drawStart, drawEnd: Math.max(drawStart + 0.3, drawEnd) };
+}
+
+/**
+ * A chart line's head as it is drawn across: for a share of the chart's
+ * width, the point on the line there and how much of the line that is. The
+ * line runs left to right, so the head is found by its x. Null where the
+ * browser cannot measure paths (tests), and the line then simply shows.
+ */
+function lineTracer(
+  line: SVGPathElement,
+  area: { x: number; w: number },
+):
+  | ((share: number) => { x: number; y: number; length: number; total: number })
+  | null {
+  if (typeof line.getTotalLength !== "function") return null;
+  let total = -1;
+  return (share) => {
+    if (total < 0) total = line.getTotalLength();
+    const target = area.x + clamp01(share) * area.w;
+    let low = 0;
+    let high = total;
+    for (let step = 0; step < 22; step += 1) {
+      const middle = (low + high) / 2;
+      if (line.getPointAtLength(middle).x < target) low = middle;
+      else high = middle;
+    }
+    const point = line.getPointAtLength(high);
+    return { x: point.x, y: point.y, length: high, total };
+  };
+}
+
+/**
+ * What the studio look and the new card kinds add to a card's motion: the
+ * title lands word by word, its marked words get a highlighter swept across
+ * them as they are said (or just after the title lands, when they are not),
+ * and a chart's line draws itself, its dot at the head, its area filling in
+ * behind and each note popping on as the line reaches its point.
+ */
+function animateStudioCard(
+  timeline: gsap.core.Timeline,
+  shot: HTMLElement,
+  card: FootageCard,
+  format: FootageFormat,
+  start: number,
+  end: number,
+  words: readonly CaptionWord[],
+): void {
+  const span = Math.max(0.4, end - start);
+  const pieces = Array.from(
+    shot.querySelectorAll<HTMLElement>(".fx-k-worded .fx-k-w"),
+  );
+  const stagger =
+    pieces.length > 0 ? Math.min(0.09, (span * 0.3) / pieces.length) : 0;
+  const landed = start + 0.1 + stagger * pieces.length + 0.3;
+  // Hidden from the moment the card shows until each word lands.
+  if (pieces.length > 0) timeline.set(pieces, { autoAlpha: 0 }, start);
+  if (pieces.length > 0)
+    timeline.fromTo(
+      pieces,
+      { autoAlpha: 0, y: 26, filter: "blur(6px)" },
+      {
+        autoAlpha: 1,
+        y: 0,
+        filter: "blur(0px)",
+        duration: 0.38,
+        stagger,
+        ease: "power3.out",
+        immediateRender: false,
+      },
+      start + 0.1,
+    );
+  const mark = shot.querySelector<HTMLElement>(".fx-k-mark");
+  if (mark && card.mark) {
+    const said = markTime(words, card.mark, start, end);
+    const from = Math.min(
+      end - 0.4,
+      Math.max(landed, said?.start ?? landed + 0.1),
+    );
+    const sweep = Math.min(
+      0.75,
+      Math.max(0.28, said ? said.end - said.start : 0.45),
+    );
+    // Unswept from the moment the card shows, however the playhead got there.
+    timeline.set(mark, { backgroundSize: "0% 100%" }, start);
+    timeline.fromTo(
+      mark,
+      { backgroundSize: "0% 100%" },
+      {
+        backgroundSize: "100% 100%",
+        duration: Math.max(0.1, Math.min(sweep, end - from - 0.05)),
+        ease: "power2.inOut",
+        immediateRender: false,
+      },
+      from,
+    );
+  }
+  if (card.template !== "chart" || !card.points || card.points.length < 2)
+    return;
+  const line = shot.querySelector<SVGPathElement>(".fx-k-line");
+  if (!line) return;
+  const tip = shot.querySelector<SVGCircleElement>(".fx-k-tip");
+  const reveal = shot.querySelector<SVGRectElement>(".fx-k-reveal");
+  const { area } = chartGeometry(format, card.points);
+  const { drawStart, drawEnd } = chartTiming(start, end);
+  const trace = lineTracer(line, area);
+  const draw = (share: number) => {
+    const head = trace?.(share);
+    const shown = share > 0.001 ? "1" : "0";
+    line.style.opacity = shown;
+    if (tip) tip.style.opacity = shown;
+    if (!head) {
+      // Nothing to measure with: the whole line shows once it starts.
+      if (reveal) reveal.setAttribute("width", String(area.w * share));
+      return;
+    }
+    line.style.strokeDasharray = `${head.length} ${head.total + 1}`;
+    if (tip) {
+      tip.setAttribute("cx", String(head.x));
+      tip.setAttribute("cy", String(head.y));
+    }
+    if (reveal)
+      reveal.setAttribute("width", String(Math.max(0, head.x - area.x)));
+  };
+  draw(0);
+  const clock = { share: 0 };
+  timeline.fromTo(
+    clock,
+    { share: 0 },
+    {
+      share: 1,
+      duration: drawEnd - drawStart,
+      ease: "none",
+      immediateRender: false,
+      onUpdate: () => draw(easeInOut(clock.share)),
+    },
+    drawStart,
+  );
+  // Each note pops on as the line reaches its point.
+  const count = card.points.length;
+  for (const note of Array.from(
+    shot.querySelectorAll<HTMLElement>(".fx-k-note"),
+  )) {
+    const pill = note.firstElementChild as HTMLElement | null;
+    const at = Number(note.dataset["at"] ?? 0);
+    if (!pill || !Number.isFinite(at)) continue;
+    const reached =
+      drawStart +
+      easeInOutInverse(clamp01(at / Math.max(1, count - 1))) *
+        (drawEnd - drawStart);
+    // Hidden from the moment the card shows, however the playhead got there.
+    timeline.set(pill, { autoAlpha: 0 }, start);
+    timeline.fromTo(
+      pill,
+      { autoAlpha: 0, scale: 0.4, y: 12 },
+      {
+        autoAlpha: 1,
+        scale: 1,
+        y: 0,
+        duration: 0.4,
+        ease: "back.out(2.2)",
+        immediateRender: false,
+      },
+      Math.min(end - 0.3, reached),
+    );
+  }
+}
+
+/**
+ * On a chart that climbs to its highest point, the speaker's bubble leaves its
+ * corner, rides the head of the line up as it draws, holds on the top a
+ * moment, then goes back to its corner before the card ends.
+ */
+function bubbleRides(
+  root: HTMLElement,
+  timeline: gsap.core.Timeline,
+  edit: FootageEdit,
+): void {
+  const shots = root.querySelector<HTMLElement>(".fx-shots");
+  if (!shots) return;
+  const frame = FORMAT_SIZE[edit.format];
+  placeCutaways(edit).forEach((placed, index) => {
+    const card = placed.cutaway.card;
+    const box = cutawayFrame(placed.cutaway).speaker;
+    if (!card || card.template !== "chart" || !chartRises(card.points)) return;
+    if (!box || (box.radius ?? 0) < 0.5) return;
+    const line = byId(root, `fx-cut-${index}`)?.querySelector<SVGPathElement>(
+      ".fx-k-line",
+    );
+    if (!line) return;
+    const trace = lineTracer(
+      line,
+      chartGeometry(edit.format, card.points!).area,
+    );
+    if (!trace) return;
+    const { drawStart, drawEnd } = chartTiming(placed.start, placed.end);
+    // Clear of the bubble's own moves in and out of its corner.
+    const move = Math.min(0.45, (placed.end - placed.start) / 3);
+    const from = Math.max(drawStart, placed.start + move + 0.02);
+    const to = Math.min(drawEnd + 0.9, placed.end - move - 0.05);
+    if (to - from < 0.8) return;
+    const home = { x: box.x * 100, y: box.y * 100 };
+    const clock = { time: 0 };
+    timeline.fromTo(
+      clock,
+      { time: 0 },
+      {
+        time: to - from,
+        duration: to - from,
+        ease: "none",
+        immediateRender: false,
+        onUpdate: () => {
+          const now = from + clock.time;
+          const head = trace(
+            easeInOut(clamp01((now - drawStart) / (drawEnd - drawStart))),
+          );
+          // Eased away from the corner and back to it, never a jump.
+          const blend = easeInOut(
+            Math.min(clamp01((now - from) / 0.4), clamp01((to - now) / 0.5)),
+          );
+          // Carried just below and right of the head, so the head and a note pinned on it stay in view;
+          // kept inside the frame.
+          const x = Math.min(
+            100 - box.w * 100 - 2,
+            (head.x / frame.width + box.w * 0.08) * 100,
+          );
+          const y = Math.min(
+            100 - box.h * 100 - 3,
+            (head.y / frame.height + box.h * 0.12) * 100,
+          );
+          shots.style.left = `${home.x + (x - home.x) * blend}%`;
+          shots.style.top = `${home.y + (y - home.y) * blend}%`;
+        },
+      },
+      from,
+    );
+  });
+}
+
 interface SeekableWindow extends Window {
   seek?: (time: number) => void;
 }
@@ -903,6 +1191,35 @@ function animateTitle(
   if (end < total - 0.01) timeline.set(element, { autoAlpha: 0 }, end);
 
   switch (title.style) {
+    case "point": {
+      // A checklist point: its tick pops in, then the highlighted words sweep on.
+      const icon = element.querySelector<HTMLElement>(".fx-title-icon");
+      if (icon)
+        timeline.fromTo(
+          icon,
+          { scale: 0, rotation: -120 },
+          {
+            scale: 1,
+            rotation: 0,
+            duration: 0.42,
+            ease: "back.out(2.2)",
+            immediateRender: false,
+          },
+          start,
+        );
+      timeline.fromTo(
+        text,
+        { clipPath: "inset(-20% 100% -20% 0)" },
+        {
+          clipPath: "inset(-20% -2% -20% 0)",
+          duration: 0.45,
+          ease: "power3.out",
+          immediateRender: false,
+        },
+        start + 0.12,
+      );
+      break;
+    }
     case "kinetic":
       // Giant-to-settle: enters huge and blurred, pulls back into focus word by word.
       timeline.fromTo(

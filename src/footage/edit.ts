@@ -17,8 +17,12 @@ export type FootageTransition =
   "cut" | "slide" | "blur" | "zoom" | "whip" | "flash";
 /** "split": another clip fills the top half (left in 16:9) while this one plays below. */
 export type FootageLayout = "full" | "split";
+/**
+ * "point": a checklist point over the speaker, top left. Points on screen at the
+ * same time stack, so a few in a row build a list as each is said.
+ */
 export type FootageTitleStyle =
-  "headline" | "kinetic" | "badge" | "lower-third" | "cta";
+  "headline" | "kinetic" | "badge" | "lower-third" | "cta" | "point";
 /**
  * How captions look: pop (accent text), box, clean (white), outline, glow,
  * highlight (a box on the word being said), stack (the phrase builds up in
@@ -291,22 +295,114 @@ export const FOOTAGE_TITLE_STYLES: readonly FootageTitleStyle[] = [
   "badge",
   "lower-third",
   "cta",
+  "point",
 ];
 
-export type FootageCardTemplate = "spotlight" | "statement" | "list" | "end";
-export type FootageCardTheme = "paper" | "white" | "dark" | "accent";
+/** "chart": a line that draws itself through `points`, with `notes` pinned on it, under the title. */
+export type FootageCardTemplate =
+  "spotlight" | "statement" | "list" | "end" | "chart";
+/** "studio": the brand colour as a deep gradient with a faint grid and white type. */
+export type FootageCardTheme = "paper" | "white" | "dark" | "accent" | "studio";
 export const FOOTAGE_CARD_TEMPLATES: readonly FootageCardTemplate[] = [
   "spotlight",
   "statement",
   "list",
   "end",
+  "chart",
 ];
 export const FOOTAGE_CARD_THEMES: readonly FootageCardTheme[] = [
   "paper",
   "white",
   "dark",
   "accent",
+  "studio",
 ];
+
+/** A label pinned on a chart, on the point numbered `at` (from 0). */
+export interface FootageChartNote {
+  at: number;
+  text: string;
+}
+
+/**
+ * Cards Motify draws itself rather than sending to its motion-graphics
+ * generator: a chart, whose line has to follow its numbers, and the studio
+ * look, whose cards are one family with the speaker's bubble and highlights.
+ */
+export function drawnCard(
+  card: Pick<FootageCard, "template" | "theme">,
+): boolean {
+  return card.template === "chart" || card.theme === "studio";
+}
+
+/** Where a chart sits in the frame, as fractions of it, by the video's shape. */
+const CHART_AREA: Record<
+  FootageFormat,
+  { x: number; y: number; w: number; h: number }
+> = {
+  "9:16": { x: 0.09, y: 0.44, w: 0.82, h: 0.24 },
+  "1:1": { x: 0.09, y: 0.42, w: 0.82, h: 0.38 },
+  "16:9": { x: 0.08, y: 0.36, w: 0.84, h: 0.46 },
+};
+
+/**
+ * A chart's line in the frame's own pixels: each point placed across the
+ * chart's area (the lowest value at its foot, the highest at its top, with a
+ * margin), and a smooth path through them.
+ */
+export function chartGeometry(
+  format: FootageFormat,
+  values: readonly number[],
+): {
+  area: { x: number; y: number; w: number; h: number };
+  points: Array<{ x: number; y: number }>;
+  path: string;
+} {
+  const frame = FORMAT_SIZE[format];
+  const box = CHART_AREA[format];
+  const area = {
+    x: box.x * frame.width,
+    y: box.y * frame.height,
+    w: box.w * frame.width,
+    h: box.h * frame.height,
+  };
+  const usable = values.filter((value) => Number.isFinite(value));
+  const low = Math.min(...usable);
+  const high = Math.max(...usable);
+  const range = high - low || 1;
+  const step = usable.length > 1 ? area.w / (usable.length - 1) : 0;
+  const points = usable.map((value, index) => ({
+    x: Math.round((area.x + index * step) * 10) / 10,
+    // A flat line sits in the middle; otherwise the values span 85% of the height.
+    y:
+      Math.round(
+        (high === low
+          ? area.y + area.h / 2
+          : area.y + area.h * (0.075 + 0.85 * (1 - (value - low) / range))) *
+          10,
+      ) / 10,
+  }));
+  // Catmull-Rom through the points, as cubic Béziers: smooth, and through every point.
+  let path = points[0] ? `M${points[0].x} ${points[0].y}` : "";
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const p0 = points[index - 1] ?? points[index]!;
+    const p1 = points[index]!;
+    const p2 = points[index + 1]!;
+    const p3 = points[index + 2] ?? p2;
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    const r = (value: number) => Math.round(value * 10) / 10;
+    path += ` C${r(c1.x)} ${r(c1.y)} ${r(c2.x)} ${r(c2.y)} ${p2.x} ${p2.y}`;
+  }
+  return { area, points, path };
+}
+
+/** A chart that ends on its highest point: a win, which the speaker's bubble rides up. */
+export function chartRises(values: readonly number[] | undefined): boolean {
+  if (!values || values.length < 2) return false;
+  const last = values[values.length - 1]!;
+  return last > values[0]! && values.every((value) => value <= last);
+}
 
 /**
  * A motion graphic cut between shots: a full-frame animated card the footage
@@ -325,6 +421,12 @@ export interface FootageCard {
   big?: string;
   /** For a list: up to four short lines. */
   items?: string[];
+  /** For a chart: the line's values in order, any scale; 2 to 12 of them. */
+  points?: number[];
+  /** For a chart: short labels pinned on its points. */
+  notes?: FootageChartNote[];
+  /** Words of the title that get a highlighter swept across them as they are said. */
+  mark?: string;
   /**
    * The card made by Motify's motion-graphics generator, in a project of its
    * own; played in the card's place once ready. The template shows until then.
@@ -449,11 +551,11 @@ export const FOOTAGE_WINDOW_SIZES: readonly FootageWindowSize[] = [
 
 /**
  * The named placements: the two layouts, an overlay in a small window over the
- * speaker, and the speaker in a small window over a full-frame overlay. Any
- * other pair of boxes is "custom", the person's own.
+ * speaker, the speaker in a small window over a full-frame overlay, or in a
+ * round bubble over it. Any other pair of boxes is "custom", the person's own.
  */
 export type FootagePlacementName =
-  "full" | "top" | "window" | "speaker-window" | "custom";
+  "full" | "top" | "window" | "speaker-window" | "speaker-bubble" | "custom";
 export interface FootagePlacement {
   name: FootagePlacementName;
   corner?: FootageCorner;
@@ -519,6 +621,38 @@ export function windowBox(
   };
 }
 
+/** A bubble's width, as a fraction of the frame's short side. */
+const BUBBLE_SIZE: Record<FootageWindowSize, number> = {
+  small: 0.24,
+  medium: 0.3,
+  large: 0.38,
+};
+export const DEFAULT_BUBBLE_CORNER: FootageCorner = "top-right";
+
+/** The speaker in a round bubble: a square box in a corner, as round as it can be. */
+export function bubbleBox(
+  format: FootageFormat,
+  corner: FootageCorner = DEFAULT_BUBBLE_CORNER,
+  size: FootageWindowSize = "small",
+): FootageBox {
+  const frame = FORMAT_SIZE[format];
+  const short = Math.min(frame.width, frame.height);
+  const side = BUBBLE_SIZE[size] * short;
+  const margin = 0.05 * short;
+  const w = side / frame.width;
+  const h = side / frame.height;
+  const marginX = margin / frame.width;
+  const marginBottom = margin / frame.height;
+  const marginTop = format === "9:16" ? 0.08 : marginBottom;
+  return {
+    x: fraction(corner.endsWith("left") ? marginX : 1 - marginX - w),
+    y: fraction(corner.startsWith("top") ? marginTop : 1 - marginBottom - h),
+    w: fraction(w),
+    h: fraction(h),
+    radius: 0.5,
+  };
+}
+
 /** A box kept inside the frame, at least a twentieth of it each way. */
 export function cleanBox<T extends FootageBox>(box: T): T {
   const within = (value: number, min: number, max: number) =>
@@ -563,6 +697,13 @@ export function placementBoxes(
         front: true,
       },
     };
+  if (placement.name === "speaker-bubble")
+    return {
+      speaker: {
+        ...bubbleBox(format, placement.corner, placement.size),
+        front: true,
+      },
+    };
   return {};
 }
 
@@ -582,25 +723,32 @@ export function placementOf(
   const box = who === "overlay" ? cutaway.box : cutaway.speaker;
   if (who && box)
     for (const corner of FOOTAGE_CORNERS)
-      for (const size of FOOTAGE_WINDOW_SIZES)
+      for (const size of FOOTAGE_WINDOW_SIZES) {
         if (sameBox(box, windowBox(format, who, corner, size)))
           return {
             name: who === "overlay" ? "window" : "speaker-window",
             corner,
             size,
           };
+        if (who === "speaker" && sameBox(box, bubbleBox(format, corner, size)))
+          return { name: "speaker-bubble", corner, size };
+      }
   return { name: "custom" };
 }
 
 /**
  * How an overlay is drawn: in the top half with the speaker slid below (`top`),
  * in a box of its own, and with the speaker moved into a box of theirs. A card
- * always fills the frame.
+ * always fills the frame, and may keep the speaker in front of it.
  */
 export function cutawayFrame(
   cutaway: Pick<FootageCutaway, "kind" | "layout" | "box" | "speaker">,
 ): { top: boolean; box?: FootageBox; speaker?: FootageSpeakerBox } {
-  if (cutaway.kind === "card") return { top: false };
+  if (cutaway.kind === "card")
+    return {
+      top: false,
+      ...(cutaway.speaker?.front ? { speaker: cutaway.speaker } : {}),
+    };
   if (cutaway.box || cutaway.speaker)
     return {
       top: false,
@@ -628,7 +776,10 @@ export interface FootageCutaway {
   layout?: FootageCutawayLayout;
   /** Where it sits instead, anywhere in the frame; `layout` is then not used. Not for cards. */
   box?: FootageBox;
-  /** Where the speaker goes while it is on; absent, they stay where they are, under it. */
+  /**
+   * Where the speaker goes while it is on; absent, they stay where they are,
+   * under it. A card fills the frame and may have the speaker in front of it.
+   */
   speaker?: FootageSpeakerBox;
   /** The clip shown, from `in` seconds; the picture's asset for an image; "" for a card. */
   assetId: string;
@@ -674,6 +825,12 @@ export interface FootageEdit {
     idea: string;
     motion: "none" | "ending" | "some";
     look?: string;
+    /**
+     * "studio": a talk to camera cut like a studio explainer. Graphics take the
+     * frame while the speaker talks on in a bubble, charts draw as numbers are
+     * said, points build as a checklist, and the framing pushes in on emphasis.
+     */
+    style?: "studio";
   };
   theme: { accent: string; ink: string; font: string };
   clips: FootageClip[];
@@ -1659,4 +1816,43 @@ export function setFormat(
   format: FootageFormat,
 ): FootageEdit {
   return { ...edit, format };
+}
+
+/** Every word said in the video, on its clock, whether or not captions are shown. */
+export function spokenWords(edit: FootageEdit): CaptionWord[] {
+  return placeCues({ ...edit, captions: { ...edit.captions, enabled: true } })
+    .flatMap((placed) => placed.words)
+    .sort((a, b) => a.start - b.start);
+}
+
+const bare = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, "")
+    .trim();
+
+/**
+ * When a card's highlighted words are said while it is on: from the first
+ * one's start to the last one's end. Null when the speaker never says them
+ * then (or says them in words the transcript splits differently).
+ */
+export function markTime(
+  words: readonly CaptionWord[],
+  mark: string,
+  from: number,
+  to: number,
+): { start: number; end: number } | null {
+  const wanted = mark.split(/\s+/).map(bare).filter(Boolean);
+  if (wanted.length === 0) return null;
+  const said = words.filter(
+    (word) => word.end > from - 0.3 && word.start < to && bare(word.text),
+  );
+  for (let index = 0; index + wanted.length <= said.length; index += 1) {
+    if (wanted.every((token, at) => bare(said[index + at]!.text) === token))
+      return {
+        start: said[index]!.start,
+        end: said[index + wanted.length - 1]!.end,
+      };
+  }
+  return null;
 }

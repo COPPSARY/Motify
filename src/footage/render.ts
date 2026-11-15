@@ -4,6 +4,7 @@ import type { ProjectSourceFiles } from "../cloud/projects-api";
 import type { SceneDefinition } from "../composition/types";
 import {
   FORMAT_SIZE,
+  chartGeometry,
   cutawayFrame,
   editDuration,
   placeCues,
@@ -12,6 +13,7 @@ import {
   placeSounds,
   type FootageBox,
   type FootageCard,
+  type FootageFormat,
   captionSize,
   cleanCaptionDesign,
   cssColor,
@@ -112,8 +114,72 @@ function musicEnvelope(edit: FootageEdit, total: number): string {
   return formatEnvelope(points);
 }
 
+/** Words as pieces the runtime can bring in one by one; spaces stay between them. */
+function wordSpans(text: string): string {
+  return text
+    .split(/(\s+)/)
+    .filter(Boolean)
+    .map((piece) =>
+      /^\s+$/.test(piece)
+        ? " "
+        : `<span class="fx-k-w">${escapeHtml(piece)}</span>`,
+    )
+    .join("");
+}
+
+/**
+ * A card's title, its words one piece each, with the words it marks wrapped
+ * in a highlighter the runtime sweeps across as they are said.
+ */
+function titleWords(title: string, mark: string | undefined): string {
+  const at = mark ? title.toLowerCase().indexOf(mark.toLowerCase()) : -1;
+  if (!mark || at < 0) return wordSpans(title);
+  const before = title.slice(0, at);
+  const marked = title.slice(at, at + mark.length);
+  const after = title.slice(at + mark.length);
+  return `${wordSpans(before)}<span class="fx-k-mark" style="background-size:0% 100%">${wordSpans(marked)}</span>${wordSpans(after)}`;
+}
+
+/**
+ * A chart: a line through the card's points in the frame's own pixels, the
+ * area under it, a dot at its head and its notes pinned on their points. The
+ * runtime draws it on as the card plays.
+ */
+function chartMarkup(
+  id: string,
+  card: FootageCard,
+  format: FootageFormat,
+): string {
+  const values = card.points ?? [];
+  if (values.length < 2) return "";
+  const { width, height } = FORMAT_SIZE[format];
+  const { area, points, path } = chartGeometry(format, values);
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  const floor = n(area.y + area.h);
+  const key = `fx-k-${id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const grid = [0, 0.5, 1]
+    .map(
+      (at) =>
+        `<line class="fx-k-grid" x1="${n(area.x)}" x2="${n(area.x + area.w)}" y1="${n(area.y + area.h * at)}" y2="${n(area.y + area.h * at)}"/>`,
+    )
+    .join("");
+  const notes = (card.notes ?? [])
+    .filter((note) => points[note.at])
+    .map((note) => {
+      const point = points[note.at]!;
+      return `<div class="fx-k-note${/[ក-៿]/.test(note.text) ? " fx-k-km" : ""}" data-at="${note.at}" style="left:${n((point.x / width) * 100)}%;top:${n((point.y / height) * 100)}%"><span>${escapeHtml(note.text)}</span></div>`;
+    })
+    .join("");
+  return `<svg class="fx-k-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${key}-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="${key}-clip"><rect class="fx-k-reveal" x="${n(area.x)}" y="0" width="0" height="${height}"/></clipPath></defs>${grid}<path class="fx-k-area" d="${path} L${last.x} ${floor} L${first.x} ${floor} Z" fill="url(#${key}-fill)" clip-path="url(#${key}-clip)"/><path class="fx-k-line" d="${path}"/><circle class="fx-k-tip" cx="${first.x}" cy="${first.y}" r="11"/></svg>${notes}`;
+}
+
 /** A card: a panel with its words, on a backdrop with a few marks so it is never flat. */
-function cardMarkup(id: string, card: FootageCard): string {
+function cardMarkup(
+  id: string,
+  card: FootageCard,
+  format: FootageFormat,
+): string {
   // Letter-spacing pulls Khmer clusters apart (a subscript lands beside its consonant),
   // so a line with Khmer in it is set without it.
   const khmer = (text: string) => (/[ក-៿᧠-᧿]/.test(text) ? " fx-k-km" : "");
@@ -121,8 +187,16 @@ function cardMarkup(id: string, card: FootageCard): string {
     text
       ? `<div class="fx-k-anim ${cls}${khmer(text)}">${escapeHtml(text)}</div>`
       : "";
+  // The studio look and a highlight bring the title in word by word.
+  const worded = card.theme === "studio" || Boolean(card.mark);
+  const title = worded
+    ? card.title
+      ? `<div class="fx-k-title fx-k-worded${khmer(card.title)}">${titleWords(card.title, card.mark)}</div>`
+      : ""
+    : line("fx-k-title", card.title);
   const items = (card.items ?? []).filter(Boolean);
-  return `<div class="fx-shot fx-cardshot fx-k--${card.template} fx-kt--${card.theme}" id="fx-shot-${id}"><span class="fx-k-plus" style="left:7%;top:9%">+</span><span class="fx-k-plus" style="right:8%;top:30%">+</span><span class="fx-k-plus" style="left:5%;bottom:22%">+</span><span class="fx-k-plus" style="right:6%;bottom:8%">+</span><div class="fx-k-panel"><div class="fx-k-dots"><i></i><i></i><i></i></div><div class="fx-k-rule"></div>${line("fx-k-eyebrow", card.eyebrow)}${line("fx-k-title", card.title)}${line("fx-k-label", card.label)}${line("fx-k-big", card.big)}${items.length > 0 ? `<ol class="fx-k-items">${items.map((item) => `<li class="fx-k-anim">${escapeHtml(item)}</li>`).join("")}</ol>` : ""}<div class="fx-k-rule fx-k-rule--end"><span></span></div><div class="fx-k-pager"><i></i><i class="fx-on"></i><i></i></div></div></div>`;
+  const chart = card.template === "chart" ? chartMarkup(id, card, format) : "";
+  return `<div class="fx-shot fx-cardshot fx-k--${card.template} fx-kt--${card.theme}" id="fx-shot-${id}"><span class="fx-k-plus" style="left:7%;top:9%">+</span><span class="fx-k-plus" style="right:8%;top:30%">+</span><span class="fx-k-plus" style="left:5%;bottom:22%">+</span><span class="fx-k-plus" style="right:6%;bottom:8%">+</span>${chart}<div class="fx-k-panel"><div class="fx-k-dots"><i></i><i></i><i></i></div><div class="fx-k-rule"></div>${line("fx-k-eyebrow", card.eyebrow)}${title}${line("fx-k-label", card.label)}${line("fx-k-big", card.big)}${items.length > 0 ? `<ol class="fx-k-items">${items.map((item) => `<li class="fx-k-anim">${escapeHtml(item)}</li>`).join("")}</ol>` : ""}<div class="fx-k-rule fx-k-rule--end"><span></span></div><div class="fx-k-pager"><i></i><i class="fx-on"></i><i></i></div></div></div>`;
 }
 
 /**
@@ -154,12 +228,40 @@ function soundEffects(edit: FootageEdit): string {
   return cues.join("\n  ");
 }
 
+/**
+ * Each checklist point's row: points still on screen when it arrives are
+ * above it, so a few said in a row stack into a list.
+ */
+export function pointRows(
+  edit: Pick<FootageEdit, "titles">,
+): Map<string, number> {
+  const points = edit.titles
+    .filter((title) => title.style === "point")
+    .sort((a, b) => a.start - b.start);
+  const rows = new Map<string, number>();
+  points.forEach((title, index) => {
+    const taken = new Set(
+      points
+        .slice(0, index)
+        .filter((other) => other.start + other.duration > title.start + 0.05)
+        .map((other) => rows.get(other.id) ?? 0),
+    );
+    let row = 0;
+    while (taken.has(row)) row += 1;
+    rows.set(title.id, row);
+  });
+  return rows;
+}
+
 function titleMarkup(edit: FootageEdit): string {
+  const rows = pointRows(edit);
   return edit.titles
-    .map(
-      (title) =>
-        `<div class="fx-title fx-title--${title.style} fx-at-${title.position}" id="fx-title-${escapeHtml(title.id)}"><div class="fx-title-box"><span class="fx-title-text"${title.color ? ` style="color:${escapeHtml(title.color)}"` : ""}>${escapeHtml(title.text)}</span>${title.sub ? `<span class="fx-title-sub">${escapeHtml(title.sub)}</span>` : ""}</div></div>`,
-    )
+    .map((title) => {
+      const point = title.style === "point";
+      const row = point ? ` style="--fx-row:${rows.get(title.id) ?? 0}"` : "";
+      const icon = point ? '<span class="fx-title-icon"></span>' : "";
+      return `<div class="fx-title fx-title--${title.style} fx-at-${title.position}" id="fx-title-${escapeHtml(title.id)}"${row}><div class="fx-title-box">${icon}<span class="fx-title-text"${title.color ? ` style="color:${escapeHtml(title.color)}"` : ""}>${escapeHtml(title.text)}</span>${title.sub ? `<span class="fx-title-sub">${escapeHtml(title.sub)}</span>` : ""}</div></div>`;
+    })
     .join("\n    ");
 }
 
@@ -327,6 +429,37 @@ export const FOOTAGE_CSS = `
 .fx-k-items { display: flex; flex-direction: column; gap: calc(22px * var(--fx-unit)); width: 100%; margin: 0; padding: 0; list-style: none; counter-reset: fx-k; text-align: left; }
 .fx-k-items li { counter-increment: fx-k; display: flex; align-items: baseline; gap: calc(24px * var(--fx-unit)); font: 600 calc(56px * var(--fx-unit)) / 1.4 "Kantumruy Pro", "Inter", sans-serif; }
 .fx-k-items li::before { content: counter(fx-k, decimal-leading-zero); color: var(--k-accent); font: 600 calc(36px * var(--fx-unit)) "Inter", sans-serif; letter-spacing: .1em; }
+.fx-cardshot { --k-mark: color-mix(in srgb, var(--k-accent) 32%, transparent); }
+.fx-k-worded { display: block; }
+.fx-k-w { display: inline-block; }
+.fx-k-mark { background-image: linear-gradient(var(--k-mark), var(--k-mark)); background-repeat: no-repeat; background-position: 0 55%; background-size: 0% 100%; border-radius: .14em; padding: 0 .12em; margin: 0 -.06em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.fx-kt--studio { --k-bg: color-mix(in srgb, var(--fx-accent) 60%, #000); --k-panel: transparent; --k-ink: #fff; --k-soft: rgba(255,255,255,.22); --k-accent: #fff; --k-mark: color-mix(in srgb, var(--fx-accent) 45%, #fff); background: radial-gradient(130% 75% at 50% 32%, color-mix(in srgb, var(--fx-accent) 82%, #fff) 0%, var(--fx-accent) 40%, color-mix(in srgb, var(--fx-accent) 52%, #000) 100%); }
+.fx-kt--studio::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px); background-size: 25% calc(25% * var(--fx-grid-y, .5625)); pointer-events: none; }
+.fx--wide .fx-kt--studio::before { --fx-grid-y: 1.778; }
+.fx-kt--studio .fx-k-plus { color: rgba(255,255,255,.4); }
+.fx-kt--studio .fx-k-panel { background: transparent; box-shadow: none; padding: 0; gap: calc(26px * var(--fx-unit)); }
+.fx-kt--studio .fx-k-dots, .fx-kt--studio .fx-k-rule, .fx-kt--studio .fx-k-pager { display: none; }
+.fx-kt--studio .fx-k-title { font-family: "Inter Variable", "Inter", "Kantumruy Pro", sans-serif; font-weight: 650; font-size: calc(92px * var(--fx-unit)); line-height: 1.22; letter-spacing: -.025em; color: #fff; text-wrap: balance; text-shadow: 0 calc(4px * var(--fx-unit)) calc(24px * var(--fx-unit)) rgba(0,0,0,.18); }
+.fx-kt--studio .fx-k-mark { color: #fff; }
+.fx-kt--studio .fx-k-items li { color: #fff; }
+.fx-k--chart .fx-k-panel { position: absolute; left: 8%; right: 8%; top: 24%; width: auto; padding: 0; }
+.fx-k--chart .fx-k-title { font-size: calc(80px * var(--fx-unit)); }
+.fx--wide .fx-k--chart .fx-k-panel { left: 8%; right: 26%; top: 9%; width: auto; align-items: flex-start; text-align: left; }
+.fx-k--chart .fx-k-plus { display: none; }
+.fx-k-chart { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.fx-k-grid { stroke: var(--k-soft); stroke-width: 1.5; stroke-dasharray: 4 10; }
+.fx-k-line { fill: none; stroke: var(--k-ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 10px rgba(255,255,255,.45)); }
+.fx-kt--paper .fx-k-line, .fx-kt--white .fx-k-line, .fx-kt--accent .fx-k-line { stroke: var(--k-accent); filter: none; }
+.fx-k-tip { fill: var(--k-ink); filter: drop-shadow(0 0 12px rgba(255,255,255,.8)); }
+.fx-kt--paper .fx-k-tip, .fx-kt--white .fx-k-tip, .fx-kt--accent .fx-k-tip { fill: var(--k-accent); filter: none; }
+.fx-k-note { position: absolute; transform: translate(-50%, calc(-100% - 30px * var(--fx-unit))); white-space: nowrap; }
+.fx-k-note > span { display: inline-block; padding: calc(8px * var(--fx-unit)) calc(20px * var(--fx-unit)); border-radius: 999px; background: #fff; color: #11131a; font: 600 calc(30px * var(--fx-unit)) / 1.3 "Inter", "Kantumruy Pro", sans-serif; box-shadow: 0 calc(8px * var(--fx-unit)) calc(24px * var(--fx-unit)) rgba(0,0,0,.18); visibility: hidden; transform-origin: 50% 100%; }
+.fx-title--point { top: calc(var(--fx-point-top, 12%) + var(--fx-row, 0) * 92px * var(--fx-unit)) !important; bottom: auto !important; transform: none !important; justify-content: flex-start; padding: 0 calc(60px * var(--fx-unit)); }
+.fx--tall .fx-title--point { --fx-point-top: 15%; }
+.fx-title--point .fx-title-box { flex-direction: row; align-items: center; gap: calc(16px * var(--fx-unit)); text-align: left; }
+.fx-title--point .fx-title-text { font-size: calc(50px * var(--fx-unit)); font-weight: 650; line-height: 1.3; color: #fff; background: color-mix(in srgb, var(--fx-accent) 82%, #fff); padding: calc(6px * var(--fx-unit)) calc(20px * var(--fx-unit)); border-radius: calc(10px * var(--fx-unit)); box-shadow: 0 calc(8px * var(--fx-unit)) calc(24px * var(--fx-unit)) rgba(0,0,0,.25); }
+.fx-title-icon { position: relative; flex: none; width: calc(46px * var(--fx-unit)); height: calc(46px * var(--fx-unit)); border-radius: 50%; background: rgba(12,14,20,.72); box-shadow: 0 0 0 calc(2px * var(--fx-unit)) rgba(255,255,255,.35); }
+.fx-title-icon::after { content: ""; position: absolute; left: 34%; top: 22%; width: 22%; height: 40%; border: solid #fff; border-width: 0 calc(5px * var(--fx-unit)) calc(5px * var(--fx-unit)) 0; transform: rotate(40deg); }
 `;
 
 export interface FootageFiles {
@@ -358,7 +491,7 @@ export function footageFiles(
       if (segment.card?.film?.state === "ready")
         // Motify's generated card, mounted by the runtime in this holder.
         return `<div class="fx-shot fx-cardshot fx-filmshot" id="fx-shot-${id}"><div class="fx-card-film" data-card-film="${escapeHtml(segment.card.film.projectId)}"></div></div>`;
-      if (segment.card) return cardMarkup(id, segment.card);
+      if (segment.card) return cardMarkup(id, segment.card, edit.format);
       const main = clipVideo(segment.assetId, start, segment.in, end, true);
       const overlay = segment.layout === "split" ? segment.overlay : undefined;
       if (
@@ -384,7 +517,7 @@ export function footageFiles(
         };
       return {
         under,
-        html: cardMarkup(`cut-${index}`, cutaway.card)
+        html: cardMarkup(`cut-${index}`, cutaway.card, edit.format)
           .replace('class="fx-shot ', 'class="fx-cut-shot ')
           .replace(`id="fx-shot-cut-${index}"`, `id="fx-cut-${index}"`),
       };

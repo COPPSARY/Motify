@@ -240,6 +240,7 @@
   import {
     addClip,
     appendClip,
+    drawnCard,
     emptyEdit,
     placeCues,
     type FootageCard,
@@ -4923,8 +4924,11 @@ Voice over direction: ${voiceNote}`
     const edit = latest ?? footageEdit;
     const project = cloudProject;
     if (!edit || !project) return;
+    // Charts and the studio look are drawn by the editor itself: generated only when asked for by name.
     const targets = footageCards(edit).filter(({ id, card }) =>
-      ids ? ids.includes(id) : !card.film || card.film.state === "failed",
+      ids
+        ? ids.includes(id)
+        : !drawnCard(card) && (!card.film || card.film.state === "failed"),
     );
     if (targets.length === 0) return;
     const started = await Promise.all(
