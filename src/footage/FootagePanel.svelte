@@ -696,12 +696,15 @@
                 <option value="speaker-window"
                   >Full frame, speaker in a small window</option
                 >
+                <option value="speaker-bubble"
+                  >Full frame, speaker in a round bubble</option
+                >
                 {#if placement.name === "custom"}
                   <option value="custom">Custom</option>
                 {/if}
               </select>
             </label>
-            {#if placement.name === "window" || placement.name === "speaker-window"}
+            {#if placement.name === "window" || placement.name === "speaker-window" || placement.name === "speaker-bubble"}
               <div class="fx-grid2">
                 <label
                   >Corner
