@@ -175,3 +175,35 @@ describe("styled captions", () => {
     expect(layer.dataset["shadow"]).toBe("hard");
   });
 });
+
+describe("captions and motion graphics", () => {
+  it("steps the captions aside while a card covers the talk, and brings them back", () => {
+    const edit = talking({});
+    const { root, timeline } = mount({
+      ...edit,
+      cutaways: [
+        {
+          id: "k",
+          over: A,
+          from: 3,
+          duration: 1,
+          kind: "card",
+          assetId: "",
+          in: 0,
+          card: { template: "statement", theme: "paper", title: "Big claim" },
+        },
+      ],
+    });
+    const layer = root.querySelector<HTMLElement>(".fx-captions")!;
+    timeline.seek(0.6);
+    expect(layer.style.visibility).not.toBe("hidden");
+    // The card plays 1-2 s on the video's clock.
+    timeline.seek(1.5);
+    expect(layer.style.visibility).toBe("hidden");
+    timeline.seek(2.5);
+    expect(layer.style.visibility).not.toBe("hidden");
+    // Sought back into it, export frames still hide them.
+    timeline.seek(1.2);
+    expect(layer.style.visibility).toBe("hidden");
+  });
+});

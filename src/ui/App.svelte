@@ -237,6 +237,8 @@
   import FootageChat from "../footage/FootageChat.svelte";
   import FootageTopBar from "../footage/FootageTopBar.svelte";
   import FootageTransport from "../footage/FootageTransport.svelte";
+  import FootageThinking from "../footage/FootageThinking.svelte";
+  import { thinkingLines } from "../footage/thinking";
   import {
     addClip,
     appendClip,
@@ -323,6 +325,20 @@
     attachments?: MessageAttachment[];
     /** What the request this reply answered was charged, in credits. */
     credits?: number;
+    /** With a question from the footage editor, the answers to tap. */
+    choices?: string[];
+  }
+
+  /** What a footage cut is asked for: the brief and its settings, and the pictures to use. */
+  interface FootageCutOptions {
+    brief: string;
+    seconds: number | null;
+    captionLanguage: string;
+    music: boolean;
+    voiceover: boolean;
+    assetIds?: string[];
+    /** The captions' look picked on the start page, as JSON. */
+    captionLook?: string;
   }
 
   const unsavedDraftKey = "active";
@@ -685,6 +701,16 @@
   let footageBusy = false;
   /** The instruction the AI answered with a question; the next message is the answer to it. */
   let footageQuestion: { instruction: string; question: string } | null = null;
+  /** What the AI is working on, for the thoughts shown over the video. */
+  let footageWork: { mode: "cut" | "edit"; instruction: string } = {
+    mode: "cut",
+    instruction: "",
+  };
+  /** The AI asked how to cut the video before making its first cut: the answer goes back to the cut. */
+  let footageCutQuestion: {
+    options: FootageCutOptions;
+    question: string;
+  } | null = null;
   let footageProjectId: string | undefined;
   let footageMountSequence = 0;
   /** True while a footage mount is downloading its clips. */
@@ -3537,6 +3563,7 @@
     selectedAudio.set([]);
     assistantMessages = [];
     footageQuestion = null;
+    footageCutQuestion = null;
     assistantDraft = "";
     generationPlan = null;
   }
@@ -5146,22 +5173,22 @@ Voice over direction: ${voiceNote}`
     footageSaving = null;
   }
 
-  async function runFootageCut(options: {
-    brief: string;
-    seconds: number | null;
-    captionLanguage: string;
-    music: boolean;
-    voiceover: boolean;
-  }): Promise<void> {
+  async function runFootageCut(
+    options: FootageCutOptions,
+    /** What the person said, when it is not the brief (an answer to a question). */
+    said?: string,
+  ): Promise<void> {
     if (!footageEdit || !cloudProject || footageBusy) return;
     footageBusy = true;
+    footageCutQuestion = null;
+    footageWork = { mode: "cut", instruction: "" };
     footageActivity = "Watching and listening to your clips";
     const projectId = cloudProject.id;
     assistantMessages = [
       ...assistantMessages,
       {
         role: "user",
-        text: options.brief.trim() || "Cut my video",
+        text: said ?? (options.brief.trim() || "Cut my video"),
       },
     ];
     try {
@@ -5171,12 +5198,29 @@ Voice over direction: ${voiceNote}`
       const base = footageEdit;
       if (!base || cloudProject?.id !== projectId) return;
       footageActivity = "Cutting your video";
+      const { assetIds = [], ...settings } = options;
       const result = await roughCut(projectId, {
         edit: { ...base, brief: options.brief },
-        ...options,
+        ...settings,
+        ...(assetIds.length > 0 ? { assetIds } : {}),
       });
+      if (result.question) {
+        // Nothing was cut or charged: the answer goes back to this cut.
+        footageCutQuestion = { options, question: result.summary };
+        assistantMessages = [
+          ...assistantMessages,
+          {
+            role: "assistant",
+            text: result.summary,
+            ...(result.choices?.length ? { choices: result.choices } : {}),
+          },
+        ];
+        return;
+      }
       await applyFootageEdit(result.edit, "AI cut");
       runtime?.seek(0);
+      // The cut's cards are made by Motify's generator, with the pictures given for it.
+      void generateMotionCards(undefined, assetIds, result.edit);
       assistantMessages = [
         ...assistantMessages,
         {
@@ -5207,7 +5251,26 @@ Voice over direction: ${voiceNote}`
     assetIds: string[] = [],
   ): Promise<void> {
     if (!footageEdit || !cloudProject || footageBusy) return;
+    // An answer to the question asked before the first cut makes that cut.
+    const cutAsked = footageCutQuestion;
+    if (cutAsked) {
+      const { options } = cutAsked;
+      void runFootageCut(
+        {
+          ...options,
+          brief:
+            `${options.brief.trim()}\nANSWERED: ${cutAsked.question.slice(0, 300)} → ${instruction}`.slice(
+              0,
+              2000,
+            ),
+          assetIds: [...(options.assetIds ?? []), ...assetIds].slice(0, 6),
+        },
+        instruction,
+      );
+      return;
+    }
     footageBusy = true;
+    footageWork = { mode: "edit", instruction };
     footageActivity = "Editing";
     // An instruction given with a selection is about those parts only.
     const edit = footageEdit;
@@ -5258,7 +5321,11 @@ Voice over direction: ${voiceNote}`
         footageQuestion = { instruction: sent, question: result.summary };
         assistantMessages = [
           ...assistantMessages,
-          { role: "assistant", text: result.summary },
+          {
+            role: "assistant",
+            text: result.summary,
+            ...(result.choices?.length ? { choices: result.choices } : {}),
+          },
         ];
         return;
       }
@@ -5306,6 +5373,7 @@ Voice over direction: ${voiceNote}`
       music: boolean;
       voiceover: boolean;
       pictures: string[];
+      captionLook?: string;
     },
     onProgress: (step: "clips" | "cut" | "open") => void = () => undefined,
   ): Promise<void> {
@@ -5353,6 +5421,17 @@ Voice over direction: ${voiceNote}`
     });
     let summary = "";
     let charged: number | undefined;
+    let choices: string[] | undefined;
+    const cutOptions: FootageCutOptions = {
+      brief: input.brief,
+      seconds: input.seconds,
+      captionLanguage: input.captionLanguage,
+      music: input.music,
+      voiceover: input.voiceover,
+      ...(input.pictures.length > 0 ? { assetIds: input.pictures } : {}),
+      ...(input.captionLook ? { captionLook: input.captionLook } : {}),
+    };
+    footageCutQuestion = null;
     try {
       const result = await roughCut(created.id, {
         edit: { ...edit, brief: input.brief },
@@ -5362,10 +5441,17 @@ Voice over direction: ${voiceNote}`
         music: input.music,
         voiceover: input.voiceover,
         ...(input.pictures.length > 0 ? { assetIds: input.pictures } : {}),
+        ...(input.captionLook ? { captionLook: input.captionLook } : {}),
       });
-      edit = result.edit;
       summary = result.summary;
-      charged = result.credits?.charged;
+      if (result.question) {
+        // The AI asks how to cut it first: the clips open uncut and the answer makes the cut.
+        footageCutQuestion = { options: cutOptions, question: result.summary };
+        choices = result.choices;
+      } else {
+        edit = result.edit;
+        charged = result.credits?.charged;
+      }
       if (result.credits) void refreshCredits();
     } catch (error) {
       // The clips still open, end to end, and the chat says what went wrong.
@@ -5386,6 +5472,7 @@ Voice over direction: ${voiceNote}`
         role: "assistant",
         text: summary || "Your first cut is ready.",
         ...(charged ? { credits: charged } : {}),
+        ...(choices?.length ? { choices } : {}),
       },
     ];
     footageReadyKey = edit.clips
@@ -6606,6 +6693,20 @@ Voice over direction: ${voiceNote}`
                   ></span>
                   <strong>{footageOverlay}</strong>
                 </div>
+              {:else if footageMode && footageBusy && footageEdit}
+                <!-- The AI's reading of the clips and the decisions it is making, over the video. -->
+                <FootageThinking
+                  title={footageWork.mode === "cut"
+                    ? "Motify is cutting your video"
+                    : "Motify is editing"}
+                  lines={thinkingLines(
+                    footageEdit.clips.map(
+                      (clip) => $clipStatuses[clip.assetId],
+                    ),
+                    footageWork.mode,
+                    footageWork.instruction,
+                  )}
+                />
               {/if}
               {#if footageMode}
                 {#each footageOutlines as outline (outline.id)}
@@ -7054,6 +7155,7 @@ Voice over direction: ${voiceNote}`
             onDeselect={(id) => selectFootage(id, true)}
             onClearSelection={() => (footageSelection = [])}
             {workspaceId}
+            answering={footageCutQuestion !== null}
             onInstruct={(text, assetIds) =>
               void runFootageInstruction(text, assetIds)}
             onRoughCut={(options) => void runFootageCut(options)}

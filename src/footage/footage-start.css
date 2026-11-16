@@ -286,6 +286,12 @@
   color: var(--fs-blue-text);
 }
 
+.fs-examples button.fs-on {
+  border-color: var(--fs-blue-hover);
+  background: color-mix(in srgb, var(--fs-blue-hover) 14%, transparent);
+  color: var(--fs-blue-text);
+}
+
 .fs-formats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

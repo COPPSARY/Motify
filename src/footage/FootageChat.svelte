@@ -26,7 +26,11 @@
     role: "user" | "assistant";
     text: string;
     credits?: number;
+    /** With a question, the answers the person can tap. */
+    choices?: string[];
   }>;
+  /** The AI asked before the first cut: the person can answer before any cut exists. */
+  export let answering = false;
   /** An AI request is running. */
   export let busy = false;
   /** What it is doing, shown while busy. */
@@ -61,6 +65,8 @@
     captionLanguage: string;
     music: boolean;
     voiceover: boolean;
+    /** Pictures attached in the chat, used in the cut. */
+    assetIds: string[];
   }) => void;
 
   let draft = "";
@@ -192,16 +198,24 @@
   }
 
   function recut(): void {
-    if (busy || clipCount === 0) return;
+    if (busy || clipCount === 0 || uploadingPictures) return;
     onRoughCut({
       brief: recutBrief,
       seconds,
       captionLanguage,
       music,
       voiceover: voiceover && !voiceLocked,
+      assetIds: pictures.flatMap((picture) =>
+        picture.assetId ? [picture.assetId] : [],
+      ),
     });
+    pictures.forEach((picture) => URL.revokeObjectURL(picture.preview));
+    pictures = [];
     recutOpen = false;
   }
+
+  /** Messages can be typed once there is a cut, or to answer a question before it. */
+  $: canWrite = hasCut || answering;
 </script>
 
 <svelte:window on:paste={pasteAnywhere} />
@@ -310,6 +324,15 @@
           class:user={message.role === "user"}
         >
           <div>{message.text}</div>
+          {#if message.role === "assistant" && message.choices?.length && index === messages.length - 1 && !busy}
+            <div class="fx-choices" role="group" aria-label="Answers">
+              {#each message.choices as choice (choice)}
+                <button type="button" on:click={() => send(choice)}
+                  >{choice}</button
+                >
+              {/each}
+            </div>
+          {/if}
           {#if message.role === "assistant" && message.credits}
             <div class="ai-message-credits">Used {message.credits} credits</div>
           {/if}
@@ -400,17 +423,19 @@
         aria-label="Tell Tiffy what to change"
         rows="1"
         lang="km"
-        placeholder={!hasCut
-          ? "Cut the video first, then ask for changes"
-          : selection.length > 0
-            ? `What should change in ${selection.length === 1 ? "this part" : `these ${selection.length} parts`}?`
-            : "What should we change? Select clips or text to change just them."}
+        placeholder={answering
+          ? "Tap an answer above, or type your own"
+          : !hasCut
+            ? "Cut the video first, then ask for changes"
+            : selection.length > 0
+              ? `What should change in ${selection.length === 1 ? "this part" : `these ${selection.length} parts`}?`
+              : "What should we change? Select clips or text to change just them."}
         bind:this={input}
         bind:value={draft}
         on:input={resize}
         on:keydown={keydown}
         on:paste={paste}
-        disabled={busy || !hasCut}
+        disabled={busy || !canWrite}
       ></textarea>
       <div class="ai-composer-bar">
         <button
@@ -418,7 +443,7 @@
           class="fx-attach"
           title="Attach a picture (a logo, a product photo), or paste one"
           aria-label="Attach a picture"
-          disabled={busy || !hasCut || pictures.length >= 4}
+          disabled={busy || !canWrite || pictures.length >= 4}
           on:click={() => pictureInput.click()}><ImagePlus size={16} /></button
         >
         <input
@@ -435,7 +460,7 @@
         <button
           class="ai-composer-send"
           aria-label="Send to Tiffy"
-          disabled={!draft.trim() || busy || !hasCut || uploadingPictures}
+          disabled={!draft.trim() || busy || !canWrite || uploadingPictures}
           type="submit"><ArrowUp size={17} aria-hidden="true" /></button
         >
       </div>
