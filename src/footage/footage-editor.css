@@ -482,6 +482,28 @@
   cursor: pointer;
 }
 
+.fx-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.fx-choices button {
+  padding: 6px 11px;
+  border: 1px solid var(--fx-ui);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fx-ui) 12%, transparent);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fx-choices button:hover {
+  background: color-mix(in srgb, var(--fx-ui) 24%, transparent);
+}
+
 .fx-suggestions button:hover {
   border-color: var(--fx-ui);
   color: var(--sl-text);

@@ -12,6 +12,7 @@ import {
   editDuration,
   placeCues,
   placeCutaways,
+  captionFreeWindows,
   placeSegments,
   markTime,
   sameBox,
@@ -310,6 +311,14 @@ export function footageTimeline(
         break;
     }
   });
+
+  // A motion graphic over the talk has the frame to itself: the captions step aside until it ends.
+  const captionLayer = root.querySelector<HTMLElement>(".fx-captions");
+  if (captionLayer)
+    for (const { start, end } of captionFreeWindows(edit)) {
+      timeline.set(captionLayer, { autoAlpha: 0 }, start);
+      timeline.set(captionLayer, { autoAlpha: 1 }, end);
+    }
 
   // Overlays over talk: on for their moment. B-roll and pictures keep a slow
   // push so they are never still; a card plays its own motion.

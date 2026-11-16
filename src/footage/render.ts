@@ -322,6 +322,9 @@ export const FOOTAGE_CSS = `
 .fx-pic { background: #0d0d0f; }
 .fx-pic-fill { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(calc(48px * var(--fx-unit))) saturate(1.2) brightness(.7); }
 .fx-pic-main { position: absolute; inset: 7%; width: 86%; height: 86%; object-fit: contain; transform-origin: 50% 50%; filter: drop-shadow(0 calc(24px * var(--fx-unit)) calc(48px * var(--fx-unit)) rgba(0,0,0,.45)); }
+.fx-pic--paper { background-color: #e9dfc9; background-image: radial-gradient(circle at 22% 14%, rgba(255,255,255,.6), transparent 55%), radial-gradient(circle at 82% 92%, rgba(110,80,40,.2), transparent 60%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(80,60,30,.22) 100%), repeating-linear-gradient(0deg, rgba(90,70,40,.035) 0 calc(2px * var(--fx-unit)), transparent calc(2px * var(--fx-unit)) calc(5px * var(--fx-unit))), repeating-linear-gradient(90deg, rgba(90,70,40,.03) 0 calc(3px * var(--fx-unit)), transparent calc(3px * var(--fx-unit)) calc(7px * var(--fx-unit))); }
+.fx-pic--paper .fx-pic-fill { display: none; }
+.fx-pic--paper .fx-pic-main { inset: 0; margin: auto; width: auto; height: auto; max-width: 78%; max-height: 64%; padding: calc(16px * var(--fx-unit)); background: #fbf8f0; rotate: -1.6deg; filter: sepia(.14) contrast(1.04) drop-shadow(0 calc(14px * var(--fx-unit)) calc(26px * var(--fx-unit)) rgba(60,40,10,.35)); }
 .fx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; visibility: hidden; pointer-events: none; }
 .fx-titles, .fx-captions { position: absolute; inset: 0; pointer-events: none; }
 .fx-title { position: absolute; left: 0; right: 0; display: flex; justify-content: center; padding: 0 calc(70px * var(--fx-unit)); visibility: hidden; }
@@ -522,9 +525,11 @@ export function footageFiles(
     if (cutaway.kind === "image") {
       const src = `motify-asset://${escapeHtml(cutaway.assetId)}`;
       // The picture whole, on a blurred copy of itself: a logo or a product photo of any shape.
+      // As paper, it is a print with a white border, laid slightly askew on textured paper.
+      const paper = cutaway.look === "paper" ? " fx-pic--paper" : "";
       return {
         under,
-        html: `<div class="fx-cut-shot fx-pic${top}${boxed}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`,
+        html: `<div class="fx-cut-shot fx-pic${paper}${top}${boxed}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`,
       };
     }
     const video = `data-motify-video src="${footageToken(cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"`;

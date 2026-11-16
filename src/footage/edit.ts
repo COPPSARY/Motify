@@ -793,6 +793,8 @@ export interface FootageCutaway {
   in: number;
   /** For a card: what it says (and its generated film). */
   card?: FootageCard;
+  /** "paper": a picture shown as a print on textured paper, the documentary style's look. */
+  look?: "paper";
 }
 
 /** One line of a voice-over: Kiri's reading of `text`, on the video's clock. */
@@ -836,8 +838,10 @@ export interface FootageEdit {
      * "studio": a talk to camera cut like a studio explainer. Graphics take the
      * frame while the speaker talks on in a bubble, charts draw as numbers are
      * said, points build as a checklist, and the framing pushes in on emphasis.
+     * "documentary": the paper documentary (Vox style). Pictures carry the talk
+     * as prints on textured paper; cards are paper graphics. Absent: clean.
      */
-    style?: "studio";
+    style?: "studio" | "documentary";
   };
   theme: { accent: string; ink: string; font: string };
   clips: FootageClip[];
@@ -883,6 +887,19 @@ export interface PlacedCutaway {
  * stops early only at a card cut in, which already fills the frame, at the end
  * of the video, or when the clip it shows runs out.
  */
+/**
+ * When the captions step aside: while a motion graphic covers the frame over
+ * the talk, its words are the ones to read, and a caption on top would cover
+ * them. The voice goes on under it; the captions come back when it ends.
+ */
+export function captionFreeWindows(
+  edit: FootageEdit,
+): Array<{ start: number; end: number }> {
+  return placeCutaways(edit)
+    .filter((placed) => placed.cutaway.kind === "card")
+    .map(({ start, end }) => ({ start, end }));
+}
+
 export function placeCutaways(edit: FootageEdit): PlacedCutaway[] {
   const shots = placeSegments(edit);
   const total = shots.length > 0 ? shots[shots.length - 1]!.end : 0;

@@ -19,6 +19,9 @@
     withVideoType,
   } from "../api/assets";
   import { STAGE_LABEL, clipStatuses, watchClips } from "./clips";
+  import FootageThinking from "./FootageThinking.svelte";
+  import { thinkingLines } from "./thinking";
+  import { CAPTION_LOOKS, FOOTAGE_PRESETS, captionLookJson } from "./presets";
   import type { FootageClip, FootageFormat } from "./edit";
 
   /**
@@ -42,6 +45,8 @@
       voiceover: boolean;
       /** Pictures to use: a logo, product photos. */
       pictures: string[];
+      /** The captions' look, as JSON (see presets.ts); the brief may still change it. */
+      captionLook?: string;
     },
     onProgress: (step: "clips" | "cut" | "open") => void,
   ) => Promise<void>;
@@ -76,6 +81,10 @@
   let captionLanguage = "auto";
   let music = true;
   let voiceover = false;
+  /** Stacked captions unless the person picks another look. */
+  let captionStyle = "stack";
+  /** The preset the brief came from, while it is unchanged. */
+  let preset = "";
   let creating = false;
   let error = "";
   let dragOver = false;
@@ -87,20 +96,19 @@
       { value: "16:9", label: "Wide", hint: "YouTube · website" },
     ];
 
-  const EXAMPLES = [
-    {
-      label: "Coffee shop promo",
-      text: "Create a 30-second Khmer promotional video for my new coffee menu. Open with the best drink shot, keep my explanation short, show the price, and end with how to order.",
-    },
-    {
-      label: "Talking video",
-      text: "Make a fast talking video from my clips like a TikTok creator: cut the pauses and mistakes, show what I mention on screen, and end with Follow.",
-    },
-    {
-      label: "Product launch",
-      text: "Introduce our new product in 30 seconds: the problem, the product in use, three key features, the price, and a call to action.",
-    },
-  ];
+  function choosePreset(chosen: (typeof FOOTAGE_PRESETS)[number]): void {
+    brief = chosen.brief;
+    captionStyle = chosen.captions;
+    if (chosen.format) format = chosen.format;
+    preset = chosen.label;
+  }
+
+  // A brief written over the preset's is the person's own.
+  $: if (
+    preset &&
+    brief !== FOOTAGE_PRESETS.find((item) => item.label === preset)?.brief
+  )
+    preset = "";
 
   $: uploading = items.some(
     (item) => !item.clip && !item.picture && !item.error,
@@ -227,6 +235,9 @@
           voiceover: voiceover && !voiceLocked,
           pictures,
           localFiles,
+          ...(captionStyle
+            ? { captionLook: captionLookJson(captionStyle) }
+            : {}),
         },
         (next) => (step = next),
       );
@@ -375,11 +386,15 @@
         bind:value={brief}
         placeholder="e.g. Create a 30-second Khmer promotional video for my new coffee menu. Show the best drinks, keep my explanation short, and end with how to order."
       ></textarea>
-      <div class="fs-examples">
-        <span>Try:</span>
-        {#each EXAMPLES as example (example.label)}
-          <button type="button" on:click={() => (brief = example.text)}
-            >{example.label}</button
+      <div class="fs-examples" role="group" aria-label="Start from">
+        <span>Start from:</span>
+        {#each FOOTAGE_PRESETS as item (item.label)}
+          <button
+            type="button"
+            class:fs-on={preset === item.label}
+            aria-pressed={preset === item.label}
+            title={item.hint}
+            on:click={() => choosePreset(item)}>{item.label}</button
           >
         {/each}
       </div>
@@ -432,6 +447,18 @@
             <option value="en">English</option>
             <option value="auto">As spoken</option>
             <option value="none">None</option>
+          </select>
+        </label>
+        <label class="fs-option">
+          <span>Caption look</span>
+          <select
+            bind:value={captionStyle}
+            disabled={captionLanguage === "none"}
+          >
+            {#each CAPTION_LOOKS as look (look.value)}
+              <option value={look.value}>{look.label}</option>
+            {/each}
+            <option value="">Let the AI choose</option>
           </select>
         </label>
         <label class="fs-option fs-switch">
@@ -495,7 +522,13 @@
             <span
               ><strong>Cutting your video</strong><small
                 >Picking the best moments, captions and cards</small
-              ></span
+              >{#if step === "cut"}<FootageThinking
+                  inline
+                  lines={thinkingLines(
+                    ready.map((clip) => $clipStatuses[clip.assetId]),
+                    "cut",
+                  )}
+                />{/if}</span
             >
           </li>
           <li class:fs-now={step === "open"}>

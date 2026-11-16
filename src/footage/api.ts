@@ -58,6 +58,8 @@ export interface FootageEditResult {
   summary: string;
   /** The AI asked instead of editing: `summary` is the question; nothing changed or was charged. */
   question?: boolean;
+  /** With a question, the answers the person can tap. */
+  choices?: string[];
   credits?: { charged: number; remaining: number };
 }
 
@@ -89,6 +91,8 @@ export async function roughCut(
     voiceover?: boolean;
     /** Pictures to use: a logo, product photos. */
     assetIds?: string[];
+    /** The captions' look as JSON ({"style":"stack","animation":"blur"}); the brief may still change it. */
+    captionLook?: string;
   },
 ): Promise<FootageEditResult> {
   return data(
