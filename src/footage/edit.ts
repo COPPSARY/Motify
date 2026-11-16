@@ -326,13 +326,13 @@ export interface FootageChartNote {
 
 /**
  * Cards Motify draws itself rather than sending to its motion-graphics
- * generator: a chart, whose line has to follow its numbers, and the studio
- * look, whose cards are one family with the speaker's bubble and highlights.
+ * generator: a chart, whose line has to follow the speaker's numbers. Every
+ * other card, studio ones too, is made by the generator from its treatment.
  */
 export function drawnCard(
   card: Pick<FootageCard, "template" | "theme">,
 ): boolean {
-  return card.template === "chart" || card.theme === "studio";
+  return card.template === "chart";
 }
 
 /** Where a chart sits in the frame, as fractions of it, by the video's shape. */
@@ -428,6 +428,11 @@ export interface FootageCard {
   /** Words of the title that get a highlighter swept across them as they are said. */
   mark?: string;
   /**
+   * The creative director's treatment for this card: its one visual idea,
+   * what is biggest, how it moves. Motify's generator makes the card to it.
+   */
+  treatment?: string;
+  /**
    * The card made by Motify's motion-graphics generator, in a project of its
    * own; played in the card's place once ready. The template shows until then.
    */
@@ -454,6 +459,8 @@ export interface FootageSegment {
   out: number;
   volume: number;
   transition: FootageTransition;
+  /** A whoosh under the transition: only on the few moves the edit wants heard. */
+  whoosh?: boolean;
   /** J-cut: the sound starts this long before the picture. */
   audioLead: number;
   /** L-cut: the sound runs on this long under the next picture. */
@@ -856,7 +863,7 @@ export interface FootageEdit {
   cutaways?: FootageCutaway[];
   /** A voice-over; see FootageVoiceover. */
   voiceover?: FootageVoiceover | null;
-  /** A whoosh on moving transitions and a pop on cards; on unless false. */
+  /** The sound effects the edit marks (a whoosh on a few transitions, a pop as a full-frame card lands); on unless false. */
   sfx?: boolean;
 }
 
@@ -1558,8 +1565,10 @@ export function splitAt(edit: FootageEdit, time: number): FootageEdit {
   if (!placed || placed.segment.card) return edit;
   const cut = round(placed.segment.in + (time - placed.start));
   const first = { ...placed.segment, out: cut, audioTail: 0 };
+  // The second half arrives on a plain cut, so it has no whoosh of its own.
+  const { whoosh: _whoosh, ...rest } = placed.segment;
   const second = {
-    ...placed.segment,
+    ...rest,
     id: newId("s"),
     in: cut,
     transition: "cut" as const,

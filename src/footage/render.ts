@@ -200,17 +200,15 @@ function cardMarkup(
 }
 
 /**
- * Light sound design: a whoosh under moving transitions and a pop as a card
- * lands, quiet enough to sit under speech. The sounds are made in the browser
- * (footage/api.ts), so there is no sound library to license.
+ * Light sound design, only where the edit asks for it: a whoosh under the few
+ * transitions marked to be heard, and a pop as a full-frame card cuts in. A
+ * card over talk lands silently under the voice. The sounds are made in the
+ * browser (footage/api.ts), so there is no sound library to license.
  */
-function soundEffects(edit: FootageEdit): string {
+export function soundEffects(edit: FootageEdit): string {
   const cues: string[] = [];
   for (const { segment, start, index } of placeSegments(edit)) {
-    if (
-      index > 0 &&
-      ["slide", "whip", "zoom", "blur"].includes(segment.transition)
-    )
+    if (index > 0 && segment.whoosh && segment.transition !== "cut")
       cues.push(
         `<audio data-motify-audio src="motify-sfx://whoosh" data-start="${n(Math.max(0, start - 0.18))}" data-volume="0.32"></audio>`,
       );
@@ -219,12 +217,6 @@ function soundEffects(edit: FootageEdit): string {
         `<audio data-motify-audio src="motify-sfx://pop" data-start="${n(start + 0.1)}" data-volume="0.4"></audio>`,
       );
   }
-  // A card over talk lands with a softer pop, under the voice.
-  for (const placed of placeCutaways(edit))
-    if (placed.cutaway.kind === "card")
-      cues.push(
-        `<audio data-motify-audio src="motify-sfx://pop" data-start="${n(placed.start + 0.1)}" data-volume="0.28"></audio>`,
-      );
   return cues.join("\n  ");
 }
 

@@ -1088,6 +1088,22 @@
                       >{/each}
                   </select>
                 </label>
+                {#if segment.transition !== "cut"}
+                  <label class="fx-check"
+                    ><input
+                      type="checkbox"
+                      checked={segment.whoosh === true}
+                      on:change={(e) =>
+                        onChange(
+                          updateSegment(edit, segment.id, {
+                            whoosh: (e.currentTarget as HTMLInputElement)
+                              .checked,
+                          }),
+                          "Whoosh",
+                        )}
+                    /> Whoosh</label
+                  >
+                {/if}
               </div>
             {/if}
           </section>
@@ -1150,6 +1166,21 @@
                     >{/each}
                 </select>
               </label>
+              {#if segment.transition !== "cut"}
+                <label class="fx-check"
+                  ><input
+                    type="checkbox"
+                    checked={segment.whoosh === true}
+                    on:change={(e) =>
+                      onChange(
+                        updateSegment(edit, segment.id, {
+                          whoosh: (e.currentTarget as HTMLInputElement).checked,
+                        }),
+                        "Whoosh",
+                      )}
+                  /> Whoosh</label
+                >
+              {/if}
               <label
                 >Layout
                 <select
@@ -2146,8 +2177,12 @@
                   },
                   "Sound effects",
                 )}
-            /> Whoosh on transitions, pop on cards</label
+            /> Play sound effects</label
           >
+          <p class="fx-hint">
+            A whoosh only on the transitions marked for one, and a pop as a
+            full-screen card lands. Mark a transition by selecting its clip.
+          </p>
         </section>
         <section class="fx-card">
           <header><strong>Clip sound</strong></header>

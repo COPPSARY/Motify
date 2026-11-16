@@ -144,6 +144,14 @@ export async function startMotionCard(
     note?: string;
     /** The video's creative direction for its cards. */
     look?: string;
+    /** The creative director's treatment for this one card. */
+    treatment?: string;
+    /** The words of the title that land. */
+    mark?: string;
+    /** The card's theme: its look when the direction gives none. */
+    theme?: string;
+    /** The corner the speaker's bubble sits in, in front of the card. */
+    speaker?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
   },
 ): Promise<string> {
   const result = await data<{ cardProjectId: string }>(
