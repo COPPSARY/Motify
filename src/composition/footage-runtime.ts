@@ -41,6 +41,10 @@ import type { CompositionContext } from "./types";
 
 const KHMER = /[ក-៿᧠-᧿]/;
 
+/** A zoom reveal opens this much closer and pulls back over this long. */
+const REVEAL_FROM = 1.35;
+const REVEAL_SECONDS = 1.1;
+
 /**
  * The text as word pieces the timeline can move. Khmer is written without
  * spaces, so the platform's segmenter finds its words; each piece may then
@@ -165,7 +169,7 @@ export function footageTimeline(
         },
         start,
       );
-    if (video && segment.zoom > 1.001)
+    if (video && segment.zoom > 1.001 && !segment.reveal)
       timeline.fromTo(
         video,
         { scale: punch },
@@ -173,6 +177,19 @@ export function footageTimeline(
           scale: punch * segment.zoom,
           duration: end - start,
           ease: "none",
+          immediateRender: false,
+        },
+        start,
+      );
+    // A zoom reveal: the shot opens close and pulls back to show it all, then rests.
+    if (video && segment.reveal)
+      timeline.fromTo(
+        video,
+        { scale: punch * REVEAL_FROM },
+        {
+          scale: punch,
+          duration: Math.min(REVEAL_SECONDS, (end - start) * 0.7),
+          ease: "power3.out",
           immediateRender: false,
         },
         start,
@@ -362,6 +379,21 @@ export function footageTimeline(
         ? (layer.querySelector<HTMLElement>(".fx-pic-main") ?? layer)
         : (layer.querySelector<HTMLElement>("video") ?? layer);
     const frame = cutawayFrame(placed.cutaway);
+    // A paper print drops onto the page and settles, a little askew, like a cut-out laid down.
+    if (placed.cutaway.look === "paper")
+      timeline.fromTo(
+        moving,
+        { yPercent: 9, rotation: -5, autoAlpha: 0 },
+        {
+          yPercent: 0,
+          rotation: 0,
+          autoAlpha: 1,
+          duration: Math.min(0.5, (end - start) / 3),
+          ease: "back.out(1.6)",
+          immediateRender: false,
+        },
+        start,
+      );
     if (frame.box) {
       // A window pops in over the speaker and shrinks away again.
       const pop = Math.min(0.25, (end - start) / 4);

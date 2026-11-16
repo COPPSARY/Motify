@@ -187,11 +187,14 @@ function cardMarkup(
     text
       ? `<div class="fx-k-anim ${cls}${khmer(text)}">${escapeHtml(text)}</div>`
       : "";
-  // The studio look and a highlight bring the title in word by word.
-  const worded = card.theme === "studio" || Boolean(card.mark);
+  // The studio and paper looks and a highlight bring the title in word by word.
+  // A paper title is highlighted: its marked words, or all of it.
+  const paper = card.theme === "paper";
+  const worded = card.theme === "studio" || paper || Boolean(card.mark);
+  const marked = paper ? (card.mark ?? card.title) : card.mark;
   const title = worded
     ? card.title
-      ? `<div class="fx-k-title fx-k-worded${khmer(card.title)}">${titleWords(card.title, card.mark)}</div>`
+      ? `<div class="fx-k-title fx-k-worded${khmer(card.title)}">${titleWords(card.title, marked)}</div>`
       : ""
     : line("fx-k-title", card.title);
   const items = (card.items ?? []).filter(Boolean);
@@ -294,6 +297,29 @@ function captionVars(edit: FootageEdit): string {
 
 const KHMER_TEXT = /[\u1780-\u17FF\u19E0-\u19FF]/;
 
+/**
+ * A torn paper edge as a clip-path: each side a run of small bites, the same
+ * for the same seed so preview and export match.
+ */
+export function tornEdge(seed: number, steps = 18, depth = 2.4): string {
+  let state = (Math.abs(Math.round(seed)) * 7919 + 104729) % 233280 || 1;
+  const bite = () => {
+    state = (state * 9301 + 49297) % 233280;
+    return (state / 233280) * depth;
+  };
+  const at = (value: number) => `${value.toFixed(2)}%`;
+  const points: string[] = [];
+  for (let step = 0; step < steps; step += 1)
+    points.push(`${at((step / steps) * 100)} ${at(bite())}`);
+  for (let step = 0; step < steps; step += 1)
+    points.push(`${at(100 - bite())} ${at((step / steps) * 100)}`);
+  for (let step = 0; step < steps; step += 1)
+    points.push(`${at(100 - (step / steps) * 100)} ${at(100 - bite())}`);
+  for (let step = 0; step < steps; step += 1)
+    points.push(`${at(bite())} ${at(100 - (step / steps) * 100)}`);
+  return `polygon(${points.join(", ")})`;
+}
+
 function captionMarkup(edit: FootageEdit): string {
   return placeCues(edit)
     .map(
@@ -322,9 +348,6 @@ export const FOOTAGE_CSS = `
 .fx-pic { background: #0d0d0f; }
 .fx-pic-fill { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(calc(48px * var(--fx-unit))) saturate(1.2) brightness(.7); }
 .fx-pic-main { position: absolute; inset: 7%; width: 86%; height: 86%; object-fit: contain; transform-origin: 50% 50%; filter: drop-shadow(0 calc(24px * var(--fx-unit)) calc(48px * var(--fx-unit)) rgba(0,0,0,.45)); }
-.fx-pic--paper { background-color: #e9dfc9; background-image: radial-gradient(circle at 22% 14%, rgba(255,255,255,.6), transparent 55%), radial-gradient(circle at 82% 92%, rgba(110,80,40,.2), transparent 60%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(80,60,30,.22) 100%), repeating-linear-gradient(0deg, rgba(90,70,40,.035) 0 calc(2px * var(--fx-unit)), transparent calc(2px * var(--fx-unit)) calc(5px * var(--fx-unit))), repeating-linear-gradient(90deg, rgba(90,70,40,.03) 0 calc(3px * var(--fx-unit)), transparent calc(3px * var(--fx-unit)) calc(7px * var(--fx-unit))); }
-.fx-pic--paper .fx-pic-fill { display: none; }
-.fx-pic--paper .fx-pic-main { inset: 0; margin: auto; width: auto; height: auto; max-width: 78%; max-height: 64%; padding: calc(16px * var(--fx-unit)); background: #fbf8f0; rotate: -1.6deg; filter: sepia(.14) contrast(1.04) drop-shadow(0 calc(14px * var(--fx-unit)) calc(26px * var(--fx-unit)) rgba(60,40,10,.35)); }
 .fx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; visibility: hidden; pointer-events: none; }
 .fx-titles, .fx-captions { position: absolute; inset: 0; pointer-events: none; }
 .fx-title { position: absolute; left: 0; right: 0; display: flex; justify-content: center; padding: 0 calc(70px * var(--fx-unit)); visibility: hidden; }
@@ -436,6 +459,25 @@ export const FOOTAGE_CSS = `
 .fx-kt--studio .fx-k-dots, .fx-kt--studio .fx-k-rule, .fx-kt--studio .fx-k-pager { display: none; }
 .fx-kt--studio .fx-k-title { font-family: "Inter Variable", "Inter", "Kantumruy Pro", sans-serif; font-weight: 650; font-size: calc(92px * var(--fx-unit)); line-height: 1.22; letter-spacing: -.025em; color: #fff; text-wrap: balance; text-shadow: 0 calc(4px * var(--fx-unit)) calc(24px * var(--fx-unit)) rgba(0,0,0,.18); }
 .fx-kt--studio .fx-k-mark { color: #fff; }
+.fx-pic--paper { background-color: #ebe3cf; background-image: radial-gradient(circle at 18% 74%, transparent calc(150px * var(--fx-unit)), rgba(48,66,104,.16) calc(151px * var(--fx-unit)), rgba(48,66,104,.16) calc(153px * var(--fx-unit)), transparent calc(154px * var(--fx-unit))), radial-gradient(circle at 18% 74%, transparent calc(236px * var(--fx-unit)), rgba(48,66,104,.11) calc(237px * var(--fx-unit)), rgba(48,66,104,.11) calc(238.5px * var(--fx-unit)), transparent calc(239.5px * var(--fx-unit))), radial-gradient(circle at 86% 16%, transparent calc(118px * var(--fx-unit)), rgba(48,66,104,.13) calc(119px * var(--fx-unit)), rgba(48,66,104,.13) calc(121px * var(--fx-unit)), transparent calc(122px * var(--fx-unit))), linear-gradient(115deg, transparent 49.9%, rgba(48,66,104,.1) 50%, transparent 50.15%), linear-gradient(rgba(48,66,104,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(48,66,104,.06) 1px, transparent 1px), radial-gradient(ellipse at 50% 45%, #f5efe0 0%, #e4d9c0 100%); background-size: auto, auto, auto, auto, calc(54px * var(--fx-unit)) calc(54px * var(--fx-unit)), calc(54px * var(--fx-unit)) calc(54px * var(--fx-unit)), auto; }
+.fx-pic--paper::after { content: ""; position: absolute; inset: 1.6%; z-index: 4; pointer-events: none; border-radius: calc(46px * var(--fx-unit)); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.1'/%3E%3C/svg%3E"), repeating-linear-gradient(0deg, rgba(18,16,24,.07) 0 calc(1.2px * var(--fx-unit)), transparent calc(1.2px * var(--fx-unit)) calc(4px * var(--fx-unit))), radial-gradient(ellipse 78% 72% at 50% 50%, transparent 58%, rgba(14,10,6,.5) 100%); box-shadow: 0 0 0 calc(400px * var(--fx-unit)) #0d0b09, inset 0 0 calc(70px * var(--fx-unit)) calc(14px * var(--fx-unit)) rgba(0,0,0,.55); }
+.fx-pic--paper .fx-pic-fill { display: none; }
+.fx-pic-tear { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; filter: drop-shadow(calc(2px * var(--fx-unit)) 0 0 rgba(255,40,70,.35)) drop-shadow(-calc(2px * var(--fx-unit)) 0 0 rgba(0,190,255,.35)) drop-shadow(0 calc(16px * var(--fx-unit)) calc(22px * var(--fx-unit)) rgba(40,28,10,.4)); }
+.fx-pic--paper .fx-pic-main { position: relative; inset: auto; width: auto; height: auto; padding: calc(16px * var(--fx-unit)); background: #f6f0e2; rotate: -1.8deg; filter: none; transform-origin: 50% 50%; }
+.fx-pic--paper .fx-pic-main::after { content: ""; position: absolute; inset: calc(16px * var(--fx-unit)); pointer-events: none; background-image: radial-gradient(rgba(25,25,40,.55) 28%, transparent 31%); background-size: calc(6px * var(--fx-unit)) calc(6px * var(--fx-unit)); mix-blend-mode: multiply; opacity: .32; }
+.fx-pic-img { display: block; width: calc(840px * var(--fx-unit)); height: auto; max-height: calc(1080px * var(--fx-unit)); object-fit: cover; filter: grayscale(.28) sepia(.16) contrast(1.1) brightness(1.03); }
+.fx--wide .fx-pic-img { width: auto; height: calc(700px * var(--fx-unit)); max-width: calc(1240px * var(--fx-unit)); max-height: none; }
+.fx-kt--paper { background-color: #ebe3cf; background-image: radial-gradient(circle at 18% 74%, transparent calc(150px * var(--fx-unit)), rgba(48,66,104,.16) calc(151px * var(--fx-unit)), rgba(48,66,104,.16) calc(153px * var(--fx-unit)), transparent calc(154px * var(--fx-unit))), radial-gradient(circle at 18% 74%, transparent calc(236px * var(--fx-unit)), rgba(48,66,104,.11) calc(237px * var(--fx-unit)), rgba(48,66,104,.11) calc(238.5px * var(--fx-unit)), transparent calc(239.5px * var(--fx-unit))), radial-gradient(circle at 86% 16%, transparent calc(118px * var(--fx-unit)), rgba(48,66,104,.13) calc(119px * var(--fx-unit)), rgba(48,66,104,.13) calc(121px * var(--fx-unit)), transparent calc(122px * var(--fx-unit))), linear-gradient(115deg, transparent 49.9%, rgba(48,66,104,.1) 50%, transparent 50.15%), linear-gradient(rgba(48,66,104,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(48,66,104,.06) 1px, transparent 1px), radial-gradient(ellipse at 50% 45%, #f5efe0 0%, #e4d9c0 100%); background-size: auto, auto, auto, auto, calc(54px * var(--fx-unit)) calc(54px * var(--fx-unit)), calc(54px * var(--fx-unit)) calc(54px * var(--fx-unit)), auto; --k-panel: transparent; --k-ink: #1d2a4a; --k-soft: rgba(48,66,104,.3); --k-accent: #cf3a2c; --k-mark: #f4e13b; }
+.fx-kt--paper::after { content: ""; position: absolute; inset: 1.6%; z-index: 4; pointer-events: none; border-radius: calc(46px * var(--fx-unit)); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.1'/%3E%3C/svg%3E"), repeating-linear-gradient(0deg, rgba(18,16,24,.07) 0 calc(1.2px * var(--fx-unit)), transparent calc(1.2px * var(--fx-unit)) calc(4px * var(--fx-unit))), radial-gradient(ellipse 78% 72% at 50% 50%, transparent 58%, rgba(14,10,6,.5) 100%); box-shadow: 0 0 0 calc(400px * var(--fx-unit)) #0d0b09, inset 0 0 calc(70px * var(--fx-unit)) calc(14px * var(--fx-unit)) rgba(0,0,0,.55); }
+.fx-kt--paper::before { content: ""; position: absolute; left: -2%; bottom: -2%; width: 40%; height: 17%; z-index: 0; background: #1e2c4f; clip-path: polygon(0.0% 36.4%, 2.0% 36.5%, 4.1% 36.3%, 6.1% 36.5%, 8.2% 35.6%, 10.2% 35.8%, 12.3% 32.7%, 14.3% 33.8%, 16.3% 35.0%, 18.4% 33.7%, 20.4% 34.2%, 22.5% 31.4%, 24.5% 32.2%, 26.6% 31.2%, 28.6% 31.9%, 30.7% 31.7%, 32.7% 29.6%, 34.7% 29.9%, 36.8% 29.8%, 38.8% 31.5%, 40.9% 30.8%, 42.9% 28.5%, 45.0% 30.3%, 47.0% 27.8%, 49.0% 29.1%, 51.1% 27.2%, 53.1% 26.5%, 55.2% 29.0%, 57.2% 26.5%, 59.3% 26.3%, 61.3% 28.4%, 63.3% 27.8%, 65.4% 25.6%, 67.4% 27.4%, 69.5% 25.8%, 71.5% 25.9%, 73.6% 24.1%, 75.6% 26.2%, 77.7% 25.0%, 79.7% 25.6%, 81.7% 25.1%, 83.8% 22.9%, 85.8% 22.8%, 87.9% 21.8%, 89.9% 21.5%, 92.0% 20.9%, 94.0% 21.4%, 94.3% 28.5%, 92.6% 35.0%, 94.5% 41.5%, 93.5% 48.0%, 93.5% 54.5%, 94.9% 61.0%, 93.9% 67.5%, 93.5% 74.0%, 93.9% 80.5%, 94.6% 87.0%, 92.8% 93.5%, 95.3% 100.0%, 0% 100%); }
+.fx-kt--paper .fx-k-plus, .fx-kt--paper .fx-k-dots, .fx-kt--paper .fx-k-rule, .fx-kt--paper .fx-k-pager { display: none; }
+.fx-kt--paper .fx-k-panel { z-index: 1; background: transparent; box-shadow: none; gap: calc(26px * var(--fx-unit)); }
+.fx-kt--paper .fx-k-panel::after { content: ""; width: 22%; height: calc(10px * var(--fx-unit)); background: var(--k-accent); }
+.fx-kt--paper .fx-k-title, .fx-kt--paper.fx-k--statement .fx-k-title, .fx-kt--paper.fx-k--list .fx-k-title { font-family: "Oswald", "Kantumruy Pro", sans-serif; font-weight: 700; font-size: calc(124px * var(--fx-unit)); line-height: 1.08; letter-spacing: .005em; text-transform: uppercase; color: var(--k-ink); text-wrap: balance; }
+.fx-kt--paper .fx-k-mark { background-image: linear-gradient(transparent 22%, var(--k-mark) 22%, var(--k-mark) 88%, transparent 88%); border-radius: 0; padding: 0 .1em; }
+.fx-kt--paper .fx-k-eyebrow, .fx-kt--paper .fx-k-label { font-family: "Oswald", "Inter", sans-serif; letter-spacing: .14em; color: var(--k-accent); }
+.fx-kt--paper .fx-k-big { font-family: "Oswald", "Inter", sans-serif; font-weight: 700; color: var(--k-ink); }
+.fx-kt--paper .fx-k-items { font-family: "Oswald", "Kantumruy Pro", sans-serif; color: var(--k-ink); }
 .fx-kt--studio .fx-k-items li { color: #fff; }
 .fx-k--chart .fx-k-panel { position: absolute; left: 8%; right: 8%; top: 24%; width: auto; padding: 0; }
 .fx-k--chart .fx-k-title { font-size: calc(80px * var(--fx-unit)); }
@@ -525,11 +567,15 @@ export function footageFiles(
     if (cutaway.kind === "image") {
       const src = `motify-asset://${escapeHtml(cutaway.assetId)}`;
       // The picture whole, on a blurred copy of itself: a logo or a product photo of any shape.
-      // As paper, it is a print with a white border, laid slightly askew on textured paper.
-      const paper = cutaway.look === "paper" ? " fx-pic--paper" : "";
+      // As paper (the Vox look): a torn-edged print, halftoned, on blueprint paper seen through an old screen.
+      if (cutaway.look === "paper")
+        return {
+          under,
+          html: `<div class="fx-cut-shot fx-pic fx-pic--paper${top}${boxed}" id="fx-cut-${index}"><div class="fx-pic-tear"><div class="fx-pic-main" style="clip-path:${tornEdge(index + 1)}"><img class="fx-pic-img" src="${src}" alt=""></div></div></div>`,
+        };
       return {
         under,
-        html: `<div class="fx-cut-shot fx-pic${paper}${top}${boxed}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`,
+        html: `<div class="fx-cut-shot fx-pic${top}${boxed}" id="fx-cut-${index}"><img class="fx-pic-fill" src="${src}" alt=""><img class="fx-pic-main" src="${src}" alt=""></div>`,
       };
     }
     const video = `data-motify-video src="${footageToken(cutaway.assetId, "video.mp4")}" data-start="${n(placed.start)}" data-trim="${n(placed.trim)}" data-end="${n(placed.end)}" muted playsinline preload="auto"`;

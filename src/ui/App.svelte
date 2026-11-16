@@ -6267,8 +6267,6 @@ Voice over direction: ${voiceNote}`
               {:else if centerPage === "footage"}
                 <FootageStart
                   {workspaceId}
-                  voiceLocked={!voiceOverAllowed}
-                  onUpgrade={openPricing}
                   onCreate={createFootageProject}
                   onSignIn={() => openAuthDialog("signin")}
                 />
@@ -7142,8 +7140,6 @@ Voice over direction: ${voiceNote}`
 
         {#if footageMode && footageEdit}
           <FootageChat
-            voiceLocked={!voiceOverAllowed}
-            onUpgrade={openPricing}
             messages={assistantMessages}
             busy={footageBusy}
             activity={footageActivity}

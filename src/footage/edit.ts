@@ -467,6 +467,8 @@ export interface FootageSegment {
   audioTail: number;
   /** A slow push-in to this scale over the segment; 1 is none. */
   zoom: number;
+  /** A zoom reveal: the shot opens close and pulls back to show the whole frame. */
+  reveal?: boolean;
   /** Full frame (the default), or split with `overlay` on top. */
   layout?: FootageLayout;
   /** The clip shown in the other half of a split, from `in` seconds. */
