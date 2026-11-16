@@ -182,7 +182,8 @@ describe("studio graphics in the edit", () => {
     expect(chartRises([10, 60, 50])).toBe(false);
     expect(chartRises([50, 10])).toBe(false);
     expect(drawnCard({ template: "chart", theme: "paper" })).toBe(true);
-    expect(drawnCard({ template: "statement", theme: "studio" })).toBe(true);
+    // A studio statement is made by Motify's generator; only charts are drawn.
+    expect(drawnCard({ template: "statement", theme: "studio" })).toBe(false);
     expect(drawnCard({ template: "statement", theme: "dark" })).toBe(false);
   });
 

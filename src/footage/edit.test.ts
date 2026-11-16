@@ -251,7 +251,8 @@ describe("cards", () => {
       'class="fx-cut-shot fx-cardshot fx-k--spotlight fx-kt--paper" id="fx-cut-0"',
     );
     expect(over).toContain(words);
-    expect(over).toContain('src="motify-sfx://pop" data-start="1.1"');
+    // Over talk it lands silently, under the voice.
+    expect(over).not.toContain("motify-sfx://pop");
   });
 });
 
@@ -477,16 +478,27 @@ describe("fillers and sound effects", () => {
     ]);
   });
 
-  it("whooshes under moving transitions and pops on cards, unless turned off", () => {
+  it("whooshes only on the transitions marked for it and pops as a card cuts in, unless turned off", () => {
     let edit = addCard(
       quietFirst(),
       1,
       { template: "statement", theme: "dark", title: "Hi" },
       2,
     );
+    const quiet = footageFiles(edit).files["composition.html"];
+    // A moving transition is silent unless it is marked to be heard.
+    expect(quiet).not.toContain("motify-sfx://whoosh");
+    expect(quiet).toContain('src="motify-sfx://pop" data-start="4.1"');
+    const card = edit.segments.find((segment) => segment.card)!;
+    edit = updateSegment(edit, card.id, { whoosh: true });
     const html = footageFiles(edit).files["composition.html"];
     expect(html).toContain('src="motify-sfx://whoosh" data-start="3.82"');
-    expect(html).toContain('src="motify-sfx://pop" data-start="4.1"');
+    // Marked on a plain cut, there is still nothing to hear.
+    expect(
+      footageFiles(updateSegment(edit, card.id, { transition: "cut" })).files[
+        "composition.html"
+      ],
+    ).not.toContain("motify-sfx://whoosh");
     edit = { ...edit, sfx: false };
     expect(footageFiles(edit).files["composition.html"]).not.toContain(
       "motify-sfx://",

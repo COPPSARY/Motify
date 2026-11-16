@@ -4855,10 +4855,16 @@ Voice over direction: ${voiceNote}`
    * it runs on the server, the template card stands in, and the poller below
    * swaps the generated film in when it is ready.
    */
-  /** Every card in the edit, cut in or over talk, with how long it plays. */
-  function footageCards(
-    edit: FootageEdit,
-  ): Array<{ id: string; card: FootageCard; seconds: number }> {
+  /**
+   * Every card in the edit, cut in or over talk, with how long it plays and,
+   * over talk, the corner the speaker's bubble sits in in front of it.
+   */
+  function footageCards(edit: FootageEdit): Array<{
+    id: string;
+    card: FootageCard;
+    seconds: number;
+    speaker?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  }> {
     return [
       ...edit.segments.flatMap((segment) =>
         segment.card
@@ -4871,9 +4877,21 @@ Voice over direction: ${voiceNote}`
             ]
           : [],
       ),
-      ...(edit.cutaways ?? []).flatMap((cut) =>
-        cut.card ? [{ id: cut.id, card: cut.card, seconds: cut.duration }] : [],
-      ),
+      ...(edit.cutaways ?? []).flatMap((cut) => {
+        if (!cut.card) return [];
+        const box = cut.speaker?.front ? cut.speaker : undefined;
+        const speaker = box
+          ? (`${box.y + box.h / 2 < 0.5 ? "top" : "bottom"}-${box.x + box.w / 2 < 0.5 ? "left" : "right"}` as const)
+          : undefined;
+        return [
+          {
+            id: cut.id,
+            card: cut.card,
+            seconds: cut.duration,
+            ...(speaker ? { speaker } : {}),
+          },
+        ];
+      }),
     ];
   }
 
@@ -4924,7 +4942,7 @@ Voice over direction: ${voiceNote}`
     const edit = latest ?? footageEdit;
     const project = cloudProject;
     if (!edit || !project) return;
-    // Charts and the studio look are drawn by the editor itself: generated only when asked for by name.
+    // Charts are drawn by the editor itself, their line on the speaker's numbers: generated only when asked for by name.
     const targets = footageCards(edit).filter(({ id, card }) =>
       ids
         ? ids.includes(id)
@@ -4932,13 +4950,18 @@ Voice over direction: ${voiceNote}`
     );
     if (targets.length === 0) return;
     const started = await Promise.all(
-      targets.map(async ({ id, card, seconds }) => {
+      targets.map(async ({ id, card, seconds, speaker }) => {
         try {
           const projectId = await startMotionCard(project.id, {
             format: edit.format,
             seconds: Math.max(1.5, Math.min(8, seconds)),
             ...(edit.brief ? { brief: edit.brief } : {}),
             ...(edit.direction?.look ? { look: edit.direction.look } : {}),
+            // The director's own idea for this card, its words that land, its look and where the speaker sits.
+            ...(card.treatment ? { treatment: card.treatment } : {}),
+            ...(card.mark ? { mark: card.mark } : {}),
+            theme: card.theme,
+            ...(speaker ? { speaker } : {}),
             card: {
               title: card.title,
               ...(card.eyebrow ? { eyebrow: card.eyebrow } : {}),
