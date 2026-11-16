@@ -42,12 +42,20 @@
   ];
 
   const LANGUAGES: Array<{ value: string; label: string; sample: string }> = [
+    { value: "auto", label: "As spoken", sample: "Auto" },
     { value: "km", label: "Khmer", sample: "សួស្តី" },
     { value: "km+en", label: "Khmer + English", sample: "សួស្តី · Hello" },
     { value: "en", label: "English", sample: "Hello" },
-    { value: "auto", label: "As spoken", sample: "Auto" },
     { value: "none", label: "None", sample: "—" },
   ];
+
+  /** How each look's words move, as the person reads it. */
+  const MOVES: Record<string, string> = {
+    blur: "words blur in",
+    words: "words pop in",
+    pop: "pops in",
+    fade: "fades in",
+  };
 
   let dialog: HTMLDivElement;
   onMount(() => dialog?.focus());
@@ -90,10 +98,7 @@
                 class="fsu-shape__frame"
                 style:width={`${shape.w}px`}
                 style:height={`${shape.h}px`}
-              >
-                <span class="fsu-shape__subject"></span>
-                <span class="fsu-shape__caption"></span>
-              </span>
+              ></span>
             </span>
             <strong>{shape.label} <small>{shape.value}</small></strong>
             <small>{shape.hint}</small>
@@ -136,21 +141,34 @@
               class:fsu-on={captionStyle === look.value}
               on:click={() => (captionStyle = look.value)}
             >
-              <span class={`fsu-sample fsu-sample--${look.value}`}>
+              <span
+                class={`fsu-sample fsu-sample--${look.value} fsu-move--${look.animation}`}
+                aria-hidden="true"
+              >
                 {#if look.value === "stack"}
-                  <span class="s1">the <em>BIG</em></span>
-                  <span class="s2">idea <em>starts</em> here</span>
-                {:else if look.value === "bold"}
-                  BIG IDEA HERE
+                  <span class="s1"
+                    ><i style="--i:0">the</i> <em style="--i:1">BIG</em></span
+                  >
+                  <span class="s2"
+                    ><i style="--i:2">idea</i>
+                    <em style="--i:3">starts</em>
+                    <i style="--i:4">here</i></span
+                  >
                 {:else if look.value === "box"}
-                  <span>Big idea here</span>
-                {:else if look.value === "minimal"}
-                  big idea here
+                  <span class="fsu-line"
+                    ><i style="--i:0">Big idea here</i></span
+                  >
                 {:else}
-                  Big idea here
+                  <span class="fsu-line"
+                    >{#each (look.value === "bold" ? "BIG IDEA HERE" : look.value === "minimal" ? "big idea here" : "Big idea here").split(" ") as word, index (index)}<i
+                        style={`--i:${index}`}>{word}</i
+                      >{" "}{/each}</span
+                  >
                 {/if}
               </span>
-              <span class="fsu-look__name">{look.label}</span>
+              <span class="fsu-look__name"
+                >{look.label} <small>{MOVES[look.animation] ?? ""}</small></span
+              >
             </button>
           {/each}
           <button
@@ -283,32 +301,14 @@
   }
 
   .fsu-shape__frame {
-    position: relative;
-    overflow: hidden;
-    border: 2px solid rgba(255, 255, 255, 0.75);
-    border-radius: 9px;
-    background: linear-gradient(160deg, #2c3e66, #151b2c 70%);
+    border: 2px solid currentColor;
+    border-radius: 8px;
+    opacity: 0.7;
   }
 
-  .fsu-shape__subject {
-    position: absolute;
-    left: 50%;
-    bottom: -18%;
-    width: 46%;
-    aspect-ratio: 1 / 1.25;
-    transform: translateX(-50%);
-    border-radius: 50% 50% 18% 18%;
-    background: rgba(255, 255, 255, 0.22);
-  }
-
-  .fsu-shape__caption {
-    position: absolute;
-    left: 22%;
-    right: 22%;
-    bottom: 16%;
-    height: 4px;
-    border-radius: 2px;
-    background: #fff;
+  .fsu-on .fsu-shape__frame {
+    opacity: 1;
+    border-color: var(--fs-blue-text, #8fb0ff);
   }
 
   .fsu-tick {
@@ -370,6 +370,129 @@
     text-align: left;
   }
 
+  .fsu-look__name small {
+    color: var(--sl-text-soft, #a1a1aa);
+    font-size: 11px;
+  }
+
+  .fsu-sample i,
+  .fsu-sample em {
+    display: inline-block;
+    font-style: inherit;
+    animation-duration: 3s;
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+    animation-delay: calc(var(--i, 0) * 0.16s);
+  }
+
+  .fsu-sample em {
+    font-style: italic;
+  }
+
+  .fsu-move--blur i,
+  .fsu-move--blur em {
+    animation-name: fsu-blur;
+  }
+
+  .fsu-move--words i,
+  .fsu-move--words em {
+    animation-name: fsu-pop-word;
+  }
+
+  .fsu-move--pop .fsu-line {
+    animation: fsu-pop-line 3s ease-out infinite both;
+  }
+
+  .fsu-move--fade .fsu-line {
+    animation: fsu-fade 3s ease-out infinite both;
+  }
+
+  .fsu-move--pop i,
+  .fsu-move--fade i {
+    animation: none;
+  }
+
+  @keyframes fsu-blur {
+    0% {
+      opacity: 0;
+      filter: blur(6px);
+      transform: translateY(3px);
+    }
+    14%,
+    82% {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+    94%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fsu-pop-word {
+    0% {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+    10% {
+      opacity: 1;
+      transform: scale(1.12);
+    }
+    16%,
+    82% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    94%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fsu-pop-line {
+    0% {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    12% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+    18%,
+    82% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    94%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fsu-fade {
+    0% {
+      opacity: 0;
+    }
+    18%,
+    82% {
+      opacity: 1;
+    }
+    94%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fsu-sample i,
+    .fsu-sample em,
+    .fsu-sample .fsu-line {
+      animation: none !important;
+    }
+  }
+
   .fsu-sample {
     display: flex;
     flex-direction: column;
@@ -420,7 +543,7 @@
     paint-order: stroke fill;
   }
 
-  .fsu-sample--box span {
+  .fsu-sample--box .fsu-line i {
     padding: 3px 8px;
     border-radius: 5px;
     background: var(--fs-blue, #1f45b0);
