@@ -600,6 +600,27 @@
   backdrop-filter: blur(2px);
 }
 
+/* Motion graphics still being made, over the top of the preview. */
+.fx-stage-making {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(12, 11, 16, 0.82);
+  color: var(--sl-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  backdrop-filter: blur(4px);
+}
+
 /* Pictures attached to a chat message. */
 .fx-pictures {
   display: flex;
