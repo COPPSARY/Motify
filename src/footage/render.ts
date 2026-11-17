@@ -329,6 +329,9 @@ function captionMarkup(edit: FootageEdit): string {
     .join("\n    ");
 }
 
+/** What stands where a motion graphic will be while Motify's generator makes it. */
+const PENDING_CARD = `<div class="fx-pending" data-motify-pending><span class="fx-pending-dot"></span><span>Generating motion graphic</span></div>`;
+
 export const FOOTAGE_CSS = `
 .fx { position: absolute; inset: 0; overflow: hidden; background: #000; font-family: var(--fx-font), "Kantumruy Pro", "Inter", sans-serif; --fx-unit: calc(var(--fx-short) / 1080); }
 .fx-shot { position: absolute; inset: 0; overflow: hidden; visibility: hidden; opacity: 0; will-change: transform, filter; }
@@ -336,6 +339,11 @@ export const FOOTAGE_CSS = `
 .fx-filmshot { background: #000; }
 .fx-card-film { position: absolute; inset: 0; }
 .fx-card-film iframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.fx-card-pending { display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, #26232f, #0d0c10 70%); }
+.fx-card-pending--over { background: none; place-items: end center; padding-bottom: calc(var(--fx-unit) * 300); }
+.fx-pending { display: inline-flex; align-items: center; gap: calc(var(--fx-unit) * 18); padding: calc(var(--fx-unit) * 20) calc(var(--fx-unit) * 34); border-radius: 999px; background: rgba(12, 11, 16, 0.78); border: calc(var(--fx-unit) * 2) solid rgba(255, 255, 255, 0.14); color: #f4f4f5; font: 600 calc(var(--fx-unit) * 34) / 1.2 "Inter", sans-serif; letter-spacing: 0.01em; }
+.fx-pending-dot { width: calc(var(--fx-unit) * 22); height: calc(var(--fx-unit) * 22); border-radius: 50%; border: calc(var(--fx-unit) * 4) solid rgba(255, 255, 255, 0.25); border-top-color: #a48bff; animation: fx-pending-spin 0.9s linear infinite; }
+@keyframes fx-pending-spin { to { transform: rotate(360deg); } }
 .fx-cutaways { position: absolute; inset: 0; pointer-events: none; }
 .fx-cutaway { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; visibility: hidden; opacity: 0; transform-origin: 50% 50%; }
 .fx-shots { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; will-change: transform; }
@@ -528,6 +536,9 @@ export function footageFiles(
       if (segment.card?.film?.state === "ready")
         // Motify's generated card, mounted by the runtime in this holder.
         return `<div class="fx-shot fx-cardshot fx-filmshot" id="fx-shot-${id}"><div class="fx-card-film" data-card-film="${escapeHtml(segment.card.film.projectId)}"></div></div>`;
+      // Still being made: a placeholder that says so, never a stand-in card that changes later.
+      if (segment.card?.film?.state === "generating")
+        return `<div class="fx-shot fx-cardshot fx-card-pending" id="fx-shot-${id}">${PENDING_CARD}</div>`;
       if (segment.card) return cardMarkup(id, segment.card, edit.format);
       const main = clipVideo(segment.assetId, start, segment.in, end, true);
       const overlay = segment.layout === "split" ? segment.overlay : undefined;
@@ -551,6 +562,12 @@ export function footageFiles(
         return {
           under,
           html: `<div class="fx-cut-shot fx-cardshot fx-filmshot" id="fx-cut-${index}"><div class="fx-card-film" data-card-film="${escapeHtml(cutaway.card.film.projectId)}"></div></div>`,
+        };
+      // Over talk, the speaker stays in view and a small note marks where the graphic will go.
+      if (cutaway.card.film?.state === "generating")
+        return {
+          under: false,
+          html: `<div class="fx-cut-shot fx-card-pending fx-card-pending--over" id="fx-cut-${index}">${PENDING_CARD}</div>`,
         };
       return {
         under,

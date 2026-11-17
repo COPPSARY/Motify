@@ -282,6 +282,36 @@ describe("cards", () => {
     ).files["composition.html"] as string;
     expect(marked).toMatch(/fx-k-w[^>]*>One<\/span>\s*<span class="fx-k-mark"/);
   });
+
+  it("shows a card still being made as generating, never its stand-in", () => {
+    const making = {
+      ...card,
+      film: { projectId: "m1", state: "generating" as const },
+    };
+    const cutIn = footageFiles(addCard(quietFirst(), 1, making, 2)).files[
+      "composition.html"
+    ] as string;
+    expect(cutIn).toContain("fx-card-pending");
+    expect(cutIn).toContain("Generating motion graphic");
+    expect(cutIn).not.toContain("fx-k-title");
+    const over = footageFiles(addCard(twoClips(), 1, making, 2)).files[
+      "composition.html"
+    ] as string;
+    expect(over).toContain(
+      'class="fx-cut-shot fx-card-pending fx-card-pending--over" id="fx-cut-0"',
+    );
+    expect(over).not.toContain("fx-k-title");
+    // Once made, the generated film plays in its place.
+    const ready = footageFiles(
+      addCard(
+        twoClips(),
+        1,
+        { ...card, film: { projectId: "m1", state: "ready" } },
+        2,
+      ),
+    ).files["composition.html"] as string;
+    expect(ready).toContain('data-card-film="m1"');
+  });
 });
 
 describe("the paper look", () => {

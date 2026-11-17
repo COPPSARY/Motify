@@ -4953,33 +4953,29 @@ Voice over direction: ${voiceNote}`
   }
 
   /**
-   * Motify's generator makes each card (all without a film, or the ones named):
-   * it runs on the server, the template card stands in, and the poller below
-   * swaps the generated film in when it is ready.
+   * Starts Motify's generator on each card (all without a film, or the ones
+   * named) and returns the edit with those cards marked as being made, so the
+   * preview shows a "generating" placeholder in their place, never a stand-in
+   * card that changes later. The poller below swaps each film in when ready.
+   * A card whose job could not start keeps its simple card.
    */
-  async function generateMotionCards(
+  async function startCardFilms(
+    edit: FootageEdit,
+    projectId: string,
     ids?: string[],
     assetIds: string[] = [],
-    /**
-     * The edit just made. `footageEdit` follows the project's files only on
-     * Svelte's next update, so right after a cut it still holds the old one.
-     */
-    latest?: FootageEdit,
-  ): Promise<void> {
-    const edit = latest ?? footageEdit;
-    const project = cloudProject;
-    if (!edit || !project) return;
+  ): Promise<FootageEdit> {
     // Charts are drawn by the editor itself, their line on the speaker's numbers: generated only when asked for by name.
     const targets = footageCards(edit).filter(({ id, card }) =>
       ids
         ? ids.includes(id)
         : !drawnCard(card) && (!card.film || card.film.state === "failed"),
     );
-    if (targets.length === 0) return;
+    if (targets.length === 0) return edit;
     const started = await Promise.all(
       targets.map(async ({ id, card, seconds, speaker }) => {
         try {
-          const projectId = await startMotionCard(project.id, {
+          const filmId = await startMotionCard(projectId, {
             format: edit.format,
             seconds: Math.max(1.5, Math.min(8, seconds)),
             ...(edit.brief ? { brief: edit.brief } : {}),
@@ -4998,7 +4994,7 @@ Voice over direction: ${voiceNote}`
             },
             ...(assetIds.length > 0 ? { assetIds } : {}),
           });
-          return [id, projectId] as const;
+          return [id, filmId] as const;
         } catch (error) {
           showNotice(
             error instanceof Error
@@ -5011,24 +5007,30 @@ Voice over direction: ${voiceNote}`
       }),
     );
     const byId = new Map(started.flatMap((entry) => (entry ? [entry] : [])));
-    if (byId.size === 0 || !footageEdit) return;
-    await applyFootageEdit(
-      withCards(
-        footageEdit,
-        new Map(
-          [...byId].map(([id, projectId]) => [
-            id,
-            (card: FootageCard) => ({
-              card: {
-                ...card,
-                film: { projectId, state: "generating" as const },
-              },
-            }),
-          ]),
-        ),
+    if (byId.size === 0) return edit;
+    return withCards(
+      edit,
+      new Map(
+        [...byId].map(([id, filmId]) => [
+          id,
+          (card: FootageCard) => ({
+            card: {
+              ...card,
+              film: { projectId: filmId, state: "generating" as const },
+            },
+          }),
+        ]),
       ),
-      "",
     );
+  }
+
+  /** Remakes the named cards in the open edit (the panel's "Make another"). */
+  async function generateMotionCards(ids: string[]): Promise<void> {
+    const project = cloudProject;
+    if (!footageEdit || !project) return;
+    const next = await startCardFilms(footageEdit, project.id, ids);
+    if (next !== footageEdit && cloudProject?.id === project.id)
+      await applyFootageEdit(next, "");
   }
 
   /** Cards being generated, followed until each is ready or failed. */
@@ -5217,10 +5219,17 @@ Voice over direction: ${voiceNote}`
         ];
         return;
       }
-      await applyFootageEdit(result.edit, "AI cut");
+      // The cut's cards are made by Motify's generator, with the pictures given for it;
+      // they show as "generating" until each is ready.
+      footageActivity = "Starting the motion graphics";
+      const cut = await startCardFilms(
+        result.edit,
+        projectId,
+        undefined,
+        assetIds,
+      );
+      await applyFootageEdit(cut, "AI cut");
       runtime?.seek(0);
-      // The cut's cards are made by Motify's generator, with the pictures given for it.
-      void generateMotionCards(undefined, assetIds, result.edit);
       assistantMessages = [
         ...assistantMessages,
         {
@@ -5329,9 +5338,14 @@ Voice over direction: ${voiceNote}`
         ];
         return;
       }
-      await applyFootageEdit(result.edit, instruction.slice(0, 40));
       // Cards the instruction added are made by Motify's generator, with any attached pictures.
-      void generateMotionCards(undefined, assetIds, result.edit);
+      const changed = await startCardFilms(
+        result.edit,
+        cloudProject.id,
+        undefined,
+        assetIds,
+      );
+      await applyFootageEdit(changed, instruction.slice(0, 40));
       assistantMessages = [
         ...assistantMessages,
         {
@@ -5449,7 +5463,13 @@ Voice over direction: ${voiceNote}`
         footageCutQuestion = { options: cutOptions, question: result.summary };
         choices = result.choices;
       } else {
-        edit = result.edit;
+        // The editor opens with its motion graphics already being made, shown as such.
+        edit = await startCardFilms(
+          result.edit,
+          created.id,
+          undefined,
+          input.pictures,
+        );
         charged = result.credits?.charged;
       }
       if (result.credits) void refreshCredits();
@@ -5481,7 +5501,6 @@ Voice over direction: ${voiceNote}`
       .join(",");
     const mounted = mountFootage(edit);
     scheduleFootageSave();
-    void generateMotionCards(undefined, input.pictures, edit);
     captureEvent("footage project created", {
       clips: input.clips.length,
       seconds: input.seconds ?? "auto",
@@ -5685,6 +5704,15 @@ Voice over direction: ${voiceNote}`
 
   async function startExport(settings: ExportSettings): Promise<void> {
     if (!hasEditorProject || !runtime || exporting) return;
+    if (footageEdit && footageGeneratingCards > 0) {
+      showNotice(
+        footageGeneratingCards === 1
+          ? "Motify is still making a motion graphic. Export once it is ready."
+          : `Motify is still making ${footageGeneratingCards} motion graphics. Export once they are ready.`,
+        6000,
+      );
+      return;
+    }
     exporting = true;
     exportProgress = 0;
     exportEta = undefined;
@@ -6705,6 +6733,14 @@ Voice over direction: ${voiceNote}`
                     footageWork.instruction,
                   )}
                 />
+              {:else if footageMode && footageGeneratingCards > 0}
+                <!-- Motion graphics still being made: said plainly, while the rest plays. -->
+                <div class="fx-stage-making" role="status">
+                  <span class="me-spinner" aria-hidden="true"></span>
+                  {footageGeneratingCards === 1
+                    ? "Generating 1 motion graphic"
+                    : `Generating ${footageGeneratingCards} motion graphics`}
+                </div>
               {/if}
               {#if footageMode}
                 {#each footageOutlines as outline (outline.id)}
