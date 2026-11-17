@@ -35,7 +35,12 @@ import {
   type FootageEdit,
   type FootageSegment,
 } from "./edit";
-import { footageFiles, isFootageTimeline, readFootageEdit } from "./render";
+import {
+  footageFiles,
+  isFootageTimeline,
+  readFootageEdit,
+  tornEdge,
+} from "./render";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
@@ -189,7 +194,7 @@ function quietFirst(): FootageEdit {
 describe("cards", () => {
   const card = {
     template: "spotlight" as const,
-    theme: "paper" as const,
+    theme: "dark" as const,
     eyebrow: "ប្រើប្រាស់",
     title: "Claude",
     label: "OPUS",
@@ -241,18 +246,51 @@ describe("cards", () => {
       "composition.html"
     ];
     expect(cutIn).toContain(
-      'class="fx-shot fx-cardshot fx-k--spotlight fx-kt--paper"',
+      'class="fx-shot fx-cardshot fx-k--spotlight fx-kt--dark"',
     );
     expect(cutIn).toContain(words);
     const over = footageFiles(addCard(twoClips(), 1, card, 2)).files[
       "composition.html"
     ];
     expect(over).toContain(
-      'class="fx-cut-shot fx-cardshot fx-k--spotlight fx-kt--paper" id="fx-cut-0"',
+      'class="fx-cut-shot fx-cardshot fx-k--spotlight fx-kt--dark" id="fx-cut-0"',
     );
     expect(over).toContain(words);
     // Over talk it lands silently, under the voice.
     expect(over).not.toContain("motify-sfx://pop");
+  });
+
+  it("highlights a paper card's whole title, or just its marked words", () => {
+    const whole = footageFiles(
+      addCard(
+        twoClips(),
+        1,
+        { ...card, theme: "paper", title: "One steel box" },
+        2,
+      ),
+    ).files["composition.html"] as string;
+    expect(whole).toContain(
+      '<div class="fx-k-title fx-k-worded"><span class="fx-k-mark" style="background-size:0% 100%">',
+    );
+    const marked = footageFiles(
+      addCard(
+        twoClips(),
+        1,
+        { ...card, theme: "paper", title: "One steel box", mark: "steel box" },
+        2,
+      ),
+    ).files["composition.html"] as string;
+    expect(marked).toMatch(/fx-k-w[^>]*>One<\/span>\s*<span class="fx-k-mark"/);
+  });
+});
+
+describe("the paper look", () => {
+  it("shows a paper picture as a torn print, the same on every render", () => {
+    expect(tornEdge(3)).toBe(tornEdge(3));
+    expect(tornEdge(3)).not.toBe(tornEdge(4));
+    expect(tornEdge(3)).toMatch(
+      /^polygon\((\d+\.\d{2}% \d+\.\d{2}%, ){71}\d+\.\d{2}% \d+\.\d{2}%\)$/,
+    );
   });
 });
 

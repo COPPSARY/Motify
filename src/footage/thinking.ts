@@ -61,3 +61,16 @@ function clipLines(
 function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
+
+/**
+ * How far along the work looks after `seconds`, 0 to 1: it races to about
+ * 90% in the first ten seconds, then creeps on (never reaching 100%) while
+ * the model really works, so a long cut never looks stuck.
+ */
+export function workProgress(seconds: number): number {
+  const t = Math.max(0, seconds);
+  return Math.min(
+    0.97,
+    0.9 * (1 - Math.exp(-t / 3.2)) + 0.07 * (1 - Math.exp(-t / 45)),
+  );
+}

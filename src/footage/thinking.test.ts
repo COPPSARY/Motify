@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FootageStatus } from "./api";
 import { CAPTION_LOOKS, FOOTAGE_PRESETS, captionLookJson } from "./presets";
-import { thinkingLines } from "./thinking";
+import { thinkingLines, workProgress } from "./thinking";
 
 function status(overrides: Partial<FootageStatus> = {}): FootageStatus {
   return {
@@ -89,5 +89,16 @@ describe("start presets", () => {
     for (const item of FOOTAGE_PRESETS)
       expect(CAPTION_LOOKS.map((look) => look.value)).toContain(item.captions);
     expect(captionLookJson("")).toBe("");
+  });
+});
+
+describe("the work's progress bar", () => {
+  it("races to about 90% and then creeps, never reaching 100%", () => {
+    expect(workProgress(0)).toBe(0);
+    expect(workProgress(3)).toBeGreaterThan(0.5);
+    expect(workProgress(10)).toBeGreaterThan(0.85);
+    expect(workProgress(10)).toBeLessThan(0.92);
+    expect(workProgress(60)).toBeGreaterThan(workProgress(20));
+    expect(workProgress(10_000)).toBeLessThan(1);
   });
 });

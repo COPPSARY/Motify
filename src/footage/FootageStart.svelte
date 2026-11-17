@@ -1,16 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import {
-    Check,
-    Loader2,
-    Lock,
-    Mic,
-    Music,
-    Plus,
-    Sparkles,
-    Upload,
-    X,
-  } from "lucide-svelte";
+  import { Check, Loader2, Plus, Sparkles, Upload, X } from "lucide-svelte";
   import {
     VIDEO_ACCEPT,
     VIDEO_MAX_BYTES,
@@ -20,8 +10,9 @@
   } from "../api/assets";
   import { STAGE_LABEL, clipStatuses, watchClips } from "./clips";
   import FootageThinking from "./FootageThinking.svelte";
+  import FootageSetup from "./FootageSetup.svelte";
   import { thinkingLines } from "./thinking";
-  import { CAPTION_LOOKS, FOOTAGE_PRESETS, captionLookJson } from "./presets";
+  import { FOOTAGE_PRESETS, captionLookJson } from "./presets";
   import type { FootageClip, FootageFormat } from "./edit";
 
   /**
@@ -51,9 +42,6 @@
     onProgress: (step: "clips" | "cut" | "open") => void,
   ) => Promise<void>;
   export let onSignIn: () => void;
-  /** Voice-over comes with Starter and Pro; without them the switch opens pricing. */
-  export let voiceLocked = false;
-  export let onUpgrade: () => void = () => undefined;
 
   /** After Create: which step the video is on, until the editor opens. */
   let step: "clips" | "cut" | "open" | null = null;
@@ -75,12 +63,10 @@
   let fileInput: HTMLInputElement;
   let items: Item[] = [];
   let brief = "";
-  /** Auto (null) by default: the AI picks the length the footage needs. */
-  let seconds: number | null = null;
   let format: FootageFormat = "9:16";
   let captionLanguage = "auto";
-  let music = true;
-  let voiceover = false;
+  /** Shape and captions are chosen in the last step, after "Create my video". */
+  let setupOpen = false;
   /** Stacked captions unless the person picks another look. */
   let captionStyle = "stack";
   /** The preset the brief came from, while it is unchanged. */
@@ -88,13 +74,6 @@
   let creating = false;
   let error = "";
   let dragOver = false;
-
-  const FORMATS: Array<{ value: FootageFormat; label: string; hint: string }> =
-    [
-      { value: "9:16", label: "Vertical", hint: "TikTok · Reels · Shorts" },
-      { value: "1:1", label: "Square", hint: "Facebook · Instagram feed" },
-      { value: "16:9", label: "Wide", hint: "YouTube · website" },
-    ];
 
   function choosePreset(chosen: (typeof FOOTAGE_PRESETS)[number]): void {
     brief = chosen.brief;
@@ -216,6 +195,7 @@
 
   async function create(): Promise<void> {
     if (!canCreate) return;
+    setupOpen = false;
     creating = true;
     error = "";
     try {
@@ -228,11 +208,12 @@
         {
           clips: ready,
           brief,
-          seconds,
+          // The AI always picks the length the footage needs; music and voice-over are not offered yet.
+          seconds: null,
           format,
           captionLanguage,
-          music,
-          voiceover: voiceover && !voiceLocked,
+          music: false,
+          voiceover: false,
           pictures,
           localFiles,
           ...(captionStyle
@@ -263,8 +244,8 @@
     <h1 id="fs-title">Turn your raw clips into a video</h1>
     <p>
       Upload what you filmed. Motify watches and listens to every clip, cuts the
-      best moments into a video with Khmer subtitles, cards and music, and you
-      can change anything afterwards.
+      best moments into a video with Khmer subtitles and motion graphics, and
+      you can change anything afterwards.
     </p>
   </header>
 
@@ -400,94 +381,6 @@
       </div>
     </div>
 
-    <div class="fs-card">
-      <div class="fs-step"><span>3</span><strong>Shape</strong></div>
-      <div class="fs-formats" role="radiogroup" aria-label="Format">
-        {#each FORMATS as option (option.value)}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={format === option.value}
-            class="fs-format"
-            class:fs-on={format === option.value}
-            on:click={() => (format = option.value)}
-          >
-            <span
-              class={`fs-shape fs-shape--${option.value.replace(":", "x")}`}
-              aria-hidden="true"
-            ></span>
-            <strong>{option.label} <small>{option.value}</small></strong>
-            <small>{option.hint}</small>
-          </button>
-        {/each}
-      </div>
-      <div class="fs-options">
-        <div class="fs-option">
-          <span>Length</span>
-          <div class="fs-segmented" role="group" aria-label="Length">
-            {#each [null, 15, 30, 60] as option (option ?? "auto")}
-              <button
-                type="button"
-                class:fs-on={seconds === option}
-                aria-pressed={seconds === option}
-                title={option === null
-                  ? "The AI picks the length your footage needs"
-                  : undefined}
-                on:click={() => (seconds = option)}
-                >{option === null ? "Auto" : `${option}s`}</button
-              >
-            {/each}
-          </div>
-        </div>
-        <label class="fs-option">
-          <span>Subtitles</span>
-          <select bind:value={captionLanguage}>
-            <option value="km">Khmer</option>
-            <option value="km+en">Khmer + English</option>
-            <option value="en">English</option>
-            <option value="auto">As spoken</option>
-            <option value="none">None</option>
-          </select>
-        </label>
-        <label class="fs-option">
-          <span>Caption look</span>
-          <select
-            bind:value={captionStyle}
-            disabled={captionLanguage === "none"}
-          >
-            {#each CAPTION_LOOKS as look (look.value)}
-              <option value={look.value}>{look.label}</option>
-            {/each}
-            <option value="">Let the AI choose</option>
-          </select>
-        </label>
-        <label class="fs-option fs-switch">
-          <span><Music size={14} /> Background music</span>
-          <input type="checkbox" role="switch" bind:checked={music} />
-        </label>
-        {#if voiceLocked}
-          <div class="fs-option fs-switch">
-            <span><Mic size={14} /> Voice-over</span>
-            <button
-              type="button"
-              class="fs-plan-lock"
-              title="A narrator reads a script the AI writes. Included in Starter and Pro."
-              on:click={onUpgrade}
-              ><Lock size={12} aria-hidden="true" /> Starter · Pro</button
-            >
-          </div>
-        {:else}
-          <label
-            class="fs-option fs-switch"
-            title="For clips nobody speaks in: a narrator reads a script the AI writes, in the subtitle language"
-          >
-            <span><Mic size={14} /> Voice-over</span>
-            <input type="checkbox" role="switch" bind:checked={voiceover} />
-          </label>
-        {/if}
-      </div>
-    </div>
-
     {#if error}<p class="fs-error" role="alert">{error}</p>{/if}
 
     {#if step}
@@ -552,13 +445,13 @@
       <small
         >{ready.length === 0
           ? "Add at least one clip to start."
-          : "The first cut takes about a minute and costs 10 credits. Every change can be undone."}</small
+          : "Next: pick the shape and the captions. The first cut takes about a minute and costs 10 credits."}</small
       >
       <button
         type="button"
         class="fs-primary"
         disabled={!canCreate}
-        on:click={create}
+        on:click={() => (setupOpen = true)}
       >
         {#if creating}<Loader2 size={16} class="fx-spin" /> Opening the editor…{:else if uploading}<Loader2
             size={16}
@@ -566,5 +459,15 @@
           /> Uploading…{:else}<Sparkles size={16} /> Create my video{/if}
       </button>
     </footer>
+  {/if}
+  {#if setupOpen}
+    <FootageSetup
+      bind:format
+      bind:captionLanguage
+      bind:captionStyle
+      busy={creating}
+      onClose={() => (setupOpen = false)}
+      onConfirm={() => void create()}
+    />
   {/if}
 </section>
