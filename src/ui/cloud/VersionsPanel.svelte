@@ -31,6 +31,14 @@
   let renameDraft = "";
   let request = 0;
 
+  /** The newest version, and whether the film is showing an older one. */
+  $: latest = versions.reduce<ProjectVersion | null>(
+    (best, version) =>
+      !best || version.revision > best.revision ? version : best,
+    null,
+  );
+  $: onOlderVersion = Boolean(latest && !latest.current);
+
   $: loadKey = `${projectId}:${revision}`;
   $: if (projectId && loadKey !== loadedKey) {
     loadedKey = loadKey;
@@ -168,6 +176,24 @@
 
   {#if error}
     <p class="versions-error" role="alert">{error}</p>
+  {/if}
+
+  {#if latest && onOlderVersion}
+    <div class="versions-latest">
+      <span>You are on an older version.</span>
+      <button
+        type="button"
+        class="versions-restore"
+        disabled={busy || restoring !== 0}
+        on:click={() => latest && void restore(latest)}
+      >
+        {#if restoring === latest.revision}
+          <LoaderCircle size={13} class="versions-spin" /> Restoring…
+        {:else}
+          <RotateCcw size={13} /> Back to latest (v{latest.revision})
+        {/if}
+      </button>
+    </div>
   {/if}
 
   {#if loading && versions.length === 0}

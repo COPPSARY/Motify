@@ -2096,3 +2096,19 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   object-fit: cover;
 }
+
+.code-editor-scope .save-status {
+  color: var(--sl-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.code-editor-scope .save-status.is-busy {
+  color: var(--sl-text);
+}
+
+@media (max-width: 900px) {
+  .code-editor-scope .save-status {
+    display: none;
+  }
+}

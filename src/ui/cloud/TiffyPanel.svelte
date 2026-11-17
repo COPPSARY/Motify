@@ -1176,7 +1176,7 @@
         aria-label={insufficientCredits
           ? "Send message to Tiffy (not enough credits)"
           : "Send message to Tiffy"}
-        disabled={!assistantDraft.trim() ||
+        disabled={(!assistantDraft.trim() && classifiedAssets.length === 0) ||
           $generationStore.isActive ||
           uploadingMedia ||
           enhancingPrompt}

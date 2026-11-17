@@ -18,9 +18,24 @@ export async function hydrateCloudAssetTokens(
     : source;
   const objectUrls: string[] = [];
 
-  for (const assetId of new Set(assetIds)) {
-    const objectUrl = await loadAssetObjectUrl(assetId);
-    objectUrls.push(objectUrl);
+  // Downloaded together: a film of many pictures and clips otherwise waits on
+  // each file in turn before it can show.
+  const loaded = await Promise.allSettled(
+    [...new Set(assetIds)].map(
+      async (assetId) => [assetId, await loadAssetObjectUrl(assetId)] as const,
+    ),
+  );
+  for (const result of loaded) {
+    if (result.status === "fulfilled") objectUrls.push(result.value[1]);
+  }
+  const failed = loaded.find((result) => result.status === "rejected");
+  if (failed) {
+    objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    throw (failed as PromiseRejectedResult).reason;
+  }
+  for (const result of loaded) {
+    if (result.status !== "fulfilled") continue;
+    const [assetId, objectUrl] = result.value;
     hydrated = hydrated.replaceAll(`motify-asset://${assetId}`, objectUrl);
   }
 
