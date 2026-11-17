@@ -43,6 +43,8 @@
   let fileInput: HTMLInputElement;
   let dragOver = false;
   let reading = "";
+  /** How far the layers are matched to Photoshop's picture, 0..1; null before. */
+  let matching: number | null = null;
   let error = "";
   let psd: PsdDocument | null = null;
   let seconds = 8;
@@ -96,7 +98,9 @@
     // Let the page say so before the parser takes the main thread.
     await new Promise((resolve) => setTimeout(resolve, 30));
     try {
-      psd = await readPsdFile(file);
+      psd = await readPsdFile(file, (share) => {
+        matching = share;
+      });
     } catch (failure) {
       error =
         failure instanceof PsdImportError
@@ -104,6 +108,7 @@
           : `This file could not be opened: ${failure instanceof Error ? failure.message : "unknown error"}.`;
     } finally {
       reading = "";
+      matching = null;
     }
   }
 
@@ -216,7 +221,12 @@
       <div class="psd-reading" role="status" aria-live="polite">
         <Loader2 size={18} class="fx-spin" />
         <span
-          ><strong>Reading the layers of {reading}…</strong><small
+          ><strong
+            >{#if matching === null}Reading the layers of {reading}…{:else}Matching
+              every layer to Photoshop… {Math.round(
+                matching * 100,
+              )}%{/if}</strong
+          ><small
             >Large files can take a little while. The file stays on this
             computer; only the layers are uploaded when you import.</small
           ></span

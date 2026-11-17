@@ -105,9 +105,11 @@ export function renderLayerStyle(
   effects: LayerEffectsInfo,
   options: StyleOptions,
 ): StyledLayer | null {
-  const scale = effects.scale && effects.scale > 0 ? effects.scale : 1;
+  // Sizes are document pixels as they are. The style's own "scale" is not a
+  // size multiplier: Photoshop records the document's resolution there (a
+  // 300 ppi file reads 300/72), and draws the sizes unscaled.
   const px = (value: UnitsValue | undefined, fallback = 0) =>
-    Math.max(0, (value?.value ?? fallback) * scale);
+    Math.max(0, value?.value ?? fallback);
   const notes: string[] = [];
 
   const shadows = (effects.dropShadow ?? []).filter(on);
