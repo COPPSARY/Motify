@@ -59,18 +59,21 @@ interface Leaf {
  * `composite`, Photoshop's own picture. Null when the file has no usable
  * composite (saved without "Maximize compatibility").
  *
- * Two passes, so layers stay clean when they move on their own:
+ * Layers move on their own in the video, so a layer takes only what is
+ * wrong with its own look, never something that depends on another layer
+ * being where it is at rest (that shows as a ghost outline as soon as the
+ * other one moves):
  *
- * 1. Redrawn layers take what their redraw got wrong, smoothed. A redraw's
- *    error is smooth (a bevel that lights a badge 10% brighter); what is
- *    grainy is the blend maths of the layers above, and baked into a layer
- *    that moves it would tear against the grain it came from.
- * 2. What is left goes to the layers that do not travel against the rest:
- *    ones that cover the whole canvas (backgrounds, grain and light
- *    textures) and the blended layers whose maths caused it.
+ * - only a redrawn layer, at Normal, where it covers fully and no other
+ *   moving layer lies over it there (a texture over the whole canvas is
+ *   fine: it does not move against it);
+ * - its correction smoothed over its own pixels: a redraw's error is smooth
+ *   (a bevel that lights a badge 10% brighter); the grain of the layers
+ *   above is not, and would tear against them when it moved;
+ * - colour only: its edges and coverage stay as they are.
  *
- * No layer gains coverage: a transparent pixel stays transparent, or a box
- * would show around a layer as soon as it moved.
+ * What depends on more than one layer (blend modes CSS lacks, Photoshop's
+ * own blend maths) is left as it is: close to Photoshop, and clean in motion.
  */
 export async function matchComposite(
   document: PsdDocument,
@@ -112,67 +115,31 @@ export async function matchComposite(
   const before = visibleShare(drawn, target);
   const progress = pacer(onProgress);
 
-  // 1. Redrawn layers, smoothed.
-  const first = differingPixels(drawn, target, W * H);
+  const differing = differingPixels(drawn, target, W * H);
   const deltas = new Map<Leaf, Float32Array>();
   let corrected = 0;
-  for (let n = 0; n < first.length; n += 1) {
-    await progress(n / first.length / 2);
-    const p = first[n]!;
+  for (let n = 0; n < differing.length; n += 1) {
+    await progress(n / differing.length);
+    const p = differing[n]!;
     const stack = compileStack(document.layers, leaves, p % W, (p / W) | 0);
-    const owners = stackLeaves(stack)
-      .filter((op) => op.leaf.node.redrawn && ownable(op.leaf.node))
-      .filter((op) => op.leaf.data[op.local + 3]! > 0)
-      // The one you see most of there: a badge, not the faint edge of a
-      // label on it.
-      .sort((a, b) => b.leaf.data[b.local + 3]! - a.leaf.data[a.local + 3]!);
-    for (const owner of owners) {
-      const solved = solvePixel(stack, owner, wantAt(target, p));
-      if (!solved) continue;
-      const delta = (deltas.get(owner.leaf) ??
-        deltas
-          .set(
-            owner.leaf,
-            new Float32Array(owner.leaf.width * owner.leaf.height * 4),
-          )
-          .get(owner.leaf))!;
-      const data = owner.leaf.data;
-      const at = owner.local;
-      delta[at] = solved.color[0] * 255 - data[at]!;
-      delta[at + 1] = solved.color[1] * 255 - data[at + 1]!;
-      delta[at + 2] = solved.color[2] * 255 - data[at + 2]!;
-      delta[at + 3] = solved.alpha * 255 - data[at + 3]!;
-      corrected += 1;
-      break;
+    const owner = ownerAt(stack);
+    if (!owner) continue;
+    const solved = solvePixel(stack, owner, wantAt(target, p));
+    if (!solved) continue;
+    const leaf = owner.leaf;
+    let delta = deltas.get(leaf);
+    if (!delta) {
+      delta = new Float32Array(leaf.width * leaf.height * 3);
+      deltas.set(leaf, delta);
     }
+    const at = owner.local;
+    const d = (at / 4) * 3;
+    for (let c = 0; c < 3; c += 1)
+      delta[d + c] = solved.color[c]! * 255 - leaf.data[at + c]!;
+    corrected += 1;
   }
   for (const [leaf, delta] of deltas) applySmoothed(leaf, delta);
   flush(leaves);
-
-  // 2. What is left, to the layers that do not travel against the rest.
-  const redrawnPass = renderLayers(document);
-  if (redrawnPass) {
-    const second = differingPixels(redrawnPass, target, W * H);
-    for (let n = 0; n < second.length; n += 1) {
-      await progress(0.5 + n / second.length / 2);
-      const p = second[n]!;
-      const stack = compileStack(document.layers, leaves, p % W, (p / W) | 0);
-      const owners = stackLeaves(stack).filter(
-        (op) =>
-          ownable(op.leaf.node) &&
-          op.leaf.data[op.local + 3]! > 0 &&
-          (op.leaf.spansCanvas || op.mix !== null),
-      );
-      for (const owner of owners) {
-        const solved = solvePixel(stack, owner, wantAt(target, p));
-        if (!solved) continue;
-        write(owner, solved);
-        corrected += 1;
-        if (solved.error * 255 <= TOLERANCE) break;
-      }
-    }
-    flush(leaves);
-  }
 
   const after = renderLayers(document);
   return {
@@ -180,6 +147,28 @@ export async function matchComposite(
     after: after ? visibleShare(after, target) : before,
     corrected,
   };
+}
+
+/**
+ * The layer a pixel's difference belongs to: the top redrawn layer at Normal
+ * that covers it fully, with no other moving layer over it. Null when there
+ * is none, or when a moving layer's edge lies over it.
+ */
+function ownerAt(stack: readonly Op[]): LeafOp | null {
+  for (const op of stackLeaves(stack)) {
+    const alpha = op.leaf.data[op.local + 3]!;
+    if (alpha === 0) continue;
+    if (
+      op.leaf.node.redrawn &&
+      ownable(op.leaf.node) &&
+      op.mix === null &&
+      alpha === 255
+    )
+      return op;
+    // Something over it that moves on its own: the difference may be its.
+    if (!op.leaf.spansCanvas) return null;
+  }
+  return null;
 }
 
 /** Pixels that differ from Photoshop's by more than TOLERANCE. */
@@ -222,15 +211,6 @@ function pacer(
   };
 }
 
-function write(op: LeafOp, solved: Solved): void {
-  const data = op.leaf.data;
-  data[op.local] = Math.round(solved.color[0] * 255);
-  data[op.local + 1] = Math.round(solved.color[1] * 255);
-  data[op.local + 2] = Math.round(solved.color[2] * 255);
-  data[op.local + 3] = Math.round(solved.alpha * 255);
-  op.leaf.dirty = true;
-}
-
 /**
  * A layer's corrections, smoothed over its own pixels and then applied: the
  * correction at each pixel is the average of those around it, among the
@@ -240,43 +220,39 @@ function write(op: LeafOp, solved: Solved): void {
 function applySmoothed(leaf: Leaf, delta: Float32Array): void {
   const { width: w, height: h, data } = leaf;
   const r = SMOOTH_RADIUS;
-  // Box sums by rows, then columns, over covered pixels only.
-  const rows = new Float32Array(w * h * 5);
+  const opaque = (x: number, y: number) => data[(y * w + x) * 4 + 3] === 255;
+  // Box sums by rows, then columns, over the pixels it covers fully.
+  const rows = new Float32Array(w * h * 4);
   for (let y = 0; y < h; y += 1) {
-    const sum = [0, 0, 0, 0, 0];
+    const sum = [0, 0, 0, 0];
     const add = (x: number, sign: number) => {
-      if (x < 0 || x >= w) return;
-      const i = (y * w + x) * 4;
-      if (data[i + 3]! === 0) return;
-      for (let c = 0; c < 4; c += 1) sum[c]! += sign * delta[i + c]!;
-      sum[4]! += sign;
+      if (x < 0 || x >= w || !opaque(x, y)) return;
+      const d = (y * w + x) * 3;
+      for (let c = 0; c < 3; c += 1) sum[c]! += sign * delta[d + c]!;
+      sum[3]! += sign;
     };
     for (let x = -r; x < r; x += 1) add(x, 1);
     for (let x = 0; x < w; x += 1) {
       add(x + r, 1);
-      const o = (y * w + x) * 5;
-      for (let c = 0; c < 5; c += 1) rows[o + c] = sum[c]!;
+      const o = (y * w + x) * 4;
+      for (let c = 0; c < 4; c += 1) rows[o + c] = sum[c]!;
       add(x - r, -1);
     }
   }
   for (let x = 0; x < w; x += 1) {
-    const sum = [0, 0, 0, 0, 0];
+    const sum = [0, 0, 0, 0];
     const add = (y: number, sign: number) => {
       if (y < 0 || y >= h) return;
-      const o = (y * w + x) * 5;
-      for (let c = 0; c < 5; c += 1) sum[c]! += sign * rows[o + c]!;
+      const o = (y * w + x) * 4;
+      for (let c = 0; c < 4; c += 1) sum[c]! += sign * rows[o + c]!;
     };
     for (let y = -r; y < r; y += 1) add(y, 1);
     for (let y = 0; y < h; y += 1) {
       add(y + r, 1);
-      const i = (y * w + x) * 4;
-      if (data[i + 3]! > 0 && sum[4]! > 0) {
+      if (opaque(x, y) && sum[3]! > 0) {
+        const i = (y * w + x) * 4;
         for (let c = 0; c < 3; c += 1)
-          data[i + c] = Math.round(data[i + c]! + sum[c]! / sum[4]!);
-        // Coverage only ever thins: never a pixel the layer did not cover.
-        data[i + 3] = Math.round(
-          Math.min(data[i + 3]!, data[i + 3]! + sum[3]! / sum[4]!),
-        );
+          data[i + c] = Math.round(data[i + c]! + sum[c]! / sum[3]!);
         leaf.dirty = true;
       }
       add(y - r, -1);
@@ -331,10 +307,8 @@ function solvePixel(stack: Op[], owner: LeafOp, want: Rgba): Solved | null {
     data[local + 1]! / 255,
     data[local + 2]! / 255,
   ];
-  // Its own coverage; at an edge, Photoshop's where that is less. Never more:
-  // a layer does not grow.
-  const coverages =
-    want[3] > 0 && want[3] < start - 1 / 255 ? [start, want[3]] : [start];
+  // Colour only, at its own coverage: its edges stay as they are.
+  const coverages = [start];
   const got: Rgba = [0, 0, 0, 0];
   const moved: Rgba = [0, 0, 0, 0];
   composeStack(stack, null, got);
