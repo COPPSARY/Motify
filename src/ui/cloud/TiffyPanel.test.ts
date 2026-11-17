@@ -862,3 +862,69 @@ describe("TiffyPanel credit estimate", () => {
     }
   });
 });
+
+describe("TiffyPanel prompt enhancer", () => {
+  it("holds Send and Enter while Enhance rewrites the prompt, then puts the new prompt in the box", async () => {
+    const { refreshPromptAssist, setPromptAssistUser, resetPromptAssist } =
+      await import("../../stores/prompt-assist");
+    let finish: (value: { enhanced: string }) => void = () => undefined;
+    const spy = vi.spyOn(
+      await import("../../api/prompt-assist"),
+      "enhancePrompt",
+    );
+    spy.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await refreshPromptAssist({
+      getCapabilities: async () => ({ promptAssist: true }),
+    });
+    setPromptAssistUser(true);
+    const submitAssistant = vi.fn(async () => undefined);
+    const composerKeydown = vi.fn();
+    const target = document.createElement("div");
+    document.body.append(target);
+    const component = mount(TiffyPanel, {
+      target,
+      props: panelProps({
+        assistantDraft: "ad for my app",
+        submitAssistant,
+        composerKeydown,
+      }),
+    });
+
+    try {
+      await tick();
+      const send = must<HTMLButtonElement>(".ai-composer-send");
+      const input = must<HTMLTextAreaElement>(".ai-composer-input");
+      expect(send.disabled).toBe(false);
+      expect(
+        send.previousElementSibling?.classList.contains("pa-enhance-button"),
+      ).toBe(true);
+
+      must<HTMLButtonElement>(".pa-enhance-button").click();
+      await tick();
+      expect(send.disabled).toBe(true);
+      expect(input.readOnly).toBe(true);
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      must<HTMLFormElement>(".ai-chat-composer").dispatchEvent(
+        new Event("submit", { cancelable: true }),
+      );
+      expect(composerKeydown).not.toHaveBeenCalled();
+      expect(submitAssistant).not.toHaveBeenCalled();
+
+      finish({ enhanced: "A 30-second launch film for Ledger." });
+      for (let i = 0; i < 5; i += 1) await tick();
+      expect(input.value).toBe("A 30-second launch film for Ledger.");
+      expect(input.readOnly).toBe(false);
+      expect(send.disabled).toBe(false);
+    } finally {
+      await unmount(component);
+      spy.mockRestore();
+      resetPromptAssist();
+    }
+  });
+});

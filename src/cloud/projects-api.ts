@@ -214,6 +214,8 @@ export interface ApiCapabilities {
    * Telegram. Absent on an API from before film requests, which is `ai`.
    */
   fulfillment?: FulfillmentMode;
+  /** Whether Enhance and the Prompt Builder (/v1/prompts) are served. */
+  promptAssist?: boolean;
 }
 
 export type FulfillmentMode = "ai" | "manual";

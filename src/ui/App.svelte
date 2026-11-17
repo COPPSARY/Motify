@@ -290,6 +290,12 @@
     setFulfillmentMode,
     showFilmRequest,
   } from "../stores/film-requests";
+  import {
+    refreshPromptAssist,
+    setPromptAssistBrand,
+    setPromptAssistNotifier,
+    setPromptAssistUser,
+  } from "../stores/prompt-assist";
   import "./styles/discount-offer.css";
   import PromptTemplatesPanel from "./cloud/PromptTemplatesPanel.svelte";
   import GuidedStart from "./cloud/GuidedStart.svelte";
@@ -542,6 +548,13 @@
         : null))
     : null;
   let pendingLandingPrompt = "";
+  // The enhancer is rate limited per person, so it shows only to someone signed in.
+  $: setPromptAssistUser(mode === "cloud" && Boolean(currentUser));
+  // The enhancer writes about the brand the composer has selected, as a film would use it.
+  $: setPromptAssistBrand(
+    workspaceId || null,
+    selectedBrand === null ? null : (brand?.id ?? undefined),
+  );
   /** First-run tour for new accounts: the step it is on, or null when there is none to show. */
   let tourIndex: number | null = null;
   /** A new account's first visit; the landing prompt waits for the tour instead of running. */
@@ -1079,10 +1092,14 @@
       void refreshCredits();
       void refreshPromotionBanner();
       void refreshFulfillmentMode();
+      void refreshPromptAssist();
     };
     if (mode === "cloud") {
       // Whether our team or the AI makes films right now.
       void refreshFulfillmentMode();
+      // Whether this API offers the prompt enhancer.
+      void refreshPromptAssist();
+      setPromptAssistNotifier((message) => showNotice(message, 5000));
       // Fetch the generation pipeline once the page is idle, so the first
       // prompt rarely waits for it.
       const warm = () => void loadGenerationPipeline();
