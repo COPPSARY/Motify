@@ -107,6 +107,132 @@ describe("canvas selection hit testing", () => {
     ).toBe(visibleTitle);
   });
 
+  it("clicks through a frame-covering layer on top to the layer beneath", () => {
+    const root = document.createElement("div");
+    const stage = document.createElement("main");
+    const background = document.createElement("img");
+    const logo = document.createElement("img");
+    const texture = document.createElement("img");
+    root.append(stage);
+    stage.append(background, logo, texture);
+    rect(root, 0, 0, 1000, 600);
+    rect(stage, 0, 0, 1000, 600);
+    rect(background, 0, 0, 1000, 600);
+    rect(logo, 100, 100, 200, 100);
+    rect(texture, 0, 0, 1000, 600);
+    document.body.append(root);
+
+    const elements = register([
+      ["stage", stage],
+      ["background", background],
+      ["logo", logo],
+      ["texture", texture],
+    ]);
+    const at = (x: number, y: number, pointStack: Element[]) =>
+      editableElementAtPoint({
+        root,
+        elements,
+        clientX: x,
+        clientY: y,
+        pointStack,
+      });
+    // The logo is under the texture: it is what gets picked.
+    expect(at(150, 150, [texture, logo, background, stage])).toBe(logo);
+    // Where only frame-covering layers are, the topmost is picked.
+    expect(at(800, 500, [texture, background, stage])).toBe(texture);
+  });
+
+  it("picks the backdrop that is seen, not a faint overlay over it", () => {
+    const root = document.createElement("div");
+    const stage = document.createElement("main");
+    const background = document.createElement("img");
+    const overlay = document.createElement("img");
+    overlay.style.opacity = "0.3";
+    root.append(stage);
+    stage.append(background, overlay);
+    rect(root, 0, 0, 1000, 600);
+    rect(stage, 0, 0, 1000, 600);
+    rect(background, 0, 0, 1000, 600);
+    // Far larger than the frame, as imported Photoshop shapes often are.
+    rect(overlay, -200, -300, 2500, 2000);
+    document.body.append(root);
+
+    const elements = register([
+      ["stage", stage],
+      ["background", background],
+      ["overlay", overlay],
+    ]);
+    expect(
+      editableElementAtPoint({
+        root,
+        elements,
+        clientX: 500,
+        clientY: 300,
+        pointStack: [overlay, background, stage],
+      }),
+    ).toBe(background);
+  });
+
+  it("lets a layer win the click when only part of it is on the frame", () => {
+    const root = document.createElement("div");
+    const stage = document.createElement("main");
+    const background = document.createElement("img");
+    const logo = document.createElement("img");
+    root.append(stage);
+    stage.append(background, logo);
+    rect(root, 0, 0, 1000, 600);
+    rect(stage, 0, 0, 1000, 600);
+    rect(background, 0, 0, 1000, 600);
+    // A big box mostly off the canvas: half of the frame, not a backdrop.
+    rect(logo, 500, -400, 900, 1000);
+    document.body.append(root);
+
+    const elements = register([
+      ["stage", stage],
+      ["background", background],
+      ["logo", logo],
+    ]);
+    expect(
+      editableElementAtPoint({
+        root,
+        elements,
+        clientX: 700,
+        clientY: 300,
+        pointStack: [logo, background, stage],
+      }),
+    ).toBe(logo);
+  });
+
+  it("never lets giant text yield to what is under it", () => {
+    const root = document.createElement("div");
+    const stage = document.createElement("main");
+    const logo = document.createElement("div");
+    const title = document.createElement("h1");
+    title.textContent = "Enormous";
+    root.append(stage);
+    stage.append(logo, title);
+    rect(root, 0, 0, 1000, 600);
+    rect(stage, 0, 0, 1000, 600);
+    rect(logo, 100, 100, 200, 100);
+    rect(title, 0, 0, 1000, 600);
+    document.body.append(root);
+
+    const elements = register([
+      ["stage", stage],
+      ["logo", logo],
+      ["title", title],
+    ]);
+    expect(
+      editableElementAtPoint({
+        root,
+        elements,
+        clientX: 150,
+        clientY: 150,
+        pointStack: [title, logo, stage],
+      }),
+    ).toBe(title);
+  });
+
   it("uses a deterministic text-first fallback for pointer-events-none layers", () => {
     const root = document.createElement("div");
     const stage = document.createElement("main");

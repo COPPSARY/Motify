@@ -15,9 +15,7 @@ export type TourTarget =
   | "attach"
   | "aspect"
   | "effort"
-  | "brand"
-  | "nav-music"
-  | "nav-assets";
+  | "brand";
 
 /** The page a step needs on screen before its target can be found. */
 export type TourPage = "templates" | "create";
@@ -79,23 +77,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "brand",
     page: "create",
     title: "Brand DNA",
-    body: "Tiffy uses your brand in every video. Switch or turn it off here.",
-  },
-  {
-    id: "music",
-    target: "nav-music",
-    page: "create",
-    title: "Music",
-    body: "Pick a song and Tiffy scores your video to it.",
-  },
-  {
-    id: "assets",
-    target: "nav-assets",
-    page: "create",
-    title: "Assets",
-    body: "Your images and logos, ready for any video. That’s the tour. Enjoy.",
+    body: "Tiffy uses your brand in every video. Switch or turn it off here. That’s the tour. Enjoy.",
   },
 ];
+
+/** Steps the tour no longer has; accounts saved on one resume at the last step. */
+const REMOVED_STEPS = new Set(["storyboard", "music", "assets"]);
 
 /** Where the tour resumes for an account's saved progress; null when there is nothing to show. */
 export function resumeIndex(progress: {
@@ -103,8 +90,8 @@ export function resumeIndex(progress: {
   completedAt: string | null;
 }): number | null {
   if (progress.completedAt !== null || progress.step === null) return null;
-  // The storyboard step was removed; accounts saved on it were on the last step.
-  if (progress.step === "storyboard") return TOUR_STEPS.length - 1;
+  // Accounts saved on a removed step were at the end of the tour.
+  if (REMOVED_STEPS.has(progress.step)) return TOUR_STEPS.length - 1;
   const index = TOUR_STEPS.findIndex((step) => step.id === progress.step);
   // "prompts" (arrived, tour not started) and "brand" are both before the first step.
   return index === -1 ? 0 : index;

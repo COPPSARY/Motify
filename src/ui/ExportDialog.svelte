@@ -3,7 +3,7 @@
   import { ArrowRight, Download, X } from "lucide-svelte";
   import {
     CANVAS_ASPECTS,
-    type CanvasAspect,
+    type CanvasShape,
     type CanvasFraming,
     type CanvasSettings,
   } from "../composition/canvas-frame";
@@ -38,7 +38,9 @@
     duration: number;
   } | null = null;
   export let defaultName = "";
-  export let aspect: CanvasAspect = "16:9";
+  export let aspect: CanvasShape = "16:9";
+  /** The film's own size, offered as a canvas when it is none of the aspects. */
+  export let originalSize: { width: number; height: number } | null = null;
   export let framing: CanvasFraming = "fit";
   export let framingApplies = false;
   /** Changes the editor's canvas, so the preview follows the choice. */
@@ -240,6 +242,16 @@
       <div class="export-field">
         <span class="export-label" id="lbl-aspect">Canvas</span>
         <div class="seg" role="radiogroup" aria-labelledby="lbl-aspect">
+          {#if originalSize}
+            <button
+              role="radio"
+              aria-checked={aspect === "original"}
+              class:on={aspect === "original"}
+              title={`The design's own size, ${originalSize.width} × ${originalSize.height}`}
+              on:click={() => onCanvasChange({ aspect: "original" })}
+              >Original</button
+            >
+          {/if}
           {#each CANVAS_ASPECTS as option (option)}
             <button
               role="radio"

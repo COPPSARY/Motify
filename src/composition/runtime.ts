@@ -16,7 +16,7 @@ import {
   canvasOrientation,
   canvasSize,
   frameLayout,
-  isCanvasAspect,
+  isCanvasShape,
   isCanvasFraming,
   type CanvasSettings,
   type FrameLayout,
@@ -405,7 +405,7 @@ export class CompositionRuntime {
 
   importEditorState(state?: Partial<RuntimeEditorState>): void {
     if (!state) return;
-    if (state.canvas && isCanvasAspect(state.canvas.aspect)) {
+    if (state.canvas && isCanvasShape(state.canvas.aspect)) {
       this.canvasSettings = {
         aspect: state.canvas.aspect,
         framing: isCanvasFraming(state.canvas.framing)

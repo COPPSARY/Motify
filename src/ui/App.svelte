@@ -27,6 +27,7 @@
   } from "../stores/credits";
   import {
     ArrowLeft,
+    ArrowRight,
     Braces,
     ChevronsUpDown,
     CirclePlay,
@@ -49,7 +50,6 @@
     Menu,
     Maximize2,
     Minus,
-    Music2,
     Pause,
     Play,
     Plus,
@@ -61,6 +61,7 @@
     Sparkles,
     ArrowUp,
     SquarePen,
+    Type as TypeIcon,
     Upload,
     Volume2,
     VolumeX,
@@ -126,11 +127,13 @@
   import {
     CANVAS_ASPECTS,
     DEFAULT_CANVAS,
+    authoredCanvas,
     canvasAspectForSize,
     canvasSize,
     frameLayout,
     frameTransform,
     isCanvasAspect,
+    isCanvasShape,
     isCanvasFraming,
     type CanvasAspect,
     type CanvasSettings,
@@ -266,6 +269,19 @@
   import "../footage/footage-editor.css";
   import "../footage/footage-bin.css";
   import "../footage/footage-start.css";
+  import PsdGenerating from "../psd/PsdGenerating.svelte";
+  import PsdStart from "../psd/PsdStart.svelte";
+  import {
+    buildPsdProject,
+    drawsPixels,
+    flattenLayers,
+    isPsdImport,
+    layerPng,
+    PSD_TO_VIDEO_CREDITS,
+    type PsdDocument,
+    type PsdImportProgress,
+  } from "../psd/psd-import";
+  import "../psd/psd-start.css";
   import SendToTeamDialog from "./cloud/SendToTeamDialog.svelte";
   import {
     fulfillmentMode,
@@ -681,8 +697,14 @@
       : null;
   $: centerPage =
     mode === "cloud" ? (page ?? (hasEditorProject ? null : "create")) : null;
-  // The Design panel is off: films are raw HTML documents with no editable layers.
-  const showInspector = false;
+  /** The open film was imported from Photoshop (src/psd). */
+  $: psdProject =
+    mode === "cloud" &&
+    hasEditorProject &&
+    isPsdImport(cloudFiles["composition.html"] ?? "");
+  // The Design panel is off for films, which are raw HTML documents with no
+  // editable layers. A design imported from Photoshop is made of them.
+  $: showInspector = psdProject;
 
   // ---- footage: a video cut from the person's own clips (src/footage) ----
   /** The open project's footage edit, or null for any other film. */
@@ -1126,11 +1148,17 @@
     };
   });
 
+  /** A film made at a size none of the aspects is: it can be shown at that size. */
+  $: hasOriginalCanvas = !canvasAspectForSize(
+    activeComposition.width,
+    activeComposition.height,
+  );
+
   function canvasFromState(
     state?: Partial<RuntimeEditorState>,
   ): CanvasSettings | undefined {
     const saved = state?.canvas;
-    if (!saved || !isCanvasAspect(saved.aspect)) return undefined;
+    if (!saved || !isCanvasShape(saved.aspect)) return undefined;
     return {
       aspect: saved.aspect,
       framing: isCanvasFraming(saved.framing)
@@ -1152,17 +1180,10 @@
     selectedId = "";
     selectedEditorGroup = null;
     selectedSceneId = composition.scenes[0]?.id ?? "";
-    const savedCanvas = canvasFromState(editorState);
-    const authoredAspect = canvasAspectForSize(
-      composition.width,
-      composition.height,
-    );
     runtime = new CompositionRuntime(composition, previewRoot, {
       canvas:
-        savedCanvas ??
-        (authoredAspect
-          ? { aspect: authoredAspect, framing: DEFAULT_CANVAS.framing }
-          : undefined),
+        canvasFromState(editorState) ??
+        authoredCanvas(composition.width, composition.height),
     });
     audioSync = new AudioSync(previewRoot);
     audioSync.muted = soundMuted;
@@ -1572,6 +1593,11 @@
       }),
       draft?.baseRevision === project.revision ? draft.editorState : undefined,
     );
+    // A Photoshop design's layers animate in, so its first frame is nearly
+    // empty: it opens on the finished design, where every layer can be seen
+    // and clicked. Play starts it from the beginning.
+    if (isPsdImport(files["composition.html"] ?? ""))
+      runtime?.seek(Math.max(0, project.duration - 1 / project.fps));
   }
 
   function fitPreview(): void {
@@ -1891,6 +1917,105 @@
     runtime.setCanvas(settings);
     // The selection box is measured against the old layout.
     void tick().then(updateSelectionRect);
+  }
+
+  /** A row of a Photoshop design's Layers list. */
+  interface DesignLayerRow {
+    id: string;
+    label: string;
+    depth: number;
+    kind: "image" | "text" | "group";
+    /** The layer's own picture, for an image. */
+    thumb: string;
+    hidden: boolean;
+  }
+
+  /**
+   * The design's layers, top first and nested as in Photoshop's Layers panel,
+   * read from the mounted film so they match what is on the canvas. Picking a
+   * layer here selects it even when another layer covers it on the canvas.
+   */
+  function readDesignLayers(
+    mounted: CompositionRuntime | null | undefined,
+    revision: number,
+  ): DesignLayerRow[] {
+    void revision;
+    const scene = previewRoot?.querySelector("[data-scene]");
+    if (!mounted || !scene) return [];
+    const rows: DesignLayerRow[] = [];
+    const walk = (parent: Element, depth: number): void => {
+      const layers = Array.from(parent.children).filter(
+        (child): child is HTMLElement =>
+          child instanceof HTMLElement &&
+          Boolean(child.dataset["motionlyId"]) &&
+          mounted.elements.get(child.dataset["motionlyId"]!) === child,
+      );
+      for (const layer of layers.reverse()) {
+        const id = layer.dataset["motionlyId"]!;
+        const kind =
+          layer instanceof HTMLImageElement
+            ? "image"
+            : layer.tagName === "DIV"
+              ? "group"
+              : "text";
+        rows.push({
+          id,
+          label: layer.dataset["editLabel"] ?? id,
+          depth,
+          kind,
+          thumb:
+            layer instanceof HTMLImageElement
+              ? layer.currentSrc || layer.src
+              : "",
+          hidden: layer.hidden || Boolean(mounted.getOverride(id).hidden),
+        });
+        if (kind === "group") walk(layer, depth + 1);
+      }
+    };
+    walk(scene, 0);
+    return rows;
+  }
+
+  $: designLayers = showInspector
+    ? readDesignLayers(runtime, editorRevision)
+    : [];
+
+  /** The outline of the layer under the pointer in the Layers list. */
+  let hoverLayerRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null = null;
+
+  function hoverLayer(id: string | null): void {
+    const element = id ? runtime?.elements.get(id) : undefined;
+    if (
+      !element ||
+      !previewRoot ||
+      !isElementActuallyVisible(element, previewRoot)
+    ) {
+      hoverLayerRect = null;
+      return;
+    }
+    const rootRect = previewRoot.getBoundingClientRect();
+    const scale = rootRect.width / canvasView.film.width;
+    const rect = element.getBoundingClientRect();
+    hoverLayerRect =
+      scale > 0 && rect.width > 0 && rect.height > 0
+        ? {
+            left: (rect.left - rootRect.left) / scale,
+            top: (rect.top - rootRect.top) / scale,
+            width: rect.width / scale,
+            height: rect.height / scale,
+          }
+        : null;
+  }
+
+  function pickDesignLayer(id: string): void {
+    hoverLayerRect = null;
+    selectElement(id);
+    previewStage?.focus();
   }
 
   function updateSelectionRect(): void {
@@ -5509,6 +5634,131 @@ Voice over direction: ${voiceNote}`
     await mounted;
   }
 
+  // ---- PSD to Video: a Photoshop design as a film of its own layers (src/psd) ----
+
+  /**
+   * Uploads the design's layer images, saves it as a project of ordinary
+   * Motify source and opens it in the editor, where every layer is an
+   * editable element. With `animate`, Tiffy then writes its motion.
+   */
+  /** PSD to Video's loading page over the editor while its design is animated. */
+  let psdGenerating: { name: string; layers: string[] } | null = null;
+
+  async function createPsdProject(
+    input: { document: PsdDocument; seconds: number },
+    onProgress: (progress: PsdImportProgress) => void,
+  ): Promise<void> {
+    if (!workspaceId) throw new Error("Sign in to import a PSD.");
+    const pixelLayers = flattenLayers(input.document.layers).filter(
+      (layer) => drawsPixels(layer) && layer.canvas,
+    );
+    const total = pixelLayers.length;
+    const sources = new Map<string, string>();
+    const failed: string[] = [];
+    let next = 0;
+    let done = 0;
+    onProgress({ step: "upload", done, total });
+    const worker = async (): Promise<void> => {
+      while (next < total) {
+        const layer = pixelLayers[next++]!;
+        try {
+          const assetId = await uploadAsset(workspaceId, await layerPng(layer));
+          sources.set(layer.id, `motify-asset://${assetId}`);
+        } catch {
+          failed.push(layer.name);
+        } finally {
+          done += 1;
+          onProgress({ step: "upload", done, total });
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, total) }, worker),
+    );
+    // A design with holes in it is not the design. Uploads already made are
+    // recognised by their bytes, so trying again only sends what is missing.
+    if (failed.length > 0) {
+      throw new Error(
+        `${failed.length} layer${failed.length === 1 ? "" : "s"} could not be uploaded (${failed.slice(0, 3).join(", ")}${failed.length > 3 ? "…" : ""}). Check your connection and try again.`,
+      );
+    }
+
+    onProgress({ step: "open", done, total });
+    const project = buildPsdProject(input.document, sources, {
+      duration: input.seconds,
+    });
+    const created = await new ProjectsApi().createProject(workspaceId, {
+      name: input.document.name.slice(0, 120),
+      width: project.width,
+      height: project.height,
+      fps: project.fps,
+      duration: project.duration,
+      scenes: project.scenes,
+      files: project.files,
+    });
+    // The PSD page's steps carry on over the editor until the video is ready.
+    psdGenerating = {
+      name: input.document.name,
+      layers: flattenLayers([...input.document.layers].reverse())
+        .filter((layer) => layer.kind !== "group")
+        .map((layer) => layer.name),
+    };
+    cloudProject = created;
+    backendGenerationProjectId = created.id;
+    projectStarted = true;
+    page = null;
+    cloudFiles = project.files;
+    cloudProjects?.setFiles(cloudFiles);
+    setProjectRoute(created.id);
+    void cloudProjects?.registerActiveProject(created);
+    try {
+      // The editor's preview replaces the PSD page before the design mounts in it.
+      await tick();
+      await mountSavedProject(created, project.files);
+    } catch (failure) {
+      psdGenerating = null;
+      throw failure;
+    }
+    const layerCount = flattenLayers(input.document.layers).length;
+    assistantMessages = [
+      {
+        role: "assistant",
+        text: `Imported ${input.document.name} with its ${layerCount} layer${layerCount === 1 ? "" : "s"} where Photoshop placed them. Select any layer to move or edit it, or tell me how it should move.`,
+      },
+    ];
+    scheduleDraftSave();
+    captureEvent("psd project created", {
+      layers: layerCount,
+      width: project.width,
+      height: project.height,
+    });
+    try {
+      await animatePsd(input.seconds);
+    } finally {
+      // Done or failed, the editor shows it: the video, or the error to retry.
+      psdGenerating = null;
+    }
+  }
+
+  /**
+   * Asks Tiffy to animate the open PSD design's layers. The backend writes the
+   * brief from the psd-to-video tool; the chat shows only this line.
+   */
+  function animatePsd(
+    seconds = Math.round(activeComposition.duration),
+  ): Promise<void> {
+    const length = Math.min(
+      maxFilmSeconds ?? 60,
+      60,
+      Math.max(5, Number.isFinite(seconds) ? seconds : 8),
+    );
+    return submitAssistant(new SubmitEvent("submit"), {
+      text: "Animate my Photoshop layers",
+      prompt: "Animate the layers of my Photoshop design.",
+      tool: { id: "psd-to-video", seconds: length, language: "en" },
+    });
+  }
+
   async function saveSource(): Promise<void> {
     if (!hasEditorProject) return;
     if (mode === "local") {
@@ -5923,6 +6173,16 @@ Voice over direction: ${voiceNote}`
                   </button>
                   <button
                     class="me-sidebar-link"
+                    class:me-active={centerPage === "psd"}
+                    aria-current={centerPage === "psd" ? "page" : undefined}
+                    on:click={() => openPage("psd")}
+                  >
+                    <Layers3 size={16} /><span>PSD to Video</span><span
+                      class="fx-beta">Beta</span
+                    >
+                  </button>
+                  <button
+                    class="me-sidebar-link"
                     class:me-active={centerPage === "videos"}
                     aria-current={centerPage === "videos" ? "page" : undefined}
                     on:click={() => openPage("videos")}
@@ -5943,24 +6203,6 @@ Voice over direction: ${voiceNote}`
                   <a class="me-sidebar-link" href={BRAND_ROUTE}>
                     <Dna size={16} /><span>Brand Kit</span>
                   </a>
-                  <button
-                    class="me-sidebar-link"
-                    class:me-active={centerPage === "assets"}
-                    aria-current={centerPage === "assets" ? "page" : undefined}
-                    data-tour="nav-assets"
-                    on:click={() => openPage("assets")}
-                  >
-                    <ImageIcon size={16} /><span>Assets</span>
-                  </button>
-                  <button
-                    class="me-sidebar-link"
-                    class:me-active={centerPage === "music"}
-                    aria-current={centerPage === "music" ? "page" : undefined}
-                    data-tour="nav-music"
-                    on:click={() => openPage("music")}
-                  >
-                    <Music2 size={16} /><span>Music</span>
-                  </button>
                 </div>
 
                 <section
@@ -6248,35 +6490,61 @@ Voice over direction: ${voiceNote}`
                   <div class="me-create-composer" hidden={guideOpen}>
                     {@render tiffy("hero")}
                     {#if mode === "cloud"}
-                      <button
-                        type="button"
-                        class="fx-entry"
-                        on:click={() => openPage("footage")}
-                      >
-                        <span class="fx-entry__art" aria-hidden="true">
-                          <span class="fx-entry__clips"
-                            ><i></i><i></i><i></i></span
+                      <div class="fx-entries">
+                        <button
+                          type="button"
+                          class="fx-entry"
+                          on:click={() => openPage("footage")}
+                        >
+                          <span
+                            class="fx-entry__icon fx-entry__icon--clips"
+                            aria-hidden="true"><Film size={20} /></span
                           >
-                          <span class="fx-entry__arrow"></span>
-                          <span class="fx-entry__video"
-                            ><b></b><em></em><em></em></span
-                          >
-                        </span>
-                        <span class="fx-entry__text">
-                          <span class="fx-entry__tag">Clips → video</span>
-                          <strong
-                            >Try our new video editor <span class="fx-beta"
-                              >Beta</span
-                            ></strong
-                          >
-                          <small
-                            >Upload your own clips. Motify cuts them into a
-                            video with Khmer subtitles, cards and music, and you
-                            edit it by chatting.</small
-                          >
-                        </span>
-                        <span class="fx-entry__go">Start →</span>
-                      </button>
+                          <span class="fx-entry__text">
+                            <strong
+                              >AI Video Editor <span class="fx-beta">Beta</span
+                              ></strong
+                            >
+                            <small
+                              >Your clips cut into a video with Khmer subtitles,
+                              cards and music.</small
+                            >
+                          </span>
+                          <ArrowRight
+                            size={16}
+                            class="fx-entry__go"
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          class="fx-entry"
+                          on:click={() => openPage("psd")}
+                        >
+                          <img
+                            class="fx-entry__icon"
+                            src="/photoshop_5968520.png"
+                            alt=""
+                            width="44"
+                            height="44"
+                          />
+                          <span class="fx-entry__text">
+                            <strong
+                              >PSD to Video <span class="fx-beta">Beta</span
+                              ></strong
+                            >
+                            <small
+                              >A Photoshop file animated layer by layer, every
+                              layer still editable.</small
+                            >
+                          </span>
+                          <ArrowRight
+                            size={16}
+                            class="fx-entry__go"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </div>
                     {/if}
                   </div>
                   <GuidedStart
@@ -6296,6 +6564,13 @@ Voice over direction: ${voiceNote}`
                 <FootageStart
                   {workspaceId}
                   onCreate={createFootageProject}
+                  onSignIn={() => openAuthDialog("signin")}
+                />
+              {:else if centerPage === "psd"}
+                <PsdStart
+                  {workspaceId}
+                  maxSeconds={maxFilmSeconds}
+                  onCreate={createPsdProject}
                   onSignIn={() => openAuthDialog("signin")}
                 />
               {:else if centerPage === "films"}
@@ -6628,6 +6903,18 @@ Voice over direction: ${voiceNote}`
                   : ""}</span
               >
               <span class="me-view-divider" aria-hidden="true"></span>
+              {#if hasOriginalCanvas}
+                <button
+                  class="me-view-btn me-view-text-btn me-tooltip"
+                  class:is-active={canvasState.aspect === "original"}
+                  aria-pressed={canvasState.aspect === "original"}
+                  aria-label={`Original canvas, ${activeComposition.width} × ${activeComposition.height}`}
+                  data-tooltip={`The design's own size, ${activeComposition.width} × ${activeComposition.height}`}
+                  disabled={!hasEditorProject}
+                  on:click={() => setCanvasSettings({ aspect: "original" })}
+                  >Original</button
+                >
+              {/if}
               {#each CANVAS_ASPECTS as aspect (aspect)}
                 <button
                   class="me-view-btn me-view-text-btn me-tooltip"
@@ -6701,6 +6988,8 @@ Voice over direction: ${voiceNote}`
           </header>
           <main class="me-preview-container">
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
+            <!-- The browser's own drag of an <img> would swallow the pointer
+                 events a layer is moved with, so it never starts here. -->
             <div
               class="me-stage"
               data-ph-no-autocapture
@@ -6712,6 +7001,7 @@ Voice over direction: ${voiceNote}`
               on:pointerdown|capture={pressPreview}
               on:click|capture={selectFromPreview}
               on:keydown={handlePreviewKey}
+              on:dragstart|capture|preventDefault={() => undefined}
             >
               {#if footageMode && footageOverlay}
                 <div class="fx-stage-wait" role="status">
@@ -6782,6 +7072,30 @@ Voice over direction: ${voiceNote}`
                     ></div>
                   </div>
                 </div>
+                {#if hoverLayerRect}
+                  <div
+                    class="me-canvas-frame me-canvas-overlay"
+                    style:width={`${canvasView.film.width}px`}
+                    style:height={`${canvasView.film.height}px`}
+                    style:transform={frameTransform(canvasView.layout)}
+                    aria-hidden="true"
+                  >
+                    <div
+                      class="me-layer-hover"
+                      style:--me-selection-ui-scale={String(
+                        1 /
+                          Math.max(
+                            0.05,
+                            fitScale * zoom * canvasView.layout.scale,
+                          ),
+                      )}
+                      style:left={`${hoverLayerRect.left}px`}
+                      style:top={`${hoverLayerRect.top}px`}
+                      style:width={`${hoverLayerRect.width}px`}
+                      style:height={`${hoverLayerRect.height}px`}
+                    ></div>
+                  </div>
+                {/if}
                 {#if selectionRect.visible && selectedId}
                   <div
                     class="me-canvas-frame me-canvas-overlay"
@@ -7200,6 +7514,14 @@ Voice over direction: ${voiceNote}`
             </div>
             <div class="me-inspector-body">
               {#if selectedId}
+                {#if designLayers.length > 0}
+                  <button
+                    type="button"
+                    class="me-layers-back"
+                    on:click={() => selectElement("")}
+                    ><ArrowLeft size={13} /> All layers</button
+                  >
+                {/if}
                 <div class="me-selection-summary">
                   <span class="me-layer-icon"><Sparkles size={14} /></span>
                   <span
@@ -7707,6 +8029,45 @@ Voice over direction: ${voiceNote}`
                       /> Restore layer{:else}<EyeOff size={14} /> Remove layer{/if}
                   </button>
                 </div>
+              {:else if designLayers.length > 0}
+                <section class="me-layers" aria-label="Layers">
+                  <div class="me-section-title">Layers</div>
+                  <p class="me-layers-hint">
+                    Pick a layer, even one hidden under another.
+                  </p>
+                  <ul class="me-layers-list">
+                    {#each designLayers as layer (layer.id)}
+                      <li>
+                        <button
+                          type="button"
+                          class="me-layer-row"
+                          class:me-layer-row--hidden={layer.hidden}
+                          style:padding-left={`${8 + layer.depth * 14}px`}
+                          on:click={() => pickDesignLayer(layer.id)}
+                          on:mouseenter={() => hoverLayer(layer.id)}
+                          on:mouseleave={() => hoverLayer(null)}
+                          on:focus={() => hoverLayer(layer.id)}
+                          on:blur={() => hoverLayer(null)}
+                        >
+                          <span class="me-layer-thumb" aria-hidden="true">
+                            {#if layer.kind === "image" && layer.thumb}
+                              <img src={layer.thumb} alt="" loading="lazy" />
+                            {:else if layer.kind === "group"}
+                              <FolderOpen size={14} />
+                            {:else}
+                              <TypeIcon size={14} />
+                            {/if}
+                          </span>
+                          <span class="me-layer-name">{layer.label}</span>
+                          {#if layer.hidden}<EyeOff
+                              size={13}
+                              aria-label="Hidden"
+                            />{/if}
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                </section>
               {:else}
                 <div class="me-properties-empty">
                   <Sparkles size={30} /><strong>Select an element</strong><span
@@ -7749,6 +8110,9 @@ Voice over direction: ${voiceNote}`
       width={canvasView.width}
       height={canvasView.height}
       aspect={canvasState.aspect}
+      originalSize={hasOriginalCanvas
+        ? { width: activeComposition.width, height: activeComposition.height }
+        : null}
       framing={canvasState.framing}
       onCanvasChange={setCanvasSettings}
       framingApplies={canvasReshapes}
@@ -7807,6 +8171,14 @@ Voice over direction: ${voiceNote}`
     />
   {/if}
 </div>
+
+{#if psdGenerating}
+  <PsdGenerating
+    name={psdGenerating.name}
+    layers={psdGenerating.layers}
+    onSkip={() => (psdGenerating = null)}
+  />
+{/if}
 
 {#snippet templateArt(template: TemplateCard)}
   <span class="promo-thumbnail-art"
@@ -7877,5 +8249,12 @@ Voice over direction: ${voiceNote}`
     selectedAudio={$selectedAudio}
     removeSelectedAudio={(track) => deselectAudioTrack(track.id)}
     onDropFiles={handleChatDrop}
+    quickAction={psdProject
+      ? {
+          label: "Re-animate layers",
+          hint: `Tiffy animates the Photoshop layers again from the start · ${PSD_TO_VIDEO_CREDITS} credits`,
+          run: () => void animatePsd(),
+        }
+      : null}
   />
 {/snippet}

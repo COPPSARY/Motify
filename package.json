@@ -63,6 +63,7 @@
     "@fontsource-variable/plus-jakarta-sans": "5.3.0",
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@vercel/analytics": "^2.0.1",
+    "ag-psd": "34.1.0",
     "gsap": "^3.15.0",
     "lucide-svelte": "^1.0.1",
     "mediabunny": "1.62.1",

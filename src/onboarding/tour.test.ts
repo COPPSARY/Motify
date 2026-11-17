@@ -9,7 +9,7 @@ describe("first-run tour progress", () => {
       TOUR_STEPS.length,
     );
     expect(TOUR_STEPS[0]?.page).toBe("templates");
-    expect(TOUR_STEPS.at(-1)?.id).toBe("assets");
+    expect(TOUR_STEPS.at(-1)?.id).toBe("brand-chip");
   });
 
   it("resumes at the saved step", () => {
@@ -18,10 +18,12 @@ describe("first-run tour progress", () => {
     );
   });
 
-  it("resumes accounts saved on the removed storyboard step at the last step", () => {
-    expect(resumeIndex({ step: "storyboard", completedAt: null })).toBe(
-      TOUR_STEPS.length - 1,
-    );
+  it("resumes accounts saved on a removed step at the last step", () => {
+    for (const step of ["storyboard", "music", "assets"]) {
+      expect(resumeIndex({ step, completedAt: null })).toBe(
+        TOUR_STEPS.length - 1,
+      );
+    }
   });
 
   it("starts at the first step for the stages before the tour", () => {

@@ -1,5 +1,6 @@
 import type { ProjectSourceFiles } from "../cloud/projects-api";
 import type { SceneDefinition } from "../composition/types";
+import { isPsdImport } from "../psd/psd-import";
 import {
   GENERATION_FOUNDATION_PROFILE,
   foundationFiles,
@@ -45,11 +46,14 @@ export function resolveGenerationBasis(
   const isTechnicalFoundation = currentSource.includes(
     "motionly-foundation-stage",
   );
+  // A design imported from Photoshop is the person's own work however small
+  // its markup: a two-layer poster is still theirs to animate, not a scaffold.
   const needsFoundation =
-    isTechnicalFoundation ||
-    currentSource.length < AUTHORED_COMPOSITION_MIN_LENGTH ||
-    (composition.id.startsWith("dynamic-comp-") &&
-      !currentSource.includes(GENERATION_FOUNDATION_PROFILE));
+    !isPsdImport(currentSource) &&
+    (isTechnicalFoundation ||
+      currentSource.length < AUTHORED_COMPOSITION_MIN_LENGTH ||
+      (composition.id.startsWith("dynamic-comp-") &&
+        !currentSource.includes(GENERATION_FOUNDATION_PROFILE)));
   if (needsFoundation) {
     return {
       files: {

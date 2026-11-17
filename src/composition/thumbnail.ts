@@ -1,4 +1,4 @@
-import { DEFAULT_CANVAS, canvasAspectForSize } from "./canvas-frame";
+import { authoredCanvas } from "./canvas-frame";
 import { renderAuthoredFrame } from "./frame-render";
 import { RAW_FILM_FRAME_SELECTOR } from "./raw-film";
 import { CompositionRuntime } from "./runtime";
@@ -85,14 +85,9 @@ export async function captureThumbnail(
   document.body.append(host);
   let runtime: CompositionRuntime | undefined;
   try {
-    const aspect = canvasAspectForSize(film.width, film.height);
-    runtime = new CompositionRuntime(
-      film,
-      root,
-      aspect
-        ? { canvas: { aspect, framing: DEFAULT_CANVAS.framing } }
-        : undefined,
-    );
+    runtime = new CompositionRuntime(film, root, {
+      canvas: authoredCanvas(film.width, film.height),
+    });
     // The copy is only ever looked at, never heard.
     root.querySelectorAll<HTMLMediaElement>("audio, video").forEach((media) => {
       media.muted = true;

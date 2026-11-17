@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 
 import {
+  authoredCanvas,
   canvasAspectForSize,
   canvasSize,
   frameLayout,
@@ -35,4 +36,15 @@ it("leaves the authored canvas untouched", () => {
   const layout = frameLayout(1920, 1080, 1920, 1080, "fill");
   expect(layout.identity).toBe(true);
   expect(frameTransform(layout)).toBe("");
+});
+
+it("opens a film on its own aspect, or at its own size when it has none", () => {
+  expect(authoredCanvas(1080, 1350).aspect).toBe("4:5");
+  // A 3:2 Photoshop design is not letterboxed into 16:9.
+  expect(authoredCanvas(1500, 1000).aspect).toBe("original");
+  expect(canvasSize(1500, 1000, "original")).toEqual({
+    width: 1500,
+    height: 1000,
+  });
+  expect(frameLayout(1500, 1000, 1500, 1000, "smart").identity).toBe(true);
 });
