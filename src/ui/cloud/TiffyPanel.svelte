@@ -25,6 +25,8 @@
   } from "lucide-svelte";
   import FilmQueueCard from "./FilmQueueCard.svelte";
   import TiffyMark from "./TiffyMark.svelte";
+  import PromptEnhanceButton from "../prompt-assist/PromptEnhanceButton.svelte";
+  import { countAttachments } from "../../api/prompt-assist";
   import { activeFilmRequest } from "../../stores/film-requests";
   import VersionsPanel from "./VersionsPanel.svelte";
   import type {
@@ -145,6 +147,18 @@
   /** Library pickers offered from the composer's add menu. */
   export let onOpenMusic: (() => void) | null = null;
   export let onOpenAssets: (() => void) | null = null;
+
+  /** True while Enhance is rewriting the composer's prompt; nothing is sent until it is back. */
+  let enhancingPrompt = false;
+
+  /** Puts the enhanced prompt in the composer, sized to fit, with the cursor at its end. */
+  async function applyAssistedPrompt(text: string): Promise<void> {
+    assistantDraft = text;
+    await tick();
+    resizeComposer();
+    composerInput?.focus();
+    composerInput?.setSelectionRange(text.length, text.length);
+  }
   /**
    * The open cloud video's history. Null for a local or unsaved video, which
    * has none; the header then shows no versions button.
@@ -706,6 +720,10 @@
   <form
     class="ai-chat-composer"
     on:submit={(event) => {
+      if (enhancingPrompt) {
+        event.preventDefault();
+        return;
+      }
       if (insufficientCredits) {
         event.preventDefault();
         promptOutOfCredits();
@@ -930,7 +948,17 @@
       bind:this={composerInput}
       bind:value={assistantDraft}
       on:input={resizeComposer}
-      on:keydown={composerKeydown}
+      on:keydown={(event) => {
+        // Enter sends; while Enhance is rewriting the prompt it waits for the new text.
+        if (enhancingPrompt && event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          return;
+        }
+        composerKeydown(event);
+      }}
+      readonly={enhancingPrompt}
+      class:pa-busy={enhancingPrompt}
+      aria-busy={enhancingPrompt}
       on:paste={handlePaste}
       disabled={$generationStore.isActive}
     ></textarea>
@@ -1135,6 +1163,14 @@
           </div>
         {/if}
       </div>
+      <PromptEnhanceButton
+        value={assistantDraft}
+        surface="composer"
+        disabled={$generationStore.isActive}
+        bind:enhancing={enhancingPrompt}
+        attachments={countAttachments(classifiedAssets, selectedAudio.length)}
+        onApply={applyAssistedPrompt}
+      />
       <button
         class="ai-composer-send"
         aria-label={insufficientCredits
@@ -1142,7 +1178,8 @@
           : "Send message to Tiffy"}
         disabled={!assistantDraft.trim() ||
           $generationStore.isActive ||
-          uploadingMedia}
+          uploadingMedia ||
+          enhancingPrompt}
         type="submit"
       >
         <ArrowUp size={17} aria-hidden="true" />

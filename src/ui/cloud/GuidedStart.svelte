@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PromptEnhanceButton from "../prompt-assist/PromptEnhanceButton.svelte";
   import { onDestroy, onMount, tick } from "svelte";
   import {
     ArrowLeft,
@@ -426,7 +427,11 @@
     }
   }
 
+  /** True while Enhance is rewriting the instructions; the video waits for the new text. */
+  let enhancingInstructions = false;
+
   async function generate() {
+    if (enhancingInstructions) return;
     if (sending) return;
     const result = readForm();
     if (result) await send(result);
@@ -882,8 +887,27 @@
               rows="3"
               placeholder={tool.instructions.placeholder}
               bind:value={instructions}
+              readonly={enhancingInstructions}
+              class:pa-busy={enhancingInstructions}
             ></textarea>
           </label>
+          <div class="pa-enhance-row">
+            <PromptEnhanceButton
+              value={instructions}
+              surface="guided"
+              {disabled}
+              bind:enhancing={enhancingInstructions}
+              attachments={{
+                images:
+                  images.reference.length +
+                  images.asset.length +
+                  (logo ? 1 : 0),
+                videos: 0,
+                audio: 0,
+              }}
+              onApply={(text) => (instructions = text)}
+            />
+          </div>
 
           <div class="gs-actions">
             {#if triedGenerate && missing}
@@ -892,7 +916,7 @@
             <button
               type="submit"
               class="gs-generate"
-              disabled={disabled || sending}
+              disabled={disabled || sending || enhancingInstructions}
             >
               <span class="gs-generate-label"
                 ><Sparkles size={16} />

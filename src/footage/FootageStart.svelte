@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PromptEnhanceButton from "../ui/prompt-assist/PromptEnhanceButton.svelte";
   import { onDestroy } from "svelte";
   import { Check, Loader2, Plus, Sparkles, Upload, X } from "lucide-svelte";
   import {
@@ -94,7 +95,9 @@
   );
   $: ready = items.filter((item) => item.clip).map((item) => item.clip!);
   $: pictures = items.flatMap((item) => (item.picture ? [item.picture] : []));
-  $: canCreate = ready.length > 0 && !uploading && !creating;
+  /** True while Enhance is rewriting the brief; the first cut waits for the new text. */
+  let enhancingBrief = false;
+  $: canCreate = ready.length > 0 && !uploading && !creating && !enhancingBrief;
 
   onDestroy(() => items.forEach((item) => URL.revokeObjectURL(item.preview)));
 
@@ -365,8 +368,19 @@
         rows="4"
         lang="km"
         bind:value={brief}
+        readonly={enhancingBrief}
+        class:pa-busy={enhancingBrief}
         placeholder="e.g. Create a 30-second Khmer promotional video for my new coffee menu. Show the best drinks, keep my explanation short, and end with how to order."
       ></textarea>
+      <div class="pa-enhance-row">
+        <PromptEnhanceButton
+          value={brief}
+          surface="footage"
+          bind:enhancing={enhancingBrief}
+          attachments={{ images: 0, videos: items.length, audio: 0 }}
+          onApply={(text) => (brief = text)}
+        />
+      </div>
       <div class="fs-examples" role="group" aria-label="Start from">
         <span>Start from:</span>
         {#each FOOTAGE_PRESETS as item (item.label)}

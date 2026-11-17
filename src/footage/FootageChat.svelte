@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PromptEnhanceButton from "../ui/prompt-assist/PromptEnhanceButton.svelte";
   import { tick } from "svelte";
   import { uploadAsset } from "../api/assets";
   import {
@@ -190,8 +191,11 @@
     }
   }
 
+  /** True while Enhance is rewriting the re-cut brief; the cut waits for the new text. */
+  let enhancingBrief = false;
+
   function recut(): void {
-    if (busy || clipCount === 0 || uploadingPictures) return;
+    if (busy || clipCount === 0 || uploadingPictures || enhancingBrief) return;
     onRoughCut({
       brief: recutBrief,
       // The AI picks the length; music and voice-over are not offered yet.
@@ -243,6 +247,8 @@
           rows="3"
           lang="km"
           bind:value={recutBrief}
+          readonly={enhancingBrief}
+          class:pa-busy={enhancingBrief}
           placeholder="A Khmer promotional video for my new coffee menu: the best drinks, the price, and how to order."
         ></textarea>
         <div class="fx-recut__row">
@@ -254,14 +260,24 @@
             <option value="none">No subtitles</option>
           </select>
         </div>
-        <button
-          type="submit"
-          class="fx-primary"
-          disabled={busy || clipCount === 0}
-        >
-          <Sparkles size={14} />
-          {hasCut ? "Re-cut with AI" : "Create the first cut"}
-        </button>
+        <div class="pa-submit-row">
+          <PromptEnhanceButton
+            value={recutBrief}
+            surface="footage"
+            disabled={busy}
+            bind:enhancing={enhancingBrief}
+            attachments={{ images: pictures.length, videos: clipCount, audio: 0 }}
+            onApply={(text) => (recutBrief = text)}
+          />
+          <button
+            type="submit"
+            class="fx-primary"
+            disabled={busy || clipCount === 0 || enhancingBrief}
+          >
+            <Sparkles size={14} />
+            {hasCut ? "Re-cut with AI" : "Create the first cut"}
+          </button>
+        </div>
         <p class="fx-hint">
           {hasCut
             ? "This replaces the current cut; Undo brings it back. "

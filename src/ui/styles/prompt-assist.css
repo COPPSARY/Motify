@@ -1,0 +1,83 @@
+/* The free Enhance button: an icon beside a prompt box's send button. */
+.pa-enhance-button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sl-text-soft, #9aa0a9);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.pa-enhance-button:hover:not(:disabled) {
+  background: var(--sl-accent-soft, rgba(124, 92, 255, 0.18));
+  color: var(--sl-accent-hover, #a48bff);
+}
+
+.pa-enhance-button:focus-visible {
+  outline: 2px solid var(--sl-accent, #7c5cff);
+  outline-offset: 2px;
+}
+
+.pa-enhance-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* In the composer bar, Enhance takes the push to the right that Send had, so the two sit together. */
+.code-editor-scope .ai-composer-bar .pa-enhance-button {
+  margin-left: auto;
+}
+
+.code-editor-scope .ai-composer-bar .pa-enhance-button ~ .ai-composer-send {
+  margin-left: 8px;
+}
+
+/* Prompt boxes whose send button is further down: Enhance sits under the box, on the right. */
+.pa-enhance-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.pa-enhance-row:empty {
+  display: none;
+}
+
+.pa-submit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pa-submit-row > :last-child {
+  flex: 1;
+}
+
+.pa-spin {
+  animation: pa-spin 0.9s linear infinite;
+}
+
+@keyframes pa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-spin {
+    animation: none;
+  }
+}
+
+/* The prompt box waits, greyed, while Enhance rewrites it. */
+textarea.pa-busy {
+  opacity: 0.6;
+}
