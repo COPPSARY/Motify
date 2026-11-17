@@ -434,7 +434,8 @@ export interface FootageCard {
   treatment?: string;
   /**
    * The card made by Motify's motion-graphics generator, in a project of its
-   * own; played in the card's place once ready. The template shows until then.
+   * own; played in the card's place once ready. Until then the preview shows
+   * that it is being made; the simple template stands in only if it failed.
    */
   film?: {
     projectId: string;
