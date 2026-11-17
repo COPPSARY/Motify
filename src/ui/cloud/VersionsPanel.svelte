@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    Download,
     History,
     LoaderCircle,
     Pencil,
@@ -19,6 +20,8 @@
   /** True while Tiffy is working, when restoring would race her save. */
   export let busy = false;
   export let onRestore: (revision: number) => Promise<void>;
+  /** Opens a version for export without restoring it; no button when absent. */
+  export let onDownload: ((revision: number) => Promise<void>) | null = null;
   export let onClose: () => void;
   export let now: () => number = () => Date.now();
 
@@ -27,9 +30,18 @@
   let error = "";
   let loadedKey = "";
   let restoring = 0;
+  let downloading = 0;
   let renaming = 0;
   let renameDraft = "";
   let request = 0;
+
+  /** The newest version, and whether the film is showing an older one. */
+  $: latest = versions.reduce<ProjectVersion | null>(
+    (best, version) =>
+      !best || version.revision > best.revision ? version : best,
+    null,
+  );
+  $: onOlderVersion = Boolean(latest && !latest.current);
 
   $: loadKey = `${projectId}:${revision}`;
   $: if (projectId && loadKey !== loadedKey) {
@@ -61,6 +73,19 @@
       error = `Version ${version.revision} could not be restored.`;
     } finally {
       restoring = 0;
+    }
+  }
+
+  async function download(version: ProjectVersion): Promise<void> {
+    if (!onDownload || busy || restoring || downloading) return;
+    downloading = version.revision;
+    error = "";
+    try {
+      await onDownload(version.revision);
+    } catch {
+      error = `Version ${version.revision} could not be opened for download.`;
+    } finally {
+      downloading = 0;
     }
   }
 
@@ -170,6 +195,24 @@
     <p class="versions-error" role="alert">{error}</p>
   {/if}
 
+  {#if latest && onOlderVersion}
+    <div class="versions-latest">
+      <span>You are on an older version.</span>
+      <button
+        type="button"
+        class="versions-restore"
+        disabled={busy || restoring !== 0}
+        on:click={() => latest && void restore(latest)}
+      >
+        {#if restoring === latest.revision}
+          <LoaderCircle size={13} class="versions-spin" /> Restoring…
+        {:else}
+          <RotateCcw size={13} /> Back to latest (v{latest.revision})
+        {/if}
+      </button>
+    </div>
+  {/if}
+
   {#if loading && versions.length === 0}
     <p class="versions-empty">
       <LoaderCircle size={14} class="versions-spin" /> Loading versions…
@@ -232,6 +275,21 @@
                   <LoaderCircle size={13} class="versions-spin" /> Restoring…
                 {:else}
                   <RotateCcw size={13} /> Restore
+                {/if}
+              </button>
+            {/if}
+            {#if onDownload && !version.current}
+              <button
+                type="button"
+                class="versions-restore versions-download"
+                disabled={busy || restoring !== 0 || downloading !== 0}
+                title={`Export version ${version.revision} as a video without restoring it`}
+                on:click={() => void download(version)}
+              >
+                {#if downloading === version.revision}
+                  <LoaderCircle size={13} class="versions-spin" /> Opening…
+                {:else}
+                  <Download size={13} /> Download
                 {/if}
               </button>
             {/if}

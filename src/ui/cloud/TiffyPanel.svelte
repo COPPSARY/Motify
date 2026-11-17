@@ -168,6 +168,7 @@
     projectId: string;
     revision: number;
     onRestore: (revision: number) => Promise<void>;
+    onDownload?: (revision: number) => Promise<void>;
   } | null = null;
 
   let versionsOpen = false;
@@ -485,6 +486,7 @@
         await versions?.onRestore(revision);
         versionsOpen = false;
       }}
+      onDownload={versions.onDownload ?? null}
       onClose={() => (versionsOpen = false)}
     />
   {:else if variant === "panel"}
@@ -1176,7 +1178,7 @@
         aria-label={insufficientCredits
           ? "Send message to Tiffy (not enough credits)"
           : "Send message to Tiffy"}
-        disabled={!assistantDraft.trim() ||
+        disabled={(!assistantDraft.trim() && classifiedAssets.length === 0) ||
           $generationStore.isActive ||
           uploadingMedia ||
           enhancingPrompt}

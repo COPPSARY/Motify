@@ -1188,6 +1188,8 @@
     composition: CompositionDefinition,
     editorState?: Partial<RuntimeEditorState>,
   ): void {
+    // Any new mount ends a version opened only for export.
+    versionPreview = null;
     const previousSelectedId = selectedId;
     runtimeUnsubscribe?.();
     audioSync?.dispose();
@@ -1709,6 +1711,8 @@
     // Unsaved edits mean the mounted film is not the saved one; a generation
     // or an export is about to replace it or needs the tab.
     if (!project || !runtime || sourceDirty || exporting) return;
+    // A version opened for export is not the project's film.
+    if (versionPreview !== null) return;
     if ($generationStore.isActive || !thumbnailWanted(project)) return;
     thumbnailAttempts.set(project.id, project.revision);
     try {
@@ -2974,9 +2978,10 @@
       "composition.html":
         template?.outerHTML ?? documentSource.body.innerHTML.trim(),
     };
-    sourceDirty = true;
     cloudProjects?.setFiles(cloudFiles);
     scheduleDraftSave();
+    if (cloudProject) scheduleSourceSave();
+    else sourceDirty = true;
   }
 
   function changeEditorField(field: EditorFieldDefinition, event: Event): void {
@@ -3293,6 +3298,24 @@
 
   function handleShellKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape" && mobileSidebarOpen) closeMobileSidebar();
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      event.key.toLowerCase() === "s"
+    ) {
+      // The browser's own "save page" has no use here.
+      event.preventDefault();
+      if (hasEditorProject) void saveNow();
+    }
+  }
+
+  /** Save now: a cloud project skips the wait; a local one writes to disk. */
+  async function saveNow(): Promise<void> {
+    if (mode === "cloud" && cloudProject) {
+      if (footageSaveTimer) clearTimeout(footageSaveTimer);
+      await saveSourceInBackground();
+      showNotice("Saved.");
+    } else await saveSource();
   }
 
   // The gallery is one instance (it also holds the open project), drawn into
@@ -3757,7 +3780,7 @@
     const picked = accepted.slice(0, room).map((file) => ({
       source: file,
       file: withVideoType(file),
-      name: file.name && file.name !== "image.png" ? file.name : "Pasted image",
+      name: file.name || "Pasted image",
     }));
     const [first] = picked;
     if (!first) {
@@ -4307,6 +4330,67 @@ Voice over direction: ${voiceNote}`
   }
 
   /**
+   * An old version shown only so it can be exported: the film the project
+   * really is waits here, and comes back when the export dialog closes. The
+   * project is not changed or saved, and no version is made.
+   */
+  let versionPreview: number | null = null;
+  let versionReturn: {
+    composition: CompositionDefinition;
+    objectUrls: string[];
+    editorState: RuntimeEditorState | undefined;
+  } | null = null;
+
+  async function downloadProjectVersion(revision: number): Promise<void> {
+    if (!cloudProject || $generationStore.isActive || exporting) return;
+    if (sourceDirty) await saveSource();
+    const project = cloudProject;
+    const source = await new ProjectsApi().getVersionSource(
+      project.id,
+      revision,
+    );
+    const files = splitCompositionSource(
+      source["composition.html"],
+      source["timeline.js"],
+      cloudFiles["index.ts"],
+    );
+    const hydrated = await hydrateGenerationAssets(
+      hydratePresetAssets(combineCompositionSource(files)),
+    );
+    versionReturn = {
+      composition: activeComposition,
+      objectUrls: assetObjectUrls,
+      editorState: runtime?.exportEditorState(),
+    };
+    mountComposition(
+      createDynamicComposition(hydrated.source, files["timeline.js"], {
+        id: project.id,
+        title: `${project.name} (version ${revision})`,
+        width: source.width,
+        height: source.height,
+        fps: source.fps,
+        duration: source.duration,
+        scenes: source.scenes,
+      }),
+    );
+    assetObjectUrls = hydrated.objectUrls;
+    versionPreview = revision;
+    runtime?.seek(0);
+    await openExportDialog();
+  }
+
+  /** Puts the project's own film back after a version was opened to export. */
+  function leaveVersionPreview(): void {
+    const back = versionReturn;
+    versionReturn = null;
+    if (versionPreview === null || !back) return;
+    const versionUrls = assetObjectUrls;
+    mountComposition(back.composition, back.editorState);
+    assetObjectUrls = back.objectUrls;
+    versionUrls.forEach((url) => URL.revokeObjectURL(url));
+  }
+
+  /**
    * Rolls the film back to an old version, which becomes the current one;
    * no new version is made. Unsaved hand edits are saved first, so they
    * become a version instead of being lost.
@@ -4316,8 +4400,13 @@ Voice over direction: ${voiceNote}`
     if (sourceDirty) await saveSource();
     const shownRevision = cloudProject.revision;
     await musicApi.restoreVersion(cloudProject.id, revision, shownRevision);
+    // The version's songs are put back with it.
+    void refreshProjectAudio(musicApi, cloudProject.id);
+    recoverFailure = "";
     if (!(await recoverSavedGeneration(shownRevision))) {
-      showNotice(`Restored version ${revision}. Reopen the video to see it.`);
+      showNotice(
+        `Version ${revision} is restored, but the preview could not refresh${recoverFailure ? ` (${recoverFailure})` : ""}. Reopen the video to see it.`,
+      );
     }
     assistantMessages = [
       ...assistantMessages,
@@ -4327,6 +4416,9 @@ Voice over direction: ${voiceNote}`
     scheduleDraftSave();
   }
 
+  /** Why the last recovery could not load the saved film, for a restore to say. */
+  let recoverFailure = "";
+
   async function recoverSavedGeneration(
     shownRevision = cloudProject?.revision ?? 0,
   ): Promise<boolean> {
@@ -4334,9 +4426,12 @@ Voice over direction: ${voiceNote}`
     if (!projectId) return false;
     try {
       const api = new ProjectsApi();
-      const latestProject = await api.getProject(projectId);
+      // Asked together: the source is only used if the project moved on.
+      const [latestProject, source] = await Promise.all([
+        api.getProject(projectId),
+        api.getSource(projectId),
+      ]);
       if (latestProject.revision <= shownRevision) return false;
-      const source = await api.getSource(projectId);
       const files = splitCompositionSource(
         source["composition.html"],
         source["timeline.js"],
@@ -4368,8 +4463,9 @@ Voice over direction: ${voiceNote}`
       runtime?.seek(0);
       scheduleDraftSave();
       return true;
-    } catch {
+    } catch (error) {
       // Nothing newer could be loaded; the original error stands.
+      recoverFailure = error instanceof Error ? error.message : "";
       return false;
     }
   }
@@ -4518,8 +4614,16 @@ Voice over direction: ${voiceNote}`
     },
   ): Promise<void> {
     event.preventDefault();
-    const shownText = (scoped?.text ?? assistantDraft).trim();
-    const prompt = (scoped?.prompt ?? assistantDraft).trim();
+    // Pictures alone are a complete request: with no words, the film is made from them.
+    const picturesOnly =
+      !scoped && !assistantDraft.trim() && stagedAssets.length > 0;
+    const picturesPrompt = "Make a video from the attached images.";
+    const shownText = picturesOnly
+      ? picturesPrompt
+      : (scoped?.text ?? assistantDraft).trim();
+    const prompt = picturesOnly
+      ? picturesPrompt
+      : (scoped?.prompt ?? assistantDraft).trim();
     const aspectRatio =
       scoped?.aspectRatio ??
       (!cloudProject && !backendGenerationProjectId
@@ -5251,7 +5355,7 @@ Voice over direction: ${voiceNote}`
     // The edit takes effect and starts saving at once; the preview catches up.
     const mounted = mountFootage(next);
     pruneFootageSelection(next);
-    scheduleFootageSave();
+    scheduleSourceSave();
     await mounted;
   }
 
@@ -5262,7 +5366,7 @@ Voice over direction: ${voiceNote}`
     footageFuture = [footageEdit, ...footageFuture];
     await mountFootage(previous);
     pruneFootageSelection(previous);
-    scheduleFootageSave();
+    scheduleSourceSave();
   }
 
   async function redoFootage(): Promise<void> {
@@ -5272,25 +5376,33 @@ Voice over direction: ${voiceNote}`
     footagePast = [...footagePast, footageEdit];
     await mountFootage(next);
     pruneFootageSelection(next);
-    scheduleFootageSave();
+    scheduleSourceSave();
   }
 
-  /** Edits save themselves shortly after the last change, as one revision. */
-  function scheduleFootageSave(): void {
+  /**
+   * Edits (footage cuts and hand edits alike) save themselves shortly after
+   * the last change, as one revision.
+   */
+  function scheduleSourceSave(): void {
     sourceDirty = true;
     if (footageSaveTimer) clearTimeout(footageSaveTimer);
-    footageSaveTimer = setTimeout(() => void saveFootage(), 1200);
+    footageSaveTimer = setTimeout(() => void saveSourceInBackground(), 1200);
   }
 
-  async function saveFootage(): Promise<void> {
+  async function saveSourceInBackground(): Promise<void> {
     footageSaveTimer = null;
     if (footageSaving) {
       await footageSaving;
-      if (sourceDirty) scheduleFootageSave();
+      if (sourceDirty) scheduleSourceSave();
       return;
     }
     const project = cloudProject;
-    if (!project || !readFootageEdit(cloudFiles["timeline.js"] ?? "")) return;
+    if (!project) return;
+    // A generation or restore is replacing the source and moves the revision.
+    if ($generationStore.isActive) {
+      scheduleSourceSave();
+      return;
+    }
     const files = { ...cloudFiles };
     footageSaving = (async () => {
       try {
@@ -5303,7 +5415,10 @@ Voice over direction: ${voiceNote}`
         if (cloudProject?.id === project.id) cloudProject = saved.project;
         cloudProjects?.setFiles(files);
         await cloudProjects?.registerActiveProject(saved.project);
-        if (cloudFiles["timeline.js"] === files["timeline.js"])
+        if (
+          cloudFiles["timeline.js"] === files["timeline.js"] &&
+          cloudFiles["composition.html"] === files["composition.html"]
+        )
           sourceDirty = false;
       } catch (error) {
         showNotice(
@@ -5642,7 +5757,7 @@ Voice over direction: ${voiceNote}`
       .sort()
       .join(",");
     const mounted = mountFootage(edit);
-    scheduleFootageSave();
+    scheduleSourceSave();
     captureEvent("footage project created", {
       clips: input.clips.length,
       seconds: input.seconds ?? "auto",
@@ -5866,9 +5981,10 @@ Voice over direction: ${voiceNote}`
       "composition.html":
         template?.outerHTML ?? documentSource.body.innerHTML.trim(),
     };
-    sourceDirty = true;
     cloudProjects?.setFiles(cloudFiles);
     scheduleDraftSave();
+    if (cloudProject) scheduleSourceSave();
+    else sourceDirty = true;
   }
 
   async function handleCloudProjectChange(
@@ -5936,6 +6052,7 @@ Voice over direction: ${voiceNote}`
     if (exporting) return;
     exportDialogOpen = false;
     exportResult = null;
+    leaveVersionPreview();
   }
 
   function cancelExport(): void {
@@ -6989,10 +7106,23 @@ Voice over direction: ${voiceNote}`
               {#if mode === "cloud" && currentUser}
                 <CreditsBadge />
               {/if}
+              {#if mode === "cloud" && cloudProject}
+                <span
+                  class="save-status"
+                  class:is-busy={footageSaveState !== "saved"}
+                  role="status"
+                  aria-live="polite"
+                  >{footageSaveState === "saving"
+                    ? "Saving…"
+                    : footageSaveState === "unsaved"
+                      ? "Unsaved changes"
+                      : "All changes saved"}</span
+                >
+              {/if}
               <button
                 class="btn"
-                title="Save project"
-                on:click={saveSource}
+                title="Save project (Ctrl+S)"
+                on:click={saveNow}
                 disabled={!hasEditorProject}
                 ><Save size={15} /><span>Save</span></button
               >
@@ -8248,6 +8378,7 @@ Voice over direction: ${voiceNote}`
           projectId: cloudProject.id,
           revision: cloudProject.revision,
           onRestore: restoreProjectVersion,
+          onDownload: footageMode ? undefined : downloadProjectVersion,
         }
       : null}
     {assistantMessages}

@@ -227,3 +227,15 @@
 .code-editor-scope .ai-chat-panel:not(.is-hero) .ai-chat-header.has-history {
   grid-template-columns: 32px minmax(0, 1fr) 28px 24px;
 }
+
+.code-editor-scope .versions-latest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--sl-border-strong);
+  border-radius: 10px;
+  color: var(--sl-muted);
+  font-size: 12.5px;
+}

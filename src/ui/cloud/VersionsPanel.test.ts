@@ -28,12 +28,16 @@ async function settle() {
   }
 }
 
-function setup(versions: ProjectVersion[], options: { busy?: boolean } = {}) {
+function setup(
+  versions: ProjectVersion[],
+  options: { busy?: boolean; download?: boolean } = {},
+) {
   const api = {
     listVersions: vi.fn().mockResolvedValue(versions),
     updateVersion: vi.fn().mockResolvedValue(undefined),
   };
   const onRestore = vi.fn().mockResolvedValue(undefined);
+  const onDownload = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
   const target = document.createElement("div");
   target.className = "code-editor-scope";
@@ -46,11 +50,12 @@ function setup(versions: ProjectVersion[], options: { busy?: boolean } = {}) {
       revision: 7,
       busy: options.busy ?? false,
       onRestore,
+      onDownload: options.download ? onDownload : null,
       onClose,
       now: () => now,
     },
   });
-  return { api, onRestore, onClose, target, component };
+  return { api, onRestore, onDownload, onClose, target, component };
 }
 
 afterEach(() => {
@@ -122,6 +127,35 @@ describe("VersionsPanel", () => {
     expect(
       target.querySelector('[aria-label="Unpin version 3"]'),
     ).not.toBeNull();
+    unmount(component);
+  });
+
+  it("downloads an older version without restoring it", async () => {
+    const { target, onDownload, onRestore, component } = setup(
+      [version({ revision: 7, current: true }), version({ revision: 3 })],
+      { download: true },
+    );
+    await settle();
+
+    const items = target.querySelectorAll(".versions-item");
+    // The current version has nothing to download: it is the film.
+    expect(items[0]!.querySelector(".versions-download")).toBeNull();
+    (
+      items[1]!.querySelector(".versions-download") as HTMLButtonElement
+    ).click();
+    await settle();
+    expect(onDownload).toHaveBeenCalledWith(3);
+    expect(onRestore).not.toHaveBeenCalled();
+    unmount(component);
+  });
+
+  it("offers no download unless the editor can export one", async () => {
+    const { target, component } = setup([
+      version({ revision: 7, current: true }),
+      version({ revision: 3 }),
+    ]);
+    await settle();
+    expect(target.querySelector(".versions-download")).toBeNull();
     unmount(component);
   });
 
