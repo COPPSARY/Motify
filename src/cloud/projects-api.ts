@@ -96,6 +96,16 @@ export interface ProjectSource {
   "timeline.js": string;
 }
 
+/** A saved version's film, for viewing or exporting it without restoring it. */
+export interface ProjectVersionSource extends ProjectSource {
+  revision: number;
+  scenes: ProjectSummary["scenes"];
+  width: number;
+  height: number;
+  fps: number;
+  duration: number;
+}
+
 /**
  * A saved point in a project's history. Versions are identified, not
  * previewed: by number, how they were made, the prompt behind them and when.
@@ -892,6 +902,13 @@ export class ProjectsApi {
   listVersions(projectId: string) {
     return this.request<ProjectVersion[]>(
       `/v1/projects/${encodeURIComponent(projectId)}/versions`,
+    );
+  }
+
+  /** An old version's film. Nothing changes: the project is not rolled back. */
+  getVersionSource(projectId: string, revision: number) {
+    return this.request<ProjectVersionSource>(
+      `/v1/projects/${encodeURIComponent(projectId)}/versions/${revision}/source`,
     );
   }
 

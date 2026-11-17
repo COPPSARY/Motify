@@ -1188,6 +1188,8 @@
     composition: CompositionDefinition,
     editorState?: Partial<RuntimeEditorState>,
   ): void {
+    // Any new mount ends a version opened only for export.
+    versionPreview = null;
     const previousSelectedId = selectedId;
     runtimeUnsubscribe?.();
     audioSync?.dispose();
@@ -1709,6 +1711,8 @@
     // Unsaved edits mean the mounted film is not the saved one; a generation
     // or an export is about to replace it or needs the tab.
     if (!project || !runtime || sourceDirty || exporting) return;
+    // A version opened for export is not the project's film.
+    if (versionPreview !== null) return;
     if ($generationStore.isActive || !thumbnailWanted(project)) return;
     thumbnailAttempts.set(project.id, project.revision);
     try {
@@ -4326,6 +4330,67 @@ Voice over direction: ${voiceNote}`
   }
 
   /**
+   * An old version shown only so it can be exported: the film the project
+   * really is waits here, and comes back when the export dialog closes. The
+   * project is not changed or saved, and no version is made.
+   */
+  let versionPreview: number | null = null;
+  let versionReturn: {
+    composition: CompositionDefinition;
+    objectUrls: string[];
+    editorState: RuntimeEditorState | undefined;
+  } | null = null;
+
+  async function downloadProjectVersion(revision: number): Promise<void> {
+    if (!cloudProject || $generationStore.isActive || exporting) return;
+    if (sourceDirty) await saveSource();
+    const project = cloudProject;
+    const source = await new ProjectsApi().getVersionSource(
+      project.id,
+      revision,
+    );
+    const files = splitCompositionSource(
+      source["composition.html"],
+      source["timeline.js"],
+      cloudFiles["index.ts"],
+    );
+    const hydrated = await hydrateGenerationAssets(
+      hydratePresetAssets(combineCompositionSource(files)),
+    );
+    versionReturn = {
+      composition: activeComposition,
+      objectUrls: assetObjectUrls,
+      editorState: runtime?.exportEditorState(),
+    };
+    mountComposition(
+      createDynamicComposition(hydrated.source, files["timeline.js"], {
+        id: project.id,
+        title: `${project.name} (version ${revision})`,
+        width: source.width,
+        height: source.height,
+        fps: source.fps,
+        duration: source.duration,
+        scenes: source.scenes,
+      }),
+    );
+    assetObjectUrls = hydrated.objectUrls;
+    versionPreview = revision;
+    runtime?.seek(0);
+    await openExportDialog();
+  }
+
+  /** Puts the project's own film back after a version was opened to export. */
+  function leaveVersionPreview(): void {
+    const back = versionReturn;
+    versionReturn = null;
+    if (versionPreview === null || !back) return;
+    const versionUrls = assetObjectUrls;
+    mountComposition(back.composition, back.editorState);
+    assetObjectUrls = back.objectUrls;
+    versionUrls.forEach((url) => URL.revokeObjectURL(url));
+  }
+
+  /**
    * Rolls the film back to an old version, which becomes the current one;
    * no new version is made. Unsaved hand edits are saved first, so they
    * become a version instead of being lost.
@@ -5987,6 +6052,7 @@ Voice over direction: ${voiceNote}`
     if (exporting) return;
     exportDialogOpen = false;
     exportResult = null;
+    leaveVersionPreview();
   }
 
   function cancelExport(): void {
@@ -8312,6 +8378,7 @@ Voice over direction: ${voiceNote}`
           projectId: cloudProject.id,
           revision: cloudProject.revision,
           onRestore: restoreProjectVersion,
+          onDownload: footageMode ? undefined : downloadProjectVersion,
         }
       : null}
     {assistantMessages}
