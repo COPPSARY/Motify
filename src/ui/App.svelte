@@ -5662,7 +5662,7 @@ Voice over direction: ${voiceNote}`
   let psdGenerating: { name: string; layers: string[] } | null = null;
 
   async function createPsdProject(
-    input: { document: PsdDocument; seconds: number },
+    input: { document: PsdDocument; seconds: number; instructions: string },
     onProgress: (progress: PsdImportProgress) => void,
   ): Promise<void> {
     if (!workspaceId) throw new Error("Sign in to import a PSD.");
@@ -5750,7 +5750,7 @@ Voice over direction: ${voiceNote}`
       height: project.height,
     });
     try {
-      await animatePsd(input.seconds);
+      await animatePsd(input.seconds, input.instructions);
     } finally {
       // Done or failed, the editor shows it: the video, or the error to retry.
       psdGenerating = null;
@@ -5759,19 +5759,26 @@ Voice over direction: ${voiceNote}`
 
   /**
    * Asks Tiffy to animate the open PSD design's layers. The backend writes the
-   * brief from the psd-to-video tool; the chat shows only this line.
+   * brief from the psd-to-video tool. Like the guided tools' guideMessage, the
+   * person's own words follow a blank line, so the backend reads them as
+   * theirs and they lead over its default request.
    */
   function animatePsd(
     seconds = Math.round(activeComposition.duration),
+    instructions = "",
   ): Promise<void> {
     const length = Math.min(
       maxFilmSeconds ?? 60,
       60,
       Math.max(5, Number.isFinite(seconds) ? seconds : 8),
     );
+    const words = instructions.trim();
+    const message = words
+      ? `Animate my Photoshop layers\n\n${words}`
+      : "Animate my Photoshop layers";
     return submitAssistant(new SubmitEvent("submit"), {
-      text: "Animate my Photoshop layers",
-      prompt: "Animate the layers of my Photoshop design.",
+      text: message,
+      prompt: message,
       tool: { id: "psd-to-video", seconds: length, language: "en" },
     });
   }
