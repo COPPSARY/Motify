@@ -31,6 +31,11 @@ export interface CompositeMatch {
 const TOLERANCE = 2;
 /** What a person sees as different: the average channel off by this much. */
 const VISIBLE = 12;
+/**
+ * How far, in pixels, a moving layer's corrections are averaged: wide enough
+ * to lose the grain of the layers above, narrow enough to keep a bevel's light.
+ */
+const SMOOTH_RADIUS = 3;
 /** How long the match runs before it lets the page draw. */
 const YIELD_EVERY_MS = 40;
 /** Past this many differing pixels, correcting would stall the browser. */
@@ -43,14 +48,29 @@ interface Leaf {
   data: Uint8ClampedArray;
   width: number;
   height: number;
-  /** Corrected pixels, written back once at the end. */
+  /** Corrected pixels, not yet written back to its canvas. */
   dirty: boolean;
+  /** It covers the whole canvas: a background or a texture over everything. */
+  spansCanvas: boolean;
 }
 
 /**
- * Corrects the redrawn layers of `document` in place so they stack into
+ * Corrects the layers of `document` in place so they stack into
  * `composite`, Photoshop's own picture. Null when the file has no usable
  * composite (saved without "Maximize compatibility").
+ *
+ * Two passes, so layers stay clean when they move on their own:
+ *
+ * 1. Redrawn layers take what their redraw got wrong, smoothed. A redraw's
+ *    error is smooth (a bevel that lights a badge 10% brighter); what is
+ *    grainy is the blend maths of the layers above, and baked into a layer
+ *    that moves it would tear against the grain it came from.
+ * 2. What is left goes to the layers that do not travel against the rest:
+ *    ones that cover the whole canvas (backgrounds, grain and light
+ *    textures) and the blended layers whose maths caused it.
+ *
+ * No layer gains coverage: a transparent pixel stays transparent, or a box
+ * would show around a layer as soon as it moved.
  */
 export async function matchComposite(
   document: PsdDocument,
@@ -79,53 +99,193 @@ export async function matchComposite(
         width: pixels.width,
         height: pixels.height,
         dirty: false,
+        spansCanvas:
+          node.left <= 0 &&
+          node.top <= 0 &&
+          node.left + pixels.width >= W &&
+          node.top + pixels.height >= H,
       });
   }
 
   const drawn = renderLayers(document);
   if (!drawn) return null;
   const before = visibleShare(drawn, target);
-  const differing: number[] = [];
-  for (let p = 0; p < W * H; p += 1) {
-    if (differs(drawn, target, p * 4) && differing.length < MAX_CORRECTED)
-      differing.push(p);
-  }
+  const progress = pacer(onProgress);
+
+  // 1. Redrawn layers, smoothed.
+  const first = differingPixels(drawn, target, W * H);
+  const deltas = new Map<Leaf, Float32Array>();
   let corrected = 0;
-  const want: Rgba = [0, 0, 0, 0];
-  let lastYield = performance.now();
-  for (let n = 0; n < differing.length; n += 1) {
-    // Give the page a moment now and then: a large file takes seconds.
-    if ((n & 1023) === 0 && performance.now() - lastYield > YIELD_EVERY_MS) {
-      onProgress?.(n / differing.length);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      lastYield = performance.now();
-    }
-    const p = differing[n]!;
-    const x = p % W;
-    const y = (p - x) / W;
-    const i = p * 4;
-    const a = target[i + 3]! / 255;
-    want[0] = (target[i]! / 255) * a;
-    want[1] = (target[i + 1]! / 255) * a;
-    want[2] = (target[i + 2]! / 255) * a;
-    want[3] = a;
-    const stack = compileStack(document.layers, leaves, x, y);
-    // Where a difference is put right: a redrawn layer first, top first,
-    // then any layer. Even Photoshop's own pixels can come out different: its
-    // Overlay, Luminosity and other modes are not quite CSS's.
-    const covering = stackLeaves(stack).filter((op) => ownable(op.leaf.node));
-    const owners = [
-      ...covering.filter((op) => op.leaf.node.redrawn),
-      ...covering.filter((op) => !op.leaf.node.redrawn),
-    ];
+  for (let n = 0; n < first.length; n += 1) {
+    await progress(n / first.length / 2);
+    const p = first[n]!;
+    const stack = compileStack(document.layers, leaves, p % W, (p / W) | 0);
+    const owners = stackLeaves(stack)
+      .filter((op) => op.leaf.node.redrawn && ownable(op.leaf.node))
+      .filter((op) => op.leaf.data[op.local + 3]! > 0)
+      // The one you see most of there: a badge, not the faint edge of a
+      // label on it.
+      .sort((a, b) => b.leaf.data[b.local + 3]! - a.leaf.data[a.local + 3]!);
     for (const owner of owners) {
-      if (solvePixel(stack, owner, want)) {
+      const solved = solvePixel(stack, owner, wantAt(target, p));
+      if (!solved) continue;
+      const delta = (deltas.get(owner.leaf) ??
+        deltas
+          .set(
+            owner.leaf,
+            new Float32Array(owner.leaf.width * owner.leaf.height * 4),
+          )
+          .get(owner.leaf))!;
+      const data = owner.leaf.data;
+      const at = owner.local;
+      delta[at] = solved.color[0] * 255 - data[at]!;
+      delta[at + 1] = solved.color[1] * 255 - data[at + 1]!;
+      delta[at + 2] = solved.color[2] * 255 - data[at + 2]!;
+      delta[at + 3] = solved.alpha * 255 - data[at + 3]!;
+      corrected += 1;
+      break;
+    }
+  }
+  for (const [leaf, delta] of deltas) applySmoothed(leaf, delta);
+  flush(leaves);
+
+  // 2. What is left, to the layers that do not travel against the rest.
+  const redrawnPass = renderLayers(document);
+  if (redrawnPass) {
+    const second = differingPixels(redrawnPass, target, W * H);
+    for (let n = 0; n < second.length; n += 1) {
+      await progress(0.5 + n / second.length / 2);
+      const p = second[n]!;
+      const stack = compileStack(document.layers, leaves, p % W, (p / W) | 0);
+      const owners = stackLeaves(stack).filter(
+        (op) =>
+          ownable(op.leaf.node) &&
+          op.leaf.data[op.local + 3]! > 0 &&
+          (op.leaf.spansCanvas || op.mix !== null),
+      );
+      for (const owner of owners) {
+        const solved = solvePixel(stack, owner, wantAt(target, p));
+        if (!solved) continue;
+        write(owner, solved);
         corrected += 1;
-        break;
+        if (solved.error * 255 <= TOLERANCE) break;
       }
     }
+    flush(leaves);
   }
 
+  const after = renderLayers(document);
+  return {
+    before,
+    after: after ? visibleShare(after, target) : before,
+    corrected,
+  };
+}
+
+/** Pixels that differ from Photoshop's by more than TOLERANCE. */
+function differingPixels(
+  drawn: Uint8ClampedArray,
+  target: Uint8ClampedArray,
+  count: number,
+): number[] {
+  const differing: number[] = [];
+  for (let p = 0; p < count && differing.length < MAX_CORRECTED; p += 1)
+    if (differs(drawn, target, p * 4)) differing.push(p);
+  return differing;
+}
+
+/** Photoshop's pixel, premultiplied, 0..1. */
+function wantAt(target: Uint8ClampedArray, p: number): Rgba {
+  const i = p * 4;
+  const a = target[i + 3]! / 255;
+  return [
+    (target[i]! / 255) * a,
+    (target[i + 1]! / 255) * a,
+    (target[i + 2]! / 255) * a,
+    a,
+  ];
+}
+
+/** Lets the page draw every YIELD_EVERY_MS, and reports how far it is. */
+function pacer(
+  onProgress?: (share: number) => void,
+): (share: number) => Promise<void> {
+  let last = performance.now();
+  let calls = 0;
+  return async (share) => {
+    calls += 1;
+    if ((calls & 1023) !== 0 || performance.now() - last < YIELD_EVERY_MS)
+      return;
+    onProgress?.(share);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    last = performance.now();
+  };
+}
+
+function write(op: LeafOp, solved: Solved): void {
+  const data = op.leaf.data;
+  data[op.local] = Math.round(solved.color[0] * 255);
+  data[op.local + 1] = Math.round(solved.color[1] * 255);
+  data[op.local + 2] = Math.round(solved.color[2] * 255);
+  data[op.local + 3] = Math.round(solved.alpha * 255);
+  op.leaf.dirty = true;
+}
+
+/**
+ * A layer's corrections, smoothed over its own pixels and then applied: the
+ * correction at each pixel is the average of those around it, among the
+ * pixels the layer covers. What a redraw got wrong survives; the grain of
+ * the layers above does not.
+ */
+function applySmoothed(leaf: Leaf, delta: Float32Array): void {
+  const { width: w, height: h, data } = leaf;
+  const r = SMOOTH_RADIUS;
+  // Box sums by rows, then columns, over covered pixels only.
+  const rows = new Float32Array(w * h * 5);
+  for (let y = 0; y < h; y += 1) {
+    const sum = [0, 0, 0, 0, 0];
+    const add = (x: number, sign: number) => {
+      if (x < 0 || x >= w) return;
+      const i = (y * w + x) * 4;
+      if (data[i + 3]! === 0) return;
+      for (let c = 0; c < 4; c += 1) sum[c]! += sign * delta[i + c]!;
+      sum[4]! += sign;
+    };
+    for (let x = -r; x < r; x += 1) add(x, 1);
+    for (let x = 0; x < w; x += 1) {
+      add(x + r, 1);
+      const o = (y * w + x) * 5;
+      for (let c = 0; c < 5; c += 1) rows[o + c] = sum[c]!;
+      add(x - r, -1);
+    }
+  }
+  for (let x = 0; x < w; x += 1) {
+    const sum = [0, 0, 0, 0, 0];
+    const add = (y: number, sign: number) => {
+      if (y < 0 || y >= h) return;
+      const o = (y * w + x) * 5;
+      for (let c = 0; c < 5; c += 1) sum[c]! += sign * rows[o + c]!;
+    };
+    for (let y = -r; y < r; y += 1) add(y, 1);
+    for (let y = 0; y < h; y += 1) {
+      add(y + r, 1);
+      const i = (y * w + x) * 4;
+      if (data[i + 3]! > 0 && sum[4]! > 0) {
+        for (let c = 0; c < 3; c += 1)
+          data[i + c] = Math.round(data[i + c]! + sum[c]! / sum[4]!);
+        // Coverage only ever thins: never a pixel the layer did not cover.
+        data[i + 3] = Math.round(
+          Math.min(data[i + 3]!, data[i + 3]! + sum[3]! / sum[4]!),
+        );
+        leaf.dirty = true;
+      }
+      add(y - r, -1);
+    }
+  }
+}
+
+/** Writes corrected pixels back to the layers' canvases. */
+function flush(leaves: ReadonlyMap<PsdLayerNode, Leaf>): void {
   for (const leaf of leaves.values()) {
     if (!leaf.dirty) continue;
     const canvas = window.document.createElement("canvas");
@@ -143,58 +303,46 @@ export async function matchComposite(
         0,
       );
     leaf.node.canvas = canvas;
+    leaf.dirty = false;
   }
-  const after = renderLayers(document);
-  return {
-    before,
-    after: after ? visibleShare(after, target) : before,
-    corrected,
-  };
 }
 
 // ------------------------------------------------------------- solving
 
+interface Solved {
+  color: Rgb;
+  alpha: number;
+  /** How far the stack is from Photoshop's with this pixel, 0..1. */
+  error: number;
+}
+
 /**
- * Sets one pixel of `owner` so `stack` comes out as `want` (premultiplied,
- * 0..1). True when it now matches.
+ * The colour (and, at an edge, the coverage) of one pixel of `owner` that
+ * brings `stack` closest to `want` (premultiplied, 0..1). Null when no
+ * change of it gets closer: the layer is hidden there, or already right.
  */
-function solvePixel(stack: Op[], owner: LeafOp, want: Rgba): boolean {
+function solvePixel(stack: Op[], owner: LeafOp, want: Rgba): Solved | null {
   const { leaf, local } = owner;
   const data = leaf.data;
   const start = data[local + 3]! / 255;
+  if (start === 0) return null;
   const own: Rgb = [
     data[local]! / 255,
     data[local + 1]! / 255,
     data[local + 2]! / 255,
   ];
-  // Its own coverage first, then Photoshop's where nothing shows under it,
-  // then more or less of it.
-  const coverages = [
-    ...new Set(
-      [
-        start,
-        want[3],
-        ...[1, 2, 3, 4].map((k) => start + ((1 - start) * k) / 4),
-        start * 0.75,
-        start * 0.5,
-      ].filter((alpha) => alpha > 0),
-    ),
-  ];
+  // Its own coverage; at an edge, Photoshop's where that is less. Never more:
+  // a layer does not grow.
+  const coverages =
+    want[3] > 0 && want[3] < start - 1 / 255 ? [start, want[3]] : [start];
   const got: Rgba = [0, 0, 0, 0];
   const moved: Rgba = [0, 0, 0, 0];
   composeStack(stack, null, got);
   const baseline = errorOf(got, want);
-  let best: { error: number; color: Rgb; alpha: number } | null = null;
+  let best: Solved | null = null;
   const override: Override = { op: owner, color: [0, 0, 0], alpha: 0 };
   for (const alpha of coverages) {
-    const color: Rgb =
-      start > 0
-        ? [own[0], own[1], own[2]]
-        : [
-            want[0] / Math.max(want[3], 1e-3),
-            want[1] / Math.max(want[3], 1e-3),
-            want[2] / Math.max(want[3], 1e-3),
-          ];
+    const color: Rgb = [own[0], own[1], own[2]];
     override.alpha = alpha;
     let error = Infinity;
     for (let step = 0; step < 6; step += 1) {
@@ -221,14 +369,8 @@ function solvePixel(stack: Op[], owner: LeafOp, want: Rgba): boolean {
       best = { error, color: [color[0], color[1], color[2]], alpha };
     if (error * 255 <= TOLERANCE) break;
   }
-  // A layer this pixel does not reach (hidden under another) is left alone.
-  if (!best || best.error >= baseline - 0.5 / 255) return false;
-  data[local] = Math.round(best.color[0] * 255);
-  data[local + 1] = Math.round(best.color[1] * 255);
-  data[local + 2] = Math.round(best.color[2] * 255);
-  data[local + 3] = Math.round(best.alpha * 255);
-  leaf.dirty = true;
-  return best.error * 255 <= TOLERANCE;
+  if (!best || best.error >= baseline - 0.5 / 255) return null;
+  return best;
 }
 
 /** How far a channel is moved to see how the stack answers. */
