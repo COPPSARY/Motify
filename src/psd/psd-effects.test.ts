@@ -57,6 +57,27 @@ describe("renderLayerStyle", () => {
     expect(at(raster, 110, 110)).toEqual([255, 0, 0, 255]);
   });
 
+  it("draws sizes as they are, whatever the style's recorded scale", () => {
+    // A 300 ppi file records 300/72 as the style's scale; Photoshop still
+    // draws a 3 px stroke 3 px wide.
+    const effects: LayerEffectsInfo = {
+      scale: 300 / 72,
+      stroke: [
+        {
+          enabled: true,
+          size: px(3),
+          position: "outside",
+          fillType: "color",
+          color: { r: 0, g: 0, b: 0 },
+          opacity: 1,
+        },
+      ],
+    };
+    const { raster } = renderLayerStyle(square(20), effects, options)!;
+    expect(raster.left).toBe(97);
+    expect(raster.width).toBe(26);
+  });
+
   it("casts a drop shadow away from the light, under the layer", () => {
     const effects: LayerEffectsInfo = {
       dropShadow: [

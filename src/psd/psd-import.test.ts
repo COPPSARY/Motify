@@ -192,6 +192,51 @@ describe("mapPsd", () => {
     expect(divide!.notes).toEqual(["Blend mode “divide” is shown as Normal."]);
   });
 
+  it("draws a group's layer style into the layers inside it", () => {
+    const overlay = {
+      solidFill: [
+        { enabled: true, color: { r: 244, g: 132, b: 0 }, opacity: 1 },
+      ],
+    };
+    const icons = mapPsd(
+      poster([
+        {
+          name: "Icons",
+          effects: overlay,
+          children: [
+            image("Bone", 100, 100, 60, 60),
+            image("Heart", 400, 100, 60, 60),
+          ],
+        },
+      ]),
+      "x",
+    );
+    expect(icons.layers[0]!.notes.join(" ")).not.toContain(
+      "Group layer style not imported",
+    );
+    expect(icons.layers[0]!.children.map((child) => child.name)).toEqual([
+      "Bone",
+      "Heart",
+    ]);
+    // Layers that overlap get it one by one too, and the review says so.
+    const stacked = mapPsd(
+      poster([
+        {
+          name: "Stack",
+          effects: overlay,
+          children: [
+            image("Back", 100, 100, 60, 60),
+            image("Front", 130, 130, 60, 60),
+          ],
+        },
+      ]),
+      "x",
+    );
+    expect(stacked.layers[0]!.notes.join(" ")).toContain(
+      "can differ where they overlap",
+    );
+  });
+
   it("names what does not carry over, and leaves out what draws nothing", () => {
     const document = mapPsd(
       poster(

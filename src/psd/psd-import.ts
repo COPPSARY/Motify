@@ -2,6 +2,7 @@ import type {
   BlendMode,
   Color,
   Layer,
+  LayerEffectsInfo,
   LayerEffectShadow,
   Psd,
   TextStyle,
@@ -25,6 +26,7 @@ import {
   type Raster,
   type StyleOptions,
 } from "./psd-effects";
+import { matchComposite } from "./psd-match";
 
 /**
  * PSD to Video (Beta): a Photoshop file read in the browser and written as
@@ -154,10 +156,16 @@ export interface PsdLayerNode {
    * mask above it is clipped to.
    */
   shape?: { canvas: HTMLCanvasElement; left: number; top: number };
-  /** A CSS `filter`: the drop shadows of live text and of groups. */
+  /** A CSS `filter`: the drop shadows of live text. */
   filter?: string;
   /** Its Photoshop blend mode as CSS `mix-blend-mode`; absent for Normal. */
   blend?: string;
+  /**
+   * Its pixels are Motify's drawing, not Photoshop's: a layer style, mask,
+   * adjustment or blend mode drawn here. Only these are matched to
+   * Photoshop's composite (psd-match.ts).
+   */
+  redrawn?: boolean;
   /** What did not carry over from Photoshop, in words. */
   notes: string[];
   children: PsdLayerNode[];
@@ -173,6 +181,12 @@ export interface PsdDocument {
   missingFonts: string[];
   /** File-wide notes on what did not carry over. */
   notes: string[];
+  /**
+   * How far the layers come out from Photoshop's own composite: the share
+   * of the canvas that differs visibly, before and after matching. Absent
+   * when the file has no composite to match.
+   */
+  match?: { before: number; after: number };
 }
 
 /** Where an import is, after the person confirms the layers. */
@@ -198,7 +212,10 @@ export function isPsdImport(compositionHtml: string): boolean {
 // ------------------------------------------------------------------ reading
 
 /** Reads a .psd in the browser. Throws PsdImportError with a reason to show. */
-export async function readPsdFile(file: File): Promise<PsdDocument> {
+export async function readPsdFile(
+  file: File,
+  onMatch?: (share: number) => void,
+): Promise<PsdDocument> {
   if (!/\.psd$/i.test(file.name)) {
     throw new PsdImportError("Choose a Photoshop file ending in .psd.");
   }
@@ -218,18 +235,24 @@ export async function readPsdFile(file: File): Promise<PsdDocument> {
   const { readPsd } = await import("ag-psd");
   let psd: Psd;
   try {
-    // Photoshop's own composite is skipped: a file saved without "Maximize
-    // compatibility" stores a blank one, and the review draws the layers instead.
-    psd = readPsd(buffer, {
-      skipThumbnail: true,
-      skipCompositeImageData: true,
-    });
+    // Photoshop's own composite is read to match the layers to. A file saved
+    // without "Maximize compatibility" stores a blank one, and is not matched.
+    psd = readPsd(buffer, { skipThumbnail: true });
   } catch (error) {
     throw new PsdImportError(
       `This Photoshop file could not be read (${error instanceof Error ? error.message : "unknown error"}). Re-save it from Photoshop and try again.`,
     );
   }
-  return mapPsd(psd, file.name.replace(/\.psd$/i, ""));
+  const document = mapPsd(psd, file.name.replace(/\.psd$/i, ""));
+  const match = await matchComposite(document, psd.canvas, onMatch);
+  if (match) {
+    document.match = { before: match.before, after: match.after };
+  } else {
+    document.notes.push(
+      "Photoshop's own picture of the design is not in the file, so effects Motify redraws are not checked against it. In Photoshop, turn on Preferences › File Handling › Maximize PSD Compatibility and save again.",
+    );
+  }
+  return document;
 }
 
 /** ag-psd's tree as Motify layers: what each is, where it sits, what was lost. */
@@ -406,6 +429,7 @@ function applyAdjustment(
       updateCanvas(node.canvas, node, (raster) =>
         adjustRaster(raster, adjustment.adjust, adjustment.strength),
       );
+      node.redrawn = true;
     }
     if (node.text) {
       const box = node.text;
@@ -473,12 +497,20 @@ function mapLayer(
     const groupMask = combinedMask(layer, notes);
     if (groupMask) maskDescendants(children, groupMask);
     const styles = enabledStyles(layer.effects);
-    const shadows = styles.includes("drop shadow")
-      ? dropShadowFilter(layer)
-      : undefined;
-    const lost = styles.filter((style) => style !== "drop shadow");
-    if (lost.length > 0)
-      notes.push(`Group layer style not imported: ${lost.join(", ")}.`);
+    // Drawn into the pixels of the layers inside it, so the design can be
+    // matched to Photoshop's; a CSS shadow only when nothing inside can carry it.
+    const drawn =
+      styles.length > 0 &&
+      styleGroupLayers(children, layer.effects!, context, notes);
+    const shadows =
+      !drawn && styles.includes("drop shadow")
+        ? dropShadowFilter(layer)
+        : undefined;
+    if (!drawn) {
+      const lost = styles.filter((style) => style !== "drop shadow");
+      if (lost.length > 0)
+        notes.push(`Group layer style not imported: ${lost.join(", ")}.`);
+    }
     if (layer.artboard) {
       context.notes.add("Artboards are imported as groups on one canvas.");
     }
@@ -604,6 +636,7 @@ function mapLayer(
     ...(text ? { text } : {}),
     ...(textAsImage ? { textAsImage } : {}),
     ...(text?.filter ? { filter: text.filter } : {}),
+    ...(canvas !== layer.canvas || approximate ? { redrawn: true } : {}),
     children: [],
   };
 }
@@ -656,6 +689,97 @@ function cssToColor(color: string): Color | undefined {
   if (!hex) return undefined;
   const value = Number.parseInt(hex[1]!, 16);
   return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+}
+
+/**
+ * A group's layer style, drawn into the pixels of each layer inside it.
+ * Photoshop draws it once over the group's merged layers; layer by layer is
+ * the same wherever they do not overlap, and leaves each free to move on its
+ * own. False when no layer inside has pixels to carry it.
+ */
+function styleGroupLayers(
+  children: PsdLayerNode[],
+  effects: LayerEffectsInfo,
+  context: MapContext,
+  notes: string[],
+): boolean {
+  const layers = flattenLayers(children).filter(
+    (node) =>
+      node.kind !== "group" &&
+      !node.hidden &&
+      node.canvas &&
+      node.width > 0 &&
+      node.height > 0,
+  );
+  if (layers.length === 0) return false;
+  if (overlaps(layers)) {
+    notes.push(
+      "Its layer style is drawn on each layer inside it, so it can differ where they overlap.",
+    );
+  }
+  for (const node of layers) {
+    const source = toRaster(node.canvas!);
+    if (source.width === 0) continue;
+    const styled = renderLayerStyle(
+      { ...source, left: node.left, top: node.top },
+      effects,
+      { ...context.style, fillOpacity: 1 },
+    );
+    if (!styled) {
+      node.notes.push(
+        "The layer is too large to draw its group's layer style; it is imported without it.",
+      );
+      continue;
+    }
+    node.canvas = toCanvas(styled.raster);
+    node.redrawn = true;
+    node.left = styled.raster.left;
+    node.top = styled.raster.top;
+    node.width = styled.raster.width;
+    node.height = styled.raster.height;
+    for (const note of styled.notes)
+      if (!notes.includes(note)) notes.push(note);
+    if (node.kind === "text" && node.text && !node.textAsImage) {
+      node.textAsImage = true;
+      node.notes.push(
+        "Kept as an image to keep its group's layer style. Switch it to Text to edit the words; that style is then left out.",
+      );
+    }
+  }
+  refitGroups(children);
+  return true;
+}
+
+/** Whether any two layers' boxes overlap. */
+function overlaps(layers: readonly PsdLayerNode[]): boolean {
+  return layers.some((a, index) =>
+    layers
+      .slice(index + 1)
+      .some(
+        (b) =>
+          a.left < b.left + b.width &&
+          b.left < a.left + a.width &&
+          a.top < b.top + b.height &&
+          b.top < a.top + a.height,
+      ),
+  );
+}
+
+/** Groups' bounds again, after the layers inside them grew. */
+function refitGroups(nodes: readonly PsdLayerNode[]): void {
+  for (const node of nodes) {
+    if (node.kind !== "group" || node.children.length === 0) continue;
+    refitGroups(node.children);
+    const left = Math.min(...node.children.map((child) => child.left));
+    const top = Math.min(...node.children.map((child) => child.top));
+    node.width =
+      Math.max(...node.children.map((child) => child.left + child.width)) -
+      left;
+    node.height =
+      Math.max(...node.children.map((child) => child.top + child.height)) - top;
+    node.left = left;
+    node.top = top;
+  }
 }
 
 /** Every enabled drop shadow, as one CSS filter. */
@@ -722,9 +846,8 @@ function maskSampler(layer: Layer): MaskSampler | null {
 /** The layer's vector mask, drawn from its paths at canvas resolution. */
 function vectorMaskSampler(layer: Layer): MaskSampler | null {
   const vector = layer.vectorMask!;
-  const paths = vector.paths.filter(
-    (path) => !path.open && path.knots.length > 1,
-  );
+  // An open path masks too: Photoshop fills it closed by a straight line.
+  const paths = vector.paths.filter((path) => path.knots.length > 1);
   if (paths.length === 0) return null;
   const points = paths.flatMap((path) =>
     path.knots.flatMap((knot) => knot.points),
@@ -749,7 +872,8 @@ function vectorMaskSampler(layer: Layer): MaskSampler | null {
     const outline = new Path2D();
     const knots = path.knots;
     outline.moveTo(knots[0]!.points[2]!, knots[0]!.points[3]!);
-    for (let k = 1; k <= knots.length; k += 1) {
+    const segments = path.open ? knots.length - 1 : knots.length;
+    for (let k = 1; k <= segments; k += 1) {
       const from = knots[k - 1]!.points;
       const to = knots[k % knots.length]!.points;
       // Each knot is [in-handle, anchor, out-handle].
@@ -800,6 +924,7 @@ function maskDescendants(
       node.canvas = updateCanvas(copyCanvas(node.canvas), node, (raster) =>
         multiplyAlpha(raster, mask),
       );
+      node.redrawn = true;
     }
     if (node.text && !node.textAsImage) {
       const box = node.text;
