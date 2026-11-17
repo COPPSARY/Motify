@@ -20,6 +20,7 @@ export type MotionlyAnalyticsEvent =
   | "preset loaded"
   | "project saved"
   | "footage project created"
+  | "psd project created"
   | "project started"
   | "project version restored"
   | "video exported";

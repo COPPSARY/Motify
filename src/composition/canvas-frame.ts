@@ -11,15 +11,21 @@
  * and lays itself out for it, so framing does not apply to it.
  */
 export type CanvasAspect = "16:9" | "1:1" | "4:5" | "9:16";
+/**
+ * A canvas the editor shows and exports: one of the aspects, or the film's
+ * own authored size ("original"), for a film made at a size none of them is
+ * (an imported Photoshop design, say).
+ */
+export type CanvasShape = CanvasAspect | "original";
 export type CanvasFraming = "smart" | "fit" | "fill";
 export type CanvasOrientation = "landscape" | "square" | "portrait";
 
 export interface CanvasSettings {
-  aspect: CanvasAspect;
+  aspect: CanvasShape;
   framing: CanvasFraming;
 }
 
-export const DEFAULT_CANVAS: CanvasSettings = {
+export const DEFAULT_CANVAS: CanvasSettings & { aspect: CanvasAspect } = {
   aspect: "16:9",
   framing: "smart",
 };
@@ -70,6 +76,10 @@ export function isCanvasAspect(value: unknown): value is CanvasAspect {
   return CANVAS_ASPECTS.includes(value as CanvasAspect);
 }
 
+export function isCanvasShape(value: unknown): value is CanvasShape {
+  return value === "original" || isCanvasAspect(value);
+}
+
 /** Recognizes an authored canvas so a reopened vertical film stays vertical. */
 export function canvasAspectForSize(
   width: number,
@@ -82,12 +92,28 @@ export function canvasAspectForSize(
   );
 }
 
-/** The short side stays the authored short side, so 1080p films stay 1080p. */
+/**
+ * The canvas a film opens on: its own aspect when it is one of them,
+ * otherwise its own size, so nothing is letterboxed into a shape it was not
+ * made for.
+ */
+export function authoredCanvas(width: number, height: number): CanvasSettings {
+  return {
+    aspect: canvasAspectForSize(width, height) ?? "original",
+    framing: DEFAULT_CANVAS.framing,
+  };
+}
+
+/**
+ * The short side stays the authored short side, so 1080p films stay 1080p.
+ * The original shape is the authored size itself.
+ */
 export function canvasSize(
   baseWidth: number,
   baseHeight: number,
-  aspect: CanvasAspect,
+  aspect: CanvasShape,
 ): { width: number; height: number } {
+  if (aspect === "original") return { width: baseWidth, height: baseHeight };
   const short = Math.min(baseWidth, baseHeight);
   const ratio = RATIOS[aspect];
   return ratio >= 1

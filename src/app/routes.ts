@@ -14,6 +14,7 @@ export function isBrandRoute(pathname: string): boolean {
  */
 export const HOME_PAGES = [
   "footage",
+  "psd",
   "videos",
   "films",
   "templates",

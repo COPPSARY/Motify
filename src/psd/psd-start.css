@@ -1,0 +1,223 @@
+/* PSD to Video's start page (/psd), on the footage start page's .fs layout. */
+
+.psd-reading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--sl-surface, #1a1a1a);
+}
+
+.psd-reading > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.psd-reading small {
+  color: var(--sl-muted, #858585);
+}
+
+.psd-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.psd-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.psd-preview canvas {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  /* Transparent areas read as transparent, as in Photoshop. */
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #1f1f1f 0% 50%) 0 0 /
+    16px 16px;
+}
+
+.psd-preview figcaption {
+  overflow: hidden;
+  color: var(--sl-muted, #858585);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.psd-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 420px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.psd-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 2px 8px 2px calc(8px + var(--psd-depth, 0) * 18px);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.psd-layer-row:hover {
+  background: var(--sl-surface, #1a1a1a);
+}
+
+.psd-thumb {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #1f1f1f 0% 50%) 0 0 / 8px
+    8px;
+}
+
+.psd-thumb--icon {
+  display: inline-grid;
+  place-items: center;
+  background: var(--sl-surface, #1a1a1a);
+  color: var(--sl-text-soft, #b4b4b4);
+}
+
+.psd-layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.psd-tag {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--sl-muted, #858585);
+}
+
+.psd-tag--warn {
+  color: #fbbf24;
+}
+
+.psd-kind {
+  flex: none;
+  color: var(--sl-muted, #858585);
+  font-size: 11.5px;
+}
+
+.psd-text-mode {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--sl-surface, #1a1a1a);
+}
+
+.psd-text-mode button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sl-text-soft, #b4b4b4);
+  cursor: pointer;
+}
+
+.psd-text-mode button.fs-on {
+  background: var(--fs-blue);
+  color: #fff;
+}
+
+.psd-notes {
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.06);
+  font-size: 12.5px;
+}
+
+.psd-notes summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fcd34d;
+  cursor: pointer;
+}
+
+.psd-notes ul {
+  margin: 10px 0 0;
+  padding-left: 22px;
+  color: var(--sl-text-soft, #b4b4b4);
+  line-height: 1.5;
+}
+
+.psd-change {
+  padding: 9px 16px;
+  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-text, #ededed);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.psd-change {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+.psd-change:hover:not(:disabled) {
+  border-color: var(--fs-blue-hover);
+}
+
+/* Over the editor while the imported design is animated. */
+.psd-generating {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow-y: auto;
+  background: var(--sl-bg, #0a0a0a);
+}
+
+.psd-generating .fs {
+  padding-top: max(36px, 12vh);
+}
+
+.psd-generating__skip {
+  align-self: center;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sl-text-muted, #9a9a9a);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.psd-generating__skip:hover {
+  color: var(--sl-text, #ededed);
+  background: var(--sl-surface, #1a1a1a);
+}
+
+@media (max-width: 720px) {
+  .psd-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -297,7 +297,13 @@ export interface MotionMessageInput {
  * line the person sees in the chat.
  */
 export interface GuidedToolRequest {
-  id: "product-walkthrough" | "product-launch" | "social-ad" | "story";
+  /** "psd-to-video" animates a design imported from Photoshop (src/psd). */
+  id:
+    | "product-walkthrough"
+    | "product-launch"
+    | "social-ad"
+    | "story"
+    | "psd-to-video";
   seconds: number;
   language: "en" | "km";
   /** Social media ad only: "poster" makes it one animated scene instead of cuts. */
@@ -450,6 +456,11 @@ export class ProjectsApi {
       height: number;
       fps: number;
       duration: number;
+      /**
+       * The film's scenes. A project created with none holds no film yet, so
+       * the AI writes a new one instead of editing the source given here.
+       */
+      scenes?: readonly SceneDefinition[];
       files: ProjectSourceFiles;
     },
   ) {
@@ -467,6 +478,7 @@ export class ProjectsApi {
           height: input.height,
           fps: input.fps,
           duration: input.duration,
+          ...(input.scenes ? { scenes: input.scenes } : {}),
           compositionHtml: combineCompositionSource(input.files),
           timelineJs: input.files["timeline.js"],
         },

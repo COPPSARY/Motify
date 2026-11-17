@@ -92,6 +92,15 @@
   /** Files dropped on the panel: songs go to the library, images to the prompt. */
   export let onDropFiles: (files: File[]) => void = () => undefined;
   /**
+   * One action offered above the composer for the open film, such as
+   * re-animating a design imported from Photoshop; null shows none.
+   */
+  export let quickAction: {
+    label: string;
+    hint: string;
+    run: () => void;
+  } | null = null;
+  /**
    * `hero` is the centered "what would you like to create?" prompt shown
    * before a video exists; `panel` is the chat that sits beside an open video.
    */
@@ -684,6 +693,15 @@
     <p class="ai-composer-credit-hint is-low" role="status">
       Not enough credits — you have {formatCredits($creditBalance ?? 0)} left.
     </p>
+  {/if}
+  {#if quickAction && variant === "panel"}
+    <button
+      type="button"
+      class="ai-quick-action"
+      title={quickAction.hint}
+      disabled={$generationStore.isActive}
+      on:click={quickAction.run}><Wand2 size={14} /> {quickAction.label}</button
+    >
   {/if}
   <form
     class="ai-chat-composer"
