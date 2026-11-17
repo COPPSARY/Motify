@@ -34,7 +34,7 @@
   export let maxSeconds: number | null = null;
   export let onSignIn: () => void;
   export let onCreate: (
-    input: { document: PsdDocument; seconds: number },
+    input: { document: PsdDocument; seconds: number; instructions: string },
     onProgress: (progress: PsdImportProgress) => void,
   ) => Promise<void>;
 
@@ -46,6 +46,8 @@
   let error = "";
   let psd: PsdDocument | null = null;
   let seconds = 8;
+  /** How the person wants it to move, in their own words; optional. */
+  let instructions = "";
   let progress: PsdImportProgress | null = null;
 
   $: lengths = LENGTHS.filter(
@@ -115,7 +117,7 @@
     error = "";
     progress = { step: "upload", done: 0, total: 0 };
     try {
-      await onCreate({ document: psd, seconds }, (next) => {
+      await onCreate({ document: psd, seconds, instructions }, (next) => {
         progress = next;
       });
     } catch (failure) {
@@ -361,6 +363,20 @@
         {/each}
       </div>
     </div>
+
+    <label class="fs-card psd-prompt">
+      <span class="fs-step">
+        <span>3</span><strong>How should it move?</strong><small>Optional</small
+        >
+      </span>
+      <textarea
+        rows="3"
+        maxlength="2000"
+        placeholder="e.g. Calm and premium: the product rises in first, the headline types on, the price pops in at the end."
+        disabled={Boolean(progress)}
+        bind:value={instructions}
+      ></textarea>
+    </label>
   {/if}
 
   {#if error}<p class="fs-error" role="alert">{error}</p>{/if}
