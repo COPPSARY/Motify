@@ -36,6 +36,7 @@ import {
   refreshCredits,
 } from "../stores/credits";
 import { setFulfillmentMode } from "../stores/film-requests";
+import { generationProgress } from "../stores/generation-progress";
 import {
   callAiProvider,
   DEFAULT_GEMINI_MODEL,
@@ -381,7 +382,16 @@ async function requestBackendProject(
   };
   try {
     try {
-      result = await api.runMotionMessage(projectId, input);
+      const startedAt = Date.now();
+      generationProgress.set({ startedAt });
+      result = await api.runMotionMessage(projectId, input, {
+        onProgress: (job) =>
+          generationProgress.set({
+            startedAt,
+            ...(job.phase ? { phase: job.phase } : {}),
+            ...(job.estimate ? { estimate: job.estimate } : {}),
+          }),
+      });
     } catch (error) {
       if (
         !(error instanceof CloudApiError) ||
@@ -393,6 +403,7 @@ async function requestBackendProject(
       throw new SendToTeamInstead();
     }
   } catch (error) {
+    generationProgress.set(null);
     if (error instanceof SendToTeamInstead) throw error;
     // A failed request is not charged, but ask the server rather than assume.
     void refreshCredits();
@@ -407,6 +418,7 @@ async function requestBackendProject(
     }
     throw error;
   }
+  generationProgress.set(null);
   if (result.credits) {
     applyServerCharge(result.credits);
     // This request moved the user's typical cost, so the next price shown must too.

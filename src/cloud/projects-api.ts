@@ -2,6 +2,10 @@ import { FORMAT_SIZE, editDuration } from "../footage/edit";
 import { readFootageEdit } from "../footage/render";
 import { combineCompositionSource } from "./project-source";
 import { MOTIFY_API_URL } from "../api/config";
+import type {
+  GenerationEstimate,
+  GenerationPhase,
+} from "../stores/generation-progress";
 import type { SceneDefinition } from "../composition/types";
 import type { CanvasAspect } from "../composition/canvas-frame";
 import type {
@@ -388,6 +392,10 @@ export interface MotionMessageJob {
   projectId: string;
   status: "running" | "succeeded" | "failed";
   createdAt: string;
+  /** What a running job is doing; absent from older backends. */
+  phase?: GenerationPhase;
+  /** How long the run is likely to take from its start; absent until the request is read. */
+  estimate?: GenerationEstimate;
   finishedAt?: string;
   result?: MotionMessageResult;
   error?: {
@@ -633,10 +641,13 @@ export class ProjectsApi {
       pollMs = 3000,
       maxPollFailures = 20,
       sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+      onProgress,
     }: {
       pollMs?: number;
       maxPollFailures?: number;
       sleep?: (ms: number) => Promise<void>;
+      /** Called with the job each time it is read while running. */
+      onProgress?: (job: MotionMessageJob) => void;
     } = {},
   ): Promise<MotionMessageResult> {
     let job: MotionMessageJob;
@@ -650,6 +661,7 @@ export class ProjectsApi {
     }
     let failures = 0;
     for (;;) {
+      if (job.status === "running") onProgress?.(job);
       if (job.status === "succeeded" && job.result) return job.result;
       if (job.status === "failed") {
         const failure = job.error;

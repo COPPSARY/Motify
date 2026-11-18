@@ -36,7 +36,8 @@
     ProjectsApi,
   } from "../../cloud/projects-api";
   import { formatCredits } from "../../api/credits";
-  import { lengthLimitTip } from "../../cloud/film-limits";
+  import { lengthLimitTip, lengthWarning } from "../../cloud/film-limits";
+  import { generationProgressView } from "../../stores/generation-progress";
   import { generationStore } from "../../stores/generation";
   import {
     creditBalance,
@@ -273,14 +274,21 @@
     flashModelOption;
   const activitySteps = [
     "Reading your brief",
-    "Planning the scene flow",
-    "Building the motion",
+    "Writing the film",
     "Checking the result",
   ] as const;
-  $: activityStepIndex = Math.max(
-    0,
-    activitySteps.findIndex((step) => step === activityVerb),
-  );
+  // The voice-over and a fix after a failed check are part of writing the film.
+  const WRITING_PHASES = [
+    "Recording the voice-over",
+    "Fixing what the check found",
+  ];
+  $: activityStepIndex = WRITING_PHASES.includes(activityVerb)
+    ? 1
+    : Math.max(
+        0,
+        activitySteps.findIndex((step) => step === activityVerb),
+      );
+  $: lengthNote = lengthWarning(assistantDraft, maxSeconds);
   $: selectedEffort =
     effortOptions.find((option) => option.value === generationEffort) ??
     mediumEffortOption;
@@ -587,7 +595,11 @@
             <span>{activityVerb}…</span>
             <ChevronDown size={14} aria-hidden="true" />
           </summary>
-          {#if longGeneration}
+          {#if $generationProgressView?.eta}
+            <p class="ai-chat-activity-eta">
+              {$generationProgressView.eta} · {$generationProgressView.elapsed}
+            </p>
+          {:else if longGeneration}
             <p>
               This may take a few minutes. You can check back when it’s done.
             </p>
@@ -964,6 +976,12 @@
       on:paste={handlePaste}
       disabled={$generationStore.isActive}
     ></textarea>
+    {#if lengthNote && !$generationStore.isActive}
+      <p class="ai-length-warning" role="status">
+        <Clock size={13} aria-hidden="true" />
+        <span>{lengthNote}</span>
+      </p>
+    {/if}
     <div class="ai-composer-bar">
       <div class="ai-composer-add-wrap" bind:this={addMenu}>
         <button

@@ -180,6 +180,10 @@
   import AssetsPanel from "./cloud/AssetsPanel.svelte";
   import { generationStore } from "../stores/generation";
   import {
+    generationProgress,
+    generationProgressView,
+  } from "../stores/generation-progress";
+  import {
     hydrateCloudAssetTokens,
     isVideoFile,
     loadAssetObjectUrl,
@@ -504,14 +508,17 @@
   // Directorial memory: a follow-up prompt continues this film instead of
   // restarting from a blank stage.
   let generationPlan: GenerationPlanMemory | null = null;
+  // The backend's phases, by the names in stores/generation-progress. An older
+  // backend reports none, and the timer below walks through them instead.
   const activityVerbs = [
     "Reading your brief",
-    "Planning the scene flow",
-    "Building the motion",
+    "Writing the film",
     "Checking the result",
   ];
   let activityVerb: string = activityVerbs[0] ?? "Reading your brief";
   let activityTimer: ReturnType<typeof setInterval> | undefined;
+  $: if ($generationProgressView?.label)
+    activityVerb = $generationProgressView.label;
   let editorRevision = 0;
   let currentUser: MotionlyUser | null = null;
   /** The receipt open over Billing: `/billing?receipt=<payment id>`, as receipt emails link to. */
@@ -1135,7 +1142,7 @@
     updateSelectionRect();
     if (mode === "cloud") {
       activityTimer = setInterval(() => {
-        if (!$generationStore.isActive) return;
+        if (!$generationStore.isActive || $generationProgress?.phase) return;
         const currentIndex = activityVerbs.indexOf(activityVerb);
         const nextIndex = Math.min(currentIndex + 1, activityVerbs.length - 1);
         activityVerb = activityVerbs[nextIndex] ?? "Checking the result";
@@ -7362,6 +7369,16 @@ Voice over direction: ${voiceNote}`
                 ></span>
                 <strong>Generating your video...</strong>
                 <p>{activityVerb}...</p>
+                {#if $generationProgressView?.eta}
+                  <div
+                    class="me-generating__bar"
+                    aria-hidden="true"
+                    style={`--done: ${($generationProgressView.fraction ?? 0) * 100}%`}
+                  ></div>
+                  <p class="me-generating__eta">
+                    {$generationProgressView.eta} · {$generationProgressView.elapsed}
+                  </p>
+                {/if}
               </div>
             {:else if openingProject}
               <div class="me-generating" role="status">

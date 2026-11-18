@@ -424,6 +424,26 @@
 }
 
 /* The plan's film length, beside the prompt; says why on hover or focus. */
+/* A prompt asking for a longer video than will be made: said before it is sent. */
+.code-editor-scope .ai-length-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 4px 6px;
+  color: #f2b84b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.code-editor-scope .ai-length-warning svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.code-editor-scope .ai-chat-activity-eta {
+  font-variant-numeric: tabular-nums;
+}
+
 .code-editor-scope .ai-length-chip {
   position: relative;
   max-width: none;
@@ -1592,6 +1612,32 @@
   color: var(--sl-muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* Elapsed time against the run's estimate, held short of full until it ends. */
+.code-editor-scope .me-generating__bar {
+  position: relative;
+  width: min(240px, 70%);
+  height: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.code-editor-scope .me-generating__bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--done, 0%);
+  border-radius: inherit;
+  background: var(--sl-brand-cobalt, #1f45b0);
+  transition: width 1s linear;
+}
+
+.code-editor-scope .me-generating p.me-generating__eta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .code-editor-scope .me-generating--generation .me-spinner {
