@@ -91,9 +91,21 @@ async function renderSoundtrack(
 }
 
 /**
+ * While a transform only moves or scales, Chromium puts text on whole pixels,
+ * so a slow creep or drift steps a pixel at a time instead of gliding
+ * (measured: 23 of 30 frames frozen at 0.2 px a frame, in preview and export
+ * alike). Any rotation turns that off, so the page is turned 0.03°, too little
+ * to see, and scaled 0.2% so the turn leaves no sliver at the corners. Export
+ * serializes this same document, so the exported video glides too.
+ */
+export const SMOOTH_MOTION_CSS =
+  "body{transform:rotate(0.03deg) scale(1.002);transform-origin:50% 50%}";
+
+/**
  * The document as the iframe receives it: its <audio> elements taken out (the
- * editor plays them, in step with the timeline) and the bundled faces it names
- * declared, so "Inter" means the same face in the frame as in the editor.
+ * editor plays them, in step with the timeline), the bundled faces it names
+ * declared, so "Inter" means the same face in the frame as in the editor, and
+ * the page set to move text smoothly (SMOOTH_MOTION_CSS).
  */
 export function prepareRawDocument(html: string): {
   document: string;
@@ -122,6 +134,11 @@ export function prepareRawDocument(html: string): {
     style.textContent = filmFontFaceCss(fonts);
     parsed.head.prepend(style);
   }
+  // Last in <head>, so it holds over a film's own `body` rule.
+  const smooth = parsed.createElement("style");
+  smooth.dataset["motifySmooth"] = "";
+  smooth.textContent = SMOOTH_MOTION_CSS;
+  parsed.head.append(smooth);
   return {
     document: `<!doctype html>\n${parsed.documentElement.outerHTML}`,
     audio,
