@@ -10,6 +10,7 @@ import {
   mountRawFilm,
   prepareRawDocument,
   RAW_FILM_MARKER,
+  SMOOTH_MOTION_CSS,
 } from "./raw-film";
 import type { CompositionContext } from "./types";
 
@@ -47,6 +48,14 @@ describe("raw films", () => {
     expect(document).not.toContain("<audio");
     expect(document).toContain('font-family:"Inter"');
     expect(document).toContain("window.seek");
+  });
+
+  it("turn the page a hair so slow moves glide instead of stepping a pixel at a time", () => {
+    const { document } = prepareRawDocument(FILM);
+
+    expect(document).toContain(
+      `<style data-motify-smooth="">${SMOOTH_MOTION_CSS}</style></head>`,
+    );
   });
 
   it("keep their styles in the document through a source save", () => {
