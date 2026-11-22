@@ -471,6 +471,7 @@ export class ProjectsApi {
     workspaceId: string,
     input: {
       name: string;
+      /** The Brand DNA this video uses; "none" (no brand) unless someone picked one. */
       brandSelection?: string;
       width: number;
       height: number;
@@ -491,9 +492,7 @@ export class ProjectsApi {
         method: "POST",
         body: {
           name: input.name,
-          ...(input.brandSelection
-            ? { brandSelection: input.brandSelection }
-            : {}),
+          brandSelection: input.brandSelection ?? "none",
           width: input.width,
           height: input.height,
           fps: input.fps,

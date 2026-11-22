@@ -3,7 +3,9 @@
 
   import {
     enhancePrompt,
+    preparePromptImages,
     type PromptAttachments,
+    type PromptImageSource,
     type PromptSurface,
   } from "../../api/prompt-assist";
   import {
@@ -22,6 +24,8 @@
   export let disabled = false;
   /** What is attached next to the prompt; absent where the page cannot say. */
   export let attachments: PromptAttachments | undefined = undefined;
+  /** The attached images, so the enhancer can look at them; empty where the page has none to show. */
+  export let images: readonly PromptImageSource[] = [];
   /**
    * True while a prompt is being enhanced. Bind it: the page must not send
    * the prompt box until the enhanced text has replaced it.
@@ -40,12 +44,15 @@
     enhancing = true;
     try {
       const { workspaceId, brandId } = $promptAssistContext;
+      const prepared =
+        images.length > 0 ? await preparePromptImages(images) : [];
       const { enhanced } = await enhancePrompt({
         prompt,
         surface,
         ...(workspaceId ? { workspaceId } : {}),
         ...(brandId !== undefined ? { brandId } : {}),
         ...(attachments ? { attachments } : {}),
+        ...(prepared.length > 0 ? { images: prepared } : {}),
       });
       onApply(enhanced);
     } catch (error) {

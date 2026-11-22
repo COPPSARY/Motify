@@ -91,6 +91,7 @@ describe("CloudProjectGallery", () => {
         };
         expect(payload).toEqual({
           name: "Cloud Film",
+          brandSelection: "none",
           width: 1920,
           height: 1080,
           fps: 60,

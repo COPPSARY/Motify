@@ -242,6 +242,9 @@ describe("ProjectsApi", () => {
         headers: expect.objectContaining({ "X-CSRF-Token": "csrf-token" }),
       }),
     );
+    // A new video starts with no Brand DNA; it is used only once someone picks it.
+    const body = JSON.parse(String(fetchMock.mock.calls[1]![1]!.body));
+    expect(body.brandSelection).toBe("none");
   });
 
   it("exposes revision conflict details to the editor", async () => {
