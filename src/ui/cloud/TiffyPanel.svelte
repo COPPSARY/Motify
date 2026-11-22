@@ -155,7 +155,7 @@
   /** The Brand DNA currently chosen for this video. */
   export let brandName: string | null = null;
   export let brandProfiles: BrandProfileSummary[] = [];
-  export let selectedBrand: string | null = "default";
+  export let selectedBrand: string | null = null;
   export let onSelectBrand: (id: string | null) => void | Promise<void> = () =>
     undefined;
   export let onManageBrand: () => void = () => undefined;

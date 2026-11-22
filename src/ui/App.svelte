@@ -489,10 +489,10 @@
   let openingTemplate: TemplateId | null = null;
   let templateCategory: TemplateCategory | "All" = "All";
   let sidebarProjects: ProjectSummary[] = [];
-  /** The Brand DNA used by the next generation. Null selection means off. */
+  /** The Brand DNA used by the next generation. Null selection means off, and is where every video starts. */
   let brand: BrandResource | null = null;
   let brandProfiles: BrandProfileSummary[] = [];
-  let selectedBrand: string | null = "default";
+  let selectedBrand: string | null = null;
   let localPanelOpen = false;
   let localPanelView: "presets" | "source" | "assets" = "presets";
   let localAssets: string[] = [];
@@ -1407,7 +1407,7 @@
     cloudProject = null;
     localProjectName = "";
     backendGenerationProjectId = "";
-    selectedBrand = "default";
+    selectedBrand = null;
     void loadBrand();
     generationAspect = DEFAULT_CANVAS.aspect;
     cloudFiles = { ...blankProjectFiles };
@@ -3389,10 +3389,10 @@
     const prior = selectedBrand;
     selectedBrand = next;
     try {
-      if (next && cloudProject) {
+      if (cloudProject) {
         const updated = await new ProjectsApi().updateProject(cloudProject.id, {
           revision: cloudProject.revision,
-          brandSelection: next,
+          brandSelection: next ?? "none",
         });
         cloudProject = updated;
         await cloudProjects?.registerActiveProject(updated);
@@ -3920,7 +3920,7 @@
     if (!cloudProject && !backendGenerationProjectId && workspaceId) {
       const created = await new ProjectsApi().createProject(workspaceId, {
         name: "Untitled Motify Project",
-        ...(selectedBrand ? { brandSelection: selectedBrand } : {}),
+        brandSelection: selectedBrand ?? "none",
         width: requestedCanvas?.width ?? activeComposition.width,
         height: requestedCanvas?.height ?? activeComposition.height,
         fps: activeComposition.fps,
@@ -4299,7 +4299,7 @@ Voice over direction: ${voiceNote}`
     maxExportHeight = FREE_MAX_HEIGHT;
     brand = null;
     brandProfiles = [];
-    selectedBrand = "default";
+    selectedBrand = null;
     profileMenuOpen = false;
     if (!hasEditorProject) openPage("create");
     else page = null;
@@ -4544,7 +4544,7 @@ Voice over direction: ${voiceNote}`
         : { width: activeComposition.width, height: activeComposition.height };
       const created = await api.createProject(workspaceId, {
         name: message.text.replace(/\s+/g, " ").slice(0, 60) || "Film request",
-        ...(selectedBrand ? { brandSelection: selectedBrand } : {}),
+        brandSelection: selectedBrand ?? "none",
         ...size,
         fps: activeComposition.fps,
         duration: 5,
@@ -6001,10 +6001,11 @@ Voice over direction: ${voiceNote}`
     }>,
   ): Promise<void> {
     cloudProject = event.detail.project;
+    // A video uses Brand DNA only when someone picked it for that video.
     selectedBrand =
-      cloudProject?.brandSelection === "none"
-        ? null
-        : (cloudProject?.brandSelection ?? "default");
+      cloudProject?.brandSelection && cloudProject.brandSelection !== "none"
+        ? cloudProject.brandSelection
+        : null;
     void loadBrand();
     backendGenerationProjectId = cloudProject?.id ?? "";
     cloudFiles = event.detail.files;

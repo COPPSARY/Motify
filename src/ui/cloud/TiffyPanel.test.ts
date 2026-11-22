@@ -306,6 +306,7 @@ describe("TiffyPanel uploads", () => {
         handlePaste: async () => undefined,
         onAttach: () => undefined,
         brandName: "Acme",
+        selectedBrand: "default",
         brandProfiles: [
           { id: "brand-1", name: "Acme", isDefault: true, updatedAt: "" },
           { id: "brand-2", name: "Other", isDefault: false, updatedAt: "" },
@@ -377,7 +378,7 @@ describe("TiffyPanel uploads", () => {
       expect(document.querySelector(".ai-chat-messages")).toBeNull();
       expect(
         document.querySelector(".ai-brand-chip")?.textContent?.trim(),
-      ).toBe("Set up brand");
+      ).toBe("No brand");
       const aspect = document.querySelector<HTMLButtonElement>(
         '.ai-aspect-picker[aria-haspopup="listbox"]',
       );
