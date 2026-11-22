@@ -266,7 +266,16 @@
             surface="footage"
             disabled={busy}
             bind:enhancing={enhancingBrief}
-            attachments={{ images: pictures.length, videos: clipCount, audio: 0 }}
+            attachments={{
+              images: pictures.length,
+              videos: clipCount,
+              audio: 0,
+            }}
+            images={pictures.map((picture, index) => ({
+              name: `picture-${index + 1}`,
+              role: "asset" as const,
+              src: picture.preview,
+            }))}
             onApply={(text) => (recutBrief = text)}
           />
           <button

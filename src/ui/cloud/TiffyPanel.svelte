@@ -74,6 +74,20 @@
   export let activityVerb: string;
   export let classifiedAssets: LocalAssetReference[];
   export let stagedPreviews: Record<string, string>;
+  /** The attached images the enhancer looks at: staged previews, by how each was attached. */
+  $: enhanceImages = classifiedAssets
+    .filter(
+      (asset) =>
+        asset.mimeType.startsWith("image/") && stagedPreviews[asset.id],
+    )
+    .map((asset) => ({
+      name: asset.name,
+      role:
+        asset.intent === "reference"
+          ? ("reference" as const)
+          : ("asset" as const),
+      src: stagedPreviews[asset.id]!,
+    }));
   export let uploadingMedia: boolean;
   export let uploadProgress: number;
   export let uploadPreview: string | null;
@@ -1189,6 +1203,7 @@
         disabled={$generationStore.isActive}
         bind:enhancing={enhancingPrompt}
         attachments={countAttachments(classifiedAssets, selectedAudio.length)}
+        images={enhanceImages}
         onApply={applyAssistedPrompt}
       />
       <button

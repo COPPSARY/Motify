@@ -10,7 +10,10 @@ import {
 } from "../../stores/prompt-assist";
 import PromptEnhanceButton from "./PromptEnhanceButton.svelte";
 
-const api = vi.hoisted(() => ({ enhancePrompt: vi.fn() }));
+const api = vi.hoisted(() => ({
+  enhancePrompt: vi.fn(),
+  preparePromptImages: vi.fn(),
+}));
 
 vi.mock("../../api/prompt-assist", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api/prompt-assist")>()),
@@ -146,6 +149,56 @@ describe("PromptEnhanceButton", () => {
       prompt: "make a video for my shoes",
       surface: "composer",
       attachments: { images: 1, videos: 0, audio: 0 },
+    });
+  });
+
+  it("shows the enhancer the attached images, downscaled, so it plans from what they show", async () => {
+    await enable();
+    api.enhancePrompt.mockResolvedValue({
+      enhanced: "A detailed sneaker film.",
+    });
+    const prepared = [
+      {
+        name: "shoe.png",
+        role: "asset",
+        dataUrl: "data:image/jpeg;base64,AAAA",
+      },
+    ];
+    api.preparePromptImages.mockResolvedValue(prepared);
+    const images = [{ name: "shoe.png", role: "asset", src: "blob:shoe" }];
+    render({
+      value: "make a video for my shoes",
+      surface: "composer",
+      images,
+      onApply: vi.fn(),
+    });
+    button()!.click();
+    await settle();
+    expect(api.preparePromptImages).toHaveBeenCalledWith(images);
+    expect(api.enhancePrompt).toHaveBeenCalledWith({
+      prompt: "make a video for my shoes",
+      surface: "composer",
+      images: prepared,
+    });
+  });
+
+  it("sends no images when none could be read", async () => {
+    await enable();
+    api.enhancePrompt.mockResolvedValue({
+      enhanced: "A detailed sneaker film.",
+    });
+    api.preparePromptImages.mockResolvedValue([]);
+    render({
+      value: "make a video for my shoes",
+      surface: "composer",
+      images: [{ name: "broken.png", role: "asset", src: "blob:gone" }],
+      onApply: vi.fn(),
+    });
+    button()!.click();
+    await settle();
+    expect(api.enhancePrompt).toHaveBeenCalledWith({
+      prompt: "make a video for my shoes",
+      surface: "composer",
     });
   });
 

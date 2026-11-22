@@ -905,6 +905,27 @@
                 videos: 0,
                 audio: 0,
               }}
+              images={[
+                ...(logo
+                  ? [
+                      {
+                        name: logo.file.name,
+                        role: "logo" as const,
+                        src: logo.url,
+                      },
+                    ]
+                  : []),
+                ...images.asset.map((picked) => ({
+                  name: picked.file.name,
+                  role: "asset" as const,
+                  src: picked.url,
+                })),
+                ...images.reference.map((picked) => ({
+                  name: picked.file.name,
+                  role: "reference" as const,
+                  src: picked.url,
+                })),
+              ]}
               onApply={(text) => (instructions = text)}
             />
           </div>
