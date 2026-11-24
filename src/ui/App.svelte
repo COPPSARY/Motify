@@ -119,9 +119,29 @@
     isNewAccountLanding,
     resumeIndex,
   } from "../onboarding/tour";
-  import { beginOnboarding } from "../onboarding/begin";
+  import { startWelcome } from "../onboarding/begin";
   import { takeInterests } from "../onboarding/interests";
-  import { fetchOnboarding, updateOnboarding } from "../api/onboarding";
+  import {
+    fetchOnboarding,
+    updateOnboarding,
+    type OnboardingProfile,
+  } from "../api/onboarding";
+  import {
+    fetchAvailablePlans,
+    type BillingPlanOffer,
+  } from "../api/billing-plans";
+  import WelcomeFlow from "../onboarding/WelcomeFlow.svelte";
+  import FirstVideoWait from "../onboarding/FirstVideoWait.svelte";
+  import FirstVideoDone from "../onboarding/FirstVideoDone.svelte";
+  import {
+    FIRST_RUN_STEPS,
+    TYPICAL_VIDEO_CREDITS,
+    awaitingFirstVideo,
+    firstVideoPrompt,
+    planOfferDue,
+    profileToSave,
+    type WelcomeAnswers,
+  } from "../onboarding/first-video";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
   import { captureThumbnail } from "../composition/thumbnail";
   import {
@@ -571,6 +591,18 @@
   /** Set once the account's onboarding progress is known, so a held prompt isn't run before the tour. */
   let onboardingChecked = false;
   let landingPromptStarted = false;
+  // First-run flow: welcome questions, then the first video, then the celebration and a one-time plan offer.
+  let welcomeOpen = false;
+  let welcomeHeldPrompt = "";
+  /** True from the welcome answers until the first video is ready. */
+  let firstVideoPending = false;
+  /** The first video's prompt sits in the composer until the workspace is ready to take it. */
+  let firstVideoQueued = false;
+  let firstVideoDoneOpen = false;
+  let onboardingProfile: OnboardingProfile = {};
+  let offerPlans: BillingPlanOffer[] = [];
+  let offerShownThisVisit = false;
+  let offerClicked = false;
   let draftSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let assetObjectUrls: string[] = [];
   let selectedEditorGroup: EditorGroupDefinition | null = null;
@@ -3055,17 +3087,35 @@
     if (centerPage !== tourStep.page) openPage(tourStep.page);
   }
 
-  /** Where a new or returning account stands: Brand DNA first, then the tour from where it left off. */
+  /** Where a new or returning account stands: the welcome questions, the first video, or the tour from where it left off. */
   async function startOnboarding(): Promise<void> {
     try {
       if (newAccountLanding) {
-        await beginOnboarding();
+        await startWelcome();
+        newAccountLanding = false;
+        openWelcome();
         return;
       }
       const progress = await fetchOnboarding();
+      onboardingProfile = progress.profile;
+      // Accounts saved on the old first step, Brand DNA, finish it there.
       if (progress.completedAt === null && progress.step === "brand") {
         window.location.replace(BRAND_ROUTE);
         return;
+      }
+      if (progress.completedAt === null) {
+        if (progress.step === FIRST_RUN_STEPS.welcome) {
+          openWelcome();
+          return;
+        }
+        if (awaitingFirstVideo(progress.step)) {
+          firstVideoPending = true;
+          return;
+        }
+        if (progress.step === FIRST_RUN_STEPS.firstVideoDone) {
+          void openFirstVideoDone();
+          return;
+        }
       }
       tourIndex = resumeIndex(progress);
     } catch {
@@ -3092,6 +3142,108 @@
     tourIndex = null;
     void updateOnboarding({ completed: true }).catch(() => undefined);
     releaseHeldPrompt();
+  }
+
+  function openWelcome(): void {
+    welcomeHeldPrompt =
+      pendingLandingPrompt ||
+      sessionStorage.getItem("motionly_pending_prompt") ||
+      "";
+    welcomeOpen = true;
+    captureEvent("onboarding tour step viewed", {
+      step: FIRST_RUN_STEPS.welcome,
+    });
+  }
+
+  /** The answers become the first video: its prompt goes in the composer and is sent. */
+  async function finishWelcome(answers: WelcomeAnswers): Promise<void> {
+    welcomeOpen = false;
+    const held = welcomeHeldPrompt;
+    welcomeHeldPrompt = "";
+    captureEvent("onboarding profile answered", {
+      interests: answers.interests.length,
+      format: answers.format,
+      has_business_name: Boolean(answers.businessName.trim()),
+      used_landing_prompt: Boolean(held),
+    });
+    void updateOnboarding({
+      profile: profileToSave(answers),
+      step: FIRST_RUN_STEPS.firstVideo,
+    })
+      .then((state) => {
+        onboardingProfile = state.profile;
+      })
+      .catch(() => undefined);
+    // The landing-page prompt is the first video now, not something to hold back.
+    pendingLandingPrompt = "";
+    sessionStorage.removeItem("motionly_pending_prompt");
+    sessionStorage.removeItem(PENDING_ASPECT_KEY);
+    if (isCanvasAspect(answers.format)) generationAspect = answers.format;
+    firstVideoPending = true;
+    openPage("create");
+    assistantDraft = firstVideoPrompt(answers, held);
+    firstVideoQueued = true;
+    await tick();
+    resizeComposer();
+    await sendQueuedFirstVideo();
+  }
+
+  async function sendQueuedFirstVideo(): Promise<void> {
+    if (!firstVideoQueued || !workspaceId || !assistantDraft.trim()) return;
+    firstVideoQueued = false;
+    await submitAssistant(new SubmitEvent("submit"));
+    scheduleDraftSave();
+  }
+
+  function skipWelcome(): void {
+    captureEvent("onboarding welcome skipped");
+    welcomeOpen = false;
+    welcomeHeldPrompt = "";
+    void updateOnboarding({ completed: true }).catch(() => undefined);
+    void runLandingPrompt();
+  }
+
+  /** Called when a generation finishes: the first one after the welcome questions earns the celebration. */
+  function handleFirstVideoFinished(durationMs: number): void {
+    // A reply with no project behind it (a question back) is not a finished video yet.
+    if (!firstVideoPending || !hasEditorProject) return;
+    firstVideoPending = false;
+    captureEvent("first generation completed", { duration_ms: durationMs });
+    void updateOnboarding({ step: FIRST_RUN_STEPS.firstVideoDone }).catch(
+      () => undefined,
+    );
+    void openFirstVideoDone();
+  }
+
+  async function openFirstVideoDone(): Promise<void> {
+    offerPlans = planOfferDue(onboardingProfile, activePlan)
+      ? await fetchAvailablePlans().catch(() => [])
+      : [];
+    firstVideoDoneOpen = true;
+  }
+
+  function closeFirstVideoDone(): void {
+    firstVideoDoneOpen = false;
+    if (offerShownThisVisit && !offerClicked) {
+      captureEvent("plan offer dismissed");
+    }
+    void updateOnboarding({ completed: true }).catch(() => undefined);
+  }
+
+  /** Recorded the first time the offer is on screen, so it is never shown twice. */
+  function recordOfferShown(): void {
+    offerShownThisVisit = true;
+    captureEvent("plan offer shown", { plans: offerPlans.length });
+    void updateOnboarding({ planOfferShown: true })
+      .then((state) => {
+        onboardingProfile = state.profile;
+      })
+      .catch(() => undefined);
+  }
+
+  function recordOfferClicked(planId: string): void {
+    offerClicked = true;
+    captureEvent("plan offer clicked", { plan: planId });
   }
 
   /** The landing-page prompt that waited for onboarding goes into the composer, unsent. */
@@ -4713,6 +4865,11 @@ Voice over direction: ${voiceNote}`
     longGeneration = prompt.length >= 1_000;
     activityVerb = activityVerbs[0] ?? "Reading your brief";
     captureEvent("ai generation started", { prompt_length: prompt.length });
+    if (firstVideoPending) {
+      captureEvent("first generation started", {
+        prompt_length: prompt.length,
+      });
+    }
     generationStore.set({
       isActive: true,
       status: "GENERATING",
@@ -4735,6 +4892,9 @@ Voice over direction: ${voiceNote}`
         reference_asset_count: sentAttachments.length,
       });
       showNotice("Tiffy updated the composition.");
+      handleFirstVideoFinished(
+        Math.round(performance.now() - generationStartedAt),
+      );
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "AI generation failed.";
@@ -4756,6 +4916,9 @@ Voice over direction: ${voiceNote}`
           error_type: err instanceof Error ? err.name : "unknown",
         });
         showNotice("Tiffy updated the composition.");
+        handleFirstVideoFinished(
+          Math.round(performance.now() - generationStartedAt),
+        );
         return;
       }
       captureEvent("ai generation failed", {
@@ -4984,7 +5147,7 @@ Voice over direction: ${voiceNote}`
   async function runLandingPrompt(): Promise<void> {
     if (!pendingLandingPrompt || landingPromptStarted) return;
     // A new account's first prompt waits for onboarding rather than spending credits mid-tour.
-    if (newAccountLanding || tourIndex !== null) return;
+    if (newAccountLanding || welcomeOpen || tourIndex !== null) return;
     if (mode === "cloud" && currentUser && !onboardingChecked) return;
     // A prompt handed over by a guest waits behind the sign-in dialog instead
     // of being spent, and resumes from sessionStorage once the session exists.
@@ -5007,6 +5170,7 @@ Voice over direction: ${voiceNote}`
     void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
+    void sendQueuedFirstVideo();
   }
 
   function openPricing(): void {
@@ -8275,6 +8439,29 @@ Voice over direction: ${voiceNote}`
       onNext={() => moveTour(1)}
       onBack={() => moveTour(-1)}
       onDone={endTour}
+    />
+  {/if}
+  {#if welcomeOpen}
+    <WelcomeFlow
+      heldPrompt={welcomeHeldPrompt}
+      onDone={finishWelcome}
+      onSkip={skipWelcome}
+    />
+  {/if}
+  {#if firstVideoPending && $generationStore.isActive}
+    <FirstVideoWait view={$generationProgressView} />
+  {/if}
+  {#if firstVideoDoneOpen}
+    <FirstVideoDone
+      plans={offerPlans}
+      offerDue={planOfferDue(onboardingProfile, activePlan)}
+      creditsPerVideo={$lastCreditCharge && $lastCreditCharge > 0
+        ? $lastCreditCharge
+        : TYPICAL_VIDEO_CREDITS}
+      onOfferShown={recordOfferShown}
+      onUpgrade={recordOfferClicked}
+      onBrand={() => window.location.assign(BRAND_ROUTE)}
+      onClose={closeFirstVideoDone}
     />
   {/if}
   {#if exportDialogOpen}
