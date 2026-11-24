@@ -54,17 +54,56 @@ export const VOLUME_CHOICES: readonly VolumeChoice[] = [
 export interface KindChoice {
   readonly id: string;
   readonly label: string;
+  /** Template categories to take an example from when it is hovered. */
+  readonly categories: readonly string[];
+  /** The first-video categories that suit someone who usually makes this, best fit first. */
+  readonly goals: readonly OnboardingGoal[];
 }
 
 /** The kinds of video people usually make; they pick up to three. */
 export const KIND_CHOICES: readonly KindChoice[] = [
-  { id: "ads", label: "Ads and promos" },
-  { id: "social", label: "Social media posts" },
-  { id: "demos", label: "App and feature demos" },
-  { id: "explainers", label: "Explainers" },
-  { id: "intros", label: "Logos and intros" },
-  { id: "announce", label: "Announcements" },
-  { id: "stories", label: "Stories and animation" },
+  {
+    id: "ads",
+    label: "Ads and promos",
+    categories: ["Marketing", "Product"],
+    goals: ["showcase", "launch"],
+  },
+  {
+    id: "social",
+    label: "Social media posts",
+    categories: ["Kinetic type", "Marketing"],
+    goals: ["showcase", "launch"],
+  },
+  {
+    id: "demos",
+    label: "App and feature demos",
+    categories: ["UI", "Product"],
+    goals: ["feature", "launch"],
+  },
+  {
+    id: "explainers",
+    label: "Explainers",
+    categories: ["Explainer"],
+    goals: ["feature", "animation"],
+  },
+  {
+    id: "intros",
+    label: "Logos and intros",
+    categories: ["Design", "Typography", "Showreel"],
+    goals: ["animation", "launch"],
+  },
+  {
+    id: "announce",
+    label: "Announcements",
+    categories: ["Kinetic type", "Typography"],
+    goals: ["launch", "showcase"],
+  },
+  {
+    id: "stories",
+    label: "Stories and animation",
+    categories: ["Storytelling", "Character", "2D"],
+    goals: ["animation"],
+  },
 ];
 
 export const MAX_KINDS = 3;
@@ -189,3 +228,97 @@ export const REVISION_IDEAS: readonly string[] = [
   "Make it shorter",
   "Add more energy",
 ];
+
+/**
+ * The first-video categories worth offering someone, from the kinds of video
+ * they said they usually make: the ones those kinds point to, most common
+ * first, never fewer than two. Everything when they picked none.
+ */
+export function goalsForKinds(kindIds: readonly string[]): GoalChoice[] {
+  const picked = KIND_CHOICES.filter((kind) => kindIds.includes(kind.id));
+  if (picked.length === 0) return [...GOAL_CHOICES];
+  const score = new Map<OnboardingGoal, number>();
+  for (const kind of picked) {
+    kind.goals.forEach((goal, index) => {
+      // The first goal of a kind counts for more than its second.
+      score.set(goal, (score.get(goal) ?? 0) + (index === 0 ? 2 : 1));
+    });
+  }
+  const chosen = GOAL_CHOICES.filter((goal) => score.has(goal.id)).sort(
+    (a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0),
+  );
+  for (const goal of GOAL_CHOICES) {
+    if (chosen.length >= 2) break;
+    if (!chosen.includes(goal)) chosen.push(goal);
+  }
+  return chosen;
+}
+
+/** Every template category the picked kinds draw on, to prefer matching examples. */
+export function categoriesForKinds(kindIds: readonly string[]): string[] {
+  const names = new Set<string>();
+  for (const kind of KIND_CHOICES) {
+    if (kindIds.includes(kind.id))
+      kind.categories.forEach((name) => names.add(name));
+  }
+  return [...names];
+}
+
+/** The parts of a prompt template the examples need. */
+export interface ExampleTemplate {
+  readonly slug: string;
+  readonly title: string;
+  readonly video: string | null;
+  readonly categories: readonly string[];
+}
+
+/**
+ * A preview for each category shown, taken from a template of that category and,
+ * among those, the one closest to what they usually make; no two share one.
+ */
+export function pickGoalPreviews(
+  templates: readonly ExampleTemplate[],
+  goals: readonly GoalChoice[],
+  preferred: readonly string[],
+): Partial<Record<OnboardingGoal, string>> {
+  const used = new Set<string>();
+  const found: Partial<Record<OnboardingGoal, string>> = {};
+  for (const goal of goals) {
+    const closeness = (template: ExampleTemplate) =>
+      template.categories.filter((name) => preferred.includes(name)).length;
+    const match = templates
+      .filter(
+        (template) =>
+          template.video &&
+          !used.has(template.slug) &&
+          template.categories.some((name) => goal.categories.includes(name)),
+      )
+      .sort((a, b) => closeness(b) - closeness(a))[0];
+    if (match?.video) {
+      used.add(match.slug);
+      found[goal.id] = match.video;
+    }
+  }
+  return found;
+}
+
+/** An example for each kind of video, with a different template for each. */
+export function pickKindExamples(
+  templates: readonly ExampleTemplate[],
+): Record<string, { video: string; title: string }> {
+  const taken = new Set<string>();
+  const examples: Record<string, { video: string; title: string }> = {};
+  for (const kind of KIND_CHOICES) {
+    const match = templates.find(
+      (template) =>
+        template.video &&
+        !taken.has(template.slug) &&
+        template.categories.some((name) => kind.categories.includes(name)),
+    );
+    if (match?.video) {
+      taken.add(match.slug);
+      examples[kind.id] = { video: match.video, title: match.title };
+    }
+  }
+  return examples;
+}

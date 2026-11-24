@@ -116,6 +116,74 @@ describe("WelcomeFlow", () => {
     expect(document.querySelectorAll("video").length).toBe(1);
   });
 
+  it("offers only the first videos that suit what they usually make, and can show them all", async () => {
+    await open();
+    await click(withText("Marketing"));
+    await click(withText("Continue"));
+    await click(withText("Continue"));
+    await click(withText("Stories and animation"));
+    await click(withText("Continue"));
+    expect(document.body.textContent).toContain(
+      "Picked for what you usually make.",
+    );
+    const shown = [
+      ...document.querySelectorAll<HTMLElement>(".wf__goal strong"),
+    ].map((el) => el.textContent);
+    expect(shown[0]).toBe("Just animation");
+    expect(shown.length).toBeLessThan(4);
+    await click(withText("Show all options"));
+    expect(document.querySelectorAll(".wf__goal").length).toBe(4);
+    expect(document.body.textContent).not.toContain("Show all options");
+  });
+
+  it("drops a chosen first video that the new kinds no longer point to", async () => {
+    await open();
+    await click(withText("Marketing"));
+    await click(withText("Continue"));
+    await click(withText("Continue"));
+    await click(withText("Stories and animation"));
+    await click(withText("Continue"));
+    await click(withText("Just animation"));
+    expect(withText("Add my pictures").disabled).toBe(false);
+    await click(
+      buttons().find((b) => b.getAttribute("aria-label") === "Back")!,
+    );
+    await click(withText("Stories and animation"));
+    await click(withText("Ads and promos"));
+    await click(withText("Continue"));
+    expect(withText("Add my pictures").disabled).toBe(true);
+  });
+
+  it("shows kinds as stills that play only when hovered, and says to hover", async () => {
+    const play = vi.fn(() => Promise.resolve());
+    const pause = vi.fn();
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(play);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(pause);
+    window.matchMedia = vi.fn(() => ({
+      matches: true,
+    })) as unknown as typeof window.matchMedia;
+    await open();
+    await click(withText("Marketing"));
+    await click(withText("Continue"));
+    await click(withText("Continue"));
+    expect(document.body.textContent).toContain(
+      "Hover over a tile to see an example.",
+    );
+    const tile = withText("Ads and promos");
+    expect(tile.querySelector("video")).not.toBeNull();
+    expect(play).not.toHaveBeenCalled();
+    tile.dispatchEvent(new MouseEvent("mouseenter"));
+    await settle();
+    expect(play).toHaveBeenCalledTimes(1);
+    tile.dispatchEvent(new MouseEvent("mouseleave"));
+    await settle();
+    expect(pause).toHaveBeenCalled();
+    // The tile with no example shows an icon instead of a video.
+    expect(withText("Explainers").querySelector("video")).toBeNull();
+    // @ts-expect-error: restoring the jsdom default of having no matchMedia
+    delete window.matchMedia;
+  });
+
   it("goes back a step", async () => {
     await open();
     await click(withText("Business owner"));
