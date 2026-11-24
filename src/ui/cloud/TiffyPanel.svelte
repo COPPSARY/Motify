@@ -1068,7 +1068,7 @@
             {:else}
               <RectangleVertical size={15} aria-hidden="true" />
             {/if}
-            <span>{selectedAspect.label}</span>
+            <span>{ASPECT_NAMES[selectedAspect.value].short}</span>
             <ChevronDown size={13} aria-hidden="true" />
           </button>
           {#if aspectMenuOpen}

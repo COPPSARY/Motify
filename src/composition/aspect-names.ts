@@ -33,7 +33,7 @@ export const ASPECT_NAMES: Readonly<Record<CanvasAspect, AspectName>> = {
   "16:9": {
     name: "YouTube",
     short: "YouTube",
-    hint: "YouTube, your website",
+    hint: "Websites and widescreen video",
   },
 };
 
