@@ -523,6 +523,29 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+/* Plain-word shapes ("Reels & TikTok", "Instagram feed") are wider than a ratio, so two to a row, text left, cut with an ellipsis instead of spilling out. */
+.code-editor-scope .gs-segments--aspect {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.code-editor-scope .gs-segments--aspect .gs-segment {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.code-editor-scope .gs-segments--aspect .gs-segment-text {
+  flex: 1 1 0;
+  overflow: hidden;
+}
+
+.code-editor-scope .gs-segments--aspect .gs-segment-text strong,
+.code-editor-scope .gs-segments--aspect .gs-segment-text small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .code-editor-scope .gs-segments--2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

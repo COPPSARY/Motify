@@ -767,8 +767,8 @@
             {/if}
 
             <fieldset class="gs-setting">
-              <legend>Aspect ratio</legend>
-              <div class="gs-segments gs-segments--4">
+              <legend>Where will it be posted?</legend>
+              <div class="gs-segments gs-segments--aspect">
                 {#each ASPECT_OPTIONS as option (option.aspect)}
                   <button
                     type="button"
