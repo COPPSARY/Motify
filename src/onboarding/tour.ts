@@ -1,3 +1,5 @@
+import { FIRST_RUN_STEPS } from "./first-video";
+
 /**
  * The first-run tour for new accounts. A new account lands on Brand DNA, moves
  * on to Prompt Templates, and is then walked through the editor one control at
@@ -90,6 +92,9 @@ export function resumeIndex(progress: {
   completedAt: string | null;
 }): number | null {
   if (progress.completedAt !== null || progress.step === null) return null;
+  // The welcome questions and the first video come before any tour.
+  if ((Object.values(FIRST_RUN_STEPS) as string[]).includes(progress.step))
+    return null;
   // Accounts saved on a removed step were at the end of the tour.
   if (REMOVED_STEPS.has(progress.step)) return TOUR_STEPS.length - 1;
   const index = TOUR_STEPS.findIndex((step) => step.id === progress.step);

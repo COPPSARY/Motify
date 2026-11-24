@@ -31,6 +31,12 @@ describe("first-run tour progress", () => {
     expect(resumeIndex({ step: "brand", completedAt: null })).toBe(0);
   });
 
+  it("does not start the tour during the welcome questions or the first video", () => {
+    for (const step of ["welcome", "first-video", "first-video-done"]) {
+      expect(resumeIndex({ step, completedAt: null })).toBeNull();
+    }
+  });
+
   it("never shows to accounts that never started or already finished", () => {
     expect(resumeIndex({ step: null, completedAt: null })).toBeNull();
     expect(
