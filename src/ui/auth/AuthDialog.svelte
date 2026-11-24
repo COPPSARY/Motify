@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { X } from "lucide-svelte";
   import AuthPanel from "./AuthPanel.svelte";
+  import AuthShowcase from "./AuthShowcase.svelte";
   import type { MotionlyUser } from "../../auth";
 
   export let open = false;
@@ -44,7 +45,7 @@
   <div class="auth-backdrop">
     <div
       bind:this={dialogElement}
-      class="auth-dialog"
+      class="auth-dialog auth-split"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-panel-title"
@@ -53,12 +54,15 @@
       <button class="auth-dialog__close" on:click={close} aria-label="Close">
         <X size={17} />
       </button>
-      <AuthPanel
-        bind:mode
-        {title}
-        {subtitle}
-        onauthenticated={handleAuthenticated}
-      />
+      <div class="auth-split__form">
+        <AuthPanel
+          bind:mode
+          {title}
+          {subtitle}
+          onauthenticated={handleAuthenticated}
+        />
+      </div>
+      <AuthShowcase />
     </div>
   </div>
 {/if}

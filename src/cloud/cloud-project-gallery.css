@@ -34,8 +34,7 @@
   background: #17181c;
 }
 
-.cloud-projects-heading h2,
-.cloud-login-copy h3 {
+.cloud-projects-heading h2 {
   margin: 0;
   letter-spacing: -0.025em;
 }
@@ -68,7 +67,6 @@
 }
 
 .cloud-workspace-select select,
-.cloud-login-form input,
 .cloud-create-panel input,
 .cloud-rename-row input {
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -145,50 +143,6 @@
   }
 }
 
-.cloud-login-layout {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 410px);
-  align-items: center;
-  gap: clamp(48px, 9vw, 120px);
-  padding: clamp(36px, 8vw, 96px);
-}
-
-.cloud-login-copy {
-  max-width: 510px;
-}
-
-.cloud-login-copy > svg {
-  margin-bottom: 22px;
-  color: #c7c7cc;
-}
-
-.cloud-login-copy h3 {
-  max-width: 12ch;
-  font-size: clamp(32px, 4vw, 52px);
-  font-weight: 680;
-  line-height: 1.02;
-}
-
-.cloud-login-copy p {
-  max-width: 48ch;
-  margin: 20px 0 0;
-  color: #a0a5ae;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.cloud-login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  background: #181a1e;
-}
-
-.cloud-login-form label,
 .cloud-rename-row label {
   display: flex;
   flex-direction: column;
@@ -198,7 +152,6 @@
   font-weight: 620;
 }
 
-.cloud-login-form input,
 .cloud-create-panel input,
 .cloud-rename-row input {
   height: 38px;
@@ -207,7 +160,6 @@
 }
 
 .cloud-workspace-select select:focus,
-.cloud-login-form input:focus,
 .cloud-create-panel input:focus,
 .cloud-rename-row input:focus,
 .cloud-search:focus-within {
@@ -759,13 +711,6 @@
     grid-template-columns: 1fr;
     gap: 10px;
   }
-
-  .cloud-login-layout {
-    grid-template-columns: 1fr;
-    align-content: center;
-    gap: 30px;
-    padding: 28px;
-  }
 }
 
 @media (max-width: 620px) {
@@ -801,23 +746,6 @@
     grid-template-columns: 1fr;
     gap: 22px;
     padding-inline: 14px;
-  }
-
-  .cloud-login-layout {
-    display: block;
-    padding: 24px 16px max(32px, env(safe-area-inset-bottom));
-    overflow-y: auto;
-  }
-
-  .cloud-login-copy {
-    display: none;
-  }
-
-  .cloud-login-form {
-    width: min(100%, 380px);
-    margin: 0 auto;
-    padding: 22px 18px;
-    border-radius: 14px;
   }
 
   .cloud-project-details {

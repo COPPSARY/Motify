@@ -38,7 +38,12 @@
 
   $: isSignUp = mode === "signup";
   $: heading =
-    title || (isSignUp ? "Create your account" : "Log in to your account");
+    title || (isSignUp ? "Turn a prompt into a video" : "Welcome back");
+  $: lede =
+    subtitle ||
+    (isSignUp
+      ? "You describe it. Motify makes it."
+      : "Log in to keep making videos with Motify.");
 
   function switchMode(next: "signin" | "signup"): void {
     mode = next;
@@ -172,9 +177,7 @@
 </script>
 
 <div class="auth-panel" data-ph-no-autocapture>
-  <span class="auth-panel__mark" aria-hidden="true">
-    <img src="/logo.svg" alt="" width="30" height="30" />
-  </span>
+  <img class="auth-panel__logo" src="/logo.svg" alt="" width="34" height="34" />
 
   {#if verificationSentTo}
     <header class="auth-panel__head" role="status">
@@ -206,94 +209,28 @@
       {#if otpStatus}<p class="auth-panel__status" role="status">
           {otpStatus}
         </p>{/if}
-      <button class="auth-panel__submit" type="submit" disabled={busy}>
+      <button class="auth-panel__google" type="submit" disabled={busy}>
         {busy ? "Verifying…" : "Verify email"}
       </button>
     </form>
-    <button
-      class="auth-panel__google"
-      type="button"
-      disabled={busy}
-      on:click={resendOtp}>Resend code</button
-    >
-    <button
-      class="auth-panel__google"
-      type="button"
-      disabled={busy}
-      on:click={() => switchMode("signin")}>Back to log in</button
-    >
+    <div class="auth-panel__rule"></div>
+    <p class="auth-panel__switch">
+      No code?
+      <button type="button" disabled={busy} on:click={resendOtp}
+        >Resend it</button
+      >
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        disabled={busy}
+        on:click={() => switchMode("signin")}>Back to log in</button
+      >
+    </p>
   {:else}
     <header class="auth-panel__head">
-      <small>{isSignUp ? "Welcome to Motify" : "Welcome back"}</small>
       <h2 id="auth-panel-title">{heading}</h2>
-      {#if subtitle}<p>{subtitle}</p>{/if}
+      <p>{lede}</p>
     </header>
-
-    <form class="auth-panel__form" on:submit={submit}>
-      <label class="auth-panel__field">
-        <span>Email</span>
-        <input
-          bind:value={email}
-          type="email"
-          autocomplete="email"
-          placeholder="you@studio.com"
-          required
-        />
-      </label>
-      <label class="auth-panel__field">
-        <span>Password</span>
-        <span class="auth-panel__password">
-          <input
-            bind:value={password}
-            type={showPassword ? "text" : "password"}
-            autocomplete={isSignUp ? "new-password" : "current-password"}
-            placeholder={isSignUp ? "At least 8 characters" : "Your password"}
-            minlength="8"
-            required
-          />
-          <button
-            type="button"
-            class="auth-panel__reveal"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            aria-pressed={showPassword}
-            on:click={() => (showPassword = !showPassword)}
-          >
-            {#if showPassword}<EyeOff size={17} />{:else}<Eye size={17} />{/if}
-          </button>
-        </span>
-      </label>
-      {#if isSignUp}
-        <label class="auth-panel__terms">
-          <input type="checkbox" bind:checked={acceptedTerms} required />
-          <span>
-            I agree to the
-            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer"
-              >Terms &amp; Conditions</a
-            >
-            and
-            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
-              >Privacy Policy</a
-            >.
-          </span>
-        </label>
-      {/if}
-      {#if errorMessage}
-        <p class="auth-panel__error" role="alert">{errorMessage}</p>
-      {/if}
-      <button
-        class="auth-panel__submit"
-        type="submit"
-        disabled={busy || (isSignUp && !acceptedTerms)}
-      >
-        {#if isSignUp}
-          {busy ? "Creating account…" : "Create account"}
-        {:else}
-          {busy ? "Logging in…" : "Log in"}
-        {/if}
-      </button>
-    </form>
-
-    <div class="auth-panel__divider"><span>Or</span></div>
 
     <a class="auth-panel__google" href={motionlyLoginUrl()}>
       <svg
@@ -318,19 +255,88 @@
           d="M12 5.96c1.47 0 2.79.51 3.83 1.51l2.87-2.87C16.96 2.96 14.7 2 12 2a9.98 9.98 0 0 0-8.94 5.5l3.33 2.59C7.18 7.72 9.39 5.96 12 5.96Z"
         />
       </svg>
-      {isSignUp ? "Sign up with Google" : "Log in with Google"}
+      Continue with Google
     </a>
+
+    <div class="auth-panel__divider"><span>or use email</span></div>
+
+    <form class="auth-panel__form" on:submit={submit}>
+      <label class="auth-panel__field">
+        <span class="auth-panel__label">Email</span>
+        <input
+          bind:value={email}
+          type="email"
+          autocomplete="email"
+          placeholder="Email address"
+          required
+        />
+      </label>
+      <label class="auth-panel__field">
+        <span class="auth-panel__label">Password</span>
+        <span class="auth-panel__password">
+          <input
+            bind:value={password}
+            type={showPassword ? "text" : "password"}
+            autocomplete={isSignUp ? "new-password" : "current-password"}
+            placeholder={isSignUp ? "Password (8+ characters)" : "Password"}
+            minlength="8"
+            required
+          />
+          <button
+            type="button"
+            class="auth-panel__reveal"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            on:click={() => (showPassword = !showPassword)}
+          >
+            {#if showPassword}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+          </button>
+        </span>
+      </label>
+      {#if isSignUp}
+        <label class="auth-panel__terms">
+          <input type="checkbox" bind:checked={acceptedTerms} required />
+          <span>
+            I agree to the
+            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer"
+              >Terms of Service</a
+            >
+            and
+            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
+              >Privacy Policy</a
+            >.
+          </span>
+        </label>
+      {/if}
+      {#if errorMessage}
+        <p class="auth-panel__error" role="alert">{errorMessage}</p>
+      {/if}
+      <button
+        class="auth-panel__submit"
+        type="submit"
+        disabled={busy || (isSignUp && !acceptedTerms)}
+      >
+        {#if isSignUp}
+          {busy ? "Creating account…" : "Create account"}
+        {:else}
+          {busy ? "Logging in…" : "Log in with email"}
+        {/if}
+      </button>
+    </form>
+
     <!-- Google can create an account from either mode, so the notice stays in both. -->
     <p class="auth-panel__legal">
-      By continuing with Google, you agree to the
+      By continuing{isSignUp ? " with Google" : ""}, you agree to the
       <a href={TERMS_URL} target="_blank" rel="noopener noreferrer"
-        >Terms &amp; Conditions</a
+        >Terms of Service</a
       >
       and
       <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
         >Privacy Policy</a
       >.
     </p>
+
+    <div class="auth-panel__rule"></div>
 
     <p class="auth-panel__switch">
       {#if isSignUp}
@@ -339,7 +345,7 @@
           >Log in</button
         >
       {:else}
-        Don't have an account?
+        New to Motify?
         <button type="button" on:click={() => switchMode("signup")}
           >Create account</button
         >
