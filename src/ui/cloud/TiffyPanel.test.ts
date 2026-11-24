@@ -383,16 +383,17 @@ describe("TiffyPanel uploads", () => {
         '.ai-aspect-picker[aria-haspopup="listbox"]',
       );
       expect(aspect?.getAttribute("aria-label")).toContain("16:9");
+      expect(aspect?.textContent).toContain("YouTube");
       aspect?.click();
       await tick();
       const options = Array.from(
         document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
       );
       expect(options.map((option) => option.textContent?.trim())).toEqual([
-        "16:9 · Landscape",
-        "1:1 · Square",
-        "4:5 · Portrait",
-        "9:16 · Vertical",
+        "YouTube",
+        "Square post",
+        "Instagram feed",
+        "Reels & TikTok",
       ]);
       expect(options.every((option) => option.querySelector("svg"))).toBe(true);
       options[3]?.click();

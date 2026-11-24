@@ -20,6 +20,7 @@
   import { lengthLimitTip } from "../../cloud/film-limits";
   import type { Storyboard } from "../../cloud/projects-api";
   import type { CanvasAspect } from "../../composition/canvas-frame";
+  import { ASPECT_NAMES } from "../../composition/aspect-names";
   import {
     ASPECT_OPTIONS,
     clampSeconds,
@@ -36,6 +37,7 @@
     type GuidedFormat,
     type GuidedLanguage,
     type GuidedTool,
+    type GuidedToolId,
     type GuideResult,
     type ImageSlot,
   } from "../../onboarding/guided-tools";
@@ -199,6 +201,17 @@
     onPick(next);
     await tick();
     heading?.focus();
+  }
+
+  /** Opens a tool's form from outside, as the first-run flow does once it knows what they want to make. */
+  export async function startWith(
+    id: GuidedToolId,
+    options: { instructions?: string } = {},
+  ): Promise<void> {
+    const found = GUIDED_TOOLS.find((candidate) => candidate.id === id);
+    if (!found) return;
+    await pick(found);
+    if (options.instructions) instructions = options.instructions;
   }
 
   function back() {
@@ -770,8 +783,8 @@
                       aria-hidden="true"
                     ></span>
                     <span class="gs-segment-text"
-                      ><strong>{option.aspect}</strong><small
-                        >{option.label}</small
+                      ><strong>{option.label}</strong><small
+                        >{ASPECT_NAMES[option.aspect].hint}</small
                       ></span
                     >
                   </button>

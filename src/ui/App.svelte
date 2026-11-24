@@ -119,12 +119,18 @@
     isNewAccountLanding,
     resumeIndex,
   } from "../onboarding/tour";
+  import {
+    ASPECT_NAMES,
+    aspectLabel,
+    canvasShapeName,
+  } from "../composition/aspect-names";
   import { startWelcome } from "../onboarding/begin";
   import { takeInterests } from "../onboarding/interests";
   import {
     fetchOnboarding,
     updateOnboarding,
     type OnboardingProfile,
+    type OnboardingRating,
   } from "../api/onboarding";
   import {
     fetchAvailablePlans,
@@ -137,9 +143,9 @@
     FIRST_RUN_STEPS,
     TYPICAL_VIDEO_CREDITS,
     awaitingFirstVideo,
-    firstVideoPrompt,
     planOfferDue,
     profileToSave,
+    goalById,
     type WelcomeAnswers,
   } from "../onboarding/first-video";
   import { drawCover, renderAuthoredFrame } from "../composition/frame-render";
@@ -596,8 +602,11 @@
   let welcomeHeldPrompt = "";
   /** True from the welcome answers until the first video is ready. */
   let firstVideoPending = false;
-  /** The first video's prompt sits in the composer until the workspace is ready to take it. */
-  let firstVideoQueued = false;
+  /** Where the review dialog starts: with the review, or at the offer after they have already reviewed. */
+  let doneStartAt: "review" | "offer" = "review";
+  /** They tried a change after the review; the plan offer comes when it is done. */
+  let offerAfterRevision = false;
+  let guidedStart: ReturnType<typeof GuidedStart> | undefined;
   let firstVideoDoneOpen = false;
   let onboardingProfile: OnboardingProfile = {};
   let offerPlans: BillingPlanOffer[] = [];
@@ -3155,15 +3164,16 @@
     });
   }
 
-  /** The answers become the first video: its prompt goes in the composer and is sent. */
+  /** They answered the questions: save them, then open the form for their first video, which asks for the pictures and makes it. */
   async function finishWelcome(answers: WelcomeAnswers): Promise<void> {
     welcomeOpen = false;
     const held = welcomeHeldPrompt;
     welcomeHeldPrompt = "";
     captureEvent("onboarding profile answered", {
-      interests: answers.interests.length,
-      format: answers.format,
-      has_business_name: Boolean(answers.businessName.trim()),
+      role: answers.role ?? "",
+      monthly_videos: answers.monthlyVideos ?? "",
+      kinds: answers.interests.length,
+      goal: answers.goal,
       used_landing_prompt: Boolean(held),
     });
     void updateOnboarding({
@@ -3174,25 +3184,18 @@
         onboardingProfile = state.profile;
       })
       .catch(() => undefined);
-    // The landing-page prompt is the first video now, not something to hold back.
+    // What they came with from the landing page goes into the form as their instructions.
     pendingLandingPrompt = "";
     sessionStorage.removeItem("motionly_pending_prompt");
     sessionStorage.removeItem(PENDING_ASPECT_KEY);
-    if (isCanvasAspect(answers.format)) generationAspect = answers.format;
     firstVideoPending = true;
     openPage("create");
-    assistantDraft = firstVideoPrompt(answers, held);
-    firstVideoQueued = true;
     await tick();
-    resizeComposer();
-    await sendQueuedFirstVideo();
-  }
-
-  async function sendQueuedFirstVideo(): Promise<void> {
-    if (!firstVideoQueued || !workspaceId || !assistantDraft.trim()) return;
-    firstVideoQueued = false;
-    await submitAssistant(new SubmitEvent("submit"));
-    scheduleDraftSave();
+    await tick();
+    const tool = goalById(answers.goal)?.tool;
+    if (tool) {
+      await guidedStart?.startWith(tool, held ? { instructions: held } : {});
+    }
   }
 
   function skipWelcome(): void {
@@ -3203,10 +3206,19 @@
     void runLandingPrompt();
   }
 
-  /** Called when a generation finishes: the first one after the welcome questions earns the celebration. */
+  /**
+   * Called when a generation finishes. The first one after the welcome questions
+   * earns the review; one they ran to change it afterwards brings the plan offer.
+   */
   function handleFirstVideoFinished(durationMs: number): void {
     // A reply with no project behind it (a question back) is not a finished video yet.
-    if (!firstVideoPending || !hasEditorProject) return;
+    if (!hasEditorProject) return;
+    if (offerAfterRevision) {
+      offerAfterRevision = false;
+      void openFirstVideoDone("offer");
+      return;
+    }
+    if (!firstVideoPending) return;
     firstVideoPending = false;
     captureEvent("first generation completed", { duration_ms: durationMs });
     void updateOnboarding({ step: FIRST_RUN_STEPS.firstVideoDone }).catch(
@@ -3215,7 +3227,12 @@
     void openFirstVideoDone();
   }
 
-  async function openFirstVideoDone(): Promise<void> {
+  /** Opens the review, or the plan offer alone once they have already reviewed the video. */
+  async function openFirstVideoDone(
+    startAt?: "review" | "offer",
+  ): Promise<void> {
+    doneStartAt =
+      startAt ?? (onboardingProfile.firstVideoRating ? "offer" : "review");
     offerPlans = planOfferDue(onboardingProfile, activePlan)
       ? await fetchAvailablePlans().catch(() => [])
       : [];
@@ -3228,6 +3245,28 @@
       captureEvent("plan offer dismissed");
     }
     void updateOnboarding({ completed: true }).catch(() => undefined);
+  }
+
+  function rateFirstVideo(rating: OnboardingRating): void {
+    captureEvent("first video reviewed", { rating });
+    void updateOnboarding({ profile: { firstVideoRating: rating } })
+      .then((state) => {
+        onboardingProfile = state.profile;
+      })
+      .catch(() => undefined);
+  }
+
+  /** They picked a change to try: it goes in Tiffy's composer, and the plan offer follows once it is done. */
+  function reviseFirstVideo(idea: string): void {
+    firstVideoDoneOpen = false;
+    offerAfterRevision = true;
+    captureEvent("first video revision started", { idea });
+    void updateOnboarding({ completed: true }).catch(() => undefined);
+    assistantDraft = idea;
+    void tick().then(() => {
+      resizeComposer();
+      composerInput?.focus();
+    });
   }
 
   /** Recorded the first time the offer is on screen, so it is never shown twice. */
@@ -5170,7 +5209,6 @@ Voice over direction: ${voiceNote}`
     void refreshActivePlan();
     void restoreProjectFromRoute();
     void runLandingPrompt();
-    void sendQueuedFirstVideo();
   }
 
   function openPricing(): void {
@@ -6861,6 +6899,7 @@ Voice over direction: ${voiceNote}`
                     {/if}
                   </div>
                   <GuidedStart
+                    bind:this={guidedStart}
                     bind:open={guideOpen}
                     disabled={$generationStore.isActive}
                     brand={guideBrand}
@@ -7233,17 +7272,17 @@ Voice over direction: ${voiceNote}`
                   class="me-view-btn me-view-text-btn me-tooltip"
                   class:is-active={canvasState.aspect === aspect}
                   aria-pressed={canvasState.aspect === aspect}
-                  aria-label={`Canvas ${aspect}`}
-                  data-tooltip={`${aspect} canvas`}
+                  aria-label={`Canvas ${aspectLabel(aspect)}`}
+                  data-tooltip={`${ASPECT_NAMES[aspect].name} (${aspect}), ${ASPECT_NAMES[aspect].hint}`}
                   disabled={!hasEditorProject}
                   on:click={() => setCanvasSettings({ aspect })}
-                  >{aspect}</button
+                  >{ASPECT_NAMES[aspect].short}</button
                 >
               {/each}
               {#if mode === "cloud" && hasEditorProject && !canvasView.layout.identity}
                 <button
                   class="me-view-btn me-view-text-btn me-view-relayout me-tooltip"
-                  data-tooltip={`Rebuild the layout for ${canvasState.aspect} with Tiffy`}
+                  data-tooltip={`Rebuild the layout for ${canvasShapeName(canvasState.aspect)} with Tiffy`}
                   disabled={$generationStore.isActive}
                   on:click={relayoutForCanvas}
                   ><Sparkles size={13} /> Re-layout</button
@@ -7543,6 +7582,9 @@ Voice over direction: ${voiceNote}`
                   <p class="me-generating__eta">
                     {$generationProgressView.eta} · {$generationProgressView.elapsed}
                   </p>
+                {/if}
+                {#if firstVideoPending}
+                  <FirstVideoWait />
                 {/if}
               </div>
             {:else if openingProject}
@@ -8442,25 +8484,21 @@ Voice over direction: ${voiceNote}`
     />
   {/if}
   {#if welcomeOpen}
-    <WelcomeFlow
-      heldPrompt={welcomeHeldPrompt}
-      onDone={finishWelcome}
-      onSkip={skipWelcome}
-    />
-  {/if}
-  {#if firstVideoPending && $generationStore.isActive}
-    <FirstVideoWait view={$generationProgressView} />
+    <WelcomeFlow onDone={finishWelcome} onSkip={skipWelcome} />
   {/if}
   {#if firstVideoDoneOpen}
     <FirstVideoDone
       plans={offerPlans}
       offerDue={planOfferDue(onboardingProfile, activePlan)}
+      monthlyVideos={onboardingProfile.monthlyVideos}
+      startAt={doneStartAt}
+      onRate={rateFirstVideo}
+      onRevise={reviseFirstVideo}
       creditsPerVideo={$lastCreditCharge && $lastCreditCharge > 0
         ? $lastCreditCharge
         : TYPICAL_VIDEO_CREDITS}
       onOfferShown={recordOfferShown}
       onUpgrade={recordOfferClicked}
-      onBrand={() => window.location.assign(BRAND_ROUTE)}
       onClose={closeFirstVideoDone}
     />
   {/if}

@@ -49,6 +49,7 @@
     LocalAssetReference,
   } from "../../stores/local-assets";
   import type { CanvasAspect } from "../../composition/canvas-frame";
+  import { ASPECT_NAMES } from "../../composition/aspect-names";
   import type { BrandProfileSummary } from "../../cloud/brand-dna";
 
   interface MessageAttachment {
@@ -240,12 +241,15 @@
     list.scrollTop = list.scrollHeight;
   }
 
-  const aspectOptions: readonly { value: CanvasAspect; label: string }[] = [
-    { value: "16:9", label: "16:9 · Landscape" },
-    { value: "1:1", label: "1:1 · Square" },
-    { value: "4:5", label: "4:5 · Portrait" },
-    { value: "9:16", label: "9:16 · Vertical" },
-  ];
+  const aspectOptions: readonly {
+    value: CanvasAspect;
+    label: string;
+    hint: string;
+  }[] = (["16:9", "1:1", "4:5", "9:16"] as const).map((value) => ({
+    value,
+    label: ASPECT_NAMES[value].name,
+    hint: ASPECT_NAMES[value].hint,
+  }));
   const mediumEffortOption: {
     value: GenerationEffort;
     label: string;
@@ -308,7 +312,11 @@
     mediumEffortOption;
   $: selectedAspect = aspectOptions.find(
     (option) => option.value === generationAspect,
-  ) ?? { value: "16:9", label: "16:9 · Landscape" };
+  ) ?? {
+    value: "16:9" as CanvasAspect,
+    label: ASPECT_NAMES["16:9"].name,
+    hint: ASPECT_NAMES["16:9"].hint,
+  };
 
   function carriesFiles(event: DragEvent): boolean {
     return Boolean(event.dataTransfer?.types.includes("Files"));
@@ -1043,11 +1051,11 @@
             data-tour="aspect"
             class:is-open={aspectMenuOpen}
             type="button"
-            aria-label={`Video aspect ratio: ${selectedAspect.label}`}
+            aria-label={`Video shape: ${selectedAspect.label} (${selectedAspect.value})`}
             aria-haspopup="listbox"
             aria-expanded={aspectMenuOpen}
             aria-controls="ai-aspect-options"
-            title="Choose the canvas before Tiffy creates your video"
+            title="Choose where your video will be posted before Tiffy creates it"
             disabled={$generationStore.isActive}
             bind:this={aspectButton}
             on:click={toggleAspectMenu}
@@ -1068,13 +1076,14 @@
               class="ai-aspect-menu"
               id="ai-aspect-options"
               role="listbox"
-              aria-label="Video aspect ratio"
+              aria-label="Video shape"
             >
               {#each aspectOptions as option, index (option.value)}
                 <button
                   type="button"
                   role="option"
                   aria-selected={generationAspect === option.value}
+                  title={`${option.hint} (${option.value})`}
                   class:is-selected={generationAspect === option.value}
                   bind:this={aspectOptionButtons[index]}
                   on:click={() => selectAspect(option.value)}

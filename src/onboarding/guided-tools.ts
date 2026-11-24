@@ -1,5 +1,6 @@
 import type { GuidedToolRequest, StoryboardBeat } from "../cloud/projects-api";
 import type { CanvasAspect } from "../composition/canvas-frame";
+import { ASPECT_NAMES } from "../composition/aspect-names";
 import type { AssetIntent } from "../stores/local-assets";
 
 /**
@@ -176,10 +177,10 @@ export const ASPECT_OPTIONS: readonly {
   aspect: CanvasAspect;
   label: string;
 }[] = [
-  { aspect: "16:9", label: "Landscape" },
-  { aspect: "9:16", label: "Vertical" },
-  { aspect: "1:1", label: "Square" },
-  { aspect: "4:5", label: "Portrait" },
+  { aspect: "16:9", label: ASPECT_NAMES["16:9"].name },
+  { aspect: "9:16", label: ASPECT_NAMES["9:16"].name },
+  { aspect: "1:1", label: ASPECT_NAMES["1:1"].name },
+  { aspect: "4:5", label: ASPECT_NAMES["4:5"].name },
 ];
 
 export const LANGUAGE_OPTIONS: readonly {
