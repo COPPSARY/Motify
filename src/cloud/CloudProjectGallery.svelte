@@ -3,7 +3,6 @@
   import {
     Check,
     Clock3,
-    Cloud,
     Film,
     FolderOpen,
     MoreHorizontal,
@@ -26,6 +25,7 @@
     seedProjectThumbnail,
   } from "./project-thumbnails";
   import AuthPanel from "../ui/auth/AuthPanel.svelte";
+  import AuthShowcase from "../ui/auth/AuthShowcase.svelte";
   import "./cloud-project-gallery.css";
 
   export let initialFiles: ProjectSourceFiles;
@@ -685,18 +685,14 @@
           {/each}
         </div>
       {:else if state === "guest"}
-        <div class="cloud-login-layout">
-          <div class="cloud-login-copy">
-            <Cloud size={30} />
-            <h3>Your projects, right where you left them.</h3>
-            <p>
-              Sign in to open recent work and keep your latest save protected
-              across devices.
-            </p>
+        <div class="auth-split auth-split--page">
+          <div class="auth-split__form">
+            <AuthPanel
+              subtitle="Log in to open your recent projects, saved across every device."
+              onauthenticated={bootstrap}
+            />
           </div>
-          <div class="cloud-login-form">
-            <AuthPanel onauthenticated={bootstrap} />
-          </div>
+          <AuthShowcase />
         </div>
       {:else if state === "error"}
         <div class="cloud-projects-state">
