@@ -4,7 +4,11 @@ import { GUIDED_TOOLS } from "./guided-tools";
 import {
   GOAL_CHOICES,
   awaitingFirstVideo,
+  categoriesForKinds,
   goalById,
+  goalsForKinds,
+  pickGoalPreviews,
+  pickKindExamples,
   planOfferDue,
   profileToSave,
   recommendPlan,
@@ -96,5 +100,73 @@ describe("recommendPlan", () => {
   it("says nothing without an answer or plans", () => {
     expect(recommendPlan(plans, undefined, 7)).toBeNull();
     expect(recommendPlan([], "6-15", 7)).toBeNull();
+  });
+});
+
+describe("goalsForKinds", () => {
+  const ids = (kinds: string[]) => goalsForKinds(kinds).map((goal) => goal.id);
+
+  it("offers everything when they picked no kinds", () => {
+    expect(ids([])).toEqual(["launch", "showcase", "feature", "animation"]);
+  });
+  it("offers what suits the kinds they make, best fit first", () => {
+    expect(ids(["ads"])).toEqual(["showcase", "launch"]);
+    expect(ids(["demos", "explainers"])[0]).toBe("feature");
+    expect(ids(["demos", "explainers"])).not.toContain("showcase");
+  });
+  it("never offers fewer than two", () => {
+    const result = ids(["stories"]);
+    expect(result[0]).toBe("animation");
+    expect(result.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("categoriesForKinds", () => {
+  it("collects the template categories the picked kinds draw on", () => {
+    expect(categoriesForKinds(["explainers"])).toEqual(["Explainer"]);
+    expect(categoriesForKinds([])).toEqual([]);
+  });
+});
+
+describe("example previews", () => {
+  const templates = [
+    { slug: "a", title: "A", video: "va", categories: ["Product", "UI"] },
+    {
+      slug: "b",
+      title: "B",
+      video: "vb",
+      categories: ["Product", "Marketing"],
+    },
+    { slug: "c", title: "C", video: null, categories: ["Explainer"] },
+  ];
+
+  it("takes a category's preview from the template closest to what they make", () => {
+    const launch = GOAL_CHOICES.filter((goal) => goal.id === "launch");
+    expect(pickGoalPreviews(templates, launch, ["UI"]).launch).toBe("va");
+    expect(pickGoalPreviews(templates, launch, ["Marketing"]).launch).toBe(
+      "vb",
+    );
+  });
+  it("does not use one template for two categories, and skips ones with no video", () => {
+    const both = GOAL_CHOICES.filter((goal) =>
+      ["launch", "showcase"].includes(goal.id),
+    );
+    const found = pickGoalPreviews(templates, both, []);
+    expect(new Set(Object.values(found)).size).toBe(Object.keys(found).length);
+    expect(
+      pickGoalPreviews(
+        templates,
+        GOAL_CHOICES.filter((g) => g.id === "animation"),
+        [],
+      ).feature,
+    ).toBeUndefined();
+  });
+  it("gives each kind its own example", () => {
+    const examples = pickKindExamples(templates);
+    expect(examples["ads"]?.video).toBeDefined();
+    expect(examples["explainers"]).toBeUndefined();
+    expect(new Set(Object.values(examples).map((e) => e.video)).size).toBe(
+      Object.keys(examples).length,
+    );
   });
 });

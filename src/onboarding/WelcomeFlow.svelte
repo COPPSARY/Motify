@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    AppWindow,
     ArrowLeft,
+    Bell,
+    BookOpen,
     Check,
     Film,
     LayoutDashboard,
+    Lightbulb,
+    Megaphone,
     Package,
     Rocket,
+    Shapes,
+    Smartphone,
   } from "lucide-svelte";
   import TiffyMark from "../ui/cloud/TiffyMark.svelte";
   import { fetchPromptTemplates } from "../api/prompt-templates";
@@ -19,6 +26,11 @@
     GOAL_CHOICES,
     KIND_CHOICES,
     MAX_KINDS,
+    categoriesForKinds,
+    goalsForKinds,
+    pickGoalPreviews,
+    pickKindExamples,
+    type ExampleTemplate,
     ROLE_CHOICES,
     VOLUME_CHOICES,
     type WelcomeAnswers,
@@ -39,43 +51,63 @@
     animation: Film,
   } as const;
 
+  /** Stands in for a kind of video that has no template example. */
+  const KIND_ICONS = {
+    ads: Megaphone,
+    social: Smartphone,
+    demos: AppWindow,
+    explainers: Lightbulb,
+    intros: Shapes,
+    announce: Bell,
+    stories: BookOpen,
+  } as const;
+
   let step = 0;
   let role: OnboardingRole | null = null;
   // Regular is chosen to begin with, as a starting point they can change.
   let volume: OnboardingMonthlyVideos = "6-15";
   let kinds = new Set<string>();
   let goal: OnboardingGoal | null = null;
-  let previews: Partial<Record<OnboardingGoal, string>> = {};
+  let templates: ExampleTemplate[] = [];
+  /** Shows all four categories, not only the ones that fit what they usually make. */
+  let showAllGoals = false;
+  /** The tile under the pointer or with focus: its video plays, the others hold on a still. */
+  let hoveredKind: string | null = null;
+  let hoveredGoal: OnboardingGoal | null = null;
+  /** Only where there is a pointer to hover with; elsewhere a tile plays once it is chosen. */
+  let canHover = false;
+
+  function measure() {
+    canHover = Boolean(window.matchMedia?.("(hover: hover)").matches);
+  }
 
   onMount(() => {
     void loadPreviews();
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   });
 
   /** A still from a real template stands behind each category. One with none shows its name alone. */
   async function loadPreviews() {
     try {
-      const templates = await fetchPromptTemplates();
-      const used = new Set<string>();
-      const found: Partial<Record<OnboardingGoal, string>> = {};
-      for (const choice of GOAL_CHOICES) {
-        const match = templates.find(
-          (template) =>
-            template.video &&
-            !used.has(template.slug) &&
-            template.categories.some((name) =>
-              choice.categories.includes(name),
-            ),
-        );
-        if (match?.video) {
-          used.add(match.slug);
-          found[choice.id] = match.video;
-        }
-      }
-      previews = found;
+      templates = await fetchPromptTemplates();
     } catch {
       // The categories work without pictures.
     }
   }
+
+  // What they usually make decides which first videos are offered, and which example stands behind each.
+  $: shownGoals = showAllGoals ? GOAL_CHOICES : goalsForKinds([...kinds]);
+  $: filtered = shownGoals.length < GOAL_CHOICES.length;
+  $: previews = pickGoalPreviews(
+    templates,
+    shownGoals,
+    categoriesForKinds([...kinds]),
+  );
+  $: kindExamples = pickKindExamples(templates);
+  // A category that is no longer offered cannot stay chosen.
+  $: if (goal && !shownGoals.some((choice) => choice.id === goal)) goal = null;
 
   $: current = STEPS[step]!;
   $: last = step === STEPS.length - 1;
@@ -160,6 +192,12 @@
     <main class="wf__body">
       <h2 id="wf-title">{TITLES[current]}</h2>
 
+      {#if current === "kinds" && canHover && Object.keys(kindExamples).length > 0}
+        <p class="wf__hint">Hover over a tile to see an example.</p>
+      {:else if current === "goal" && filtered}
+        <p class="wf__hint">Picked for what you usually make.</p>
+      {/if}
+
       {#if current === "role"}
         <div
           class="wf__list"
@@ -197,27 +235,51 @@
           {/each}
         </div>
       {:else if current === "kinds"}
-        <div class="wf__kinds" role="group" aria-label="Kinds of video">
+        <div class="wf__tiles" role="group" aria-label="Kinds of video">
           {#each KIND_CHOICES as choice (choice.id)}
+            {@const on = kinds.has(choice.id)}
             <button
               type="button"
-              class="wf__row wf__kind"
-              class:is-on={kinds.has(choice.id)}
-              aria-pressed={kinds.has(choice.id)}
-              disabled={!kinds.has(choice.id) && kinds.size >= MAX_KINDS}
+              class="wf__tile"
+              class:is-on={on}
+              aria-pressed={on}
+              disabled={!on && kinds.size >= MAX_KINDS}
               on:click={() => toggleKind(choice.id)}
+              on:mouseenter={() => (hoveredKind = choice.id)}
+              on:mouseleave={() => (hoveredKind = null)}
+              on:focus={() => (hoveredKind = choice.id)}
+              on:blur={() => (hoveredKind = null)}
             >
-              <strong>{choice.label}</strong>
-              {#if kinds.has(choice.id)}<Check
-                  size={15}
-                  aria-hidden="true"
-                />{/if}
+              {#if kindExamples[choice.id]}
+                <!-- svelte-ignore a11y-media-has-caption -->
+                <video
+                  src={`${kindExamples[choice.id]!.video}#t=0.5`}
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                  use:playWhen={hoveredKind === choice.id || (on && !canHover)}
+                ></video>
+              {:else}
+                <span class="wf__tile-icon" aria-hidden="true">
+                  <svelte:component
+                    this={KIND_ICONS[choice.id as keyof typeof KIND_ICONS]}
+                    size={26}
+                  />
+                </span>
+              {/if}
+              <span class="wf__tile-label">{choice.label}</span>
+              {#if on}
+                <span class="wf__tile-check" aria-hidden="true"
+                  ><Check size={14} /></span
+                >
+              {/if}
             </button>
           {/each}
         </div>
       {:else}
         <div class="wf__goals" role="radiogroup" aria-label="Your first video">
-          {#each GOAL_CHOICES as choice (choice.id)}
+          {#each shownGoals as choice (choice.id)}
             <button
               type="button"
               role="radio"
@@ -225,6 +287,10 @@
               class:is-on={goal === choice.id}
               aria-checked={goal === choice.id}
               on:click={() => (goal = choice.id)}
+              on:mouseenter={() => (hoveredGoal = choice.id)}
+              on:mouseleave={() => (hoveredGoal = null)}
+              on:focus={() => (hoveredGoal = choice.id)}
+              on:blur={() => (hoveredGoal = null)}
             >
               <span class="wf__thumb">
                 {#if !previews[choice.id]}
@@ -238,7 +304,8 @@
                     loop
                     playsinline
                     preload="metadata"
-                    use:playWhen={goal === choice.id}
+                    use:playWhen={hoveredGoal === choice.id ||
+                      (goal === choice.id && !canHover)}
                   ></video>
                 {/if}
               </span>
@@ -247,6 +314,15 @@
             </button>
           {/each}
         </div>
+        {#if filtered}
+          <button
+            type="button"
+            class="wf__link"
+            on:click={() => (showAllGoals = true)}
+          >
+            Show all options
+          </button>
+        {/if}
       {/if}
     </main>
 
@@ -388,14 +464,90 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .wf__kinds {
+  /* Stills with the label on top; hovering one plays it, so the grid stays calm. */
+  .wf__tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 480px) {
+    .wf__tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .wf__tile {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    padding: 0;
     overflow: hidden;
     border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
     border-radius: 12px;
-    background: var(--sl-panel, #111);
+    background: var(--sl-surface, #1a1a1a);
+    color: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
-  .wf__kind :global(svg) {
-    color: var(--sl-text, #ededed);
+  .wf__tile video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .wf__tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.72),
+      rgba(0, 0, 0, 0) 55%
+    );
+    pointer-events: none;
+  }
+  .wf__tile-icon {
+    position: absolute;
+    inset: 0 0 28% 0;
+    display: grid;
+    place-items: center;
+    color: var(--sl-faint, #555);
+  }
+  .wf__tile-label {
+    position: absolute;
+    right: 10px;
+    bottom: 9px;
+    left: 10px;
+    z-index: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .wf__tile-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--sl-brand-cobalt, #1f45b0);
+    color: #fff;
+  }
+  .wf__tile:hover:not(:disabled) {
+    border-color: var(--sl-muted, #858585);
+  }
+  .wf__tile.is-on {
+    border-color: var(--sl-brand-cobalt, #1f45b0);
+    box-shadow: 0 0 0 1px var(--sl-brand-cobalt, #1f45b0);
+  }
+  .wf__tile:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
   .wf__goals {
     display: grid;
@@ -450,6 +602,25 @@
     color: var(--sl-muted, #858585);
     font-size: 12.5px;
   }
+  .wf__hint {
+    margin: -12px 0 14px;
+    color: var(--sl-muted, #858585);
+    font-size: 13px;
+  }
+  .wf__link {
+    margin-top: 14px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--sl-muted, #858585);
+    font: inherit;
+    font-size: 13px;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .wf__link:hover {
+    color: var(--sl-text, #ededed);
+  }
   .wf__tiffy {
     display: flex;
     align-items: center;
@@ -483,6 +654,7 @@
     cursor: not-allowed;
   }
   .wf__row:focus-visible,
+  .wf__tile:focus-visible,
   .wf__goal:focus-visible,
   .wf__primary:focus-visible,
   .wf__icon:focus-visible,
