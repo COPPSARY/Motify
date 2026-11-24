@@ -270,6 +270,15 @@ export interface ExampleTemplate {
   readonly title: string;
   readonly video: string | null;
   readonly categories: readonly string[];
+  /** The shape the template was made in, so its example is never cropped. */
+  readonly aspectRatio?: "16:9" | "1:1" | "4:5" | "9:16";
+}
+
+/** A template's shape as a CSS aspect-ratio ("16 / 9"), or a neutral 4 / 3 when it has none. */
+export function ratioCss(aspectRatio: string | undefined): string {
+  return aspectRatio && /^\d+:\d+$/.test(aspectRatio)
+    ? aspectRatio.replace(":", " / ")
+    : "4 / 3";
 }
 
 /**
@@ -302,12 +311,15 @@ export function pickGoalPreviews(
   return found;
 }
 
-/** An example for each kind of video, with a different template for each. */
+/** An example for each kind of video, with a different template for each, in the shape it was made in. */
 export function pickKindExamples(
   templates: readonly ExampleTemplate[],
-): Record<string, { video: string; title: string }> {
+): Record<string, { video: string; title: string; ratio: string }> {
   const taken = new Set<string>();
-  const examples: Record<string, { video: string; title: string }> = {};
+  const examples: Record<
+    string,
+    { video: string; title: string; ratio: string }
+  > = {};
   for (const kind of KIND_CHOICES) {
     const match = templates.find(
       (template) =>
@@ -317,7 +329,11 @@ export function pickKindExamples(
     );
     if (match?.video) {
       taken.add(match.slug);
-      examples[kind.id] = { video: match.video, title: match.title };
+      examples[kind.id] = {
+        video: match.video,
+        title: match.title,
+        ratio: ratioCss(match.aspectRatio),
+      };
     }
   }
   return examples;

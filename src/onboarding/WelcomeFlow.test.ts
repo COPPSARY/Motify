@@ -21,7 +21,13 @@ describe("WelcomeFlow", () => {
 
   beforeEach(() => {
     fetchPromptTemplates.mockResolvedValue([
-      { slug: "a", video: "https://v/a.webm", categories: ["Product"] },
+      {
+        slug: "a",
+        title: "A",
+        video: "https://v/a.webm",
+        categories: ["Product"],
+        aspectRatio: "9:16",
+      },
       { slug: "b", video: null, categories: ["UI"] },
     ]);
   });
@@ -178,6 +184,12 @@ describe("WelcomeFlow", () => {
     tile.dispatchEvent(new MouseEvent("mouseleave"));
     await settle();
     expect(pause).toHaveBeenCalled();
+    // The tile keeps the shape its video was made in, so it is not cropped.
+    expect(tile.getAttribute("style")).toContain("aspect-ratio: 9 / 16");
+    // A tile with no example is a neutral shape.
+    expect(withText("Explainers").getAttribute("style")).toContain(
+      "aspect-ratio: 4 / 3",
+    );
     // The tile with no example shows an icon instead of a video.
     expect(withText("Explainers").querySelector("video")).toBeNull();
     // @ts-expect-error: restoring the jsdom default of having no matchMedia

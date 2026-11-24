@@ -242,6 +242,7 @@
               type="button"
               class="wf__tile"
               class:is-on={on}
+              style={`aspect-ratio: ${kindExamples[choice.id]?.ratio ?? "4 / 3"}`}
               aria-pressed={on}
               disabled={!on && kinds.size >= MAX_KINDS}
               on:click={() => toggleKind(choice.id)}
@@ -464,21 +465,26 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
-  /* Stills with the label on top; hovering one plays it, so the grid stays calm. */
+  /*
+   * Stills with the label on top; hovering one plays it, so the grid stays calm.
+   * Each tile keeps the shape its video was made in (set inline), and the columns
+   * stack them like a masonry wall, so nothing is cropped.
+   */
   .wf__tiles {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    columns: 3;
+    column-gap: 10px;
   }
   @media (max-width: 480px) {
     .wf__tiles {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      columns: 2;
     }
   }
   .wf__tile {
     position: relative;
     display: block;
-    aspect-ratio: 1 / 1;
+    width: 100%;
+    margin: 0 0 10px;
+    break-inside: avoid;
     padding: 0;
     overflow: hidden;
     border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.11));
@@ -584,11 +590,12 @@
     background: var(--sl-bg, #0a0a0a);
     color: var(--sl-faint, #555);
   }
+  /* Shown whole on the dark box, whatever shape the template is, never cropped. */
   .wf__thumb video {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
   .wf__goal strong,
   .wf__detail {

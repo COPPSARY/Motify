@@ -9,6 +9,7 @@ import {
   goalsForKinds,
   pickGoalPreviews,
   pickKindExamples,
+  ratioCss,
   planOfferDue,
   profileToSave,
   recommendPlan,
@@ -160,6 +161,27 @@ describe("example previews", () => {
         [],
       ).feature,
     ).toBeUndefined();
+  });
+  it("keeps each example in the shape its template was made in", () => {
+    const shaped = [
+      {
+        slug: "t",
+        title: "T",
+        video: "vt",
+        categories: ["Explainer"],
+        aspectRatio: "9:16" as const,
+      },
+      { slug: "u", title: "U", video: "vu", categories: ["UI"] },
+    ];
+    const examples = pickKindExamples(shaped);
+    expect(examples["explainers"]?.ratio).toBe("9 / 16");
+    expect(examples["demos"]?.ratio).toBe("4 / 3");
+  });
+  it("turns a ratio into CSS, with a neutral fallback", () => {
+    expect(ratioCss("16:9")).toBe("16 / 9");
+    expect(ratioCss("4:5")).toBe("4 / 5");
+    expect(ratioCss(undefined)).toBe("4 / 3");
+    expect(ratioCss("wide")).toBe("4 / 3");
   });
   it("gives each kind its own example", () => {
     const examples = pickKindExamples(templates);
