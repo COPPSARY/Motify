@@ -98,6 +98,34 @@ describe("GuidedStart", () => {
     expect(document.querySelectorAll(".gs-card")).toHaveLength(4);
   });
 
+  it("opens a tool's form from outside, with instructions already in", async () => {
+    start();
+    const instance = component as unknown as {
+      startWith(id: string, options?: { instructions?: string }): Promise<void>;
+    };
+    await instance.startWith("product-launch", {
+      instructions: "Launching on 1 December",
+    });
+    await settle();
+    expect(document.querySelector("h1")?.textContent).toContain(
+      "Product launch",
+    );
+    expect(
+      (document.getElementById("guide-instructions") as HTMLTextAreaElement)
+        .value,
+    ).toBe("Launching on 1 December");
+  });
+
+  it("ignores a tool that does not exist", async () => {
+    start();
+    const instance = component as unknown as {
+      startWith(id: string): Promise<void>;
+    };
+    await instance.startWith("nope");
+    await settle();
+    expect(document.querySelectorAll(".gs-card")).toHaveLength(4);
+  });
+
   it("links to every template from under the cards", () => {
     const onExplore = vi.fn();
     start({ onExplore });
@@ -121,7 +149,7 @@ describe("GuidedStart", () => {
     start();
     button("Social media ad").click();
     await settle();
-    button("1:1").click();
+    button("Square post").click();
     button("Custom").click();
     await settle();
     type("guide-seconds", "40");

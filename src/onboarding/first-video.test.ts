@@ -1,60 +1,57 @@
 import { describe, expect, it } from "vitest";
 
+import { GUIDED_TOOLS } from "./guided-tools";
 import {
+  GOAL_CHOICES,
   awaitingFirstVideo,
-  firstVideoPrompt,
+  goalById,
   planOfferDue,
   profileToSave,
+  recommendPlan,
   videosPerMonth,
 } from "./first-video";
 
 const answers = (over = {}) => ({
+  role: null,
+  monthlyVideos: null,
   interests: [] as string[],
-  format: "9:16" as const,
-  businessName: "",
+  goal: "launch" as const,
   ...over,
 });
 
-describe("firstVideoPrompt", () => {
-  it("keeps a prompt that came from the landing page", () => {
-    expect(
-      firstVideoPrompt(answers({ interests: ["Ads"] }), "  A pepper farm  "),
-    ).toBe("A pepper farm");
+const plans = [
+  { id: "pro", name: "Pro", price: 19.99, credits: 300 },
+  { id: "starter", name: "Starter", price: 9.99, credits: 150 },
+];
+
+describe("first video categories", () => {
+  it("each one opens a guided tool that exists", () => {
+    for (const goal of GOAL_CHOICES) {
+      expect(GUIDED_TOOLS.some((tool) => tool.id === goal.tool)).toBe(true);
+    }
   });
-  it("builds one from a single interest and the business", () => {
-    expect(
-      firstVideoPrompt(
-        answers({ interests: ["Product"], businessName: "Kampot Pepper" }),
-      ),
-    ).toBe(
-      "Make a short product video for Kampot Pepper. Keep it simple, bold and about 10 seconds long.",
-    );
-  });
-  it("joins several interests", () => {
-    expect(
-      firstVideoPrompt(answers({ interests: ["UI", "Product", "Design"] })),
-    ).toBe(
-      "Make a short video that mixes ui, product and design. Keep it simple, bold and about 10 seconds long.",
-    );
-  });
-  it("falls back to a promo when nothing was picked", () => {
-    expect(firstVideoPrompt(answers())).toContain("a short promo video");
+  it("finds a category by id", () => {
+    expect(goalById("feature")?.tool).toBe("product-walkthrough");
+    expect(goalById("nope")).toBeUndefined();
   });
 });
 
 describe("profileToSave", () => {
-  it("trims, caps and leaves out an empty business name", () => {
+  it("keeps the goal, caps the kinds and leaves out what was left blank", () => {
+    expect(profileToSave(answers({ interests: ["a", "b", "c", "d"] }))).toEqual(
+      {
+        interests: ["a", "b", "c"],
+        goal: "launch",
+      },
+    );
     expect(
-      profileToSave(
-        answers({ interests: ["a", "b", "c", "d"], businessName: "   " }),
-      ),
+      profileToSave(answers({ role: "marketer", monthlyVideos: "6-15" })),
     ).toEqual({
-      interests: ["a", "b", "c"],
-      format: "9:16",
+      interests: [],
+      goal: "launch",
+      role: "marketer",
+      monthlyVideos: "6-15",
     });
-    expect(
-      profileToSave(answers({ businessName: "  Cafe  " })).businessName,
-    ).toBe("Cafe");
   });
 });
 
@@ -84,5 +81,20 @@ describe("videosPerMonth", () => {
     expect(videosPerMonth(30, 7)).toBe(4);
     expect(videosPerMonth(0, 7)).toBe(0);
     expect(videosPerMonth(150, 0)).toBe(0);
+  });
+});
+
+describe("recommendPlan", () => {
+  it("picks the cheapest plan that covers what they said", () => {
+    expect(recommendPlan(plans, "1-5", 7)?.id).toBe("starter");
+    expect(recommendPlan(plans, "6-15", 7)?.id).toBe("starter");
+    expect(recommendPlan(plans, "16-40", 7)?.id).toBe("pro");
+  });
+  it("falls back to the biggest plan when none covers it", () => {
+    expect(recommendPlan(plans, "40+", 7)?.id).toBe("pro");
+  });
+  it("says nothing without an answer or plans", () => {
+    expect(recommendPlan(plans, undefined, 7)).toBeNull();
+    expect(recommendPlan([], "6-15", 7)).toBeNull();
   });
 });

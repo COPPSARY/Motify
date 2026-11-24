@@ -21,8 +21,8 @@ describe("WelcomeFlow", () => {
 
   beforeEach(() => {
     fetchPromptTemplates.mockResolvedValue([
-      { categories: ["Product"] },
-      { categories: ["Ads", "Product"] },
+      { slug: "a", video: "https://v/a.webm", categories: ["Product"] },
+      { slug: "b", video: null, categories: ["UI"] },
     ]);
   });
   afterEach(() => {
@@ -32,61 +32,108 @@ describe("WelcomeFlow", () => {
     vi.clearAllMocks();
   });
 
-  const open = async (props = {}) => {
+  const open = async () => {
     component = mount(WelcomeFlow, {
       target: document.body,
-      props: { onDone, onSkip, ...props },
+      props: { onDone, onSkip },
     });
     await settle();
   };
   const buttons = () => [
     ...document.querySelectorAll<HTMLButtonElement>("button"),
   ];
-  const byText = (text: string) =>
-    buttons().find((b) => b.textContent?.trim() === text)!;
+  const withText = (text: string) =>
+    buttons().find((b) => b.textContent?.includes(text))!;
   const click = async (element: HTMLElement) => {
     element.click();
     await settle();
   };
+  const bar = () =>
+    document
+      .querySelector('[role="progressbar"]')!
+      .getAttribute("aria-valuenow");
+
+  it("starts by asking who they are, with nothing chosen yet", async () => {
+    await open();
+    expect(document.body.textContent).toContain("Which best describes you?");
+    expect(document.body.textContent).toContain("Marketing");
+    expect(withText("Continue").disabled).toBe(true);
+    expect(
+      document.querySelectorAll('[role="radio"][aria-checked="true"]').length,
+    ).toBe(0);
+    expect(bar()).toBe("25");
+  });
 
   it("walks through the questions and hands back the answers", async () => {
     await open();
-    expect(document.body.textContent).toContain("Step 1 of 3");
-    expect(byText("Continue").disabled).toBe(true);
-    await click(byText("Product"));
-    await click(byText("Continue"));
-    expect(document.body.textContent).toContain("Step 2 of 3");
-    await click(buttons().find((b) => b.textContent?.includes("Square"))!);
-    await click(byText("Continue"));
-    const input = document.querySelector<HTMLInputElement>("input")!;
-    input.value = "Kampot Pepper";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await settle();
-    await click(byText("Make my first video"));
+    await click(withText("Marketing"));
+    await click(withText("Continue"));
+    expect(document.body.textContent).toContain(
+      "How many videos do you need each month?",
+    );
+    // Regular is already chosen; pick Serious instead.
+    await click(withText("Serious"));
+    await click(withText("Continue"));
+    expect(document.body.textContent).toContain(
+      "What kinds of videos do you usually make?",
+    );
+    await click(withText("Ads and promos"));
+    await click(withText("Explainers"));
+    await click(withText("Continue"));
+    expect(document.body.textContent).toContain(
+      "What should your first video be?",
+    );
+    expect(bar()).toBe("100");
+    expect(withText("Add my pictures").disabled).toBe(true);
+    await click(withText("Feature showcase"));
+    await click(withText("Add my pictures"));
     expect(onDone).toHaveBeenCalledWith({
-      interests: ["Product"],
-      format: "1:1",
-      businessName: "Kampot Pepper",
+      role: "marketer",
+      monthlyVideos: "16-40",
+      interests: ["ads", "explainers"],
+      goal: "feature",
     });
   });
 
-  it("leaves out the interests question when there are no categories", async () => {
-    fetchPromptTemplates.mockResolvedValue([]);
+  it("lets them pick at most three kinds of video", async () => {
     await open();
-    expect(document.body.textContent).toContain("Step 1 of 2");
-    expect(document.body.textContent).toContain("Where will it be seen?");
+    await click(withText("Marketing"));
+    await click(withText("Continue"));
+    await click(withText("Continue"));
+    for (const name of ["Ads and promos", "Social media posts", "Explainers"]) {
+      await click(withText(name));
+    }
+    expect(withText("Announcements").disabled).toBe(true);
+    await click(withText("Explainers"));
+    expect(withText("Announcements").disabled).toBe(false);
   });
 
-  it("does not block when the categories fail to load", async () => {
+  it("shows a preview where a template has one and none where not", async () => {
+    await open();
+    await click(withText("Marketing"));
+    for (let i = 0; i < 3; i += 1) await click(withText("Continue"));
+    expect(document.body.textContent).toContain("Product launch");
+    expect(document.querySelectorAll("video").length).toBe(1);
+  });
+
+  it("goes back a step", async () => {
+    await open();
+    await click(withText("Business owner"));
+    await click(withText("Continue"));
+    await click(
+      buttons().find((b) => b.getAttribute("aria-label") === "Back")!,
+    );
+    expect(document.body.textContent).toContain("Which best describes you?");
+    expect(withText("Business owner").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+  });
+
+  it("does not block when the previews fail to load, and can be skipped", async () => {
     fetchPromptTemplates.mockRejectedValue(new Error("offline"));
     await open();
-    expect(document.body.textContent).toContain("Where will it be seen?");
-  });
-
-  it("can be skipped", async () => {
-    await open();
-    await click(byText("Skip for now"));
+    expect(document.body.textContent).toContain("Which best describes you?");
+    await click(withText("Skip"));
     expect(onSkip).toHaveBeenCalled();
-    expect(onDone).not.toHaveBeenCalled();
   });
 });

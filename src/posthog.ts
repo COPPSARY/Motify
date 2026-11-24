@@ -15,6 +15,8 @@ export type MotionlyAnalyticsEvent =
   | "discount code redeem clicked"
   | "media uploaded"
   | "first generation completed"
+  | "first video reviewed"
+  | "first video revision started"
   | "first generation started"
   | "onboarding profile answered"
   | "onboarding started"

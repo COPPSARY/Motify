@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { ArrowRight, Download, X } from "lucide-svelte";
+  import { ASPECT_NAMES, aspectLabel } from "../composition/aspect-names";
   import {
     CANVAS_ASPECTS,
     type CanvasShape,
@@ -256,9 +257,11 @@
             <button
               role="radio"
               aria-checked={aspect === option}
+              aria-label={aspectLabel(option)}
+              title={`${ASPECT_NAMES[option].hint} (${option})`}
               class:on={aspect === option}
               on:click={() => onCanvasChange({ aspect: option })}
-              >{option}</button
+              >{ASPECT_NAMES[option].short}</button
             >
           {/each}
         </div>

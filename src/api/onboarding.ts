@@ -2,10 +2,27 @@ import { fetchApi } from "./client";
 
 export type OnboardingFormat = "16:9" | "9:16" | "1:1" | "4:5";
 
-/** What a new account said it wants to make, kept on the account so it follows them across devices. */
+/** What they do, so the plan offer can speak to them. */
+export type OnboardingRole =
+  "marketer" | "editor" | "owner" | "creator" | "casual" | "other";
+
+/** What the first video is. */
+export type OnboardingGoal = "launch" | "showcase" | "feature" | "animation";
+
+/** How many videos a month they expect to make, so a plan can be suggested after the first one. */
+export type OnboardingMonthlyVideos = "1-5" | "6-15" | "16-40" | "40+";
+
+export type OnboardingRating = "liked" | "not-quite";
+
+/** What a new account told us, kept on the account so it follows them across devices. */
 export interface OnboardingProfile {
-  /** Template categories picked (at most three). */
+  /** The kinds of video they usually make (up to three). */
   interests?: string[];
+  role?: OnboardingRole;
+  goal?: OnboardingGoal;
+  monthlyVideos?: OnboardingMonthlyVideos;
+  /** Whether they liked the first video. */
+  firstVideoRating?: OnboardingRating;
   format?: OnboardingFormat;
   businessName?: string;
   /** Set by the server the first time the plan offer is shown; it is only ever shown once. */
@@ -22,9 +39,9 @@ export interface OnboardingState {
 interface OnboardingPatch {
   step?: string;
   completed?: boolean;
-  /** Clears progress so the tour runs again. The welcome answers are kept. */
+  /** Clears progress so the tour runs again. The answers are kept. */
   reset?: boolean;
-  /** Welcome answers to merge into the saved profile. */
+  /** Answers to merge into the saved profile. */
   profile?: Omit<OnboardingProfile, "planOfferShownAt">;
   /** Records that the plan offer was shown; the server stamps the time once. */
   planOfferShown?: true;
