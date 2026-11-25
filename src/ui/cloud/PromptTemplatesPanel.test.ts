@@ -95,10 +95,10 @@ describe("PromptTemplatesPanel", () => {
       "[data-tour='prompts-copy']",
     );
     expect(copy?.dataset["tooltip"]).toMatch(/edit it/i);
-    await type("a coffee shop");
+    await type("a bakery");
     copy?.click();
     await settle();
-    expect(writeText).toHaveBeenCalledWith("Make a video about a coffee shop.");
+    expect(writeText).toHaveBeenCalledWith("Make a video about a bakery.");
     expect(document.body.textContent).toContain("Copied");
   });
 
@@ -124,28 +124,45 @@ describe("PromptTemplatesPanel", () => {
     expect(document.querySelector(".pt-note:not(.pt-sample)")).toBeNull();
   });
 
-  it("copies what the person changed, in a field or by hand", async () => {
+  it("copies what the person changed in a field", async () => {
     open();
     await settle();
-    const input = document.querySelector<HTMLInputElement>(".pt-field input")!;
-    input.value = "a bakery";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await settle();
+    await type("a bakery");
     document
       .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
       ?.click();
     await settle();
     expect(writeText).toHaveBeenLastCalledWith("Make a video about a bakery.");
+  });
 
-    const prompt = document.querySelector<HTMLTextAreaElement>(".pt-prompt")!;
-    prompt.value = "My own words";
-    prompt.dispatchEvent(new Event("input", { bubbles: true }));
+  it("shows a live preview that highlights the fields and marks the changed ones", async () => {
+    open();
     await settle();
-    document
-      .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
+    const preview = document.querySelector(".pt-preview")!;
+    expect(preview.textContent).toBe("Make a video about a coffee shop.");
+    const mark = () => preview.querySelector("mark")!;
+    expect(mark().textContent).toBe("a coffee shop");
+    expect(mark().classList.contains("is-changed")).toBe(false);
+    await type("a bakery");
+    expect(preview.textContent).toBe("Make a video about a bakery.");
+    expect(mark().classList.contains("is-changed")).toBe(true);
+  });
+
+  it("puts the example back with Reset", async () => {
+    open();
+    await settle();
+    await type("a bakery");
+    [...document.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Reset"))
       ?.click();
     await settle();
-    expect(writeText).toHaveBeenLastCalledWith("My own words");
+    expect(document.querySelector(".pt-preview")?.textContent).toBe(
+      "Make a video about a coffee shop.",
+    );
+    expect(document.querySelector(".pt-sample")).not.toBeNull();
+    expect(
+      document.querySelector<HTMLInputElement>(".pt-field input")?.value,
+    ).toBe("a coffee shop");
   });
 
   it("switches templates and sends the prompt to Tiffy", async () => {
@@ -154,11 +171,11 @@ describe("PromptTemplatesPanel", () => {
     document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
     await settle();
     expect(document.body.textContent).toContain("Title two");
-    await type("a bus");
+    await type("a ferry");
     [...document.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("Use in Tiffy"))
       ?.click();
-    expect(onUse).toHaveBeenCalledWith("Make a video about a bus.", []);
+    expect(onUse).toHaveBeenCalledWith("Make a video about a ferry.", []);
   });
 
   it("keeps Copy and Use off until the example is changed or kept", async () => {

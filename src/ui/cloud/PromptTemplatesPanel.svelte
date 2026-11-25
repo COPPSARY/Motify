@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Copy, SendHorizontal } from "lucide-svelte";
+  import { Check, Copy, RotateCcw, SendHorizontal } from "lucide-svelte";
   import {
     fetchPromptTemplates,
+    fieldValue,
     renderPrompt,
     type PromptTemplate,
   } from "../../api/prompt-templates";
@@ -26,8 +27,6 @@
   let status: "loading" | "ready" | "error" = "loading";
   let selectedSlug = "";
   let values: Record<string, string> = {};
-  /** The prompt as edited by hand; null until they type in it, and reset when a field changes. */
-  let manualPrompt: string | null = null;
   let copied = false;
   /** Their own images, video or audio; they go to Tiffy with the prompt, not with Copy. */
   let assets: File[] = [];
@@ -45,8 +44,8 @@
   $: visible = inCategory(templates, filter);
   $: selected = templates.find((item) => item.slug === selectedSlug) ?? null;
   $: rendered = selected ? renderPrompt(selected, values) : "";
-  $: prompt = manualPrompt ?? rendered;
-  $: isSample = selected ? stillSample(selected, values, manualPrompt) : false;
+  $: prompt = rendered;
+  $: isSample = selected ? stillSample(selected, values) : false;
   /** Copy and Use stay off while the template still holds its example, unless they chose to keep it. */
   $: blocked = isSample && !keepExample;
 
@@ -116,7 +115,6 @@
   function select(template: PromptTemplate) {
     selectedSlug = template.slug;
     values = {};
-    manualPrompt = null;
     keepExample = false;
     copied = false;
     copyNote = false;
@@ -124,7 +122,15 @@
 
   function setField(key: string, value: string) {
     values = { ...values, [key]: value };
-    manualPrompt = null;
+  }
+
+  /** Whether the person has put their own words in this field, rather than leaving the template's example. */
+  function isCustomized(
+    field: PromptTemplate["fields"][number],
+    typed: Readonly<Record<string, string>>,
+  ): boolean {
+    const value = typed[field.key]?.trim();
+    return Boolean(value) && value !== field.defaultValue;
   }
 
   /**
@@ -137,11 +143,37 @@
   function stillSample(
     template: PromptTemplate,
     typed: Readonly<Record<string, string>>,
-    edited: string | null,
   ): boolean {
-    if (edited !== null) return false;
     const subject = template.fields.find((field) => field.type !== "number");
-    return subject !== undefined && !typed[subject.key]?.trim();
+    return subject !== undefined && !isCustomized(subject, typed);
+  }
+
+  /** One piece of the live preview: the template's own words, or what a field now holds. */
+  function segmentText(
+    template: PromptTemplate,
+    segment: PromptTemplate["prompt"][number],
+    typed: Readonly<Record<string, string>>,
+  ): string {
+    if ("text" in segment) return segment.text;
+    const field = template.fields.find((item) => item.key === segment.field);
+    if (!field) return "";
+    return `${segment.before ?? ""}${fieldValue(field, typed)}${segment.after ?? ""}`;
+  }
+
+  function segmentField(
+    template: PromptTemplate,
+    segment: PromptTemplate["prompt"][number],
+  ) {
+    return "field" in segment
+      ? template.fields.find((item) => item.key === segment.field)
+      : undefined;
+  }
+
+  function reset() {
+    values = {};
+    keepExample = false;
+    copied = false;
+    copyNote = false;
   }
 
   function addAssets(event: Event & { currentTarget: HTMLInputElement }) {
@@ -257,6 +289,52 @@
       <section class="pt-detail" aria-labelledby="pt-detail-title">
         <h2 id="pt-detail-title">{selected.title}</h2>
 
+        {#if selected.special}
+          <div class="pt-agent">
+            <h3>Before you use this in Motify</h3>
+            <p>
+              Copy this prompt into your coding agent with the product codebase
+              open. When it returns <code>&lt;direction&gt;</code> and
+              <code>&lt;structure&gt;</code>, paste those two blocks into
+              Motify.
+            </p>
+          </div>
+        {/if}
+
+        <div class="pt-section-head">
+          <div>
+            <p>{selected.special ? "Agent prompt" : "Prompt"}</p>
+            <h3>Live preview</h3>
+          </div>
+          <span class="pt-legend"
+            ><i aria-hidden="true"></i> Highlighted text is customizable</span
+          >
+        </div>
+
+        <div class="pt-preview" aria-label="Prompt preview">
+          {#each selected.prompt as segment}
+            {@const field = segmentField(selected, segment)}
+            {#if field}
+              <mark class:is-changed={isCustomized(field, values)}
+                >{segmentText(selected, segment, values)}</mark
+              >
+            {:else}
+              <span>{segmentText(selected, segment, values)}</span>
+            {/if}
+          {/each}
+        </div>
+
+        <div class="pt-section-head">
+          <div>
+            <p>Customize prompt</p>
+            <h3>Make it yours</h3>
+          </div>
+        </div>
+        <p class="pt-help">
+          Change any of these, or leave them blank to keep the example. They
+          fill the highlighted parts of the prompt.
+        </p>
+
         <div class="pt-fields">
           {#each selected.fields as field (field.key)}
             <label class="pt-field">
@@ -281,6 +359,10 @@
                     setField(field.key, event.currentTarget.value)}
                 />
               {/if}
+              <small
+                >{field.description}{#if field.min !== undefined && field.max !== undefined}
+                  <b>{field.min}–{field.max}</b>{/if}</small
+              >
             </label>
           {/each}
         </div>
@@ -330,16 +412,6 @@
           </p>
         {/if}
 
-        <label class="pt-field">
-          <span>Prompt</span>
-          <textarea
-            class="pt-prompt"
-            rows="9"
-            value={prompt}
-            on:input={(event) => (manualPrompt = event.currentTarget.value)}
-          ></textarea>
-        </label>
-
         <div class="pt-actions">
           <button
             type="button"
@@ -349,7 +421,11 @@
             data-tooltip={COPY_TOOLTIP}
             on:click={copy}
           >
-            {#if copied}<Check size={15} /> Copied{:else}<Copy size={15} /> Copy prompt{/if}
+            {#if copied}<Check size={15} />
+              {selected.special ? "Agent prompt copied" : "Copied"}{:else}<Copy
+                size={15}
+              />
+              {selected.special ? "Copy agent prompt" : "Copy prompt"}{/if}
           </button>
           <button
             type="button"
@@ -358,6 +434,9 @@
             disabled={!prompt.trim() || blocked}
           >
             <SendHorizontal size={15} /> Use in Tiffy
+          </button>
+          <button type="button" class="pt-btn" on:click={reset}>
+            <RotateCcw size={15} /> Reset
           </button>
         </div>
         {#if copyNote}
