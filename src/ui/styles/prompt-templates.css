@@ -1,10 +1,4 @@
 /* Prompt Templates page: a grid of preview cards and the open template's editable prompt. */
-.code-editor-scope .pt {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-  gap: 28px;
-  align-items: start;
-}
 .code-editor-scope .pt-media {
   position: relative;
   display: block;
@@ -90,70 +84,6 @@
 .code-editor-scope .pt-card {
   width: 100%;
 }
-.code-editor-scope .pt-detail {
-  position: sticky;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.08));
-  border-radius: 14px;
-  background: var(--sl-panel, #111);
-}
-.code-editor-scope .pt-detail h2 {
-  margin: 2px 0 4px;
-  font-size: 18px;
-  font-weight: 600;
-}
-.code-editor-scope .pt-detail p {
-  margin: 0;
-  color: var(--sl-text-soft, #b5b5b5);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.code-editor-scope .pt-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-.code-editor-scope .pt-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.code-editor-scope .pt-field > span {
-  font-size: 12px;
-  font-weight: 600;
-}
-.code-editor-scope .pt-field input,
-.code-editor-scope .pt-field textarea {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  background: var(--sl-bg, #0c0c0e);
-  color: var(--sl-text);
-  font: inherit;
-  font-size: 13px;
-}
-.code-editor-scope .pt-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.code-editor-scope .pt-note {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.16));
-  border-radius: 8px;
-  color: var(--sl-text);
-  font-size: 13px;
-  line-height: 1.5;
-}
 .code-editor-scope .pt-link {
   padding: 0;
   border: 0;
@@ -187,101 +117,9 @@
   color: #fff;
 }
 /* Wraps, unlike the one-line toolbar tooltips. */
-.code-editor-scope .pt-btn[data-tooltip] {
-  position: relative;
-}
-.code-editor-scope .pt-btn[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 90;
-  width: 220px;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: #29292d;
-  color: #f1f1f3;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: left;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(3px);
-  transition:
-    opacity 0.12s ease,
-    transform 0.12s ease;
-}
-.code-editor-scope .pt-btn[data-tooltip]:hover::after,
-.code-editor-scope .pt-btn[data-tooltip]:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
-}
 .code-editor-scope .pt-state {
   color: var(--sl-muted);
   font-size: 14px;
-}
-@media (max-width: 960px) {
-  .code-editor-scope .pt {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .code-editor-scope .pt-detail {
-    position: static;
-  }
-}
-.code-editor-scope .pt-asset-list {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-  display: grid;
-  gap: 4px;
-}
-.code-editor-scope .pt-agent {
-  padding: 10px 12px;
-  border: 1px solid var(--sl-border-strong, rgba(255, 255, 255, 0.16));
-  border-radius: 8px;
-}
-.code-editor-scope .pt-agent h3 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-.code-editor-scope .pt-agent p {
-  margin-top: 4px;
-  font-size: 12px;
-}
-.code-editor-scope .pt-section-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-}
-.code-editor-scope .pt-section-head p {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.code-editor-scope .pt-section-head h3 {
-  margin: 2px 0 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-.code-editor-scope .pt-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--sl-text-soft, #b5b5b5);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.code-editor-scope .pt-legend i {
-  width: 10px;
-  height: 10px;
-  border: 1px solid rgba(86, 125, 241, 0.5);
-  border-radius: 3px;
-  background: rgba(31, 69, 176, 0.22);
 }
 .code-editor-scope .pt-preview {
   max-height: 280px;
@@ -312,25 +150,261 @@
   background: rgba(39, 88, 230, 0.4);
   color: #fff;
 }
-.code-editor-scope .pt-help {
-  margin-top: -6px;
-  font-size: 12px;
-}
-.code-editor-scope .pt-field small {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--sl-text-soft, #b5b5b5);
-  font-size: 11px;
-  line-height: 1.35;
-}
-.code-editor-scope .pt-field small b {
-  font-weight: 500;
-  white-space: nowrap;
-  opacity: 0.7;
-}
 @media (prefers-reduced-motion: reduce) {
   .code-editor-scope .pt-preview mark {
     transition: none;
   }
+}
+
+/* A template's own page. */
+.code-editor-scope .ptd {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1040px;
+}
+.code-editor-scope .ptd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 10px 6px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--sl-text-soft, #b5b5b5);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.code-editor-scope .ptd-back:hover {
+  color: var(--sl-text);
+}
+.code-editor-scope .ptd-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.code-editor-scope .ptd-media {
+  position: sticky;
+  top: 16px;
+  overflow: hidden;
+  max-height: 70vh;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: #000;
+}
+.code-editor-scope .ptd-media video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.code-editor-scope .ptd-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.code-editor-scope .ptd-form h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.code-editor-scope .ptd-sub {
+  margin: -10px 0 0;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.code-editor-scope .ptd-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.code-editor-scope .ptd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.code-editor-scope .ptd-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.code-editor-scope .ptd-field input,
+.code-editor-scope .ptd-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  background: var(--sl-bg, #0c0c0e);
+  color: var(--sl-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.code-editor-scope .ptd-field textarea {
+  resize: vertical;
+}
+.code-editor-scope .ptd-field input:focus,
+.code-editor-scope .ptd-field textarea:focus {
+  border-color: #5778dc;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 69, 176, 0.25);
+}
+/* The field to change first, while the template still holds its example. */
+.code-editor-scope .ptd-field.is-start input,
+.code-editor-scope .ptd-field.is-start textarea {
+  border-color: rgba(86, 125, 241, 0.7);
+}
+/* What a field is for shows only while you are in it. */
+.code-editor-scope .ptd-hint {
+  display: none;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.code-editor-scope .ptd-field:focus-within .ptd-hint {
+  display: block;
+}
+.code-editor-scope .ptd-assets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.code-editor-scope .ptd-drop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px dashed var(--sl-border-strong, rgba(255, 255, 255, 0.22));
+  border-radius: 12px;
+  color: var(--sl-text-soft, #b5b5b5);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+.code-editor-scope .ptd-drop:hover,
+.code-editor-scope .ptd-drop.is-over,
+.code-editor-scope .ptd-drop:focus-within {
+  border-color: #5778dc;
+  background: rgba(31, 69, 176, 0.1);
+  color: var(--sl-text);
+}
+.code-editor-scope .ptd-drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.code-editor-scope .ptd-drop strong {
+  display: block;
+  color: var(--sl-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.code-editor-scope .ptd-drop em {
+  font-size: 12px;
+  font-style: normal;
+}
+.code-editor-scope .ptd-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.code-editor-scope .ptd-files li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--sl-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  font-size: 12px;
+}
+.code-editor-scope .ptd-files li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-editor-scope .ptd-files button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.code-editor-scope .ptd-files button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.code-editor-scope .ptd-sample {
+  margin: -8px 0 0;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 13px;
+}
+.code-editor-scope .ptd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.code-editor-scope .ptd-use {
+  padding: 11px 20px;
+  font-size: 14px;
+}
+.code-editor-scope .ptd-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 13px;
+}
+.code-editor-scope .ptd-prompt summary {
+  width: fit-content;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 13px;
+  cursor: pointer;
+}
+.code-editor-scope .ptd-prompt summary:hover {
+  color: var(--sl-text);
+}
+.code-editor-scope .ptd-prompt .pt-preview {
+  margin-top: 10px;
+}
+@media (max-width: 860px) {
+  .code-editor-scope .ptd-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .code-editor-scope .ptd-media {
+    position: static;
+    max-width: 320px;
+    max-height: 50vh;
+  }
+}
+.code-editor-scope .ptd-look summary {
+  width: fit-content;
+  color: var(--sl-text-soft, #b5b5b5);
+  font-size: 13px;
+  cursor: pointer;
+}
+.code-editor-scope .ptd-look summary:hover {
+  color: var(--sl-text);
+}
+.code-editor-scope .ptd-look .ptd-fields {
+  margin-top: 14px;
 }

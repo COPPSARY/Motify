@@ -73,7 +73,7 @@ describe("PromptTemplatesPanel", () => {
   });
 
   async function type(value: string) {
-    const input = document.querySelector<HTMLInputElement>(".pt-field input")!;
+    const input = document.querySelector<HTMLInputElement>(".ptd-field input")!;
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     await settle();
@@ -87,61 +87,64 @@ describe("PromptTemplatesPanel", () => {
     return onUse;
   }
 
-  it("opens the first template and copies its filled-in prompt", async () => {
+  /** Opens a template's own page, as a click on its card does. */
+  async function openTemplate(index = 0) {
+    document.querySelectorAll<HTMLButtonElement>(".pt-card")[index]?.click();
+    await settle();
+  }
+
+  const button = (label: string) =>
+    [...document.querySelectorAll("button")].find((item) =>
+      item.textContent?.includes(label),
+    )!;
+  const copyButton = () =>
+    document.querySelector<HTMLButtonElement>(".ptd-copy")!;
+
+  it("shows the list first and opens a template on its own page", async () => {
     open();
     await settle();
-    expect(document.body.textContent).toContain("Title one");
-    const copy = document.querySelector<HTMLButtonElement>(
-      "[data-tour='prompts-copy']",
-    );
-    expect(copy?.dataset["tooltip"]).toMatch(/edit it/i);
+    expect(document.querySelectorAll(".pt-card")).toHaveLength(2);
+    expect(document.querySelector(".ptd")).toBeNull();
+
+    await openTemplate(1);
+    expect(document.querySelector("#ptd-title")?.textContent).toBe("Title two");
+    // The list gives way to the page instead of sitting beside it.
+    expect(document.querySelector(".pt-grid")).toBeNull();
+  });
+
+  it("goes back to the list, and the next template starts fresh", async () => {
+    open();
+    await settle();
+    await openTemplate(0);
     await type("a bakery");
-    copy?.click();
+    button("All templates").click();
+    await settle();
+    expect(document.querySelector(".ptd")).toBeNull();
+    expect(document.querySelectorAll(".pt-card")).toHaveLength(2);
+    await openTemplate(0);
+    expect(
+      document.querySelector<HTMLInputElement>(".ptd-field input")?.value,
+    ).toBe("a coffee shop");
+  });
+
+  it("copies the filled-in prompt once the example is made theirs", async () => {
+    open();
+    await settle();
+    await openTemplate();
+    await type("a bakery");
+    copyButton().click();
     await settle();
     expect(writeText).toHaveBeenCalledWith("Make a video about a bakery.");
     expect(document.body.textContent).toContain("Copied");
   });
 
-  it("tells them to edit it for their product and add references once copied", async () => {
+  it("shows a live full prompt that highlights the fields and marks the changed ones", async () => {
     open();
     await settle();
-    expect(document.querySelector(".pt-note:not(.pt-sample)")).toBeNull();
-    await type("a bakery");
-    document
-      .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
-      ?.click();
-    await settle();
-    const note = document.querySelector(".pt-note")?.textContent ?? "";
-    expect(note).toMatch(/edit it for your own product/i);
-    expect(note).toMatch(/add references/i);
-
-    // It outlasts the button's "Copied" state, and goes away on another template.
-    await new Promise((resolve) => setTimeout(resolve, 2400));
-    flushSync();
-    expect(document.querySelector(".pt-note")).not.toBeNull();
-    document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
-    await settle();
-    expect(document.querySelector(".pt-note:not(.pt-sample)")).toBeNull();
-  });
-
-  it("copies what the person changed in a field", async () => {
-    open();
-    await settle();
-    await type("a bakery");
-    document
-      .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
-      ?.click();
-    await settle();
-    expect(writeText).toHaveBeenLastCalledWith("Make a video about a bakery.");
-  });
-
-  it("shows a live preview that highlights the fields and marks the changed ones", async () => {
-    open();
-    await settle();
-    const preview = document.querySelector(".pt-preview")!;
+    await openTemplate();
+    const preview = document.querySelector(".ptd-prompt .pt-preview")!;
     expect(preview.textContent).toBe("Make a video about a coffee shop.");
     const mark = () => preview.querySelector("mark")!;
-    expect(mark().textContent).toBe("a coffee shop");
     expect(mark().classList.contains("is-changed")).toBe(false);
     await type("a bakery");
     expect(preview.textContent).toBe("Make a video about a bakery.");
@@ -151,62 +154,43 @@ describe("PromptTemplatesPanel", () => {
   it("puts the example back with Reset", async () => {
     open();
     await settle();
+    await openTemplate();
     await type("a bakery");
-    [...document.querySelectorAll("button")]
-      .find((button) => button.textContent?.includes("Reset"))
-      ?.click();
+    button("Reset").click();
     await settle();
-    expect(document.querySelector(".pt-preview")?.textContent).toBe(
-      "Make a video about a coffee shop.",
-    );
-    expect(document.querySelector(".pt-sample")).not.toBeNull();
     expect(
-      document.querySelector<HTMLInputElement>(".pt-field input")?.value,
+      document.querySelector<HTMLInputElement>(".ptd-field input")?.value,
     ).toBe("a coffee shop");
-  });
-
-  it("switches templates and sends the prompt to Tiffy", async () => {
-    const onUse = open();
-    await settle();
-    document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
-    await settle();
-    expect(document.body.textContent).toContain("Title two");
-    await type("a ferry");
-    [...document.querySelectorAll("button")]
-      .find((button) => button.textContent?.includes("Use in Tiffy"))
-      ?.click();
-    expect(onUse).toHaveBeenCalledWith("Make a video about a ferry.", []);
+    expect(document.querySelector(".ptd-sample")).not.toBeNull();
   });
 
   it("keeps Copy and Use off until the example is changed or kept", async () => {
     const onUse = open();
     await settle();
-    const copy = document.querySelector<HTMLButtonElement>(
-      "[data-tour='prompts-copy']",
-    )!;
-    const use = () =>
-      [...document.querySelectorAll("button")].find((button) =>
-        button.textContent?.includes("Use in Tiffy"),
-      )!;
-    expect(document.querySelector(".pt-sample")).not.toBeNull();
-    expect(copy.disabled).toBe(true);
-    expect(use().disabled).toBe(true);
+    await openTemplate();
+    expect(document.querySelector(".ptd-sample")).not.toBeNull();
+    expect(
+      document.querySelector(".ptd-field")?.classList.contains("is-start"),
+    ).toBe(true);
+    expect(copyButton().disabled).toBe(true);
+    expect(button("Use in Tiffy").disabled).toBe(true);
 
     // Keeping the example as it is turns them on.
-    document.querySelector<HTMLButtonElement>(".pt-link")?.click();
+    document.querySelector<HTMLButtonElement>(".ptd-sample .pt-link")?.click();
     await settle();
-    expect(document.querySelector(".pt-sample")).toBeNull();
-    expect(copy.disabled).toBe(false);
-    use().click();
+    expect(document.querySelector(".ptd-sample")).toBeNull();
+    expect(copyButton().disabled).toBe(false);
+    button("Use in Tiffy").click();
     expect(onUse).toHaveBeenCalledWith("Make a video about a coffee shop.", []);
 
     // Another template starts over, and changing a field turns them on too.
-    document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
+    button("All templates").click();
     await settle();
-    expect(use().disabled).toBe(true);
-    await type("a bakery");
-    expect(document.querySelector(".pt-sample")).toBeNull();
-    expect(use().disabled).toBe(false);
+    await openTemplate(1);
+    expect(button("Use in Tiffy").disabled).toBe(true);
+    await type("a ferry");
+    expect(document.querySelector(".ptd-sample")).toBeNull();
+    expect(button("Use in Tiffy").disabled).toBe(false);
   });
 
   it("needs the first field changed, not just fonts or colours", async () => {
@@ -227,22 +211,69 @@ describe("PromptTemplatesPanel", () => {
     fetchPromptTemplates.mockResolvedValue([two]);
     open();
     await settle();
+    await openTemplate();
     const inputs =
-      document.querySelectorAll<HTMLInputElement>(".pt-fields input");
+      document.querySelectorAll<HTMLInputElement>(".ptd-field input");
     inputs[1]!.value = "navy";
     inputs[1]!.dispatchEvent(new Event("input", { bubbles: true }));
     await settle();
-    expect(document.querySelector(".pt-sample")).not.toBeNull();
+    expect(document.querySelector(".ptd-sample")).not.toBeNull();
     await type("Ferrygo");
-    expect(document.querySelector(".pt-sample")).toBeNull();
+    expect(document.querySelector(".ptd-sample")).toBeNull();
+  });
+
+  it("treats the first content field as the one to change, not colours listed ahead of it", async () => {
+    const lookFirst: PromptTemplate = {
+      ...template("look-first", "a coffee shop"),
+      fields: [
+        {
+          key: "colors",
+          label: "Colors",
+          description: "",
+          defaultValue: "red",
+          placeholder: "",
+          type: "text",
+        },
+        ...template("x", "a coffee shop").fields,
+      ],
+    };
+    fetchPromptTemplates.mockResolvedValue([lookFirst]);
+    open();
+    await settle();
+    await openTemplate();
+    // Colours are folded away; the visible field is the one that has to change.
+    const visible = document.querySelectorAll<HTMLInputElement>(
+      ".ptd-fields:not(.ptd-look .ptd-fields) input",
+    );
+    visible[0]!.value = "a bakery";
+    visible[0]!.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+    expect(document.querySelector(".ptd-sample")).toBeNull();
+  });
+
+  it("offers a coding-agent template only Copy, since it is not for Tiffy", async () => {
+    fetchPromptTemplates.mockResolvedValue([
+      { ...template("agent", "the checkout"), special: true },
+    ]);
+    open();
+    await settle();
+    await openTemplate();
+    expect(document.querySelector(".ptd-assets")).toBeNull();
+    expect(
+      [...document.querySelectorAll("button")].some((item) =>
+        item.textContent?.includes("Use in Tiffy"),
+      ),
+    ).toBe(false);
+    expect(copyButton().textContent).toContain("Copy agent prompt");
   });
 
   it("sends the person's own assets to Tiffy with the prompt", async () => {
     const onUse = open();
     await settle();
+    await openTemplate();
     await type("a bakery");
     const picker = document.querySelector<HTMLInputElement>(
-      ".pt-assets input[type=file]",
+      ".ptd-drop input[type=file]",
     )!;
     const logo = new File(["x"], "logo.png", { type: "image/png" });
     Object.defineProperty(picker, "files", {
@@ -251,15 +282,29 @@ describe("PromptTemplatesPanel", () => {
     });
     picker.dispatchEvent(new Event("change", { bubbles: true }));
     await settle();
-    expect(document.querySelector(".pt-asset-list")?.textContent).toContain(
+    expect(document.querySelector(".ptd-files")?.textContent).toContain(
       "logo.png",
     );
-    [...document.querySelectorAll("button")]
-      .find((button) => button.textContent?.includes("Use in Tiffy"))
-      ?.click();
+    button("Use in Tiffy").click();
     expect(onUse).toHaveBeenCalledWith("Make a video about a bakery.", [logo]);
+  });
+
+  it("takes dropped files and lets one be removed", async () => {
+    open();
     await settle();
-    expect(document.querySelector(".pt-asset-list")).toBeNull();
+    await openTemplate();
+    const drop = document.querySelector<HTMLElement>(".ptd-drop")!;
+    const shot = new File(["x"], "shot.png", { type: "image/png" });
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: { files: [shot] } });
+    drop.dispatchEvent(event);
+    await settle();
+    expect(document.querySelector(".ptd-files")?.textContent).toContain(
+      "shot.png",
+    );
+    document.querySelector<HTMLButtonElement>(".ptd-files button")?.click();
+    await settle();
+    expect(document.querySelector(".ptd-files")).toBeNull();
   });
 
   it("shapes each preview to its video's aspect ratio", async () => {
@@ -327,8 +372,6 @@ describe("PromptTemplatesPanel", () => {
       open(vi.fn(), ["UI"]);
       await settle();
       expect(cards()).toEqual(["Title two"]);
-      // The open template is one of the visible ones.
-      expect(document.body.textContent).toContain("Title two");
     });
 
     it("shows everything when a new account picked several categories", async () => {
@@ -365,17 +408,20 @@ describe("PromptTemplatesPanel", () => {
       expect(chip("All").getAttribute("aria-pressed")).toBe("true");
     });
 
-    it("keeps the open template inside the filtered list", async () => {
+    it("keeps the chosen category when coming back from a template", async () => {
       open();
       await settle();
-      expect(document.body.textContent).toContain("Title one");
       [...document.querySelectorAll<HTMLButtonElement>(".me-chip")]
-        .find((button) => button.textContent === "UI")
+        .find((item) => item.textContent === "UI")
         ?.click();
       await settle();
-      expect(document.querySelector("#pt-detail-title")?.textContent).toBe(
+      await openTemplate(0);
+      expect(document.querySelector("#ptd-title")?.textContent).toBe(
         "Title two",
       );
+      button("All templates").click();
+      await settle();
+      expect(cards()).toEqual(["Title two"]);
     });
   });
 });
