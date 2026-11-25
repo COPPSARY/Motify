@@ -192,6 +192,34 @@ describe("PromptTemplatesPanel", () => {
     expect(use().disabled).toBe(false);
   });
 
+  it("needs the first field changed, not just fonts or colours", async () => {
+    const two: PromptTemplate = {
+      ...template("two-fields", "BookMeBus"),
+      fields: [
+        ...template("x", "BookMeBus").fields,
+        {
+          key: "colors",
+          label: "Colors",
+          description: "",
+          defaultValue: "sky blue",
+          placeholder: "",
+          type: "text",
+        },
+      ],
+    };
+    fetchPromptTemplates.mockResolvedValue([two]);
+    open();
+    await settle();
+    const inputs =
+      document.querySelectorAll<HTMLInputElement>(".pt-fields input");
+    inputs[1]!.value = "navy";
+    inputs[1]!.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+    expect(document.querySelector(".pt-sample")).not.toBeNull();
+    await type("Ferrygo");
+    expect(document.querySelector(".pt-sample")).toBeNull();
+  });
+
   it("sends the person's own assets to Tiffy with the prompt", async () => {
     const onUse = open();
     await settle();

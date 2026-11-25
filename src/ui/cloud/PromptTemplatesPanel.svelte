@@ -128,9 +128,11 @@
   }
 
   /**
-   * The fields open on the template's own example (its product, its story), so
-   * a prompt nobody has touched describes someone else's film. A template with
-   * no text to change has nothing to personalise and is never a sample.
+   * The fields open on the template's own example, so a prompt nobody has made
+   * theirs describes someone else's film. A template's first field is what the
+   * film is about (its product, concept or script), so until that one is
+   * changed it is still the example; fonts, colours or length alone don't make
+   * it theirs. A template with no text to change is never a sample.
    */
   function stillSample(
     template: PromptTemplate,
@@ -138,11 +140,8 @@
     edited: string | null,
   ): boolean {
     if (edited !== null) return false;
-    const personal = template.fields.filter((field) => field.type !== "number");
-    return (
-      personal.length > 0 &&
-      personal.every((field) => !typed[field.key]?.trim())
-    );
+    const subject = template.fields.find((field) => field.type !== "number");
+    return subject !== undefined && !typed[subject.key]?.trim();
   }
 
   function addAssets(event: Event & { currentTarget: HTMLInputElement }) {
