@@ -14,7 +14,7 @@
   } from "./prompt-template-cache";
 
   /** Puts a prompt in Tiffy's composer on the create page. */
-  export let onUse: (prompt: string) => void;
+  export let onUse: (prompt: string, assets: File[]) => void;
   export let onNotice: (message: string) => void;
   /** Categories a new account picked; with just one, the page opens filtered to it. */
   export let initialCategories: string[] = [];
@@ -29,6 +29,10 @@
   /** The prompt as edited by hand; null until they type in it, and reset when a field changes. */
   let manualPrompt: string | null = null;
   let copied = false;
+  /** Their own images, video or audio; they go to Tiffy with the prompt, not with Copy. */
+  let assets: File[] = [];
+  /** They looked at the example and want it as it is. */
+  let keepExample = false;
   /** After a copy, what to do next; it stays until another template is opened. */
   let copyNote = false;
   /** Only templates in this category show; null means all of them. */
@@ -42,6 +46,9 @@
   $: selected = templates.find((item) => item.slug === selectedSlug) ?? null;
   $: rendered = selected ? renderPrompt(selected, values) : "";
   $: prompt = manualPrompt ?? rendered;
+  $: isSample = selected ? stillSample(selected, values, manualPrompt) : false;
+  /** Copy and Use stay off while the template still holds its example, unless they chose to keep it. */
+  $: blocked = isSample && !keepExample;
 
   onMount(() => {
     void load();
@@ -110,6 +117,7 @@
     selectedSlug = template.slug;
     values = {};
     manualPrompt = null;
+    keepExample = false;
     copied = false;
     copyNote = false;
   }
@@ -119,8 +127,48 @@
     manualPrompt = null;
   }
 
+  /**
+   * The fields open on the template's own example (its product, its story), so
+   * a prompt nobody has touched describes someone else's film. A template with
+   * no text to change has nothing to personalise and is never a sample.
+   */
+  function stillSample(
+    template: PromptTemplate,
+    typed: Readonly<Record<string, string>>,
+    edited: string | null,
+  ): boolean {
+    if (edited !== null) return false;
+    const personal = template.fields.filter((field) => field.type !== "number");
+    return (
+      personal.length > 0 &&
+      personal.every((field) => !typed[field.key]?.trim())
+    );
+  }
+
+  function addAssets(event: Event & { currentTarget: HTMLInputElement }) {
+    const picked = [...(event.currentTarget.files ?? [])];
+    event.currentTarget.value = "";
+    assets = [
+      ...assets,
+      ...picked.filter(
+        (file) =>
+          !assets.some(
+            (held) =>
+              held.name === file.name &&
+              held.size === file.size &&
+              held.lastModified === file.lastModified,
+          ),
+      ),
+    ];
+  }
+
+  function useInTiffy() {
+    onUse(prompt, assets);
+    assets = [];
+  }
+
   async function copy() {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || blocked) return;
     try {
       await navigator.clipboard.writeText(prompt);
     } catch {
@@ -238,6 +286,51 @@
           {/each}
         </div>
 
+        <div class="pt-field pt-assets">
+          <span>Your assets</span>
+          <input
+            type="file"
+            multiple
+            accept="image/*,video/*,audio/*"
+            aria-label="Add your own images, video or audio"
+            on:change={addAssets}
+          />
+          <small
+            >Logos, product photos or screenshots. They go to Tiffy with "Use in
+            Tiffy", not with Copy.</small
+          >
+          {#if assets.length > 0}
+            <ul class="pt-asset-list">
+              {#each assets as file (file.name + file.size + file.lastModified)}
+                <li>
+                  {file.name}
+                  <button
+                    type="button"
+                    class="pt-link"
+                    aria-label={`Remove ${file.name}`}
+                    on:click={() =>
+                      (assets = assets.filter((held) => held !== file))}
+                    >Remove</button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
+        {#if blocked}
+          <p class="pt-note pt-sample" role="status">
+            These fields hold the template's example. Replace them with your own
+            product and idea first, or keep the example as it is.
+
+            <button
+              type="button"
+              class="pt-link"
+              on:click={() => (keepExample = true)}>Keep the example</button
+            >
+          </p>
+        {/if}
+
         <label class="pt-field">
           <span>Prompt</span>
           <textarea
@@ -253,6 +346,7 @@
             type="button"
             class="pt-btn pt-btn--primary"
             data-tour="prompts-copy"
+            disabled={blocked}
             data-tooltip={COPY_TOOLTIP}
             on:click={copy}
           >
@@ -261,8 +355,8 @@
           <button
             type="button"
             class="pt-btn"
-            on:click={() => onUse(prompt)}
-            disabled={!prompt.trim()}
+            on:click={useInTiffy}
+            disabled={!prompt.trim() || blocked}
           >
             <SendHorizontal size={15} /> Use in Tiffy
           </button>
