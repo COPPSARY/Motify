@@ -12,7 +12,6 @@ import { FIRST_RUN_STEPS } from "./first-video";
 export type TourTarget =
   | "nav-prompts"
   | "prompts-grid"
-  | "prompts-copy"
   | "prompt"
   | "attach"
   | "aspect"
@@ -37,14 +36,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "prompts-grid",
     page: "templates",
     title: "Pick a template",
-    body: "Filter by category, then click one to see its prompt.",
-  },
-  {
-    id: "copy",
-    target: "prompts-copy",
-    page: "templates",
-    title: "Copy the prompt",
-    body: "Edit it to fit your idea and add references for better results.",
+    body: "Click one, put in your own idea and images, then send it to Tiffy.",
   },
   {
     id: "prompt",
@@ -97,7 +89,9 @@ export function resumeIndex(progress: {
     return null;
   // Accounts saved on a removed step were at the end of the tour.
   if (REMOVED_STEPS.has(progress.step)) return TOUR_STEPS.length - 1;
-  const index = TOUR_STEPS.findIndex((step) => step.id === progress.step);
+  // The copy step was folded into the template step; those accounts go on to the next one.
+  const saved = progress.step === "copy" ? "prompt" : progress.step;
+  const index = TOUR_STEPS.findIndex((step) => step.id === saved);
   // "prompts" (arrived, tour not started) and "brand" are both before the first step.
   return index === -1 ? 0 : index;
 }

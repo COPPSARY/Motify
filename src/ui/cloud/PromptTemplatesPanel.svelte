@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Copy, RotateCcw, SendHorizontal } from "lucide-svelte";
+  import {
+    ArrowLeft,
+    Check,
+    Copy,
+    ImagePlus,
+    RotateCcw,
+    SendHorizontal,
+    X,
+  } from "lucide-svelte";
   import {
     fetchPromptTemplates,
     fieldValue,
@@ -20,9 +28,6 @@
   /** Categories a new account picked; with just one, the page opens filtered to it. */
   export let initialCategories: string[] = [];
 
-  const COPY_TOOLTIP =
-    "Copy it, edit it to fit your idea, and add references for better results.";
-
   let templates: PromptTemplate[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let selectedSlug = "";
@@ -32,11 +37,22 @@
   let assets: File[] = [];
   /** They looked at the example and want it as it is. */
   let keepExample = false;
-  /** After a copy, what to do next; it stays until another template is opened. */
-  let copyNote = false;
+  /** A drag is over the assets box. */
+  let dragging = false;
   /** Only templates in this category show; null means all of them. */
   let activeCategory: string | null =
     initialCategories.length === 1 ? (initialCategories[0] ?? null) : null;
+  /** Settings about how it looks and runs, rather than what it says; they sit folded away. */
+  const LOOK_KEYS = new Set([
+    "colors",
+    "color",
+    "typography",
+    "style",
+    "length",
+    "tempo",
+    "format",
+  ]);
+
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   $: categories = categoriesOf(templates);
@@ -45,7 +61,15 @@
   $: selected = templates.find((item) => item.slug === selectedSlug) ?? null;
   $: rendered = selected ? renderPrompt(selected, values) : "";
   $: prompt = rendered;
+  $: contentFields = selected
+    ? selected.fields.filter((item) => !LOOK_KEYS.has(item.key))
+    : [];
+  $: lookFields = selected
+    ? selected.fields.filter((item) => LOOK_KEYS.has(item.key))
+    : [];
   $: isSample = selected ? stillSample(selected, values) : false;
+  /** The field that says what the film is about; it is the one to change first. */
+  $: subjectKey = selected ? subjectOf(selected)?.key : undefined;
   /** Copy and Use stay off while the template still holds its example, unless they chose to keep it. */
   $: blocked = isSample && !keepExample;
 
@@ -76,17 +100,6 @@
     return ratio.replace(":", " / ");
   }
 
-  /** The open template always belongs to the list on screen, so Copy is never about a hidden one. */
-  function keepSelectionVisible() {
-    const shown = inCategory(
-      templates,
-      realCategory(activeCategory, categoriesOf(templates)),
-    );
-    const first = shown[0];
-    if (first && !shown.some((item) => item.slug === selectedSlug))
-      select(first);
-  }
-
   async function load() {
     // Show the cached list at once and refresh it behind it; only a first load shows "Loading…".
     const cached = cachedPromptTemplates();
@@ -104,12 +117,13 @@
   function show(list: PromptTemplate[]) {
     templates = list;
     status = "ready";
-    keepSelectionVisible();
+    // A template that is no longer in the list takes its page with it.
+    if (selectedSlug && !list.some((item) => item.slug === selectedSlug))
+      close();
   }
 
   function setCategory(name: string | null) {
     activeCategory = name;
-    keepSelectionVisible();
   }
 
   function select(template: PromptTemplate) {
@@ -117,7 +131,16 @@
     values = {};
     keepExample = false;
     copied = false;
-    copyNote = false;
+    assets = [];
+  }
+
+  /** Back to the grid; what they typed is not kept for the next template. */
+  function close() {
+    selectedSlug = "";
+    values = {};
+    assets = [];
+    keepExample = false;
+    copied = false;
   }
 
   function setField(key: string, value: string) {
@@ -140,11 +163,19 @@
    * changed it is still the example; fonts, colours or length alone don't make
    * it theirs. A template with no text to change is never a sample.
    */
+  /** The field that says what the film is about: the first one that is not about how it looks or runs. */
+  function subjectOf(
+    template: PromptTemplate,
+  ): PromptTemplate["fields"][number] | undefined {
+    const words = template.fields.filter((item) => item.type !== "number");
+    return words.find((item) => !LOOK_KEYS.has(item.key)) ?? words[0];
+  }
+
   function stillSample(
     template: PromptTemplate,
     typed: Readonly<Record<string, string>>,
   ): boolean {
-    const subject = template.fields.find((field) => field.type !== "number");
+    const subject = subjectOf(template);
     return subject !== undefined && !isCustomized(subject, typed);
   }
 
@@ -173,15 +204,17 @@
     values = {};
     keepExample = false;
     copied = false;
-    copyNote = false;
   }
 
-  function addAssets(event: Event & { currentTarget: HTMLInputElement }) {
-    const picked = [...(event.currentTarget.files ?? [])];
-    event.currentTarget.value = "";
+  function addFiles(picked: File[]) {
+    const wanted = picked.filter((file) =>
+      /^(image|video|audio)\//.test(file.type),
+    );
+    if (wanted.length < picked.length)
+      onNotice("Only images, video and audio can be added.");
     assets = [
       ...assets,
-      ...picked.filter(
+      ...wanted.filter(
         (file) =>
           !assets.some(
             (held) =>
@@ -191,6 +224,17 @@
           ),
       ),
     ];
+  }
+
+  function pickAssets(event: Event & { currentTarget: HTMLInputElement }) {
+    addFiles([...(event.currentTarget.files ?? [])]);
+    event.currentTarget.value = "";
+  }
+
+  function dropAssets(event: DragEvent) {
+    event.preventDefault();
+    dragging = false;
+    addFiles([...(event.dataTransfer?.files ?? [])]);
   }
 
   function useInTiffy() {
@@ -218,7 +262,6 @@
       }
     }
     copied = true;
-    copyNote = true;
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied = false), 2200);
   }
@@ -231,114 +274,47 @@
     <p>Templates could not be loaded.</p>
     <button type="button" class="pt-btn" on:click={load}>Try again</button>
   </div>
-{:else}
-  <div class="me-chip-row" role="group" aria-label="Categories">
-    <button
-      type="button"
-      class="me-chip"
-      class:me-active={filter === null}
-      aria-pressed={filter === null}
-      on:click={() => setCategory(null)}>All</button
-    >
-    {#each categories as category (category.name)}
-      <button
-        type="button"
-        class="me-chip"
-        class:me-active={filter === category.name}
-        aria-pressed={filter === category.name}
-        on:click={() => setCategory(category.name)}>{category.name}</button
+{:else if selected}
+  <section class="ptd" aria-labelledby="ptd-title">
+    <button type="button" class="ptd-back" on:click={close}>
+      <ArrowLeft size={15} /> All templates
+    </button>
+
+    <div class="ptd-layout">
+      <div
+        class="ptd-media"
+        style:aspect-ratio={cssRatio(selected.aspectRatio)}
       >
-    {/each}
-  </div>
-  <div class="pt">
-    <ul class="pt-grid" aria-label="Prompt templates" data-tour="prompts-grid">
-      {#each visible as template (template.slug)}
-        <li>
-          <button
-            type="button"
-            class="me-template-card pt-card"
-            class:is-selected={template.slug === selectedSlug}
-            aria-pressed={template.slug === selectedSlug}
-            on:click={() => select(template)}
-          >
-            <span
-              class="pt-media"
-              style:aspect-ratio={cssRatio(template.aspectRatio)}
-            >
-              <span class="pt-ratio">{template.aspectRatio}</span>
-              {#if template.video}
-                <video
-                  use:lazyVideo={template.video}
-                  muted
-                  loop
-                  playsinline
-                  preload="none"
-                  aria-hidden="true"
-                ></video>
-              {/if}
-            </span>
-            <span class="me-template-meta"
-              ><strong>{template.title}</strong></span
-            >
-          </button>
-        </li>
-      {/each}
-    </ul>
+        <span class="pt-ratio">{selected.aspectRatio}</span>
+        {#if selected.video}
+          <video
+            use:lazyVideo={selected.video}
+            muted
+            loop
+            playsinline
+            preload="none"
+            aria-hidden="true"
+          ></video>
+        {/if}
+      </div>
 
-    {#if selected}
-      <section class="pt-detail" aria-labelledby="pt-detail-title">
-        <h2 id="pt-detail-title">{selected.title}</h2>
-
+      <div class="ptd-form">
+        <h2 id="ptd-title">{selected.title}</h2>
         {#if selected.special}
-          <div class="pt-agent">
-            <h3>Before you use this in Motify</h3>
-            <p>
-              Copy this prompt into your coding agent with the product codebase
-              open. When it returns <code>&lt;direction&gt;</code> and
-              <code>&lt;structure&gt;</code>, paste those two blocks into
-              Motify.
-            </p>
-          </div>
+          <p class="ptd-sub">
+            Run this in your coding agent with your codebase open, then paste
+            the <code>&lt;direction&gt;</code> and
+            <code>&lt;structure&gt;</code> it returns into Motify.
+          </p>
         {/if}
 
-        <div class="pt-section-head">
-          <div>
-            <p>{selected.special ? "Agent prompt" : "Prompt"}</p>
-            <h3>Live preview</h3>
-          </div>
-          <span class="pt-legend"
-            ><i aria-hidden="true"></i> Highlighted text is customizable</span
-          >
-        </div>
-
-        <div class="pt-preview" aria-label="Prompt preview">
-          {#each selected.prompt as segment}
-            {@const field = segmentField(selected, segment)}
-            {#if field}
-              <mark class:is-changed={isCustomized(field, values)}
-                >{segmentText(selected, segment, values)}</mark
-              >
-            {:else}
-              <span>{segmentText(selected, segment, values)}</span>
-            {/if}
-          {/each}
-        </div>
-
-        <div class="pt-section-head">
-          <div>
-            <p>Customize prompt</p>
-            <h3>Make it yours</h3>
-          </div>
-        </div>
-        <p class="pt-help">
-          Change any of these, or leave them blank to keep the example. They
-          fill the highlighted parts of the prompt.
-        </p>
-
-        <div class="pt-fields">
-          {#each selected.fields as field (field.key)}
-            <label class="pt-field">
-              <span>{field.label}</span>
+        <div class="ptd-fields">
+          {#each contentFields as field (field.key)}
+            <label
+              class="ptd-field"
+              class:is-start={blocked && field.key === subjectKey}
+            >
+              <span class="ptd-label">{field.label}</span>
               {#if field.type === "textarea"}
                 <textarea
                   rows="3"
@@ -359,93 +335,196 @@
                     setField(field.key, event.currentTarget.value)}
                 />
               {/if}
-              <small
+              <small class="ptd-hint"
                 >{field.description}{#if field.min !== undefined && field.max !== undefined}
-                  <b>{field.min}–{field.max}</b>{/if}</small
+                  ({field.min}–{field.max}){/if}</small
               >
             </label>
           {/each}
         </div>
 
-        <div class="pt-field pt-assets">
-          <span>Your assets</span>
-          <input
-            type="file"
-            multiple
-            accept="image/*,video/*,audio/*"
-            aria-label="Add your own images, video or audio"
-            on:change={addAssets}
-          />
-          <small
-            >Logos, product photos or screenshots. They go to Tiffy with "Use in
-            Tiffy", not with Copy.</small
-          >
-          {#if assets.length > 0}
-            <ul class="pt-asset-list">
-              {#each assets as file (file.name + file.size + file.lastModified)}
-                <li>
-                  {file.name}
-                  <button
-                    type="button"
-                    class="pt-link"
-                    aria-label={`Remove ${file.name}`}
-                    on:click={() =>
-                      (assets = assets.filter((held) => held !== file))}
-                    >Remove</button
+        {#if lookFields.length > 0}
+          <details class="ptd-look">
+            <summary>Look and timing</summary>
+            <div class="ptd-fields">
+              {#each lookFields as field (field.key)}
+                <label
+                  class="ptd-field"
+                  class:is-start={blocked && field.key === subjectKey}
+                >
+                  <span class="ptd-label">{field.label}</span>
+                  {#if field.type === "textarea"}
+                    <textarea
+                      rows="3"
+                      placeholder={field.placeholder}
+                      value={values[field.key] ?? field.defaultValue}
+                      on:input={(event) =>
+                        setField(field.key, event.currentTarget.value)}
+                    ></textarea>
+                  {:else}
+                    <input
+                      type={field.type}
+                      min={field.min}
+                      max={field.max}
+                      step={field.step}
+                      placeholder={field.placeholder}
+                      value={values[field.key] ?? field.defaultValue}
+                      on:input={(event) =>
+                        setField(field.key, event.currentTarget.value)}
+                    />
+                  {/if}
+                  <small class="ptd-hint"
+                    >{field.description}{#if field.min !== undefined && field.max !== undefined}
+                      ({field.min}–{field.max}){/if}</small
                   >
-                </li>
+                </label>
               {/each}
-            </ul>
-          {/if}
-        </div>
+            </div>
+          </details>
+        {/if}
+
+        {#if !selected.special}
+          <div class="ptd-assets">
+            <label
+              class="ptd-drop"
+              class:is-over={dragging}
+              on:dragover|preventDefault={() => (dragging = true)}
+              on:dragleave={() => (dragging = false)}
+              on:drop={dropAssets}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*,video/*,audio/*"
+                on:change={pickAssets}
+              />
+              <ImagePlus size={18} />
+              <span
+                ><strong>Add your own images</strong>
+                <em>logo, photos, screenshots</em></span
+              >
+            </label>
+            {#if assets.length > 0}
+              <ul class="ptd-files">
+                {#each assets as file (file.name + file.size + file.lastModified)}
+                  <li>
+                    <span>{file.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${file.name}`}
+                      on:click={() =>
+                        (assets = assets.filter((held) => held !== file))}
+                      ><X size={13} /></button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
 
         {#if blocked}
-          <p class="pt-note pt-sample" role="status">
-            These fields hold the template's example. Replace them with your own
-            product and idea first, or keep the example as it is.
-
+          <p class="ptd-sample" role="status">
+            Replace the highlighted field with your own idea, or
             <button
               type="button"
               class="pt-link"
-              on:click={() => (keepExample = true)}>Keep the example</button
-            >
+              on:click={() => (keepExample = true)}>keep the example</button
+            >.
           </p>
         {/if}
 
-        <div class="pt-actions">
+        <div class="ptd-actions">
+          {#if !selected.special}
+            <button
+              type="button"
+              class="pt-btn pt-btn--primary ptd-use"
+              on:click={useInTiffy}
+              disabled={!prompt.trim() || blocked}
+            >
+              <SendHorizontal size={15} /> Use in Tiffy
+            </button>
+          {/if}
           <button
             type="button"
-            class="pt-btn pt-btn--primary"
-            data-tour="prompts-copy"
-            disabled={blocked}
-            data-tooltip={COPY_TOOLTIP}
+            class="pt-btn ptd-copy"
+            class:pt-btn--primary={selected.special}
             on:click={copy}
+            disabled={blocked}
           >
-            {#if copied}<Check size={15} />
-              {selected.special ? "Agent prompt copied" : "Copied"}{:else}<Copy
-                size={15}
-              />
+            {#if copied}<Check size={15} /> Copied{:else}<Copy size={15} />
               {selected.special ? "Copy agent prompt" : "Copy prompt"}{/if}
           </button>
-          <button
-            type="button"
-            class="pt-btn"
-            on:click={useInTiffy}
-            disabled={!prompt.trim() || blocked}
-          >
-            <SendHorizontal size={15} /> Use in Tiffy
-          </button>
-          <button type="button" class="pt-btn" on:click={reset}>
-            <RotateCcw size={15} /> Reset
+          <button type="button" class="pt-link ptd-reset" on:click={reset}>
+            <RotateCcw size={13} /> Reset
           </button>
         </div>
-        {#if copyNote}
-          <p class="pt-note" role="status">
-            Edit it for your own product, and add references in Tiffy for better
-            results.
-          </p>
-        {/if}
-      </section>
-    {/if}
+
+        <details class="ptd-prompt">
+          <summary>See the full prompt</summary>
+          <div class="pt-preview" aria-label="Prompt preview">
+            {#each selected.prompt as segment}
+              {@const field = segmentField(selected, segment)}
+              {#if field}
+                <mark class:is-changed={isCustomized(field, values)}
+                  >{segmentText(selected, segment, values)}</mark
+                >
+              {:else}
+                <span>{segmentText(selected, segment, values)}</span>
+              {/if}
+            {/each}
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+{:else}
+  <div class="me-chip-row" role="group" aria-label="Categories">
+    <button
+      type="button"
+      class="me-chip"
+      class:me-active={filter === null}
+      aria-pressed={filter === null}
+      on:click={() => setCategory(null)}>All</button
+    >
+    {#each categories as category (category.name)}
+      <button
+        type="button"
+        class="me-chip"
+        class:me-active={filter === category.name}
+        aria-pressed={filter === category.name}
+        on:click={() => setCategory(category.name)}>{category.name}</button
+      >
+    {/each}
   </div>
+  <ul class="pt-grid" aria-label="Prompt templates" data-tour="prompts-grid">
+    {#each visible as template (template.slug)}
+      <li>
+        <button
+          type="button"
+          class="me-template-card pt-card"
+          on:click={() => select(template)}
+        >
+          <span
+            class="pt-media"
+            style:aspect-ratio={cssRatio(template.aspectRatio)}
+          >
+            <span class="pt-ratio">{template.aspectRatio}</span>
+            {#if template.video}
+              <video
+                use:lazyVideo={template.video}
+                muted
+                loop
+                playsinline
+                preload="none"
+                aria-hidden="true"
+              ></video>
+            {/if}
+          </span>
+          <span class="me-template-meta"><strong>{template.title}</strong></span
+          >
+        </button>
+      </li>
+    {/each}
+  </ul>
 {/if}

@@ -26,6 +26,12 @@ describe("first-run tour progress", () => {
     }
   });
 
+  it("sends accounts saved on the folded-in copy step to the prompt step", () => {
+    expect(resumeIndex({ step: "copy", completedAt: null })).toBe(
+      TOUR_STEPS.findIndex((step) => step.id === "prompt"),
+    );
+  });
+
   it("starts at the first step for the stages before the tour", () => {
     expect(resumeIndex({ step: "prompts", completedAt: null })).toBe(0);
     expect(resumeIndex({ step: "brand", completedAt: null })).toBe(0);
