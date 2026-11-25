@@ -29,6 +29,8 @@ export interface PromptTemplate {
   fields: PromptTemplateField[];
   prompt: PromptTemplateSegment[];
   defaultPrompt: string;
+  /** A brief for a coding agent to run against the product, not a film request. */
+  special?: boolean;
 }
 
 /** The value a field holds: what the person typed, else its default. */
