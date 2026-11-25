@@ -3119,6 +3119,8 @@
         }
         if (awaitingFirstVideo(progress.step)) {
           firstVideoPending = true;
+          // They dropped out before the video finished: open its form again.
+          void resumeFirstVideo(progress.profile.goal);
           return;
         }
         if (progress.step === FIRST_RUN_STEPS.firstVideoDone) {
@@ -3196,6 +3198,19 @@
     if (tool) {
       await guidedStart?.startWith(tool, held ? { instructions: held } : {});
     }
+  }
+
+  /** Brings a returning account back to the first video's form, as it was when they answered the questions. */
+  async function resumeFirstVideo(
+    goal: OnboardingProfile["goal"],
+  ): Promise<void> {
+    const tool = goal ? goalById(goal)?.tool : undefined;
+    if (!tool) return;
+    captureEvent("first video resumed", { goal: goal ?? "" });
+    openPage("create");
+    await tick();
+    await tick();
+    await guidedStart?.startWith(tool);
   }
 
   function skipWelcome(): void {
@@ -3472,13 +3487,14 @@
   }
 
   /** Puts a template's prompt in Tiffy's composer on the create page. */
-  function usePromptTemplate(prompt: string): void {
+  function usePromptTemplate(prompt: string, assets: File[] = []): void {
     openPage("create");
     assistantDraft = prompt;
     void tick().then(() => {
       resizeComposer();
       composerInput?.focus();
     });
+    if (assets.length > 0) void handleChatDrop(assets);
   }
 
   function openMobileSidebar(): void {

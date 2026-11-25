@@ -158,6 +158,15 @@
   font-size: 13px;
   line-height: 1.5;
 }
+.code-editor-scope .pt-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .code-editor-scope .pt-btn {
   display: inline-flex;
   align-items: center;
@@ -224,4 +233,12 @@
   .code-editor-scope .pt-detail {
     position: static;
   }
+}
+.code-editor-scope .pt-asset-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
 }

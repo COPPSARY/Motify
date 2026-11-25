@@ -72,6 +72,13 @@ describe("PromptTemplatesPanel", () => {
     vi.clearAllMocks();
   });
 
+  async function type(value: string) {
+    const input = document.querySelector<HTMLInputElement>(".pt-field input")!;
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await settle();
+  }
+
   function open(onUse = vi.fn(), initialCategories: string[] = []) {
     component = mount(PromptTemplatesPanel, {
       target: document.body,
@@ -88,6 +95,7 @@ describe("PromptTemplatesPanel", () => {
       "[data-tour='prompts-copy']",
     );
     expect(copy?.dataset["tooltip"]).toMatch(/edit it/i);
+    await type("a coffee shop");
     copy?.click();
     await settle();
     expect(writeText).toHaveBeenCalledWith("Make a video about a coffee shop.");
@@ -97,7 +105,8 @@ describe("PromptTemplatesPanel", () => {
   it("tells them to edit it for their product and add references once copied", async () => {
     open();
     await settle();
-    expect(document.querySelector(".pt-note")).toBeNull();
+    expect(document.querySelector(".pt-note:not(.pt-sample)")).toBeNull();
+    await type("a bakery");
     document
       .querySelector<HTMLButtonElement>("[data-tour='prompts-copy']")
       ?.click();
@@ -112,7 +121,7 @@ describe("PromptTemplatesPanel", () => {
     expect(document.querySelector(".pt-note")).not.toBeNull();
     document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
     await settle();
-    expect(document.querySelector(".pt-note")).toBeNull();
+    expect(document.querySelector(".pt-note:not(.pt-sample)")).toBeNull();
   });
 
   it("copies what the person changed, in a field or by hand", async () => {
@@ -145,10 +154,67 @@ describe("PromptTemplatesPanel", () => {
     document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
     await settle();
     expect(document.body.textContent).toContain("Title two");
+    await type("a bus");
     [...document.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("Use in Tiffy"))
       ?.click();
-    expect(onUse).toHaveBeenCalledWith("Make a video about a bus.");
+    expect(onUse).toHaveBeenCalledWith("Make a video about a bus.", []);
+  });
+
+  it("keeps Copy and Use off until the example is changed or kept", async () => {
+    const onUse = open();
+    await settle();
+    const copy = document.querySelector<HTMLButtonElement>(
+      "[data-tour='prompts-copy']",
+    )!;
+    const use = () =>
+      [...document.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Use in Tiffy"),
+      )!;
+    expect(document.querySelector(".pt-sample")).not.toBeNull();
+    expect(copy.disabled).toBe(true);
+    expect(use().disabled).toBe(true);
+
+    // Keeping the example as it is turns them on.
+    document.querySelector<HTMLButtonElement>(".pt-link")?.click();
+    await settle();
+    expect(document.querySelector(".pt-sample")).toBeNull();
+    expect(copy.disabled).toBe(false);
+    use().click();
+    expect(onUse).toHaveBeenCalledWith("Make a video about a coffee shop.", []);
+
+    // Another template starts over, and changing a field turns them on too.
+    document.querySelectorAll<HTMLButtonElement>(".pt-card")[1]?.click();
+    await settle();
+    expect(use().disabled).toBe(true);
+    await type("a bakery");
+    expect(document.querySelector(".pt-sample")).toBeNull();
+    expect(use().disabled).toBe(false);
+  });
+
+  it("sends the person's own assets to Tiffy with the prompt", async () => {
+    const onUse = open();
+    await settle();
+    await type("a bakery");
+    const picker = document.querySelector<HTMLInputElement>(
+      ".pt-assets input[type=file]",
+    )!;
+    const logo = new File(["x"], "logo.png", { type: "image/png" });
+    Object.defineProperty(picker, "files", {
+      value: [logo],
+      configurable: true,
+    });
+    picker.dispatchEvent(new Event("change", { bubbles: true }));
+    await settle();
+    expect(document.querySelector(".pt-asset-list")?.textContent).toContain(
+      "logo.png",
+    );
+    [...document.querySelectorAll("button")]
+      .find((button) => button.textContent?.includes("Use in Tiffy"))
+      ?.click();
+    expect(onUse).toHaveBeenCalledWith("Make a video about a bakery.", [logo]);
+    await settle();
+    expect(document.querySelector(".pt-asset-list")).toBeNull();
   });
 
   it("shapes each preview to its video's aspect ratio", async () => {
