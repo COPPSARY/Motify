@@ -1,11 +1,22 @@
 <script lang="ts">
   import { ArrowUpRight, BadgePercent, Check, Copy, X } from "lucide-svelte";
-  import { PRICING_URL } from "../../api/config";
+  import { motifySiteHref, PRICING_URL } from "../../api/config";
+  import type { PromotionBanner } from "../../cloud/projects-api";
+  import { countdown, promotionSale } from "../../cloud/promotion-sale";
 
   /** Called when the person heads to pricing to redeem, for analytics. */
   export let onRedeem: (() => void) | null = null;
+  /** The live promotion. One that sells a code (Black Friday) replaces the standing MOTIFY50 offer. */
+  export let promotion: PromotionBanner | null = null;
 
-  const DISCOUNT_CODE = "MOTIFY50";
+  $: sale = promotionSale(promotion);
+  $: DISCOUNT_CODE = sale?.code ?? "MOTIFY50";
+  $: percent = sale?.percent ?? 50;
+  $: saleName = sale && promotion ? promotion.title : null;
+  // The site applies a ?promo= code to the cards and checkout by itself.
+  $: redeemHref =
+    sale && promotion?.ctaUrl ? motifySiteHref(promotion.ctaUrl) : PRICING_URL;
+  $: clock = sale ? countdown(sale.endsAt) : null;
 
   let dialog: HTMLDialogElement;
   let view: "offer" | "confirm" = "offer";
@@ -60,12 +71,24 @@
 <button
   type="button"
   class="me-referral-button me-referral-button--compact me-discount-button"
-  aria-label="Get 50% off with code {DISCOUNT_CODE}"
+  class:me-discount-button--sale={sale}
+  aria-label="Get {percent}% off with code {DISCOUNT_CODE}"
   on:click={openDialog}
 >
   <BadgePercent size={15} aria-hidden="true" />
-  <span>Get 50% off</span>
-  <small>Limited</small>
+  {#if saleName}
+    <span class="me-discount-button__sale"
+      ><em>{saleName}</em> {percent}% off</span
+    >
+    <small
+      >{#if $clock}{$clock.days !== "00"
+          ? `${$clock.days}:`
+          : ""}{$clock.hours}:{$clock.minutes}:{$clock.seconds}{/if}</small
+    >
+  {:else}
+    <span>Get {percent}% off</span>
+    <small>Limited</small>
+  {/if}
 </button>
 
 <dialog
@@ -88,10 +111,16 @@
     </button>
 
     {#if view === "offer"}
-      <span class="me-discount__eyebrow">Limited-time offer</span>
-      <h2 id="discount-title">Get 50% off your plan</h2>
+      <span class="me-discount__eyebrow"
+        >{saleName ?? "Limited-time offer"}</span
+      >
+      <h2 id="discount-title">Get {percent}% off your plan</h2>
       <p id="discount-description" class="me-discount__lede">
-        Use this code at checkout and upgrade for half the price.
+        {#if sale}
+          Redeem it and the code is applied for you on the pricing page.
+        {:else}
+          Use this code at checkout and upgrade for half the price.
+        {/if}
       </p>
 
       <div class="me-discount__code">
@@ -129,7 +158,7 @@
 
       <a
         class="me-discount__redeem"
-        href={PRICING_URL}
+        href={redeemHref}
         target="_blank"
         rel="noopener"
         on:click={redeem}
@@ -140,7 +169,7 @@
       <span class="me-discount__icon" aria-hidden="true"
         ><BadgePercent size={22} /></span
       >
-      <h2 id="discount-title">Leave 50% on the table?</h2>
+      <h2 id="discount-title">Leave {percent}% on the table?</h2>
       <p id="discount-description" class="me-discount__lede">
         {DISCOUNT_CODE} is only around for a limited time. Once it’s gone, it’s full
         price.
@@ -150,7 +179,7 @@
         class="me-discount__redeem"
         on:click={() => (view = "offer")}
       >
-        Keep my 50% off
+        Keep my {percent}% off
       </button>
       <button
         type="button"

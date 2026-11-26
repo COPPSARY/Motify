@@ -270,6 +270,10 @@ function landDots(): Dot[] {
 export interface GlobeOptions {
   /** Draw a single still frame. */
   still?: boolean;
+  /** 'side' (login): a big globe off the right edge. 'horizon': its top arc rising across the bottom. */
+  placement?: "side" | "horizon";
+  /** 'ice' (login) or the brand 'cobalt'. */
+  tint?: "ice" | "cobalt";
 }
 
 /** Draws the globe into `canvas`, sized to its box. Returns a stop function. */
@@ -281,6 +285,8 @@ export function mountGlobe(
   if (!context) return () => {};
   const ctx = context;
   const dots = landDots();
+  const horizon = options.placement === "horizon";
+  const cobalt = options.tint === "cobalt";
   const toRad = Math.PI / 180;
   const sinLat = new Float32Array(dots.length);
   const cosLat = new Float32Array(dots.length);
@@ -316,9 +322,11 @@ export function mountGlobe(
     ctx.clearRect(0, 0, width, height);
     // A big globe centred past the right edge: its left half arcs through
     // the panel and runs off the top, right and bottom.
-    const radius = Math.max(width * 0.85, height * 0.8);
-    const cx = width * 1.1;
-    const cy = height * 0.55;
+    const radius = horizon
+      ? Math.max(width * 0.62, height * 1.1)
+      : Math.max(width * 0.85, height * 0.8);
+    const cx = horizon ? width / 2 : width * 1.1;
+    const cy = horizon ? height * 0.7 + radius : height * 0.55;
     const sinT = Math.sin(TILT);
     const cosT = Math.cos(TILT);
 
@@ -355,8 +363,11 @@ export function mountGlobe(
       const py = cy - y * radius;
       if (px < -4 || py < -4 || px > width + 4 || py > height + 4) continue;
       // Light falls off toward the right; the left limb catches the rim light.
-      const side =
-        0.5 + 0.5 * Math.min(1, Math.max(0, -x * 0.7 + 0.45 + (1 - z) * 0.35));
+      const side = horizon
+        ? 0.55 +
+          0.45 * Math.min(1, Math.max(0, y * 1.6 - Math.abs(x) * 0.6 + 0.2))
+        : 0.5 +
+          0.5 * Math.min(1, Math.max(0, -x * 0.7 + 0.45 + (1 - z) * 0.35));
       const level = Math.min(
         LEVELS - 1,
         Math.floor((glowOf[i] ?? 0) * side * LEVELS * 0.9),
@@ -373,9 +384,13 @@ export function mountGlobe(
       if (!bucket?.length) continue;
       const t = (level + 1) / LEVELS;
       // Deep blue for the faintest land, ice-cyan to near white for cities.
-      const r = Math.round(95 + 155 * t * t);
-      const g = Math.round(110 + 140 * t * t);
-      const b = Math.round(130 + 125 * t);
+      const r = cobalt
+        ? Math.round(31 + 200 * t * t)
+        : Math.round(95 + 155 * t * t);
+      const g = cobalt
+        ? Math.round(69 + 180 * t * t)
+        : Math.round(110 + 140 * t * t);
+      const b = cobalt ? Math.round(176 + 79 * t) : Math.round(130 + 125 * t);
       ctx.fillStyle = `rgba(${r},${g},${b},${0.3 + 0.7 * t})`;
       const s = level >= LEVELS - 2 ? size * 1.5 : size;
       ctx.beginPath();
@@ -400,13 +415,26 @@ export function mountGlobe(
       const py = cy - y * radius;
       const halo = (10 + 16 * weight) * scale * (0.5 + 0.5 * z);
       const glow = ctx.createRadialGradient(px, py, 0, px, py, halo);
-      glow.addColorStop(0, `rgba(215,232,245,${0.16 * weight})`);
-      glow.addColorStop(1, "rgba(215,232,245,0)");
+      glow.addColorStop(
+        0,
+        cobalt
+          ? `rgba(90,130,255,${0.2 * weight})`
+          : `rgba(215,232,245,${0.16 * weight})`,
+      );
+      glow.addColorStop(
+        1,
+        cobalt ? "rgba(90,130,255,0)" : "rgba(215,232,245,0)",
+      );
       ctx.fillStyle = glow;
       ctx.fillRect(px - halo, py - halo, halo * 2, halo * 2);
     }
 
     ctx.globalCompositeOperation = "source-over";
+
+    if (horizon) {
+      drawHorizonRim(cx, cy, radius);
+      return;
+    }
 
     // Atmosphere: a thin cold rim, bright on the upper left, gone by the lower right.
     const rim = ctx.createLinearGradient(
@@ -427,6 +455,54 @@ export function mountGlobe(
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** The sunrise edge: a cobalt rim brightest at the top, with a white flare where it peaks. */
+  function drawHorizonRim(cx: number, cy: number, radius: number): void {
+    const top = cy - radius;
+    const rim = ctx.createLinearGradient(
+      cx - radius * 0.9,
+      0,
+      cx + radius * 0.9,
+      0,
+    );
+    rim.addColorStop(0, "rgba(39,88,230,0)");
+    rim.addColorStop(0.3, "rgba(39,88,230,0.75)");
+    rim.addColorStop(0.5, "rgba(210,225,255,1)");
+    rim.addColorStop(0.7, "rgba(39,88,230,0.75)");
+    rim.addColorStop(1, "rgba(39,88,230,0)");
+    ctx.save();
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = Math.max(1.5, 2 * scale);
+    ctx.shadowColor = "rgba(39,88,230,0.9)";
+    ctx.shadowBlur = 26 * scale;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.globalCompositeOperation = "lighter";
+    const flareW = Math.min(width * 0.32, 320 * scale);
+    const flare = ctx.createRadialGradient(cx, top, 0, cx, top, flareW);
+    flare.addColorStop(0, "rgba(235,242,255,0.95)");
+    flare.addColorStop(0.08, "rgba(120,160,255,0.6)");
+    flare.addColorStop(0.4, "rgba(31,69,176,0.22)");
+    flare.addColorStop(1, "rgba(31,69,176,0)");
+    ctx.save();
+    ctx.translate(cx, top);
+    ctx.scale(1, 0.16);
+    ctx.translate(-cx, -top);
+    ctx.fillStyle = flare;
+    ctx.fillRect(cx - flareW, top - flareW, flareW * 2, flareW * 2);
+    ctx.restore();
+
+    // A wide, soft bloom above the edge.
+    const bloom = ctx.createRadialGradient(cx, top, 0, cx, top, radius * 0.55);
+    bloom.addColorStop(0, "rgba(31,69,176,0.28)");
+    bloom.addColorStop(1, "rgba(31,69,176,0)");
+    ctx.fillStyle = bloom;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "source-over";
   }
 
   function tick(now: number): void {
