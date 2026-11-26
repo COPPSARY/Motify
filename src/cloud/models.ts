@@ -17,15 +17,12 @@ export interface ModelOption {
   short: string;
   provider: "Anthropic" | "OpenAI" | "Google";
   logo: string;
-  /** Needs a paid plan, Starter and up. */
+  /** A premium model: needs a paid plan. */
   paid: boolean;
 }
 
 /** The free plan's model; every plan has it. */
 export const FREE_MODEL: GenerationModel = "sonnet-5.5";
-
-/** The first plan that unlocks the other models. */
-export const MODELS_PLAN_NAME = "Starter";
 
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {

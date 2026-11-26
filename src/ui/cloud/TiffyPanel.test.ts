@@ -93,7 +93,8 @@ describe("TiffyPanel generation controls", () => {
           .slice(1)
           .every((option) => option.classList.contains("is-locked")),
       ).toBe(true);
-      expect(options[3]?.textContent).toContain("Starter");
+      expect(options[3]?.textContent).toContain("Premium");
+      expect(options[3]?.textContent).not.toContain("Starter");
       expect(document.querySelector(".mp-upsell")?.textContent).toContain(
         "The free plan runs on Claude Sonnet 5.5",
       );
