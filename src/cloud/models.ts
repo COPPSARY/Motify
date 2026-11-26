@@ -7,7 +7,11 @@ import openAiLogo from "../ui/cloud/model-logos/openai.svg?url";
  * same list (packages/ai/agent/model-choices.ts) and decides who may run each.
  */
 export type GenerationModel =
-  "sonnet-5.5" | "opus-5.5" | "gpt-6.1-sol" | "gemini-4-argon";
+  | "sonnet-5.5"
+  | "opus-5.5"
+  | "gpt-6.1-sol"
+  | "gemini-4-argon"
+  | "gemini-4-neon";
 
 export interface ModelOption {
   value: GenerationModel;
@@ -53,6 +57,14 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     value: "gemini-4-argon",
     name: "Gemini 4 Argon",
     short: "Gemini 4 Argon",
+    provider: "Google",
+    logo: geminiLogo,
+    paid: true,
+  },
+  {
+    value: "gemini-4-neon",
+    name: "Gemini 4 Neon",
+    short: "Gemini 4 Neon",
     provider: "Google",
     logo: geminiLogo,
     paid: true,
