@@ -468,6 +468,25 @@
   border-radius: 18px;
   background: #1b1d21;
   transition: border-color 0.16s ease;
+  /* Its controls tighten when it is narrow, as in the editor's sidebar. */
+  container: composer / inline-size;
+}
+
+/* Model and effort sit in the bar like any other control, except on a phone. */
+.code-editor-scope .ai-composer-options {
+  display: contents;
+}
+
+/* The sidebar's composer: one row, the model's name shortened before it wraps. */
+@container composer (max-width: 300px) {
+  .code-editor-scope .ai-effort-prefix {
+    display: none;
+  }
+
+  .code-editor-scope .ai-chat-composer .ai-composer-bar {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
 }
 
 .code-editor-scope .ai-chat-composer:focus-within {
