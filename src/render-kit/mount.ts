@@ -39,6 +39,8 @@ export interface MountedFilm {
   exportVideo(options?: {
     format?: "mp4" | "webm";
     fps?: number;
+    /** Short side of the exported video in pixels; the authored size when omitted. */
+    height?: number;
   }): Promise<{ base64: string; mimeType: string }>;
   destroy(): void;
 }
@@ -109,6 +111,7 @@ export function mountFilm(input: FilmInput): MountedFilm {
       const result = await exportVideo(runtime, {
         format: options.format ?? "mp4",
         ...(options.fps ? { fps: options.fps } : {}),
+        ...(options.height ? { height: options.height } : {}),
       });
       const bytes = new Uint8Array(await result.blob.arrayBuffer());
       let binary = "";
