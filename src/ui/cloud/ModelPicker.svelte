@@ -4,7 +4,6 @@
   import {
     FREE_MODEL,
     MODEL_OPTIONS,
-    MODELS_PLAN_NAME,
     modelOption,
     type GenerationModel,
     type ModelOption,
@@ -208,7 +207,7 @@
           class:is-locked={optionLocked}
           aria-checked={value === option.value}
           aria-label={optionLocked
-            ? `${option.name} by ${option.provider}, on the ${MODELS_PLAN_NAME} plan and up`
+            ? `${option.name} by ${option.provider}, a premium model on paid plans`
             : `${option.name} by ${option.provider}`}
           bind:this={items[index]}
           on:click={() => pick(option)}
@@ -220,7 +219,7 @@
             <strong>{option.name}</strong>
             <small
               >{option.provider}{#if !option.paid}&nbsp;· Free{:else if optionLocked}&nbsp;·
-                {MODELS_PLAN_NAME}{/if}</small
+                Premium{/if}</small
             >
           </span>
           {#if optionLocked}
@@ -234,7 +233,7 @@
         <div class="mp-upsell">
           <p>
             The free plan runs on Claude Sonnet 5.5. Opus 5.5, GPT-6.1 Sol and
-            Gemini 4 Argon come with {MODELS_PLAN_NAME} and up.
+            Gemini 4 Argon are premium models, included in every paid plan.
           </p>
           <button type="button" role="menuitem" on:click={upgrade}
             >See plans</button
