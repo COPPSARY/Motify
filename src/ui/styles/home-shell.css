@@ -761,7 +761,7 @@
   font-weight: 500;
 }
 
-/* The model picker reuses the effort picker; Pro is faded and locked off a paid plan. */
+/* The model picker reuses the effort picker; paid models are faded and locked off a paid plan. */
 .code-editor-scope .ai-model-menu button {
   display: flex;
   align-items: center;

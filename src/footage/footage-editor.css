@@ -693,6 +693,15 @@
   opacity: 0.4;
 }
 
+/* The model picker sits beside Send, at the right of the composer. */
+.fx-model {
+  margin-left: auto;
+}
+
+.code-editor-scope .fx-model + .ai-composer-send {
+  margin-left: 0;
+}
+
 /* A card's motion-graphic status in the Selected tab. */
 .fx-motion {
   display: flex;

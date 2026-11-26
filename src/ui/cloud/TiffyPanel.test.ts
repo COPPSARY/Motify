@@ -51,7 +51,7 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
-  it("sends a free user to pricing from a faded, locked Pro", async () => {
+  it("names every model and its maker, and sends a free user to pricing from a locked one", async () => {
     const onSelectModel = vi.fn();
     const onUpgradeModel = vi.fn();
     const target = document.createElement("div");
@@ -68,16 +68,36 @@ describe("TiffyPanel generation controls", () => {
 
     try {
       const trigger = must<HTMLButtonElement>(".ai-model-picker");
-      expect(trigger.textContent).toContain("Flash");
+      expect(trigger.textContent).toContain("Sonnet 5.5");
+      expect(trigger.getAttribute("aria-label")).toBe(
+        "Model: Claude Sonnet 5.5 by Anthropic",
+      );
       trigger.click();
       await tick();
-      const pro = document.querySelectorAll<HTMLButtonElement>(
-        ".ai-model-menu button",
-      )[1];
-      expect(pro?.textContent).toContain("Pro");
-      expect(pro?.classList.contains("is-locked")).toBe(true);
-      expect(pro?.textContent).toContain("Upgrade to unlock");
-      pro?.click();
+      const options = [
+        ...document.querySelectorAll<HTMLButtonElement>(".mp-option"),
+      ];
+      expect(
+        options.map((option) => option.querySelector("strong")?.textContent),
+      ).toEqual([
+        "Claude Sonnet 5.5",
+        "Claude Opus 5.5",
+        "GPT-6.1 Sol",
+        "Gemini 4 Argon",
+      ]);
+      expect(options[0]?.classList.contains("is-locked")).toBe(false);
+      expect(options[0]?.getAttribute("aria-checked")).toBe("true");
+      expect(options[2]?.textContent).toContain("OpenAI");
+      expect(
+        options
+          .slice(1)
+          .every((option) => option.classList.contains("is-locked")),
+      ).toBe(true);
+      expect(options[3]?.textContent).toContain("Starter");
+      expect(document.querySelector(".mp-upsell")?.textContent).toContain(
+        "The free plan runs on Claude Sonnet 5.5",
+      );
+      options[1]?.click();
       await tick();
       expect(onUpgradeModel).toHaveBeenCalledOnce();
       expect(onSelectModel).not.toHaveBeenCalled();
@@ -116,7 +136,7 @@ describe("TiffyPanel generation controls", () => {
     }
   });
 
-  it("lets a paid user switch between Pro and Flash", async () => {
+  it("lets a paid user pick any model, with no upsell", async () => {
     const onSelectModel = vi.fn();
     const onUpgradeModel = vi.fn();
     const target = document.createElement("div");
@@ -126,7 +146,7 @@ describe("TiffyPanel generation controls", () => {
       props: panelProps({
         modelPicker: true,
         modelLocked: false,
-        generationModel: "pro",
+        generationModel: "opus-5.5",
         onSelectModel,
         onUpgradeModel,
       }),
@@ -134,16 +154,18 @@ describe("TiffyPanel generation controls", () => {
 
     try {
       const trigger = must<HTMLButtonElement>(".ai-model-picker");
-      expect(trigger.textContent).toContain("Pro");
+      expect(trigger.textContent).toContain("Opus 5.5");
       trigger.click();
       await tick();
-      const options = document.querySelectorAll<HTMLButtonElement>(
-        ".ai-model-menu button",
-      );
-      expect(options[1]?.classList.contains("is-locked")).toBe(false);
-      options[0]?.click();
+      const options =
+        document.querySelectorAll<HTMLButtonElement>(".mp-option");
+      expect(
+        [...options].some((option) => option.classList.contains("is-locked")),
+      ).toBe(false);
+      expect(document.querySelector(".mp-upsell")).toBeNull();
+      options[3]?.click();
       await tick();
-      expect(onSelectModel).toHaveBeenCalledWith("flash");
+      expect(onSelectModel).toHaveBeenCalledWith("gemini-4-argon");
       expect(onUpgradeModel).not.toHaveBeenCalled();
     } finally {
       await unmount(component);
