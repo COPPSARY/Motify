@@ -84,6 +84,7 @@ describe("TiffyPanel generation controls", () => {
         "Claude Opus 5.5",
         "GPT-6.1 Sol",
         "Gemini 4 Argon",
+        "Gemini 4 Neon",
       ]);
       expect(options[0]?.classList.contains("is-locked")).toBe(false);
       expect(options[0]?.getAttribute("aria-checked")).toBe("true");

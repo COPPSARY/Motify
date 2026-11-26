@@ -233,7 +233,8 @@
         <div class="mp-upsell">
           <p>
             The free plan runs on Claude Sonnet 5.5. Opus 5.5, GPT-6.1 Sol and
-            Gemini 4 Argon are premium models, included in every paid plan.
+            Gemini 4 Argon and Neon are premium models, included in every paid
+            plan.
           </p>
           <button type="button" role="menuitem" on:click={upgrade}
             >See plans</button
