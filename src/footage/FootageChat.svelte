@@ -15,6 +15,8 @@
     X,
   } from "lucide-svelte";
   import TiffyMark from "../ui/cloud/TiffyMark.svelte";
+  import ModelPicker from "../ui/cloud/ModelPicker.svelte";
+  import { FREE_MODEL, type GenerationModel } from "../cloud/models";
 
   /**
    * The footage editor's chat: the right column of a footage project, where the
@@ -65,6 +67,12 @@
     /** Pictures attached in the chat, used in the cut. */
     assetIds: string[];
   }) => void;
+
+  /** The model the AI edits with; on the free plan it is Claude Sonnet 5.5 and the others are locked. */
+  export let model: GenerationModel = FREE_MODEL;
+  export let modelLocked = true;
+  export let onSelectModel: (model: GenerationModel) => void = () => undefined;
+  export let onUpgradeModel: () => void = () => undefined;
 
   let draft = "";
   let input: HTMLTextAreaElement;
@@ -443,6 +451,16 @@
             (event.currentTarget as HTMLInputElement).value = "";
           }}
         />
+        <span class="fx-model">
+          <ModelPicker
+            value={model}
+            locked={modelLocked}
+            disabled={busy || !canWrite}
+            align="end"
+            onSelect={onSelectModel}
+            onUpgrade={onUpgradeModel}
+          />
+        </span>
         <button
           class="ai-composer-send"
           aria-label="Send to Tiffy"

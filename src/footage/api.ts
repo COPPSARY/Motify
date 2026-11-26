@@ -3,6 +3,7 @@ import { fetchApi } from "../api/client";
 import { isRawFilm } from "../composition/raw-film";
 import { cardFilmDocument, setCardFilm } from "./films";
 import type { CaptionCue, FootageEdit } from "./edit";
+import type { GenerationModel } from "../cloud/models";
 
 /**
  * The backend's footage routes (Motionly-Backend: src/routes/footage.routes.ts)
@@ -93,6 +94,8 @@ export async function roughCut(
     assetIds?: string[];
     /** The captions' look as JSON ({"style":"stack","animation":"blur"}); the brief may still change it. */
     captionLook?: string;
+    /** The model picked in the chat; the free one when absent. */
+    model?: GenerationModel;
   },
 ): Promise<FootageEditResult> {
   return data(
@@ -116,6 +119,7 @@ export async function editByInstruction(
   instruction: string,
   focus?: InstructionFocus,
   assetIds: string[] = [],
+  model?: GenerationModel,
 ): Promise<FootageEditResult> {
   return data(
     await fetchApi(`/v1/projects/${projectId}/footage/instructions`, {
@@ -125,6 +129,7 @@ export async function editByInstruction(
         instruction,
         ...(focus ? { focus } : {}),
         ...(assetIds.length > 0 ? { assetIds } : {}),
+        ...(model ? { model } : {}),
       }),
     }),
   );

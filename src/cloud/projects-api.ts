@@ -380,11 +380,9 @@ export interface StoryboardResult {
 
 export type GenerationEffort = "medium" | "high";
 
-/**
- * Flash runs for everyone; Pro is the paid plans' model. The backend decides
- * which model each one is, so the editor never names one.
- */
-export type GenerationModel = "flash" | "pro";
+/** The model picked in the composer; see models.ts. */
+import type { GenerationModel } from "./models";
+export type { GenerationModel };
 
 /** A project message the backend runs in the background. */
 export interface MotionMessageJob {

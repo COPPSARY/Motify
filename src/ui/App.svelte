@@ -268,6 +268,11 @@
   import FootageTimeline from "../footage/FootageTimeline.svelte";
   import FootageStart from "../footage/FootageStart.svelte";
   import FootageChat from "../footage/FootageChat.svelte";
+  import {
+    FREE_MODEL,
+    PICKED_MODEL_KEY,
+    readPickedModel,
+  } from "../cloud/models";
   import FootageTopBar from "../footage/FootageTopBar.svelte";
   import FootageTransport from "../footage/FootageTransport.svelte";
   import FootageThinking from "../footage/FootageThinking.svelte";
@@ -468,16 +473,15 @@
   /** Medium is the default; people can opt into the slower High pass. */
   let generationEffort: GenerationEffort = "medium";
   /**
-   * Flash for everyone; Pro is a paid plan's model, picked for subscribers
-   * until they choose otherwise. Losing the plan puts them back on Flash.
+   * The model a subscriber picked, kept between visits. Without a paid plan
+   * everything runs on Claude Sonnet 5.5, whatever was picked before.
    */
-  let generationModel: GenerationModel = "flash";
-  let generationModelPicked = false;
+  let pickedModel: GenerationModel = readPickedModel();
+  let generationModel: GenerationModel = FREE_MODEL;
   /** Narration (text-to-speech) is on unless the user switches it off in the composer. */
   let generationNarration = true;
   let generationVoiceNote = "";
-  $: if (!activePlan) generationModel = "flash";
-  else if (!generationModelPicked) generationModel = "pro";
+  $: generationModel = activePlan ? pickedModel : FREE_MODEL;
   let longGeneration = false;
   // Read from the runtime on every snapshot: a smart camera moves with time.
   $: canvasView = computeCanvasView(
@@ -5227,6 +5231,15 @@ Voice over direction: ${voiceNote}`
     void runLandingPrompt();
   }
 
+  function pickModel(model: GenerationModel): void {
+    pickedModel = model;
+    try {
+      localStorage.setItem(PICKED_MODEL_KEY, model);
+    } catch {
+      // Private browsing: the pick lasts until the page is closed.
+    }
+  }
+
   function openPricing(): void {
     window.open(PRICING_URL, "_blank", "noopener");
   }
@@ -5687,6 +5700,7 @@ Voice over direction: ${voiceNote}`
         edit: { ...base, brief: options.brief },
         ...settings,
         ...(assetIds.length > 0 ? { assetIds } : {}),
+        model: generationModel,
       });
       if (result.question) {
         // Nothing was cut or charged: the answer goes back to this cut.
@@ -5806,6 +5820,7 @@ Voice over direction: ${voiceNote}`
         sent,
         scoped ? focus : undefined,
         assetIds,
+        generationModel,
       );
       if (result.question) {
         // Nothing changed and nothing was charged: just the question.
@@ -5938,6 +5953,7 @@ Voice over direction: ${voiceNote}`
         voiceover: input.voiceover,
         ...(input.pictures.length > 0 ? { assetIds: input.pictures } : {}),
         ...(input.captionLook ? { captionLook: input.captionLook } : {}),
+        model: generationModel,
       });
       summary = result.summary;
       if (result.question) {
@@ -7899,6 +7915,10 @@ Voice over direction: ${voiceNote}`
             onInstruct={(text, assetIds) =>
               void runFootageInstruction(text, assetIds)}
             onRoughCut={(options) => void runFootageCut(options)}
+            model={generationModel}
+            modelLocked={!activePlan}
+            onSelectModel={pickModel}
+            onUpgradeModel={openPricing}
           />
         {/if}
         {#if showInspector}
@@ -8614,10 +8634,7 @@ Voice over direction: ${voiceNote}`
     {generationModel}
     modelPicker={mode === "cloud"}
     modelLocked={!activePlan}
-    onSelectModel={(model) => {
-      generationModel = model;
-      generationModelPicked = true;
-    }}
+    onSelectModel={pickModel}
     onUpgradeModel={openPricing}
     maxSeconds={maxFilmSeconds}
     onUpgradeLength={openPricing}
