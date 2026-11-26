@@ -1853,8 +1853,18 @@
     display: grid;
     /* Send grows with its credit cost ("12", "120") instead of spilling out. */
     grid-template-columns: 44px minmax(0, 1fr) auto;
-    grid-template-areas: "add aspect send";
+    grid-template-areas:
+      "add aspect send"
+      "options options options";
     gap: 8px;
+  }
+
+  .code-editor-scope .is-hero .ai-composer-options {
+    grid-area: options;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
   }
 
   .code-editor-scope .is-hero .ai-composer-add-wrap {

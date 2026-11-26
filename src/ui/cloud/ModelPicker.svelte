@@ -27,7 +27,16 @@
   let open = false;
   let wrap: HTMLDivElement;
   let button: HTMLButtonElement;
+  let menu: HTMLDivElement | undefined;
   let items: HTMLButtonElement[] = [];
+  /** Where the open menu was moved to stay in view; see `place`. */
+  let shift = 0;
+  let below = false;
+  let menuWidth: number | null = null;
+  let menuHeight: number | null = null;
+
+  const MENU_WIDTH = 272;
+  const EDGE = 8;
 
   $: selected = modelOption(value);
 
@@ -35,10 +44,64 @@
     return option.paid && locked;
   }
 
+  /**
+   * The visible area the menu has: the window, cut down by every ancestor that
+   * clips what overflows it (the sidebar, the chat column).
+   */
+  function visibleArea(): {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } {
+    const area = {
+      left: 0,
+      top: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight,
+    };
+    for (let node = wrap.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (/hidden|clip|auto|scroll/.test(style.overflowX + style.overflowY)) {
+        const rect = node.getBoundingClientRect();
+        area.left = Math.max(area.left, rect.left);
+        area.top = Math.max(area.top, rect.top);
+        area.right = Math.min(area.right, rect.right);
+        area.bottom = Math.min(area.bottom, rect.bottom);
+      }
+    }
+    return area;
+  }
+
+  /** Narrows, slides and if need be flips the open menu so none of it is cut off. */
+  async function place(): Promise<void> {
+    shift = 0;
+    below = false;
+    menuHeight = null;
+    const area = visibleArea();
+    menuWidth = Math.min(MENU_WIDTH, area.right - area.left - EDGE * 2);
+    await tick();
+    if (!menu) return;
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > area.right - EDGE) shift = area.right - EDGE - rect.right;
+    if (rect.left + shift < area.left + EDGE)
+      shift = area.left + EDGE - rect.left;
+    // Opens upward; below the button when there is more room there.
+    const gap = 8;
+    const above = wrap.getBoundingClientRect().top - area.top - gap - EDGE;
+    const under =
+      area.bottom - wrap.getBoundingClientRect().bottom - gap - EDGE;
+    below = rect.height > above && under > above;
+    // Room on neither side: the menu scrolls instead of being cut off.
+    const room = below ? under : above;
+    if (rect.height > room) menuHeight = Math.max(160, room);
+  }
+
   async function show(focusSelected = false): Promise<void> {
     open = true;
-    if (!focusSelected) return;
     await tick();
+    await place();
+    if (!focusSelected) return;
     const index = MODEL_OPTIONS.findIndex((option) => option.value === value);
     items[Math.max(0, index)]?.focus();
   }
@@ -97,7 +160,7 @@
   }
 </script>
 
-<svelte:window on:pointerdown={outside} />
+<svelte:window on:pointerdown={outside} on:resize={() => open && close()} />
 
 <div class="ai-effort-picker-wrap mp" bind:this={wrap}>
   <button
@@ -114,16 +177,22 @@
     on:click={() => (open ? close() : void show())}
     on:keydown={buttonKeydown}
   >
-    <span class="mp-logo" aria-hidden="true"
+    <span class="mp-logo mp-logo--trigger" aria-hidden="true"
       ><img src={selected.logo} alt="" width="12" height="12" /></span
     >
-    <span>{selected.short}</span>
+    <span class="mp-name">{selected.short}</span>
     <ChevronDown size={12} aria-hidden="true" />
   </button>
   {#if open}
     <div
       class="ai-effort-menu ai-model-menu mp-menu"
       class:mp-menu--end={align === "end"}
+      class:mp-menu--below={below}
+      style:width={menuWidth === null ? undefined : `${menuWidth}px`}
+      style:transform={shift ? `translateX(${shift}px)` : undefined}
+      style:max-height={menuHeight === null ? undefined : `${menuHeight}px`}
+      style:overflow-y={menuHeight === null ? undefined : "auto"}
+      bind:this={menu}
       role="menu"
       tabindex="-1"
       aria-label="Model"
@@ -210,6 +279,34 @@
   .mp .mp-menu--end {
     left: auto;
     right: 0;
+  }
+
+  .mp .mp-menu--below {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+
+  .mp-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* In a narrow composer (the editor's sidebar) the name stays and the mark goes. */
+  @container composer (max-width: 300px) {
+    .mp {
+      min-width: 0;
+    }
+
+    .mp-logo--trigger {
+      display: none;
+    }
+
+    .mp-trigger {
+      max-width: 100%;
+      gap: 4px;
+      padding: 0 7px 0 10px;
+    }
   }
 
   .mp-heading {

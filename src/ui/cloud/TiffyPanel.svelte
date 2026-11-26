@@ -1065,58 +1065,68 @@
           {/if}
         </div>
       {/if}
-      {#if modelPicker}
-        <ModelPicker
-          value={generationModel}
-          locked={modelLocked}
-          disabled={$generationStore.isActive}
-          onSelect={onSelectModel}
-          onUpgrade={onUpgradeModel}
-        />
-      {/if}
-      <div class="ai-effort-picker-wrap" bind:this={effortPicker}>
-        <button
-          class="ai-effort-picker"
-          data-tour="effort"
-          class:is-open={effortMenuOpen}
-          type="button"
-          aria-label={`Reasoning effort: ${selectedEffort.label}`}
-          aria-haspopup="menu"
-          aria-expanded={effortMenuOpen}
-          title="Choose how thoroughly Tiffy reasons before building"
-          disabled={$generationStore.isActive}
-          bind:this={effortButton}
-          on:click={() => {
-            effortMenuOpen = !effortMenuOpen;
-            aspectMenuOpen = false;
-            brandMenuOpen = false;
-            addMenuOpen = false;
-          }}
-          on:keydown={(event) => {
-            if (event.key === "Escape") effortMenuOpen = false;
-          }}
-        >
-          <span>Effort: {selectedEffort.label}</span>
-          <ChevronDown size={12} aria-hidden="true" />
-        </button>
-        {#if effortMenuOpen}
-          <div class="ai-effort-menu" role="menu" aria-label="Reasoning effort">
-            {#each effortOptions as option (option.value)}
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={generationEffort === option.value}
-                on:click={() => selectEffort(option.value)}
-              >
-                <span
-                  ><strong>{option.label}</strong><small
-                    >{option.description}</small
-                  ></span
-                >
-              </button>
-            {/each}
-          </div>
+      <!-- One group, so a phone can give the model and effort their own row. -->
+      <div class="ai-composer-options">
+        {#if modelPicker}
+          <ModelPicker
+            value={generationModel}
+            locked={modelLocked}
+            disabled={$generationStore.isActive}
+            onSelect={onSelectModel}
+            onUpgrade={onUpgradeModel}
+          />
         {/if}
+        <div class="ai-effort-picker-wrap" bind:this={effortPicker}>
+          <button
+            class="ai-effort-picker"
+            data-tour="effort"
+            class:is-open={effortMenuOpen}
+            type="button"
+            aria-label={`Reasoning effort: ${selectedEffort.label}`}
+            aria-haspopup="menu"
+            aria-expanded={effortMenuOpen}
+            title="Choose how thoroughly Tiffy reasons before building"
+            disabled={$generationStore.isActive}
+            bind:this={effortButton}
+            on:click={() => {
+              effortMenuOpen = !effortMenuOpen;
+              aspectMenuOpen = false;
+              brandMenuOpen = false;
+              addMenuOpen = false;
+            }}
+            on:keydown={(event) => {
+              if (event.key === "Escape") effortMenuOpen = false;
+            }}
+          >
+            <span
+              ><span class="ai-effort-prefix">{"Effort: "}</span
+              >{selectedEffort.label}</span
+            >
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+          {#if effortMenuOpen}
+            <div
+              class="ai-effort-menu"
+              role="menu"
+              aria-label="Reasoning effort"
+            >
+              {#each effortOptions as option (option.value)}
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={generationEffort === option.value}
+                  on:click={() => selectEffort(option.value)}
+                >
+                  <span
+                    ><strong>{option.label}</strong><small
+                      >{option.description}</small
+                    ></span
+                  >
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
       <PromptEnhanceButton
         value={assistantDraft}
