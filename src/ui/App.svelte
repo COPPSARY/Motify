@@ -568,6 +568,8 @@
   let exportWithoutWatermark = false;
   let maxExportHeight = FREE_MAX_HEIGHT;
   let promotionBanner: PromotionBannerData | null = null;
+  /** The live promotion even after its corner banner is dismissed; the sidebar offer keeps using it. */
+  let activePromotion: PromotionBannerData | null = null;
   /** The longest film this account can make, in seconds; null for no limit. The server enforces it too. */
   $: maxFilmSeconds = filmLimit({
     cloud: mode === "cloud",
@@ -5273,6 +5275,7 @@ Voice over direction: ${voiceNote}`
   async function refreshPromotionBanner(): Promise<void> {
     try {
       const banner = await musicApi.getPromotionBanner();
+      activePromotion = banner;
       promotionBanner =
         banner &&
         sessionStorage.getItem(`motify_promotion_dismissed:${banner.id}`) !==
@@ -6634,6 +6637,7 @@ Voice over direction: ${voiceNote}`
                     </div>
                     <!-- Refer a friend is paused for now; ReferralButton.svelte is kept for when it returns. -->
                     <DiscountOffer
+                      promotion={activePromotion}
                       onRedeem={() =>
                         captureEvent("discount code redeem clicked")}
                     />
